@@ -1,0 +1,46 @@
+version: '2.2'
+
+services:
+  methodologist:
+    build: target
+    image: "Methodologist:${DOCKER_TAG:-latest}"
+    ports:
+      - '8787:8787'
+      - '5027:5027'
+    environment:
+        JAVA_OPTIONS: >-
+          -Xmx1024m
+          -Xdebug
+          -Dspring.profiles.active=docker
+        JAVA_TOOL_OPTIONS:
+          -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+    depends_on:
+      - methodologist-postgresdb
+
+  methodologist-flyway:
+    image: flyway/flyway
+    command: -url=jdbc:postgresql://methodologist-postgresdb/methodologist -schemas=public -user=methodologist -password=methodologist -connectRetries=60 migrate
+    volumes:
+      - ${PWD}/src/main/resources/db/migration:/flyway/sql
+    depends_on:
+      - methodologist-postgresdb
+
+  methodologist-postgresdb:
+    image: postgres:17.2-alpine
+    ports:
+      - '3454:5432'
+    environment:
+      POSTGRES_USER: methodologist
+      POSTGRES_PASSWORD: methodologist
+      POSTGRES_DB: methodologist
+
+  mock-server:
+    image: mockserver/mockserver:5.14.0
+    command: -logLevel DEBUG -serverPort 1080
+    ports:
+      - '1080:1080'
+    environment:
+      MOCKSERVER_PROPERTY_FILE: /config/mockserver.properties
+      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/initializer_expectations.json
+    volumes:
+      - ./component-test/features/expectations/:/config/
