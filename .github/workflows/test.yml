@@ -1,41 +1,32 @@
-name: Test with Database
+name: Test
 
 on:
   push:
-    branches: [ develop ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ develop ]
+    branches: [ main, develop ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: methodologist
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v5.0.0
 
-      - name: Set up JDK
-        uses: actions/setup-java@v3
+      - name: Setup Java and Maven cache
+        uses: actions/setup-java@v4.7.1
         with:
-          java-version: '17'
           distribution: 'temurin'
+          java-version: '17'
+          check-latest: true
           cache: 'maven'
 
-      - name: Build and Test
+      - name: Run tests
         env:
           SPRING_PROFILES_ACTIVE: test
-        run: mvn -B test
+        run: >
+          ./mvnw clean test
+          --batch-mode
+          --update-snapshots
+          --no-transfer-progress
