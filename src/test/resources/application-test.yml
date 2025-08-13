@@ -18,6 +18,15 @@ spring:
     init:
       mode: never
 
+# Security configuration for tests
+allowed:
+  origins: http://localhost:8080,http://127.0.0.1:8080
+  headers: Content-Type,Authorization,loggedInUserId,Cache-Control,Pragma,Expires
+
+# Server configuration for tests
+server:
+  port: 0
+
 # Postgres config for integration tests (when needed)
 postgres:
   datasource:
