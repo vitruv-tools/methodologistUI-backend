@@ -19,6 +19,9 @@
     <properties>
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+        <sonar.organization>vitruv-tools</sonar.organization>
+        <sonar.projectKey>vitruv-tools_methodologistUI-backend</sonar.projectKey>
     </properties>
     <dependencies>
         <dependency>
