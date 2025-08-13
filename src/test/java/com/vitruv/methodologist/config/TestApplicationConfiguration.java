@@ -2,6 +2,7 @@ package com.vitruv.methodologist.config;
 
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -9,6 +10,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class TestApplicationConfiguration {
 
     @Bean
+    @Primary
     public WebMvcConfigurer corsConfiguror() {
         return new WebMvcConfigurer() {
             @Override
