@@ -1,0 +1,18 @@
+spring:
+  # Use H2 for most tests
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    username: sa
+    password: password
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+
+# Postgres config available for specific integration tests
+postgres:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/methodologist
+    username: test
+    password: test
