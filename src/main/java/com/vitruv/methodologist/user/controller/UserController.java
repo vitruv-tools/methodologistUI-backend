@@ -1,8 +1,13 @@
 package com.vitruv.methodologist.user.controller;
 
+import com.vitruv.methodologist.ResponseTemplateDto;
+import com.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import com.vitruv.methodologist.user.service.UserService;
+import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import static com.vitruv.methodologist.messages.Message.SIGNUP_USER_SUCCESSFULLY;
 
 @RestController
 @RequestMapping("/api/")
@@ -22,13 +27,13 @@ public class UserController {
 //                .build();
 //    }
 //
-//    @PostMapping("/v1/users/sign-up")
-//    public ResponseTemplateDto<Void> createUser(@Valid @RequestBody PostUserSignUpRequest postUserSignUpRequest) {
-//        userService.create(postUserSignUpRequest);
-//        return ResponseTemplateDto.<Void>builder()
-//                .message(SIGNUP_USER_SUCCESSFULLY)
-//                .build();
-//    }
+    @PostMapping("/v1/users/sign-up")
+    public ResponseTemplateDto<Void> createUser(@Valid @RequestBody UserPostRequest userPostRequest) {
+        userService.create(userPostRequest);
+        return ResponseTemplateDto.<Void>builder()
+                .message(SIGNUP_USER_SUCCESSFULLY)
+                .build();
+    }
 
 //    @PostMapping("/v1/users/access-token")
 //    public UserWebToken getAccessToken(@Valid @RequestBody PostAccessTokenRequest postAccessTokenRequest) {
