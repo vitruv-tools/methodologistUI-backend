@@ -2,13 +2,14 @@ package com.vitruv.methodologist.user.controller;
 
 import com.vitruv.methodologist.ResponseTemplateDto;
 import com.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
+import com.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import com.vitruv.methodologist.user.controller.dto.response.UserResponse;
 import com.vitruv.methodologist.user.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import static com.vitruv.methodologist.messages.Message.SIGNUP_USER_SUCCESSFULLY;
+import static com.vitruv.methodologist.messages.Message.*;
 
 @RestController
 @RequestMapping("/api/")
@@ -40,6 +41,23 @@ public class UserController {
     public ResponseTemplateDto<UserResponse> createUser(@PathVariable Long id) {
         return ResponseTemplateDto.<UserResponse>builder()
                 .data(userService.findById(id))
+                .build();
+    }
+
+    @PutMapping("/v1/users/{id}")
+    public ResponseTemplateDto<Void> createUser(@PathVariable Long id,
+                                                @Valid @RequestBody UserPutRequest userPutRequest) {
+        userService.update(id, userPutRequest);
+        return ResponseTemplateDto.<Void>builder()
+                .message(USER_UPDATED_SUCCESSFULLY)
+                .build();
+    }
+
+    @DeleteMapping("/v1/users/{id}")
+    public ResponseTemplateDto<Void> remove(@PathVariable Long id) {
+        userService.remove(id);
+        return ResponseTemplateDto.<Void>builder()
+                .message(USER_REMOVED_SUCCESSFULLY)
                 .build();
     }
 

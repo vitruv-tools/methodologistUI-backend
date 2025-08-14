@@ -6,6 +6,7 @@ import com.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import com.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import com.vitruv.methodologist.user.controller.dto.response.UserResponse;
 import com.vitruv.methodologist.user.mapper.UserMapper;
+import com.vitruv.methodologist.user.model.User;
 import com.vitruv.methodologist.user.model.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,21 +28,24 @@ public class UserService {
     }
 
     @Transactional
-    public void create(UserPostRequest userPostRequest) {
-        userRepository.findByEmailIgnoreCase(userPostRequest.getEmail()).ifPresentOrElse(u -> {
+    public User create(UserPostRequest userPostRequest) {
+        userRepository.findByEmailIgnoreCase(userPostRequest.getEmail()).ifPresent(user -> {
             throw new UserConflictException(userPostRequest.getEmail());
-        }, () -> {
-            var user = userMapper.toUser(userPostRequest);
-            userRepository.save(user);
         });
+        var user = userMapper.toUser(userPostRequest);
+        userRepository.save(user);
+
+        return user;
     }
 
     @Transactional
-    public void update(Long id, UserPutRequest userPutRequest) {
+    public User update(Long id, UserPutRequest userPutRequest) {
         var user = userRepository.findByIdAndRemovedAtIsNull(id)
                 .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
         userMapper.updateByUserPutRequest(userPutRequest, user);
         userRepository.save(user);
+
+        return user;
     }
 
     @Transactional
@@ -52,10 +56,12 @@ public class UserService {
     }
 
     @Transactional
-    public void remove(Long id) {
+    public User remove(Long id) {
         var user = userRepository.findByIdAndRemovedAtIsNull(id)
                 .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
         user.setRemovedAt(Instant.now());
         userRepository.save(user);
+
+        return user;
     }
 }
