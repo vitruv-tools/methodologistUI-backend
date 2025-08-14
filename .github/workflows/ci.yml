@@ -41,6 +41,11 @@ jobs:
           --batch-mode
           --update-snapshots
           --no-transfer-progress
+          
+
+      - name: Check Google Java Format
+        run: ./mvnw fmt:check
+
       - name: Stage build results (Unix)
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
         run: mkdir staging-${{ matrix.os }} && find . -path '*/target/*.jar' -exec cp {} staging-${{ matrix.os }}/ \;
