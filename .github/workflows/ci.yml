@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - main
+      - develop
   # nightly
   schedule:
     - cron: "0 3 * * *"
