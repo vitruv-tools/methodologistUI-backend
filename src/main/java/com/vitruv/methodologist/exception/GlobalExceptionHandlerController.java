@@ -35,7 +35,7 @@ import java.util.Objects;
 
 
 @Slf4j
-@RestControllerAdvice(basePackages = "com.vituv.methodologist")
+@RestControllerAdvice(basePackages = "com.vitruv.methodologist")
 @RequiredArgsConstructor
 public class GlobalExceptionHandlerController {
     private static final String METHOD_ARGUMENT_NOT_VALID_EXCEPTION = "MethodArgumentNotValidException handled in controller: {}, message: {}";

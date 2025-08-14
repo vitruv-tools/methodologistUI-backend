@@ -2,6 +2,7 @@ package com.vitruv.methodologist.user.controller;
 
 import com.vitruv.methodologist.ResponseTemplateDto;
 import com.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
+import com.vitruv.methodologist.user.controller.dto.response.UserResponse;
 import com.vitruv.methodologist.user.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
@@ -32,6 +33,13 @@ public class UserController {
         userService.create(userPostRequest);
         return ResponseTemplateDto.<Void>builder()
                 .message(SIGNUP_USER_SUCCESSFULLY)
+                .build();
+    }
+
+    @GetMapping("/v1/users/{id}")
+    public ResponseTemplateDto<UserResponse> createUser(@PathVariable Long id) {
+        return ResponseTemplateDto.<UserResponse>builder()
+                .data(userService.findById(id))
                 .build();
     }
 
