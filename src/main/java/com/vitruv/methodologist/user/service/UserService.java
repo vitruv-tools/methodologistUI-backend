@@ -19,49 +19,58 @@ import static com.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
 @Service
 @Slf4j
 public class UserService {
-    private final UserMapper userMapper;
-    private final UserRepository userRepository;
+  private final UserMapper userMapper;
+  private final UserRepository userRepository;
 
-    public UserService(UserMapper userMapper, UserRepository userRepository) {
-        this.userMapper = userMapper;
-        this.userRepository = userRepository;
-    }
+  public UserService(UserMapper userMapper, UserRepository userRepository) {
+    this.userMapper = userMapper;
+    this.userRepository = userRepository;
+  }
 
-    @Transactional
-    public User create(UserPostRequest userPostRequest) {
-        userRepository.findByEmailIgnoreCase(userPostRequest.getEmail()).ifPresent(user -> {
-            throw new UserConflictException(userPostRequest.getEmail());
-        });
-        var user = userMapper.toUser(userPostRequest);
-        userRepository.save(user);
+  @Transactional
+  public User create(UserPostRequest userPostRequest) {
+    userRepository
+        .findByEmailIgnoreCase(userPostRequest.getEmail())
+        .ifPresent(
+            user -> {
+              throw new UserConflictException(userPostRequest.getEmail());
+            });
+    var user = userMapper.toUser(userPostRequest);
+    userRepository.save(user);
 
-        return user;
-    }
+    return user;
+  }
 
-    @Transactional
-    public User update(Long id, UserPutRequest userPutRequest) {
-        var user = userRepository.findByIdAndRemovedAtIsNull(id)
-                .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
-        userMapper.updateByUserPutRequest(userPutRequest, user);
-        userRepository.save(user);
+  @Transactional
+  public User update(Long id, UserPutRequest userPutRequest) {
+    var user =
+        userRepository
+            .findByIdAndRemovedAtIsNull(id)
+            .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
+    userMapper.updateByUserPutRequest(userPutRequest, user);
+    userRepository.save(user);
 
-        return user;
-    }
+    return user;
+  }
 
-    @Transactional
-    public UserResponse findById(Long id) {
-        var user = userRepository.findByIdAndRemovedAtIsNull(id)
-                .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
-        return userMapper.toUserResponse(user);
-    }
+  @Transactional
+  public UserResponse findById(Long id) {
+    var user =
+        userRepository
+            .findByIdAndRemovedAtIsNull(id)
+            .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
+    return userMapper.toUserResponse(user);
+  }
 
-    @Transactional
-    public User remove(Long id) {
-        var user = userRepository.findByIdAndRemovedAtIsNull(id)
-                .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
-        user.setRemovedAt(Instant.now());
-        userRepository.save(user);
+  @Transactional
+  public User remove(Long id) {
+    var user =
+        userRepository
+            .findByIdAndRemovedAtIsNull(id)
+            .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
+    user.setRemovedAt(Instant.now());
+    userRepository.save(user);
 
-        return user;
-    }
+    return user;
+  }
 }
