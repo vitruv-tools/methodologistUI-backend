@@ -3,7 +3,6 @@ package com.vitruv.methodologist.user.controller;
 import static com.vitruv.methodologist.messages.Message.SIGNUP_USER_SUCCESSFULLY;
 import static com.vitruv.methodologist.messages.Message.USER_REMOVED_SUCCESSFULLY;
 import static com.vitruv.methodologist.messages.Message.USER_UPDATED_SUCCESSFULLY;
-
 import com.vitruv.methodologist.ResponseTemplateDto;
 import com.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import com.vitruv.methodologist.user.controller.dto.request.UserPutRequest;

@@ -7,6 +7,12 @@ package com.vitruv.methodologist.exception;
 public class NotFoundException extends RuntimeException {
   public static final String messageTemplate = "%s not found!";
 
+  /**
+   * Constructs a new {@code UserConflictException} with a formatted message
+   * indicating the email that is already in use.
+   *
+   * @param email the email address that caused the conflict
+   */
   public NotFoundException(String objectName) {
     super(String.format(messageTemplate, objectName));
   }

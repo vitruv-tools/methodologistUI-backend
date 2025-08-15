@@ -18,6 +18,12 @@ public class ApplicationConfiguration {
   @Value("${allowed.headers}")
   private String allowedHeaders;
 
+  /**
+   * Configures CORS mappings for the application.
+   * Allows specified origins, headers, and HTTP methods.
+   *
+   * @return a {@link WebMvcConfigurer} bean with CORS settings
+   */
   @Bean
   public WebMvcConfigurer corsConfiguror() {
     return new WebMvcConfigurer() {

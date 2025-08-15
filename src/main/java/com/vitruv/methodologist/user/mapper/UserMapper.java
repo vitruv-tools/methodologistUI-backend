@@ -15,9 +15,27 @@ import org.mapstruct.ReportingPolicy;
 @Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE, componentModel = "spring")
 public interface UserMapper {
 
+  /**
+   * Converts a {@link UserPostRequest} DTO to a {@link User} entity.
+   *
+   * @param userDto the user post request DTO
+   * @return the mapped {@link User} entity
+   */
   User toUser(UserPostRequest userDto);
 
+  /**
+   * Converts a {@link User} entity to a {@link UserResponse} DTO.
+   *
+   * @param user the user entity
+   * @return the mapped {@link UserResponse} DTO
+   */
   UserResponse toUserResponse(User user);
 
+  /**
+   * Updates an existing {@link User} entity with data from a {@link UserPutRequest} DTO.
+   *
+   * @param userPutRequest the user put request DTO containing updated data
+   * @param user the target user entity to update
+   */
   void updateByUserPutRequest(UserPutRequest userPutRequest, @MappingTarget User user);
 }
