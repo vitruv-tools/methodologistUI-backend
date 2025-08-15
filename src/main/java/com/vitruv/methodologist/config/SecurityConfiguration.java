@@ -19,11 +19,7 @@ import java.util.List;
 
 /**
  * Brief description ending with a period.
- *
  * Additional description (optional).
- *
- * @param name the user's name
- * @return the greeting string
  */
 @Configuration
 @EnableWebSecurity
