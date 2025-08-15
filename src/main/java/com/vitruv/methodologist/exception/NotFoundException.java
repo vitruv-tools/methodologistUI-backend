@@ -8,7 +8,9 @@ public class NotFoundException extends RuntimeException {
   public static final String messageTemplate = "%s not found!";
 
   /**
-   * Constructs a new {@code UserConflictException} with a formatted message
+   * Constructs a new {@code NotFoundException} with a formatted message.
+   *
+   * @param objectName the name of the object that was not found
    */
   public NotFoundException(String objectName) {
     super(String.format(messageTemplate, objectName));
