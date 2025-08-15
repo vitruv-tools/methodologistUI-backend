@@ -10,10 +10,10 @@ import com.vitruv.methodologist.user.controller.dto.response.UserResponse;
 import com.vitruv.methodologist.user.mapper.UserMapper;
 import com.vitruv.methodologist.user.model.User;
 import com.vitruv.methodologist.user.model.repository.UserRepository;
+import java.time.Instant;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.time.Instant;
 
 /**
  * Service class for managing user operations.

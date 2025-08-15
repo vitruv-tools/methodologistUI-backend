@@ -2,8 +2,16 @@ package com.vitruv.methodologist.user.controller.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.*;
+import lombok.Builder;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
 
+/**
+ * Data transfer object for updating user information.
+ * Contains fields required to update a user's profile.
+ */
 @Getter
 @Setter
 @Builder
