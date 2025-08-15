@@ -6,27 +6,35 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-//https://stackoverflow.com/questions/64955435/flutter-web-cors-issue
-//https://developer.mozilla.org/en-US/docs/Glossary/Preflight_request
-
+/**
+ * Application configuration class for setting up global CORS policies.
+ * Reads allowed origins and headers from application properties.
+ */
 @Configuration
 public class ApplicationConfiguration {
-    @Value("${allowed.origins}")
-    private String allowedOrigins;
+  @Value("${allowed.origins}")
+  private String allowedOrigins;
 
-    @Value("${allowed.headers}")
-    private String allowedHeaders;
+  @Value("${allowed.headers}")
+  private String allowedHeaders;
 
-    @Bean
-    public WebMvcConfigurer corsConfiguror() {
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/**")
-                        .allowedHeaders(allowedHeaders.split(","))
-                        .allowedMethods("GET", "PUT", "POST", "PATCH", "DELETE", "OPTIONS", "HEAD")
-                        .allowedOrigins(allowedOrigins.split(","));
-            }
-        };
-    }
+  /**
+   * Configures CORS mappings for the application.
+   * Allows specified origins, headers, and HTTP methods.
+   *
+   * @return a {@link WebMvcConfigurer} bean with CORS settings
+   */
+  @Bean
+  public WebMvcConfigurer corsConfiguror() {
+    return new WebMvcConfigurer() {
+      @Override
+      public void addCorsMappings(CorsRegistry registry) {
+        registry
+            .addMapping("/**")
+            .allowedHeaders(allowedHeaders.split(","))
+            .allowedMethods("GET", "PUT", "POST", "PATCH", "DELETE", "OPTIONS", "HEAD")
+            .allowedOrigins(allowedOrigins.split(","));
+      }
+    };
+  }
 }

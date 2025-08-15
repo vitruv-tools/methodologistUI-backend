@@ -1,6 +1,5 @@
 package com.vitruv.methodologist.config;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -9,48 +8,83 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.session.SessionRegistryImpl;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.session.RegisterSessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
-
 import java.util.List;
 
-
+/**
+ * Brief description ending with a period.
+ * Additional description (optional).
+ */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(jsr250Enabled = true)
 public class SecurityConfiguration {
-    @Value("${allowed.origins}")
-    private String allowedOrigins;
 
-    @Value("${allowed.headers}")
-    private String allowedHeaders;
+  /**
+   * Comma-separated list of allowed origins for CORS.
+   */
+  @Value("${allowed.origins}")
+  private String allowedOrigins;
 
-    @Bean
-    protected SessionAuthenticationStrategy sessionAuthenticationStrategy() {
-        return new RegisterSessionAuthenticationStrategy(new SessionRegistryImpl());
-    }
+  /**
+   * Comma-separated list of allowed headers for CORS.
+   */
+  @Value("${allowed.headers}")
+  private String allowedHeaders;
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of((allowedOrigins.split(","))));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of(allowedHeaders.split(",")));
-        configuration.setExposedHeaders(List.of("Access-Control-Allow-Origin", "Access-Control-Allow-Credentials"));
-        configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L); // 1 hour
+  /**
+   * Defines the session authentication strategy for tracking authenticated sessions.
+   *
+   * @return the session authentication strategy bean
+   */
+  @Bean
+  protected SessionAuthenticationStrategy sessionAuthenticationStrategy() {
+    return new RegisterSessionAuthenticationStrategy(new SessionRegistryImpl());
+  }
 
-        var source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
+  /**
+   * Configures CORS settings based on allowed origins and headers.
+   *
+   * @return the CORS configuration source bean
+   */
+  @Bean
+  public CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration cfg = new CorsConfiguration();
+    cfg.setAllowedOrigins(List.of(allowedOrigins.split(",")));
+    cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+    cfg.setAllowedHeaders(List.of(allowedHeaders.split(",")));
+    cfg.setExposedHeaders(
+        List.of("Access-Control-Allow-Origin", "Access-Control-Allow-Credentials"));
+    cfg.setAllowCredentials(true);
+    cfg.setMaxAge(3600L);
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", cfg);
+    return source;
+  }
+
+  /**
+   * Configures the security filter chain.
+   * <ul>
+   *   <li>Enables CORS</li>
+   *   <li>Disables CSRF protection</li>
+   *   <li>Permits all HTTP requests</li>
+   * </ul>
+   *
+   * @param http the HttpSecurity to modify
+   * @return the configured SecurityFilterChain bean
+   * @throws Exception if an error occurs during configuration
+   */
+  @Bean
+  SecurityFilterChain security(HttpSecurity http) throws Exception {
+    http.cors(Customizer.withDefaults())
+        .csrf(AbstractHttpConfigurer::disable)
+        .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+    return http.build();
+  }
 }

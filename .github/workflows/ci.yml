@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - main
+      - develop
   # nightly
   schedule:
     - cron: "0 3 * * *"
@@ -40,6 +41,7 @@ jobs:
           --batch-mode
           --update-snapshots
           --no-transfer-progress
+          
       - name: Stage build results (Unix)
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
         run: mkdir staging-${{ matrix.os }} && find . -path '*/target/*.jar' -exec cp {} staging-${{ matrix.os }}/ \;
@@ -82,3 +84,21 @@ jobs:
           --no-transfer-progress
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  run-checkstyle:
+    name: checkstyle check
+    runs-on: ubuntu-latest
+    needs: [ verify ]
+    if: (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
+    strategy:
+      fail-fast: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Run checkstyle
+        uses: dbelyaev/action-checkstyle@v2.0.0
+        with:
+          github_token: ${{ secrets.github_token }}
+          reporter: github-pr-review
+          checkstyle_config: checkstyle.xml
+          checkstyle_version: "10.21.4"

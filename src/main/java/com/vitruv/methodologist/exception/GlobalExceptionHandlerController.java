@@ -30,12 +30,14 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.method.HandlerMethod;
-
 import java.util.Objects;
 
-
+/**
+ * Handles exceptions thrown by controllers in the application and returns standardized error
+ * responses. Provides specific handlers for common exceptions and logs error details for debugging.
+ */
 @Slf4j
-@RestControllerAdvice(basePackages = "com.vituv.methodologist")
+@RestControllerAdvice(basePackages = "com.vitruv.methodologist")
 @RequiredArgsConstructor
 public class GlobalExceptionHandlerController {
     private static final String METHOD_ARGUMENT_NOT_VALID_EXCEPTION = "MethodArgumentNotValidException handled in controller: {}, message: {}";

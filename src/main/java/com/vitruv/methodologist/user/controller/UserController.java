@@ -1,62 +1,83 @@
 package com.vitruv.methodologist.user.controller;
 
+import static com.vitruv.methodologist.messages.Message.SIGNUP_USER_SUCCESSFULLY;
+import static com.vitruv.methodologist.messages.Message.USER_REMOVED_SUCCESSFULLY;
+import static com.vitruv.methodologist.messages.Message.USER_UPDATED_SUCCESSFULLY;
+
+import com.vitruv.methodologist.ResponseTemplateDto;
+import com.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
+import com.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
+import com.vitruv.methodologist.user.controller.dto.response.UserResponse;
 import com.vitruv.methodologist.user.service.UserService;
+import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * REST controller for managing user operations.
+ * Provides endpoints for user sign-up, retrieval, update, and deletion.
+ */
 @RestController
 @RequestMapping("/api/")
 @Validated
 public class UserController {
-    private final UserService userService;
+  private final UserService userService;
 
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
+  /**
+   * Constructs a new UserController with the specified UserService.
+   *
+   * @param userService the service handling user business logic operations
+   */
+  public UserController(UserService userService) {
+    this.userService = userService;
+  }
 
-//    @PostMapping("/v1/users/login")
-//    public ResponseTemplateDto<Void> createUser(@Valid @RequestBody PostUserLoginRequest postUserLoginRequest) {
-//        userService.login(postUserLoginRequest);
-//        return ResponseTemplateDto.<Void>builder()
-//                .message(LOGIN_USER_SUCCESSFULLY)
-//                .build();
-//    }
-//
-//    @PostMapping("/v1/users/sign-up")
-//    public ResponseTemplateDto<Void> createUser(@Valid @RequestBody PostUserSignUpRequest postUserSignUpRequest) {
-//        userService.create(postUserSignUpRequest);
-//        return ResponseTemplateDto.<Void>builder()
-//                .message(SIGNUP_USER_SUCCESSFULLY)
-//                .build();
-//    }
+  /**
+   * Registers a new user.
+   *
+   * @param userPostRequest the request body containing user sign-up information
+   * @return a response template indicating successful sign-up
+   */
+  @PostMapping("/v1/users/sign-up")
+  public ResponseTemplateDto<Void> createUser(@Valid @RequestBody UserPostRequest userPostRequest) {
+    userService.create(userPostRequest);
+    return ResponseTemplateDto.<Void>builder().message(SIGNUP_USER_SUCCESSFULLY).build();
+  }
 
-//    @PostMapping("/v1/users/access-token")
-//    public UserWebToken getAccessToken(@Valid @RequestBody PostAccessTokenRequest postAccessTokenRequest) {
-//        return userService.getAccessToken(postAccessTokenRequest);
-//    }
-//
-//    @PostMapping("/v1/users/access-token/by-refresh-token")
-//    public UserWebToken getAccessTokenByRefreshToken(@Valid @RequestBody PostAccessTokenByRefreshTokenRequest postAccessTokenByRefreshTokenRequest) {
-//        return userService.getAccessTokenByRefreshToken(postAccessTokenByRefreshTokenRequest);
-//    }
+  /**
+   * Retrieves a user by ID.
+   *
+   * @param id the ID of the user to retrieve
+   * @return a response template containing the user data
+   */
+  @GetMapping("/v1/users/{id}")
+  public ResponseTemplateDto<UserResponse> createUser(@PathVariable Long id) {
+    return ResponseTemplateDto.<UserResponse>builder().data(userService.findById(id)).build();
+  }
 
-//    @PutMapping("/v1/users/profile")
-//    @PreAuthorize("hasRole('user')")
-//    public ResponseTemplateDto<Void> updateProfile(KeycloakAuthentication authentication,
-//                                                   @Valid @RequestBody PutUserProfileRequest putUserProfileRequest) {
-//        String userName = authentication.getParsedToken().getPreferredUsername();
-//        userService.update(userName, putUserProfileRequest);
-//        return ResponseTemplateDto.<Void>builder()
-//                .message(translate(USER_UPDATED_SUCCESSFULLY))
-//                .build();
-//    }
-//
-//    @GetMapping("/v1/users")
-//    @PreAuthorize("hasRole('user')")
-//    public ResponseTemplateDto<UserResponse> findAllByUsername(KeycloakAuthentication authentication) {
-//        String userName = authentication.getParsedToken().getPreferredUsername();
-//        return ResponseTemplateDto.<UserResponse>builder()
-//                .data(userService.findByUsername(userName))
-//                .build();
-//    }
+  /**
+   * Updates an existing user by ID.
+   *
+   * @param id the ID of the user to update
+   * @param userPutRequest the request body containing updated user information
+   * @return a response template indicating successful update
+   */
+  @PutMapping("/v1/users/{id}")
+  public ResponseTemplateDto<Void> createUser(
+      @PathVariable Long id, @Valid @RequestBody UserPutRequest userPutRequest) {
+    userService.update(id, userPutRequest);
+    return ResponseTemplateDto.<Void>builder().message(USER_UPDATED_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Removes a user by ID.
+   *
+   * @param id the ID of the user to remove
+   * @return a response template indicating successful removal
+   */
+  @DeleteMapping("/v1/users/{id}")
+  public ResponseTemplateDto<Void> remove(@PathVariable Long id) {
+    userService.remove(id);
+    return ResponseTemplateDto.<Void>builder().message(USER_REMOVED_SUCCESSFULLY).build();
+  }
 }
