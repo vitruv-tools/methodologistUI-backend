@@ -18,11 +18,15 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
 
 /**
- * Configures Spring Security settings including:
- * - CORS (based on allowed origins/headers)
- * - Disabling CSRF for APIs
- * - Permissive HTTP authorization (all requests allowed)
- * - Session authentication strategy for tracking sessions
+ * Configures Spring Security settings.
+ * <p>
+ * This includes:
+ * <ul>
+ *   <li>CORS (based on allowed origins/headers)</li>
+ *   <li>Disabling CSRF for APIs</li>
+ *   <li>Permissive HTTP authorization (all requests allowed)</li>
+ *   <li>Session authentication strategy for tracking sessions</li>
+ * </ul>
  */
 @Configuration
 @EnableWebSecurity
