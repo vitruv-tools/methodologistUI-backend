@@ -24,39 +24,37 @@ import java.util.List;
 @EnableMethodSecurity(jsr250Enabled = true)
 public class SecurityConfiguration {
 
-    @Value("${allowed.origins}")
-    private String allowedOrigins;
+  @Value("${allowed.origins}")
+  private String allowedOrigins;
 
-    @Value("${allowed.headers}")
-    private String allowedHeaders;
+  @Value("${allowed.headers}")
+  private String allowedHeaders;
 
-    @Bean
-    protected SessionAuthenticationStrategy sessionAuthenticationStrategy() {
-        return new RegisterSessionAuthenticationStrategy(new SessionRegistryImpl());
-    }
+  @Bean
+  protected SessionAuthenticationStrategy sessionAuthenticationStrategy() {
+    return new RegisterSessionAuthenticationStrategy(new SessionRegistryImpl());
+  }
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOrigins(List.of(allowedOrigins.split(",")));
-        cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
-        cfg.setAllowedHeaders(List.of(allowedHeaders.split(",")));
-        cfg.setExposedHeaders(List.of("Access-Control-Allow-Origin","Access-Control-Allow-Credentials"));
-        cfg.setAllowCredentials(true);
-        cfg.setMaxAge(3600L);
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", cfg);
-        return source;
-    }
+  @Bean
+  public CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration cfg = new CorsConfiguration();
+    cfg.setAllowedOrigins(List.of(allowedOrigins.split(",")));
+    cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+    cfg.setAllowedHeaders(List.of(allowedHeaders.split(",")));
+    cfg.setExposedHeaders(
+        List.of("Access-Control-Allow-Origin", "Access-Control-Allow-Credentials"));
+    cfg.setAllowCredentials(true);
+    cfg.setMaxAge(3600L);
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", cfg);
+    return source;
+  }
 
-    @Bean
-    SecurityFilterChain security(HttpSecurity http) throws Exception {
-        http
-                .cors(Customizer.withDefaults())
-                .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth
-                        .anyRequest().permitAll()
-                );
-        return http.build();
-    }
+  @Bean
+  SecurityFilterChain security(HttpSecurity http) throws Exception {
+    http.cors(Customizer.withDefaults())
+        .csrf(AbstractHttpConfigurer::disable)
+        .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+    return http.build();
+  }
 }

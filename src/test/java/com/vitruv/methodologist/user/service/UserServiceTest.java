@@ -1,5 +1,8 @@
 package com.vitruv.methodologist.user.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.mockito.Mockito.*;
 import com.vitruv.methodologist.exception.UserConflictException;
 import com.vitruv.methodologist.user.RoleType;
 import com.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
@@ -7,15 +10,10 @@ import com.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import com.vitruv.methodologist.user.mapper.UserMapperImpl;
 import com.vitruv.methodologist.user.model.User;
 import com.vitruv.methodologist.user.model.repository.UserRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import java.time.Instant;
 import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
-import static org.mockito.Mockito.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 class UserServiceTest {
   private UserService userService;

@@ -1,5 +1,6 @@
 package com.vitruv.methodologist.user.service;
 
+import static com.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
 import com.vitruv.methodologist.exception.NotFoundException;
 import com.vitruv.methodologist.exception.UserConflictException;
 import com.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
@@ -11,10 +12,7 @@ import com.vitruv.methodologist.user.model.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.Instant;
-
-import static com.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
 
 @Service
 @Slf4j
