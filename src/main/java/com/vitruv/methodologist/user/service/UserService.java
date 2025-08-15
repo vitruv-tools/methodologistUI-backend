@@ -1,6 +1,7 @@
 package com.vitruv.methodologist.user.service;
 
 import static com.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
+
 import com.vitruv.methodologist.exception.NotFoundException;
 import com.vitruv.methodologist.exception.UserConflictException;
 import com.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
@@ -14,17 +15,34 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 
+/**
+ * Service class for managing user operations.
+ * Handles business logic for creating, updating, retrieving, and removing users.
+ */
 @Service
 @Slf4j
 public class UserService {
   private final UserMapper userMapper;
   private final UserRepository userRepository;
 
+  /**
+   * Constructs a new UserService with the specified UserMapper and UserRepository.
+   *
+   * @param userMapper the mapper for converting between user DTOs and entities
+   * @param userRepository the repository for user persistence operations
+   */
   public UserService(UserMapper userMapper, UserRepository userRepository) {
     this.userMapper = userMapper;
     this.userRepository = userRepository;
   }
 
+  /**
+   * Creates a new user from the provided sign-up request.
+   * Throws UserConflictException if the email already exists.
+   *
+   * @param userPostRequest the request containing user sign-up information
+   * @return the created User entity
+   */
   @Transactional
   public User create(UserPostRequest userPostRequest) {
     userRepository
@@ -39,6 +57,14 @@ public class UserService {
     return user;
   }
 
+  /**
+   * Updates an existing user by ID with the provided update request.
+   * Throws NotFoundException if the user is not found.
+   *
+   * @param id the ID of the user to update
+   * @param userPutRequest the request containing updated user information
+   * @return the updated User entity
+   */
   @Transactional
   public User update(Long id, UserPutRequest userPutRequest) {
     var user =
@@ -51,6 +77,13 @@ public class UserService {
     return user;
   }
 
+  /**
+   * Retrieves a user by ID.
+   * Throws NotFoundException if the user is not found.
+   *
+   * @param id the ID of the user to retrieve
+   * @return the UserResponse DTO containing user data
+   */
   @Transactional
   public UserResponse findById(Long id) {
     var user =
@@ -60,6 +93,13 @@ public class UserService {
     return userMapper.toUserResponse(user);
   }
 
+  /**
+   * Marks a user as removed by setting the removedAt timestamp.
+   * Throws NotFoundException if the user is not found.
+   *
+   * @param id the ID of the user to remove
+   * @return the updated User entity with removedAt set
+   */
   @Transactional
   public User remove(Long id) {
     var user =
