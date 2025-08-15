@@ -7,6 +7,10 @@ import lombok.Value;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
+/**
+ * Data transfer object representing error details returned by the API.
+ * Contains timestamp, error type, message, and request path for debugging and client feedback.
+ */
 @Value
 @Builder
 public class ErrorResponse {
