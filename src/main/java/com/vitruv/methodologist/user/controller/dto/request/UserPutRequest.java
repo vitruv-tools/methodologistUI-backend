@@ -2,11 +2,11 @@ package com.vitruv.methodologist.user.controller.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.Builder;
 import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-import lombok.NoArgsConstructor;
 
 /**
  * Data transfer object for updating user information.
