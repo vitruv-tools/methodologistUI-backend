@@ -9,9 +9,6 @@ public class NotFoundException extends RuntimeException {
 
   /**
    * Constructs a new {@code UserConflictException} with a formatted message
-   * indicating the email that is already in use.
-   *
-   * @param email the email address that caused the conflict
    */
   public NotFoundException(String objectName) {
     super(String.format(messageTemplate, objectName));
