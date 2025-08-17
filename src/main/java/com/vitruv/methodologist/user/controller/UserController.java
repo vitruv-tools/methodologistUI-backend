@@ -54,7 +54,8 @@ public class UserController {
    */
   @GetMapping("/v1/users/{id}")
   @PreAuthorize("hasRole('user')")
-  public ResponseTemplateDto<UserResponse> findById(KeycloakAuthentication authentication, @PathVariable Long id) {
+  public ResponseTemplateDto<UserResponse> findById(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
     return ResponseTemplateDto.<UserResponse>builder().data(userService.findById(id)).build();
   }
 
