@@ -5,11 +5,13 @@ import static com.vitruv.methodologist.messages.Message.USER_REMOVED_SUCCESSFULL
 import static com.vitruv.methodologist.messages.Message.USER_UPDATED_SUCCESSFULLY;
 
 import com.vitruv.methodologist.ResponseTemplateDto;
+import com.vitruv.methodologist.config.KeycloakAuthentication;
 import com.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import com.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import com.vitruv.methodologist.user.controller.dto.response.UserResponse;
 import com.vitruv.methodologist.user.service.UserService;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,7 +41,7 @@ public class UserController {
    * @return a response template indicating successful sign-up
    */
   @PostMapping("/v1/users/sign-up")
-  public ResponseTemplateDto<Void> createUser(@Valid @RequestBody UserPostRequest userPostRequest) {
+  public ResponseTemplateDto<Void> create(@Valid @RequestBody UserPostRequest userPostRequest) {
     userService.create(userPostRequest);
     return ResponseTemplateDto.<Void>builder().message(SIGNUP_USER_SUCCESSFULLY).build();
   }
@@ -51,7 +53,8 @@ public class UserController {
    * @return a response template containing the user data
    */
   @GetMapping("/v1/users/{id}")
-  public ResponseTemplateDto<UserResponse> createUser(@PathVariable Long id) {
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<UserResponse> findById(KeycloakAuthentication authentication, @PathVariable Long id) {
     return ResponseTemplateDto.<UserResponse>builder().data(userService.findById(id)).build();
   }
 
@@ -63,7 +66,7 @@ public class UserController {
    * @return a response template indicating successful update
    */
   @PutMapping("/v1/users/{id}")
-  public ResponseTemplateDto<Void> createUser(
+  public ResponseTemplateDto<Void> update(
       @PathVariable Long id, @Valid @RequestBody UserPutRequest userPutRequest) {
     userService.update(id, userPutRequest);
     return ResponseTemplateDto.<Void>builder().message(USER_UPDATED_SUCCESSFULLY).build();

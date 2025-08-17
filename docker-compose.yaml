@@ -44,3 +44,44 @@ services:
       MOCKSERVER_INITIALIZATION_JSON_PATH: /config/initializer_expectations.json
     volumes:
       - ./component-test/features/expectations/:/config/
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1.0
+    environment:
+      JAVA_OPTS: >-
+        -server -Xms64m -Xmx512m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m
+        -Djava.net.preferIPv4Stack=true
+        -Dkeycloak.profile.feature.admin_fine_grained_authz=enabled
+        -Dkeycloak.profile.feature.token_exchange=enabled
+
+      DB_ADDR: keycloak-db
+      DB_USER: keycloak
+      DB_PASSWORD: keycloak
+      DB_VENDOR: postgres
+      DB_DATABASE: keycloak
+      DB_PORT: "5139"
+
+      KC_LOG_LEVEL: info
+      KC_METRICS_ENABLED: true
+      KC_HEALTH_ENABLED: true
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - '7668:8080'
+    command:
+      - start-dev
+      - --import-realm
+    depends_on:
+      - keycloak-db
+    volumes:
+      - ./docker/keycloak:/tmp
+      - ./docker/keycloak/themes/test:/opt/jboss/keycloak/themes/test
+
+  keycloak-db:
+    image: postgres:17.2-alpine
+    ports:
+      - '5637:5432'
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+      POSTGRES_DB: keycloak

@@ -25,3 +25,4 @@ replay_pid*
 /target/
 /.idea/
 /log/
+/docker/keycloak/hsperfdata_keycloak/
