@@ -8,8 +8,11 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.session.SessionRegistryImpl;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.session.RegisterSessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.web.cors.CorsConfiguration;
@@ -18,30 +21,26 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
 
 /**
- * Brief description ending with a period.
- * Additional description (optional).
+ * Configures Spring Security for the application, including CORS, session management, JWT
+ * authentication, and custom authentication filters.
  */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(jsr250Enabled = true)
 public class SecurityConfiguration {
 
-  /**
-   * Comma-separated list of allowed origins for CORS.
-   */
+  /** Allowed origins for CORS requests, injected from application properties. */
   @Value("${allowed.origins}")
   private String allowedOrigins;
 
-  /**
-   * Comma-separated list of allowed headers for CORS.
-   */
+  /** Allowed headers for CORS requests, injected from application properties. */
   @Value("${allowed.headers}")
   private String allowedHeaders;
 
   /**
-   * Defines the session authentication strategy for tracking authenticated sessions.
+   * Defines the session authentication strategy for registering sessions.
    *
-   * @return the session authentication strategy bean
+   * @return the session authentication strategy
    */
   @Bean
   protected SessionAuthenticationStrategy sessionAuthenticationStrategy() {
@@ -49,42 +48,57 @@ public class SecurityConfiguration {
   }
 
   /**
-   * Configures CORS settings based on allowed origins and headers.
+   * Configures the security filter chain, including CORS, CSRF, session management, JWT
+   * authentication, and custom authentication filter.
    *
-   * @return the CORS configuration source bean
-   */
-  @Bean
-  public CorsConfigurationSource corsConfigurationSource() {
-    CorsConfiguration cfg = new CorsConfiguration();
-    cfg.setAllowedOrigins(List.of(allowedOrigins.split(",")));
-    cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-    cfg.setAllowedHeaders(List.of(allowedHeaders.split(",")));
-    cfg.setExposedHeaders(
-        List.of("Access-Control-Allow-Origin", "Access-Control-Allow-Credentials"));
-    cfg.setAllowCredentials(true);
-    cfg.setMaxAge(3600L);
-    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-    source.registerCorsConfiguration("/**", cfg);
-    return source;
-  }
-
-  /**
-   * Configures the security filter chain.
-   * <ul>
-   *   <li>Enables CORS</li>
-   *   <li>Disables CSRF protection</li>
-   *   <li>Permits all HTTP requests</li>
-   * </ul>
-   *
-   * @param http the HttpSecurity to modify
-   * @return the configured SecurityFilterChain bean
+   * @param httpSecurity the HTTP security builder
+   * @return the configured security filter chain
    * @throws Exception if an error occurs during configuration
    */
   @Bean
-  SecurityFilterChain security(HttpSecurity http) throws Exception {
-    http.cors(Customizer.withDefaults())
+  public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
+    return httpSecurity
         .csrf(AbstractHttpConfigurer::disable)
-        .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
-    return http.build();
+        .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+        .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .addFilterBefore(
+            new KeycloakAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
+        .oauth2ResourceServer(
+            oauth2 ->
+                oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
+        .httpBasic(Customizer.withDefaults())
+        .build();
+  }
+
+  /**
+   * Creates a JWT authentication converter that extracts granted authorities from JWT claims.
+   *
+   * @return the JWT authentication converter
+   */
+  private JwtAuthenticationConverter jwtAuthenticationConverter() {
+    JwtAuthenticationConverter jwtConverter = new JwtAuthenticationConverter();
+    jwtConverter.setJwtGrantedAuthoritiesConverter(new GrantedAuthoritiesConverter());
+    return jwtConverter;
+  }
+
+  /**
+   * Configures CORS settings for the application.
+   *
+   * @return the CORS configuration source
+   */
+  @Bean
+  public CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration configuration = new CorsConfiguration();
+    configuration.setAllowedOrigins(List.of((allowedOrigins.split(","))));
+    configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+    configuration.setAllowedHeaders(List.of(allowedHeaders.split(",")));
+    configuration.setExposedHeaders(
+        List.of("Access-Control-Allow-Origin", "Access-Control-Allow-Credentials"));
+    configuration.setAllowCredentials(true);
+    configuration.setMaxAge(3600L); // 1 hour
+
+    var source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", configuration);
+    return source;
   }
 }
