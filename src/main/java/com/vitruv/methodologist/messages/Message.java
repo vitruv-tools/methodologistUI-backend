@@ -8,4 +8,8 @@ public class Message {
   public static final String SIGNUP_USER_SUCCESSFULLY = "User successfully signed up";
   public static final String USER_UPDATED_SUCCESSFULLY = "User successfully updated";
   public static final String USER_REMOVED_SUCCESSFULLY = "User successfully removed";
+  public static final String VSUM_CREATED_SUCCESSFULLY = "Vsum successfully created";
+  public static final String VSUM_UPDATED_SUCCESSFULLY = "Vsum successfully updated";
+  public static final String VSUM_REMOVED_SUCCESSFULLY = "Vsum successfully removed";
+
 }

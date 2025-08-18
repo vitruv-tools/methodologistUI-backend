@@ -40,105 +40,170 @@ import java.util.Objects;
 @RestControllerAdvice(basePackages = "com.vitruv.methodologist")
 @RequiredArgsConstructor
 public class GlobalExceptionHandlerController {
-    private static final String METHOD_ARGUMENT_NOT_VALID_EXCEPTION = "MethodArgumentNotValidException handled in controller: {}, message: {}";
-    private static final String STACKTRACE_LOG = "Stacktrace: {}";
-    private static final String FORMAT_ERROR = "FORMAT_ERROR";
-    private static final String INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR";
-    private static final String NOT_FOUND_ERROR = "NOT_FOUND";
-    private static final String FORBIDDEN_ERROR = "FORBIDDEN";
-    private static final String BAD_REQUEST_ERROR = "BAD_REQUEST_ERROR";
-    private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
+  private static final String METHOD_ARGUMENT_NOT_VALID_EXCEPTION =
+      "MethodArgumentNotValidException handled in controller: {}, message: {}";
+  private static final String STACKTRACE_LOG = "Stacktrace: {}";
+  private static final String FORMAT_ERROR = "FORMAT_ERROR";
+  private static final String INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR";
+  private static final String NOT_FOUND_ERROR = "NOT_FOUND";
+  private static final String FORBIDDEN_ERROR = "FORBIDDEN";
+  private static final String BAD_REQUEST_ERROR = "BAD_REQUEST_ERROR";
+  private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
-    @ExceptionHandler(value = UserConflictException.class)
-    @ResponseStatus(HttpStatus.CONFLICT)
-    public ErrorResponse userConflictException(UserConflictException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-        return ErrorResponse.builder().error(UserConflictException.USER_CONFLICT_ERROR).message(ex.getMessage()).path(getPath(request)).build();
-    }
+  @ExceptionHandler(value = VsumAlreadyExistException.class)
+  @ResponseStatus(HttpStatus.CONFLICT)
+  public ErrorResponse vsumAlreadyExistException(
+      VsumAlreadyExistException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(ex.getMessage())
+        .path(getPath(request))
+        .build();
+  }
 
-    @ExceptionHandler(value = HttpClientErrorException.BadRequest.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    @ResponseBody
-    public ErrorResponse badRequestException(HttpClientErrorException.BadRequest ex,
-                                             HandlerMethod handlerMethod, ServletWebRequest request) {
-        log.warn(BAD_REQUEST_ERROR,
-                handlerMethod.getMethod().getDeclaringClass().getSimpleName(), ex.getMessage());
-        log.debug(STACKTRACE_LOG, ex.toString());
-        return ErrorResponse.builder()
-                .error(BAD_REQUEST_ERROR)
-                .message(Objects.requireNonNull(ex.getMessage()))
-                .path(getPath(request)).build();
-    }
+  @ExceptionHandler(value = UserConflictException.class)
+  @ResponseStatus(HttpStatus.CONFLICT)
+  public ErrorResponse userConflictException(
+      UserConflictException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(UserConflictException.USER_CONFLICT_ERROR)
+        .message(ex.getMessage())
+        .path(getPath(request))
+        .build();
+  }
 
-    @ExceptionHandler(value = MethodArgumentNotValidException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    @ResponseBody
-    public ErrorResponse methodArgumentNotValidException(MethodArgumentNotValidException ex,
-                                                         HandlerMethod handlerMethod, ServletWebRequest request) {
-        log.warn(METHOD_ARGUMENT_NOT_VALID_EXCEPTION,
-                handlerMethod.getMethod().getDeclaringClass().getSimpleName(), ex.getMessage());
-        log.debug(STACKTRACE_LOG, ex.toString());
-        return ErrorResponse.builder()
-                .error(FORMAT_ERROR)
-                .message(Objects.requireNonNull(ex.getFieldError()).getField())
-                .path(getPath(request)).build();
-    }
+  @ExceptionHandler(value = HttpClientErrorException.BadRequest.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse badRequestException(
+      HttpClientErrorException.BadRequest ex,
+      HandlerMethod handlerMethod,
+      ServletWebRequest request) {
+    log.warn(
+        BAD_REQUEST_ERROR,
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage());
+    log.debug(STACKTRACE_LOG, ex.toString());
+    return ErrorResponse.builder()
+        .error(BAD_REQUEST_ERROR)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
 
-    @ExceptionHandler(value = AccessDeniedException.class)
-    @ResponseStatus(HttpStatus.FORBIDDEN)
-    @ResponseBody
-    public ErrorResponse accessDeniedException(AccessDeniedException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-        log.warn(METHOD_ARGUMENT_NOT_VALID_EXCEPTION,
-                handlerMethod.getMethod().getDeclaringClass().getSimpleName(), ex.getMessage());
-        log.debug(STACKTRACE_LOG, ex.toString());
-        return ErrorResponse.builder().error(FORBIDDEN_ERROR).message(ex.getMessage()).path(getPath(request)).build();
-    }
+  @ExceptionHandler(value = MethodArgumentNotValidException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse methodArgumentNotValidException(
+      MethodArgumentNotValidException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    log.warn(
+        METHOD_ARGUMENT_NOT_VALID_EXCEPTION,
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage());
+    log.debug(STACKTRACE_LOG, ex.toString());
+    return ErrorResponse.builder()
+        .error(FORMAT_ERROR)
+        .message(Objects.requireNonNull(ex.getFieldError()).getField())
+        .path(getPath(request))
+        .build();
+  }
 
-    @ExceptionHandler(value = HttpClientErrorException.class)
-    public ResponseEntity<ErrorResponse> clientErrorException(HttpClientErrorException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-        log.warn("ClientErrorException handled in controller: {}, message: {} ",
-                handlerMethod.getMethod().getDeclaringClass().getSimpleName(), ex.getMessage());
-        log.debug(STACKTRACE_LOG, ex.toString());
-        var errorResponse =  ErrorResponse.builder().error(ex.getMessage().toUpperCase()).path(getPath(request)).build();
-        return new ResponseEntity<>(errorResponse, ex.getStatusCode());
-    }
+  @ExceptionHandler(value = AccessDeniedException.class)
+  @ResponseStatus(HttpStatus.FORBIDDEN)
+  @ResponseBody
+  public ErrorResponse accessDeniedException(
+      AccessDeniedException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    log.warn(
+        METHOD_ARGUMENT_NOT_VALID_EXCEPTION,
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage());
+    log.debug(STACKTRACE_LOG, ex.toString());
+    return ErrorResponse.builder()
+        .error(FORBIDDEN_ERROR)
+        .message(ex.getMessage())
+        .path(getPath(request))
+        .build();
+  }
 
-    @ExceptionHandler(value = NotFoundException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ErrorResponse notFoundException(NotFoundException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-        log.warn("notFoundException handled in Controller: {}, message: {}, stackTrace: {}",
-                handlerMethod.getMethod().getDeclaringClass().getSimpleName(), ex.getMessage(), ex);
-        return ErrorResponse.builder().error(NOT_FOUND_ERROR).message(ex.getMessage()).path(getPath(request)).build();
-    }
+  @ExceptionHandler(value = HttpClientErrorException.class)
+  public ResponseEntity<ErrorResponse> clientErrorException(
+      HttpClientErrorException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    log.warn(
+        "ClientErrorException handled in controller: {}, message: {} ",
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage());
+    log.debug(STACKTRACE_LOG, ex.toString());
+    var errorResponse =
+        ErrorResponse.builder().error(ex.getMessage().toUpperCase()).path(getPath(request)).build();
+    return new ResponseEntity<>(errorResponse, ex.getStatusCode());
+  }
 
-    @ExceptionHandler(value = RuntimeException.class)
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public ErrorResponse uncatchedException(RuntimeException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-        log.warn("UncatchedException handled in Controller: {}, message: {}, stackTrace: {}",
-                handlerMethod.getMethod().getDeclaringClass().getSimpleName(), ex.getMessage(), ex);
+  @ExceptionHandler(value = NotFoundException.class)
+  @ResponseStatus(HttpStatus.NOT_FOUND)
+  public ErrorResponse notFoundException(
+      NotFoundException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    log.warn(
+        "notFoundException handled in Controller: {}, message: {}, stackTrace: {}",
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage(),
+        ex);
+    return ErrorResponse.builder()
+        .error(NOT_FOUND_ERROR)
+        .message(ex.getMessage())
+        .path(getPath(request))
+        .build();
+  }
 
-        return ErrorResponse.builder()
-                .error(INTERNAL_SERVER_ERROR)
-                .message("")
-                .path(getPath(request))
-                .build();
-    }
+  @ExceptionHandler(value = RuntimeException.class)
+  @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+  public ErrorResponse uncatchedException(
+      RuntimeException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    log.warn(
+        "UncatchedException handled in Controller: {}, message: {}, stackTrace: {}",
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage(),
+        ex);
 
-    @ExceptionHandler(value = HttpMessageNotReadableException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorResponse httpMessageNotReadableException(HttpMessageNotReadableException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-        log.warn("HttpMessageNotReadableException handled in Controller: {}, message: {}, stackTrace: {}",
-                handlerMethod.getMethod().getDeclaringClass().getSimpleName(), ex.getMessage(), ex);
-        if(Objects.requireNonNull(ex.getRootCause()).getMessage().startsWith("Could not resolve type id"))
-            return ErrorResponse.builder().error(FORMAT_ERROR)
-                    .message(Objects.requireNonNull(ex.getRootCause()).getMessage().split("as")[0].trim()).path(getPath(request)).build();
-        if(Objects.requireNonNull(ex.getRootCause()).getMessage().startsWith("Cannot deserialize value of type"))
-            return ErrorResponse.builder().error(FORMAT_ERROR)
-                    .message(Objects.requireNonNull(ex.getRootCause()).getMessage().split(":")[0].trim()).path(getPath(request)).build();
+    return ErrorResponse.builder()
+        .error(INTERNAL_SERVER_ERROR)
+        .message("")
+        .path(getPath(request))
+        .build();
+  }
 
-        return ErrorResponse.builder().error(FORMAT_ERROR).message(Objects.requireNonNull(ex.getRootCause()).getMessage()).path(getPath(request)).build();
-    }
+  @ExceptionHandler(value = HttpMessageNotReadableException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  public ErrorResponse httpMessageNotReadableException(
+      HttpMessageNotReadableException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    log.warn(
+        "HttpMessageNotReadableException handled in Controller: {}, message: {}, stackTrace: {}",
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage(),
+        ex);
+    if (Objects.requireNonNull(ex.getRootCause())
+        .getMessage()
+        .startsWith("Could not resolve type id"))
+      return ErrorResponse.builder()
+          .error(FORMAT_ERROR)
+          .message(Objects.requireNonNull(ex.getRootCause()).getMessage().split("as")[0].trim())
+          .path(getPath(request))
+          .build();
+    if (Objects.requireNonNull(ex.getRootCause())
+        .getMessage()
+        .startsWith("Cannot deserialize value of type"))
+      return ErrorResponse.builder()
+          .error(FORMAT_ERROR)
+          .message(Objects.requireNonNull(ex.getRootCause()).getMessage().split(":")[0].trim())
+          .path(getPath(request))
+          .build();
 
-    private String getPath(ServletWebRequest request) {
-        return request.getRequest().getRequestURI();
-    }
+    return ErrorResponse.builder()
+        .error(FORMAT_ERROR)
+        .message(Objects.requireNonNull(ex.getRootCause()).getMessage())
+        .path(getPath(request))
+        .build();
+  }
+
+  private String getPath(ServletWebRequest request) {
+    return request.getRequest().getRequestURI();
+  }
 }
