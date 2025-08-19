@@ -1,5 +1,6 @@
 package com.vitruv.methodologist.log;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -7,75 +8,179 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 import static net.logstash.logback.marker.Markers.append;
 
-//https://www.baeldung.com/logback-mask-sensitive-data
-//https://stackoverflow.com/questions/33744875/spring-boot-how-to-log-all-requests-and-responses-with-exceptions-in-single-pl
-//http://www.javabyexamples.com/request-logging-using-spring-mvc
 @Slf4j
 @Component
 public class RequestResponseLoggingFilter extends OncePerRequestFilter {
-    @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-            throws ServletException, IOException {
 
-        ContentCachingRequestWrapper requestWrapper = new ContentCachingRequestWrapper(request);
-        ContentCachingResponseWrapper responseWrapper = new ContentCachingResponseWrapper(response);
+  private static final int MAX_TEXT_LOG = 4000; // avoid huge logs
+  private static final Set<String> SKIP_PATHS = Set.of("swagger", "actuator");
+  private final ObjectMapper mapper = new ObjectMapper();
 
-        MDC.put("requestId", UUID.randomUUID().toString());
-        MDC.put("api", request.getRequestURI());
-        MDC.put("method", request.getMethod());
-        MDC.put("ip", request.getRemoteHost());
-        MDC.put("type", "SERVED_API");
+  @Override
+  protected void doFilterInternal(
+      HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+      throws ServletException, IOException {
 
-        long startTime = System.currentTimeMillis();
+    var reqWrapper = new ContentCachingRequestWrapper(request);
+    var resWrapper = new ContentCachingResponseWrapper(response);
 
-        filterChain.doFilter(requestWrapper, responseWrapper);
+    MDC.put("requestId", UUID.randomUUID().toString());
+    MDC.put("api", request.getRequestURI());
+    MDC.put("method", request.getMethod());
+    MDC.put("ip", request.getRemoteAddr());
+    MDC.put("type", "SERVED_API");
 
-        ObjectMapper mapper = new ObjectMapper();
-        var logEntry = new LinkedHashMap<String, Object>();
+    long start = System.currentTimeMillis();
 
-        if(!request.getRequestURI().contains("swagger") && !request.getRequestURI().contains("actuator")) {
-            logEntry.put("request", mapper.readTree(getStringValue(requestWrapper.getContentAsByteArray(),
-                    request.getCharacterEncoding())));
-            logEntry.put("response", mapper.readTree(getStringValue(responseWrapper.getContentAsByteArray(),
-                    request.getCharacterEncoding())));
+    try {
+      filterChain.doFilter(reqWrapper, resWrapper);
+    } finally {
+      try {
+        // Build structured log entry
+        Map<String, Object> logEntry = new LinkedHashMap<>();
+
+        if (!shouldSkip(request.getRequestURI())) {
+          // ---- REQUEST ----
+          var reqCt = safeContentType(reqWrapper.getContentType());
+          var reqBodyBytes = reqWrapper.getContentAsByteArray();
+          var reqCharset = safeCharset(reqWrapper.getCharacterEncoding());
+
+          logEntry.put(
+              "requestMeta",
+              Map.of(
+                  "method",
+                  request.getMethod(),
+                  "uri",
+                  request.getRequestURI(),
+                  "contentType",
+                  reqCt,
+                  "length",
+                  reqBodyBytes.length));
+
+          if (isJson(reqCt)
+              && reqBodyBytes.length > 0
+              && !"GET".equalsIgnoreCase(request.getMethod())) {
+            // parse JSON request bodies (non-GET)
+            addJsonSafely(logEntry, "request", bytesToString(reqBodyBytes, reqCharset));
+          } else if (reqBodyBytes.length > 0) {
+            // non-JSON: log a truncated text preview only
+            logEntry.put(
+                "requestPreview", truncate(bytesToString(reqBodyBytes, reqCharset), MAX_TEXT_LOG));
+          }
+
+          // ---- RESPONSE ----
+          var resCt = safeContentType(resWrapper.getContentType());
+          var resBodyBytes = resWrapper.getContentAsByteArray();
+          var resCharset = safeCharset(resWrapper.getCharacterEncoding());
+
+          logEntry.put(
+              "responseMeta",
+              Map.of(
+                  "status",
+                  resWrapper.getStatus(),
+                  "contentType",
+                  resCt,
+                  "length",
+                  resBodyBytes.length));
+
+          if (isJson(resCt) && resBodyBytes.length > 0) {
+            addJsonSafely(logEntry, "response", bytesToString(resBodyBytes, resCharset));
+          } else if (resBodyBytes.length > 0) {
+            logEntry.put(
+                "responsePreview", truncate(bytesToString(resBodyBytes, resCharset), MAX_TEXT_LOG));
+          }
         }
 
-        responseWrapper.copyBodyToResponse();
-        //todo: can we use marker instead of copying lines
-        var marker = append("type", "SERVED_API")
-                .and(append("status", response.getStatus())
-                        .and(append("duration_in_ms", System.currentTimeMillis() - startTime)
-                                .and(append("data", logEntry))));
-        if(Set.of(200, 201).contains(response.getStatus()))
-            logger.info(append("status", response.getStatus())
-                    .and(append("duration_in_ms", System.currentTimeMillis() - startTime)
-                            .and(append("detail", logEntry))));
-        else
-            logger.info(append("status", response.getStatus())
-                    .and(append("duration_in_ms", System.currentTimeMillis() - startTime)
-                            .and(append("detail", logEntry))));
+        // Write body back to client
+        resWrapper.copyBodyToResponse();
+
+        // Log with markers
+        var duration = System.currentTimeMillis() - start;
+        var marker =
+            append("type", "SERVED_API")
+                .and(append("status", resWrapper.getStatus()))
+                .and(append("duration_ms", duration))
+                .and(append("detail", logEntry));
+
+        // You can vary level based on status if you want
+        log.info(marker, "HTTP {} {}", request.getMethod(), request.getRequestURI());
+      } catch (Exception e) {
+        // Never break responses due to logging
+        log.warn("Request/Response logging failed: {}", e.toString());
+        resWrapper.copyBodyToResponse();
+      } finally {
         MDC.clear();
+      }
     }
+  }
 
-    private String getStringValue(byte[] contentAsByteArray, String characterEncoding) {
-        try {
-            return new String(contentAsByteArray, 0, contentAsByteArray.length, characterEncoding);
-        } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
-        }
-        return "";
+  // ---------- helpers ----------
+
+  private static boolean shouldSkip(String uri) {
+    if (!StringUtils.hasText(uri)) return true;
+    var u = uri.toLowerCase();
+    for (var s : SKIP_PATHS) {
+      if (u.contains(s)) return true;
     }
+    return false;
+  }
+
+  private static boolean isJson(String contentType) {
+    if (!StringUtils.hasText(contentType)) return false;
+    try {
+      return MediaType.valueOf(contentType).isCompatibleWith(MediaType.APPLICATION_JSON);
+    } catch (Exception ignored) {
+      return false;
+    }
+  }
+
+  private static String safeContentType(String ct) {
+    return StringUtils.hasText(ct) ? ct : "application/octet-stream";
+  }
+
+  private static Charset safeCharset(String enc) {
+    if (!StringUtils.hasText(enc)) return StandardCharsets.UTF_8;
+    try {
+      return Charset.forName(enc);
+    } catch (Exception e) {
+      return StandardCharsets.UTF_8;
+    }
+  }
+
+  private static String bytesToString(byte[] bytes, Charset cs) {
+    return new String(bytes, cs);
+  }
+
+  private static String truncate(String s, int max) {
+    if (s == null) return null;
+    return s.length() <= max ? s : s.substring(0, max) + "…";
+  }
+
+  private void addJsonSafely(Map<String, Object> logEntry, String key, String body) {
+    try {
+      JsonNode node = mapper.readTree(body);
+      logEntry.put(key, node);
+    } catch (Exception ex) {
+      // If body isn't valid JSON (bad client / different content), don't explode:
+      logEntry.put(key + "Raw", truncate(body, MAX_TEXT_LOG));
+      logEntry.put(key + "ParseError", ex.getClass().getSimpleName());
+    }
+  }
 }
