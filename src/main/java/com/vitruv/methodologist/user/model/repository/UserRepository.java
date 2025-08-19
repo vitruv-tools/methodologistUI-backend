@@ -27,4 +27,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
    * @return an {@link Optional} containing the user if found, otherwise empty
    */
   Optional<User> findByEmailIgnoreCase(String email);
+  Optional<User> findByEmailIgnoreCaseAndRemovedAtIsNull(String email);
 }

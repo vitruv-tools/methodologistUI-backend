@@ -1,5 +1,6 @@
 package com.vitruv.methodologist.vsum.model;
 
+import com.vitruv.methodologist.general.model.FileStorage;
 import com.vitruv.methodologist.user.model.User;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -24,16 +25,16 @@ public class MetaModel {
   private Long id;
 
   @NotNull private String name;
-  @NotNull private Long size;
-  @NotNull private String mimeType;
-  @NotNull private String hash;
-  @NotNull private String storagePath;
-  @NotNull private String status;
 
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "user_id")
   private User user;
+
+  @NotNull
+  @OneToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "file_storage_id")
+  private FileStorage fileStorage;
 
   @CreationTimestamp private Instant createdAt;
 

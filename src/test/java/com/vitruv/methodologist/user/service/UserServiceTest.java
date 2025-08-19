@@ -6,7 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.vitruv.methodologist.exception.UserConflictException;
+import com.vitruv.methodologist.exception.ConflictException;
 import com.vitruv.methodologist.user.RoleType;
 import com.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import com.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
@@ -55,7 +55,7 @@ class UserServiceTest {
     when(userRepository.findByEmailIgnoreCase("dummy"))
         .thenReturn(Optional.of(User.builder().email("dummy").build()));
     assertThatThrownBy(() -> userService.create(UserPostRequest.builder().email("dummy").build()))
-        .isInstanceOf(UserConflictException.class);
+        .isInstanceOf(ConflictException.class);
   }
 
   @Test

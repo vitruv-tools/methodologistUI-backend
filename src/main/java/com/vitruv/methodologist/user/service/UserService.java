@@ -2,8 +2,8 @@ package com.vitruv.methodologist.user.service;
 
 import static com.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
 
+import com.vitruv.methodologist.exception.ConflictException;
 import com.vitruv.methodologist.exception.NotFoundException;
-import com.vitruv.methodologist.exception.UserConflictException;
 import com.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import com.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import com.vitruv.methodologist.user.controller.dto.response.UserResponse;
@@ -49,7 +49,7 @@ public class UserService {
         .findByEmailIgnoreCase(userPostRequest.getEmail())
         .ifPresent(
             user -> {
-              throw new UserConflictException(userPostRequest.getEmail());
+              throw new ConflictException(userPostRequest.getEmail());
             });
     var user = userMapper.toUser(userPostRequest);
     userRepository.save(user);

@@ -1,5 +1,6 @@
 package com.vitruv.methodologist.general.model;
 
+import com.vitruv.methodologist.user.model.User;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -40,7 +41,10 @@ public class FileStorage {
     @NotNull
     private byte[] data;
 
-    private String createdBy;
+    @NotNull
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
 
     @CreationTimestamp
     private Instant createdAt;

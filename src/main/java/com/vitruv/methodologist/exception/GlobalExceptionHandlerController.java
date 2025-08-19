@@ -50,22 +50,12 @@ public class GlobalExceptionHandlerController {
   private static final String BAD_REQUEST_ERROR = "BAD_REQUEST_ERROR";
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
-  @ExceptionHandler(value = VsumAlreadyExistException.class)
-  @ResponseStatus(HttpStatus.CONFLICT)
-  public ErrorResponse vsumAlreadyExistException(
-      VsumAlreadyExistException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    return ErrorResponse.builder()
-        .message(ex.getMessage())
-        .path(getPath(request))
-        .build();
-  }
-
-  @ExceptionHandler(value = UserConflictException.class)
+  @ExceptionHandler(value = ConflictException.class)
   @ResponseStatus(HttpStatus.CONFLICT)
   public ErrorResponse userConflictException(
-      UserConflictException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+          ConflictException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
-        .error(UserConflictException.USER_CONFLICT_ERROR)
+        .error(ConflictException.USER_CONFLICT_ERROR)
         .message(ex.getMessage())
         .path(getPath(request))
         .build();
