@@ -33,7 +33,8 @@ public class UserService {
    * @param userMapper the mapper for converting between user DTOs and entities
    * @param userRepository the repository for user persistence operations
    */
-  public UserService(UserMapper userMapper, UserRepository userRepository, KeycloakService keycloakService) {
+  public UserService(
+      UserMapper userMapper, UserRepository userRepository, KeycloakService keycloakService) {
     this.userMapper = userMapper;
     this.userRepository = userRepository;
     this.keycloakService = keycloakService;

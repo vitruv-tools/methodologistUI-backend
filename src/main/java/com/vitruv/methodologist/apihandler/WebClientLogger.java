@@ -109,9 +109,11 @@ public class WebClientLogger implements ExchangeFilterFunction {
                                       String.valueOf(clientResponse.statusCode().value()));
                                   logEntry.put(
                                       "response", dataBuffer.toString(StandardCharsets.UTF_8));
-                                  if (clientResponse.statusCode().is2xxSuccessful())
+                                  if (clientResponse.statusCode().is2xxSuccessful()) {
                                     log.info(Markers.appendEntries(logEntry), "");
-                                  else log.error(Markers.appendEntries(logEntry), "");
+                                  } else {
+                                    log.error(Markers.appendEntries(logEntry), "");
+                                  }
                                   return dataBuffer;
                                 }))
                     .build());

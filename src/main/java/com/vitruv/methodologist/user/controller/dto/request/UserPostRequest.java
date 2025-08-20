@@ -30,6 +30,7 @@ public class UserPostRequest {
 
   @NotNull @NotBlank private String lastName;
 
-  //todo: consider using a more secure password policy And need to hide it and dont show it in the logs
+  // todo: consider using a more secure password policy And need to hide it and dont show it in the
+  // logs
   @NotNull @NotBlank private String password;
 }

@@ -50,10 +50,18 @@ public class GlobalExceptionHandlerController {
   private static final String BAD_REQUEST_ERROR = "BAD_REQUEST_ERROR";
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
+  /**
+   * Handles conflict exceptions related to user operations.
+   *
+   * @param ex the caught ConflictException
+   * @param handlerMethod the handler method that threw the exception
+   * @param request the current web request
+   * @return ErrorResponse with conflict details
+   */
   @ExceptionHandler(value = ConflictException.class)
   @ResponseStatus(HttpStatus.CONFLICT)
-  public ErrorResponse userConflictException(
-          ConflictException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+  public ErrorResponse conflictException(
+      ConflictException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
         .error(ConflictException.USER_CONFLICT_ERROR)
         .message(ex.getMessage())
@@ -61,6 +69,14 @@ public class GlobalExceptionHandlerController {
         .build();
   }
 
+  /**
+   * Handles bad request exceptions from HTTP client operations.
+   *
+   * @param ex the caught BadRequest exception
+   * @param handlerMethod the handler method that threw the exception
+   * @param request the current web request
+   * @return ErrorResponse with bad request details
+   */
   @ExceptionHandler(value = HttpClientErrorException.BadRequest.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   @ResponseBody
@@ -80,6 +96,14 @@ public class GlobalExceptionHandlerController {
         .build();
   }
 
+  /**
+   * Handles validation exceptions for method arguments.
+   *
+   * @param ex the caught MethodArgumentNotValidException
+   * @param handlerMethod the handler method that threw the exception
+   * @param request the current web request
+   * @return ErrorResponse with validation error details
+   */
   @ExceptionHandler(value = MethodArgumentNotValidException.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   @ResponseBody
@@ -97,6 +121,14 @@ public class GlobalExceptionHandlerController {
         .build();
   }
 
+  /**
+   * Handles access denied exceptions for unauthorized operations.
+   *
+   * @param ex the caught AccessDeniedException
+   * @param handlerMethod the handler method that threw the exception
+   * @param request the current web request
+   * @return ErrorResponse with forbidden access details
+   */
   @ExceptionHandler(value = AccessDeniedException.class)
   @ResponseStatus(HttpStatus.FORBIDDEN)
   @ResponseBody
@@ -114,6 +146,14 @@ public class GlobalExceptionHandlerController {
         .build();
   }
 
+  /**
+   * Handles general HTTP client errors.
+   *
+   * @param ex the caught HttpClientErrorException
+   * @param handlerMethod the handler method that threw the exception
+   * @param request the current web request
+   * @return ResponseEntity containing ErrorResponse with client error details
+   */
   @ExceptionHandler(value = HttpClientErrorException.class)
   public ResponseEntity<ErrorResponse> clientErrorException(
       HttpClientErrorException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
@@ -127,6 +167,14 @@ public class GlobalExceptionHandlerController {
     return new ResponseEntity<>(errorResponse, ex.getStatusCode());
   }
 
+  /**
+   * Handles not found exceptions for missing resources.
+   *
+   * @param ex the caught NotFoundException
+   * @param handlerMethod the handler method that threw the exception
+   * @param request the current web request
+   * @return ErrorResponse with not found details
+   */
   @ExceptionHandler(value = NotFoundException.class)
   @ResponseStatus(HttpStatus.NOT_FOUND)
   public ErrorResponse notFoundException(
@@ -143,6 +191,14 @@ public class GlobalExceptionHandlerController {
         .build();
   }
 
+  /**
+   * Handles uncaught runtime exceptions.
+   *
+   * @param ex the caught RuntimeException
+   * @param handlerMethod the handler method that threw the exception
+   * @param request the current web request
+   * @return ErrorResponse with internal server error details
+   */
   @ExceptionHandler(value = RuntimeException.class)
   @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
   public ErrorResponse uncatchedException(
@@ -160,6 +216,15 @@ public class GlobalExceptionHandlerController {
         .build();
   }
 
+  /**
+   * Handles exceptions for malformed request bodies.
+   * Provides specific error messages for type resolution and deserialization issues.
+   *
+   * @param ex the caught HttpMessageNotReadableException
+   * @param handlerMethod the handler method that threw the exception
+   * @param request the current web request
+   * @return ErrorResponse with format error details
+   */
   @ExceptionHandler(value = HttpMessageNotReadableException.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   public ErrorResponse httpMessageNotReadableException(
@@ -171,20 +236,22 @@ public class GlobalExceptionHandlerController {
         ex);
     if (Objects.requireNonNull(ex.getRootCause())
         .getMessage()
-        .startsWith("Could not resolve type id"))
+        .startsWith("Could not resolve type id")) {
       return ErrorResponse.builder()
           .error(FORMAT_ERROR)
           .message(Objects.requireNonNull(ex.getRootCause()).getMessage().split("as")[0].trim())
           .path(getPath(request))
           .build();
+    }
     if (Objects.requireNonNull(ex.getRootCause())
         .getMessage()
-        .startsWith("Cannot deserialize value of type"))
+        .startsWith("Cannot deserialize value of type")) {
       return ErrorResponse.builder()
           .error(FORMAT_ERROR)
           .message(Objects.requireNonNull(ex.getRootCause()).getMessage().split(":")[0].trim())
           .path(getPath(request))
           .build();
+    }
 
     return ErrorResponse.builder()
         .error(FORMAT_ERROR)
@@ -193,6 +260,12 @@ public class GlobalExceptionHandlerController {
         .build();
   }
 
+  /**
+   * Extracts the request URI from the web request.
+   *
+   * @param request the current web request
+   * @return the request URI as a string
+   */
   private String getPath(ServletWebRequest request) {
     return request.getRequest().getRequestURI();
   }
