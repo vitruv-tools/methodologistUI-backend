@@ -18,4 +18,5 @@ public class MetaModelResponse {
   private Instant createdAt;
   private Instant updatedAt;
   private Instant removedAt;
+  private Long storageFileId;
 }

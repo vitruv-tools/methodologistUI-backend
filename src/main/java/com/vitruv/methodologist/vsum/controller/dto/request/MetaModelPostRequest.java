@@ -19,5 +19,5 @@ import lombok.Setter;
 @NoArgsConstructor
 public class MetaModelPostRequest {
   @NotNull @NotBlank private String name;
-  @NotNull @NotBlank private Long uploadedFileId;
+  @NotNull private Long uploadedFileId;
 }

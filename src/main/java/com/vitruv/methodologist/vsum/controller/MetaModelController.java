@@ -1,6 +1,6 @@
 package com.vitruv.methodologist.vsum.controller;
 
-import static com.vitruv.methodologist.messages.Message.VSUM_CREATED_SUCCESSFULLY;
+import static com.vitruv.methodologist.messages.Message.META_MODEL_CREATED_SUCCESSFULLY;
 
 import com.vitruv.methodologist.ResponseTemplateDto;
 import com.vitruv.methodologist.config.KeycloakAuthentication;
@@ -29,8 +29,9 @@ public class MetaModelController {
   public ResponseTemplateDto<Void> create(
       KeycloakAuthentication authentication,
       @Valid @RequestBody MetaModelPostRequest metaModelPostRequest) {
-    metaModelService.create(metaModelPostRequest);
-    return ResponseTemplateDto.<Void>builder().message(VSUM_CREATED_SUCCESSFULLY).build();
+    var callerEmail = authentication.getParsedToken().getEmail();
+    metaModelService.create(callerEmail, metaModelPostRequest);
+    return ResponseTemplateDto.<Void>builder().message(META_MODEL_CREATED_SUCCESSFULLY).build();
   }
 
   @GetMapping("/v1/meta-models")

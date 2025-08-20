@@ -25,7 +25,7 @@ class UserServiceTest {
   @BeforeEach
   void initialize() {
     userRepository = mock(UserRepository.class);
-    userService = new UserService(new UserMapperImpl(), userRepository);
+    userService = new UserService(new UserMapperImpl(), userRepository, null);
   }
 
   @Test

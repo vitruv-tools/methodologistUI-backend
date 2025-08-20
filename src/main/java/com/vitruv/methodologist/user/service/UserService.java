@@ -4,6 +4,7 @@ import static com.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
 
 import com.vitruv.methodologist.exception.ConflictException;
 import com.vitruv.methodologist.exception.NotFoundException;
+import com.vitruv.methodologist.user.controller.dto.KeycloakUser;
 import com.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import com.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import com.vitruv.methodologist.user.controller.dto.response.UserResponse;
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
   private final UserMapper userMapper;
   private final UserRepository userRepository;
+  private final KeycloakService keycloakService;
 
   /**
    * Constructs a new UserService with the specified UserMapper and UserRepository.
@@ -31,9 +33,10 @@ public class UserService {
    * @param userMapper the mapper for converting between user DTOs and entities
    * @param userRepository the repository for user persistence operations
    */
-  public UserService(UserMapper userMapper, UserRepository userRepository) {
+  public UserService(UserMapper userMapper, UserRepository userRepository, KeycloakService keycloakService) {
     this.userMapper = userMapper;
     this.userRepository = userRepository;
+    this.keycloakService = keycloakService;
   }
 
   /**
@@ -52,6 +55,17 @@ public class UserService {
               throw new ConflictException(userPostRequest.getEmail());
             });
     var user = userMapper.toUser(userPostRequest);
+
+    var keycloakUser = KeycloakUser.builder()
+            .firstName(user.getFirstName())
+            .lastName(user.getLastName())
+            .email(user.getEmail())
+            .username(user.getUsername())
+            .password(userPostRequest.getPassword())
+            .role(user.getRoleType().getName())
+            .roleType(user.getRoleType())
+            .build();
+    keycloakService.createUser(keycloakUser);
     userRepository.save(user);
 
     return user;
