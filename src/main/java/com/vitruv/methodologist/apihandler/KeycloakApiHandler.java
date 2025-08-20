@@ -119,8 +119,9 @@ public class KeycloakApiHandler {
                     .bodyToMono(String.class)
                     .handle(
                         (body, handler) -> {
-                          if (response.statusCode().equals(HttpStatus.UNAUTHORIZED))
+                          if (response.statusCode().equals(HttpStatus.UNAUTHORIZED)){
                             throw new UnauthorizedException();
+                            }
                           throw new UncaughtRuntimeException(body);
                         }))
         .bodyToMono(KeycloakWebToken.class)
