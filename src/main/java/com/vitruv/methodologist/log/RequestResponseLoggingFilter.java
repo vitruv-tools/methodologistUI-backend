@@ -25,9 +25,9 @@ import org.springframework.web.util.ContentCachingRequestWrapper;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
 /**
- * Filter component that logs HTTP request and response details in a structured format.
- * Implements request/response content caching and JSON parsing for detailed logging.
- * Supports skipping specific paths and handles large payloads appropriately.
+ * Filter component that logs HTTP request and response details in a structured format. Implements
+ * request/response content caching and JSON parsing for detailed logging. Supports skipping
+ * specific paths and handles large payloads appropriately.
  *
  * @see OncePerRequestFilter
  */
@@ -41,8 +41,8 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
 
   /**
    * Processes HTTP requests and responses, generating structured logs with detailed information.
-   * Caches request/response content for logging while preserving the original stream.
-   * Includes timing, status codes, and content details in log output.
+   * Caches request/response content for logging while preserving the original stream. Includes
+   * timing, status codes, and content details in log output.
    *
    * @param request incoming HTTP request
    * @param response outgoing HTTP response
@@ -153,7 +153,8 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
   private static boolean shouldSkip(String uri) {
     if (!StringUtils.hasText(uri)) {
       return true;
-    };
+    }
+    ;
     var u = uri.toLowerCase();
     for (var s : SKIP_PATHS) {
       if (u.contains(s)) {
@@ -164,7 +165,9 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
   }
 
   private static boolean isJson(String contentType) {
-    if (!StringUtils.hasText(contentType)) return false;
+    if (!StringUtils.hasText(contentType)) {
+      return false;
+    }
     try {
       return MediaType.valueOf(contentType).isCompatibleWith(MediaType.APPLICATION_JSON);
     } catch (Exception ignored) {
@@ -177,7 +180,9 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
   }
 
   private static Charset safeCharset(String enc) {
-    if (!StringUtils.hasText(enc)) return StandardCharsets.UTF_8;
+    if (!StringUtils.hasText(enc)) {
+      return StandardCharsets.UTF_8;
+    }
     try {
       return Charset.forName(enc);
     } catch (Exception e) {
@@ -190,7 +195,9 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
   }
 
   private static String truncate(String s, int max) {
-    if (s == null) return null;
+    if (s == null) {
+      return null;
+    }
     return s.length() <= max ? s : s.substring(0, max) + "…";
   }
 
