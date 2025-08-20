@@ -1,6 +1,5 @@
 package com.vitruv.methodologist.vsum.mapper;
 
-import com.vitruv.methodologist.user.model.User;
 import com.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import com.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
 import com.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
