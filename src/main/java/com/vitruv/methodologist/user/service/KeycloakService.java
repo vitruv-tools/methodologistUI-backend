@@ -41,6 +41,16 @@ public class KeycloakService {
   private final String realm;
   private final String clientId;
 
+  /**
+   * Constructs a new KeycloakService with the specified configuration parameters.
+   *
+   * @param authServerUrl the base URL of the Keycloak server
+   * @param realm the realm name
+   * @param adminUsername the admin username for Keycloak access
+   * @param adminPassword the admin password
+   * @param secret the client secret
+   * @param clientId the client ID
+   */
   public KeycloakService(
       @Value("${keycloak.url}") String authServerUrl,
       @Value("${keycloak.realm}") String realm,
@@ -100,6 +110,12 @@ public class KeycloakService {
     return userRepresentation;
   }
 
+  /**
+   * Assigns a role to a user in Keycloak.
+   *
+   * @param username the username of the user
+   * @param role the role to assign
+   */
   public void assignUserRole(String username, String role) {
     var userRepresentation = getUserRepresentationOrThrow(username);
 
@@ -115,6 +131,12 @@ public class KeycloakService {
         .add(List.of(roleRepresentation));
   }
 
+  /**
+   * Creates a new user in Keycloak with the specified details and assigns roles.
+   *
+   * @param keycloakUser the user details to create
+   * @throws ClientErrorException if user creation fails
+   */
   public void createUser(KeycloakUser keycloakUser) {
     UserRepresentation userRepresentation = prepareUserRepresentation(keycloakUser);
 
@@ -134,36 +156,25 @@ public class KeycloakService {
     }
   }
 
+  /**
+   * Removes a user from Keycloak.
+   *
+   * @param username the username of the user to remove
+   */
   public void removeUser(String username) {
     var userRepresentation = getUserRepresentationOrThrow(username);
 
     keycloakAdmin.realm(realm).users().get(userRepresentation.getId()).remove();
   }
 
-  public void confirmUser(String username) {
-    var userRepresentation = getUserRepresentationOrThrow(username);
-
-    keycloakAdmin
-        .realm(realm)
-        .users()
-        .get(userRepresentation.getId())
-        .update(userRepresentation.singleAttribute(USER_CONFIRMED, "true"));
-  }
-
-  public void updateName(String username, String firstName, String lastName) {
-    var userRepresentation = getUserRepresentationOrThrow(username);
-    userRepresentation.setFirstName(firstName);
-    userRepresentation.setLastName(lastName);
-    keycloakAdmin.realm(realm).users().get(userRepresentation.getId()).update(userRepresentation);
-  }
-
-  public void updateUsernameAndEmail(String username, String email) {
-    var userRepresentation = getUserRepresentationOrThrow(username);
-    userRepresentation.setUsername(email);
-    userRepresentation.setEmail(email);
-    keycloakAdmin.realm(realm).users().get(userRepresentation.getId()).update(userRepresentation);
-  }
-
+  /**
+   * Verifies a user's password against Keycloak.
+   *
+   * @param username the username
+   * @param password the password to verify
+   * @throws BadRequestException if the password is incorrect
+   * @throws UncaughtRuntimeException for other authentication errors
+   */
   public void verifyUserPasswordOrThrow(String username, String password) {
     try {
       String dummy =
@@ -202,6 +213,13 @@ public class KeycloakService {
         .executeActionsEmail(List.of("UPDATE_PASSWORD"));
   }
 
+  /**
+   * Retrieves a user's representation from Keycloak.
+   *
+   * @param username the username to look up
+   * @return UserRepresentation of the found user
+   * @throws NotFoundException if the user doesn't exist
+   */
   public UserRepresentation getUserRepresentationOrThrow(String username) {
     return keycloakAdmin.realm(realm).users().search(username).stream()
         .findFirst()
@@ -217,6 +235,12 @@ public class KeycloakService {
         .resetPassword(credentialRepresentation);
   }
 
+  /**
+   * Checks if a user exists in Keycloak.
+   *
+   * @param username the username to check
+   * @return true if the user exists, false otherwise
+   */
   public Boolean existUser(String username) {
     return keycloakAdmin.realm(realm).users().search(username).stream().findFirst().isPresent();
   }
