@@ -12,7 +12,12 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -25,10 +30,23 @@ import org.springframework.web.multipart.MultipartFile;
 public class FileStorageController {
   private final FileStorageService fileStorageService;
 
+  /**
+   * Constructs a new FileStorageController with the specified service.
+   *
+   * @param fileStorageService the service for file storage operations
+   */
   public FileStorageController(FileStorageService fileStorageService) {
     this.fileStorageService = fileStorageService;
   }
 
+  /**
+   * Uploads a file to the server.
+   *
+   * @param authentication the Keycloak authentication object containing user details
+   * @param file the multipart file to upload
+   * @return ResponseTemplateDto containing success message
+   * @throws Exception if file upload fails
+   */
   @Operation(summary = "Upload a file", description = "Upload a file to the server")
   @PostMapping(
       value = "/upload",
@@ -49,6 +67,12 @@ public class FileStorageController {
     return ResponseTemplateDto.<String>builder().message("File uploaded successfully").build();
   }
 
+  /**
+   * Downloads a file from the server.
+   *
+   * @param id the ID of the file to download
+   * @return ResponseEntity containing the file as a ByteArrayResource
+   */
   @GetMapping(value = "/api/files/{id}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
   @PreAuthorize("hasRole('user')")
   public ResponseEntity<ByteArrayResource> download(@PathVariable Long id) {

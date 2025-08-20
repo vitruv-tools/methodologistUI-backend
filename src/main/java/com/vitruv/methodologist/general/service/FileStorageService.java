@@ -1,18 +1,16 @@
 package com.vitruv.methodologist.general.service;
 
 import static com.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
-import static com.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
 
 import com.vitruv.methodologist.exception.NotFoundException;
 import com.vitruv.methodologist.general.model.FileStorage;
 import com.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import com.vitruv.methodologist.user.model.repository.UserRepository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.security.MessageDigest;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Service class that handles file storage operations including storing, retrieving, and deleting
@@ -23,12 +21,29 @@ public class FileStorageService {
   private final FileStorageRepository fileStorageRepository;
   private final UserRepository userRepository;
 
+  /**
+   * Constructs a new FileStorageService with the specified repositories.
+   *
+   * @param fileStorageRepository repository for file storage operations
+   * @param userRepository repository for user operations
+   */
   public FileStorageService(
       FileStorageRepository fileStorageRepository, UserRepository userRepository) {
     this.fileStorageRepository = fileStorageRepository;
     this.userRepository = userRepository;
   }
 
+  /**
+   * Stores a file with deduplication check based on SHA-256 hash and file size. If a file with the
+   * same hash and size exists, returns the existing file entry.
+   *
+   * @param callerUserEmail email of the user storing the file
+   * @param file the multipart file to store
+   * @return the stored or existing FileStorage entity
+   * @throws Exception if file processing or storage fails
+   * @throws NotFoundException if the user email is not found
+   * @throws IllegalArgumentException if the file is empty
+   */
   @Transactional
   public FileStorage storeFile(String callerUserEmail, MultipartFile file) throws Exception {
     var user =
@@ -61,6 +76,13 @@ public class FileStorageService {
             });
   }
 
+  /**
+   * Retrieves a file by its ID.
+   *
+   * @param id the ID of the file to retrieve
+   * @return the FileStorage entity
+   * @throws IllegalArgumentException if the file is not found
+   */
   @Transactional(readOnly = true)
   public FileStorage getFile(Long id) {
     return fileStorageRepository
@@ -68,11 +90,23 @@ public class FileStorageService {
         .orElseThrow(() -> new IllegalArgumentException("File not found"));
   }
 
+  /**
+   * Deletes a file by its ID.
+   *
+   * @param id the ID of the file to delete
+   */
   @Transactional
   public void deleteFile(Long id) {
     fileStorageRepository.deleteById(id);
   }
 
+  /**
+   * Calculates the SHA-256 hash of the given data and returns it as a hexadecimal string.
+   *
+   * @param data the byte array to hash
+   * @return hexadecimal string representation of the SHA-256 hash
+   * @throws Exception if the hashing algorithm is not available
+   */
   private static String sha256Hex(byte[] data) throws Exception {
     MessageDigest md = MessageDigest.getInstance("SHA-256");
     return HexFormat.of().formatHex(md.digest(data));
