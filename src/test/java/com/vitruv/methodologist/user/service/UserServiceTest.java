@@ -20,12 +20,14 @@ import org.junit.jupiter.api.Test;
 
 class UserServiceTest {
   private UserService userService;
-  private UserRepository userRepository;
+  private UserRepository userRepositoryMock;
+  private KeycloakService keycloakServiceMock;
 
   @BeforeEach
   void initialize() {
-    userRepository = mock(UserRepository.class);
-    userService = new UserService(new UserMapperImpl(), userRepository, null);
+    userRepositoryMock = mock(UserRepository.class);
+    keycloakServiceMock = mock(KeycloakService.class);
+    userService = new UserService(new UserMapperImpl(), userRepositoryMock, keycloakServiceMock);
   }
 
   @Test
@@ -46,13 +48,13 @@ class UserServiceTest {
     assertThat(user.getLastName()).isEqualTo(inputData.getLastName());
     assertThat(user.getRemovedAt()).isNull();
 
-    verify(userRepository).findByEmailIgnoreCase(inputData.getEmail());
-    verify(userRepository).save(user);
+    verify(userRepositoryMock).findByEmailIgnoreCase(inputData.getEmail());
+    verify(userRepositoryMock).save(user);
   }
 
   @Test
   void create_existUser() {
-    when(userRepository.findByEmailIgnoreCase("dummy"))
+    when(userRepositoryMock.findByEmailIgnoreCase("dummy"))
         .thenReturn(Optional.of(User.builder().email("dummy").build()));
     assertThatThrownBy(() -> userService.create(UserPostRequest.builder().email("dummy").build()))
         .isInstanceOf(ConflictException.class);
@@ -74,7 +76,7 @@ class UserServiceTest {
 
     var inputData = UserPutRequest.builder().firstName("new dummy").lastName("new dummy").build();
 
-    when(userRepository.findByIdAndRemovedAtIsNull(existUser.getId()))
+    when(userRepositoryMock.findByIdAndRemovedAtIsNull(existUser.getId()))
         .thenReturn(Optional.of(existUser));
     var user = userService.update(existUser.getId(), inputData);
 
@@ -86,8 +88,8 @@ class UserServiceTest {
     assertThat(user.getRemovedAt()).isNull();
     assertThat(user.getCreatedAt()).isEqualTo(existUser.getCreatedAt());
 
-    verify(userRepository).findByIdAndRemovedAtIsNull(1L);
-    verify(userRepository).save(existUser);
+    verify(userRepositoryMock).findByIdAndRemovedAtIsNull(1L);
+    verify(userRepositoryMock).save(existUser);
   }
 
   @Test
@@ -103,11 +105,11 @@ class UserServiceTest {
             .removedAt(null)
             .createdAt(Instant.now())
             .build();
-    when(userRepository.findByIdAndRemovedAtIsNull(existUser.getId()))
+    when(userRepositoryMock.findByIdAndRemovedAtIsNull(existUser.getId()))
         .thenReturn(Optional.of(existUser));
     var userResponse = userService.findById(1L);
     assertThat(userResponse).usingRecursiveComparison().isEqualTo(existUser);
-    verify(userRepository).findByIdAndRemovedAtIsNull(1L);
+    verify(userRepositoryMock).findByIdAndRemovedAtIsNull(1L);
   }
 
   @Test
@@ -123,10 +125,10 @@ class UserServiceTest {
             .removedAt(null)
             .createdAt(Instant.now())
             .build();
-    when(userRepository.findByIdAndRemovedAtIsNull(existUser.getId()))
+    when(userRepositoryMock.findByIdAndRemovedAtIsNull(existUser.getId()))
         .thenReturn(Optional.of(existUser));
     var user = userService.remove(1L);
-    verify(userRepository).findByIdAndRemovedAtIsNull(1L);
+    verify(userRepositoryMock).findByIdAndRemovedAtIsNull(1L);
     assertThat(user.getRemovedAt()).isNotNull();
   }
 }

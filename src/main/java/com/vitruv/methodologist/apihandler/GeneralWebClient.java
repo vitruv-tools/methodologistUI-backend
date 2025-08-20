@@ -7,8 +7,8 @@ import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.netty.http.client.HttpClient;
 import java.util.function.Consumer;
+import reactor.netty.http.client.HttpClient;
 /**
  * Component that provides configured WebClient instances for making HTTP requests.
  * Supports custom header configuration and automatic request/response logging.
@@ -42,7 +42,7 @@ public class GeneralWebClient {
     try {
       loggerClazz = Class.forName(Thread.currentThread().getStackTrace()[2].getClassName());
     } catch (ClassNotFoundException ignored) {
-      log.warn("Ignored exception", e);
+      log.warn("Ignored exception", ignored);
     }
 
     return WebClient.builder()
