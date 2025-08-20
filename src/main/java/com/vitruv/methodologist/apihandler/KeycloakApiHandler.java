@@ -56,6 +56,15 @@ public class KeycloakApiHandler {
             .build();
   }
 
+  /**
+   * Exchanges a token for a new token with different claims or scope.
+   *
+   * @param token the original token to exchange
+   * @param userId the ID of the user for whom to exchange the token
+   * @return KeycloakWebToken containing the exchanged token information
+   * @throws ParseException if token exchange request body cannot be parsed
+   * @throws UncaughtRuntimeException if the exchange request fails
+   */
   public KeycloakWebToken getExchangeTokenOrThrow(String token, String userId) {
     MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
     try {
@@ -81,6 +90,15 @@ public class KeycloakApiHandler {
         .block();
   }
 
+  /**
+   * Retrieves an access token using username and password credentials.
+   *
+   * @param username the user's username
+   * @param password the user's password
+   * @return KeycloakWebToken containing the access token information
+   * @throws UnauthorizedException if credentials are invalid
+   * @throws UncaughtRuntimeException if the token request fails
+   */
   public KeycloakWebToken getAccessTokenOrThrow(String username, String password) {
     var formData = new LinkedMultiValueMap<String, String>();
     formData.add("client_id", clientId);
@@ -113,6 +131,14 @@ public class KeycloakApiHandler {
         .block();
   }
 
+  /**
+   * Retrieves a new access token using a refresh token.
+   *
+   * @param refreshToken the refresh token to use
+   * @return KeycloakWebToken containing the new access token information
+   * @throws UnauthorizedException if the refresh token is invalid
+   * @throws UncaughtRuntimeException if the token refresh request fails
+   */
   public KeycloakWebToken getAccessTokenByRefreshToken(String refreshToken) {
     var formData = new LinkedMultiValueMap<String, String>();
     formData.add("client_id", clientId);
@@ -143,16 +169,28 @@ public class KeycloakApiHandler {
         .block();
   }
 
+  /**
+   * DTO for token exchange request body parameters.
+   */
   @Setter
   @Getter
   @JsonNaming(PropertyNamingStrategy.SnakeCaseStrategy.class)
   public static class ExchangeTokenPostBody {
 
+    /**
+     * Constructs a new ExchangeTokenPostBody with the specified tokens.
+     *
+     * @param subjectToken the token to exchange
+     * @param requestedSubject the subject for whom to exchange the token
+     */
     public ExchangeTokenPostBody(String subjectToken, String requestedSubject) {
       this.subjectToken = subjectToken;
       this.requestedSubject = requestedSubject;
     }
 
+    /**
+     * DTO for token request body parameters.
+     */
     String clientId = "tardi-manager-customer-web-panel";
     String grantType = "urn:ietf:params:oauth:grant-type:token-exchange";
     String subjectToken;
