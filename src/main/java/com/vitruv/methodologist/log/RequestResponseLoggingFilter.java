@@ -1,11 +1,20 @@
 package com.vitruv.methodologist.log;
 
+import static net.logstash.logback.marker.Markers.append;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.MediaType;
@@ -15,16 +24,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-
-import static net.logstash.logback.marker.Markers.append;
-
+/**
+ * Filter component that logs HTTP request and response details in a structured format.
+ * Implements request/response content caching and JSON parsing for detailed logging.
+ * Supports skipping specific paths and handles large payloads appropriately.
+ *
+ * @see OncePerRequestFilter
+ */
 @Slf4j
 @Component
 public class RequestResponseLoggingFilter extends OncePerRequestFilter {
@@ -33,6 +39,17 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
   private static final Set<String> SKIP_PATHS = Set.of("swagger", "actuator");
   private final ObjectMapper mapper = new ObjectMapper();
 
+  /**
+   * Processes HTTP requests and responses, generating structured logs with detailed information.
+   * Caches request/response content for logging while preserving the original stream.
+   * Includes timing, status codes, and content details in log output.
+   *
+   * @param request incoming HTTP request
+   * @param response outgoing HTTP response
+   * @param filterChain filter chain for request processing
+   * @throws ServletException if a servlet error occurs
+   * @throws IOException if an I/O error occurs
+   */
   @Override
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)

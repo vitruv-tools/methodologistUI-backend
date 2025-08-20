@@ -10,7 +10,6 @@ import com.vitruv.methodologist.exception.ParseException;
 import com.vitruv.methodologist.exception.UnauthorizedException;
 import com.vitruv.methodologist.exception.UncaughtRuntimeException;
 import org.springframework.web.reactive.function.BodyInserters;
-import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.util.Map;
 import lombok.AllArgsConstructor;
@@ -23,12 +22,17 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
-import reactor.netty.http.client.HttpClient;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
 
+/**
+ * Component responsible for handling authentication-related API calls to Keycloak.
+ * Provides functionality for token exchange, access token retrieval, and refresh token operations.
+ */
 @Component
 public class KeycloakApiHandler {
   private final WebClient webClient;
@@ -118,9 +122,8 @@ public class KeycloakApiHandler {
 
     return webClient
         .post()
-        .uri(
-            POST_TOKEN_URL) // Example:
-                            // http://localhost:8383/realms/investino/protocol/openid-connect/token
+        .uri(POST_TOKEN_URL) // Example:
+        // http://localhost:8383/realms/investino/protocol/openid-connect/token
         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
         .body(BodyInserters.fromFormData(formData))
         .retrieve()
