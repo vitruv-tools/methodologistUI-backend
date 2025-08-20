@@ -151,10 +151,14 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
   // ---------- helpers ----------
 
   private static boolean shouldSkip(String uri) {
-    if (!StringUtils.hasText(uri)) return true;
+    if (!StringUtils.hasText(uri)) {
+      return true
+    };
     var u = uri.toLowerCase();
     for (var s : SKIP_PATHS) {
-      if (u.contains(s)) return true;
+      if (u.contains(s)) {
+        return true;
+      }
     }
     return false;
   }

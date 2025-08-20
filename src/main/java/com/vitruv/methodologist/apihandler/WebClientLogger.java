@@ -109,10 +109,6 @@ public class WebClientLogger implements ExchangeFilterFunction {
                                       String.valueOf(clientResponse.statusCode().value()));
                                   logEntry.put(
                                       "response", dataBuffer.toString(StandardCharsets.UTF_8));
-                                  /*
-                                   * maybe if we want to detect 200 response code with error
-                                   * searching for some error keywords would be nice, line error, Error, ...
-                                   */
                                   if (clientResponse.statusCode().is2xxSuccessful())
                                     log.info(Markers.appendEntries(logEntry), "");
                                   else log.error(Markers.appendEntries(logEntry), "");
