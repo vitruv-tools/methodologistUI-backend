@@ -20,21 +20,36 @@ import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.ExchangeFunction;
 import reactor.core.publisher.Mono;
 
-/*
- * to see more details :
- * https://stackoverflow.com/questions/46154994/how-to-log-spring-5-webclient-call/67939497#67939497
+/**
+ * Implements logging functionality for Spring WebClient HTTP requests and responses. Logs request
+ * details including method, URL, and body, as well as response status and content. Uses
+ * Logstash-compatible format for structured logging.
+ *
+ * @see ExchangeFilterFunction
  */
 public class WebClientLogger implements ExchangeFilterFunction {
   final Logger log;
 
+  /**
+   * Constructs a new WebClientLogger for the specified class.
+   *
+   * @param clazz the class to create the logger for
+   */
   public WebClientLogger(Class<?> clazz) {
     log = LoggerFactory.getLogger(clazz);
   }
 
+  /**
+   * Filters HTTP exchanges to add logging functionality. Logs both request and response details in
+   * a structured format.
+   *
+   * @param request the original client request
+   * @param next the next exchange function in the chain
+   * @return Mono containing the filtered client response
+   */
   @Override
   public Mono<ClientResponse> filter(
       @NotNull ClientRequest request, @NotNull ExchangeFunction next) {
-    /* Log request headers using 'request.headers().entrySet().stream().map(Object::toString).collect(joining(","))'*/
     BodyInserter<?, ? super ClientHttpRequest> originalBodyInserter = request.body();
     Map<String, String> logEntry = new HashMap<>();
 
@@ -79,7 +94,6 @@ public class WebClientLogger implements ExchangeFilterFunction {
                   return originalBodyInserter.insert(loggingOutputMessage, context);
                 })
             .build();
-    // 'clientResponse.headers().asHttpHeaders().entrySet().stream().map(Object::toString).collect(joining(","))'
     return next.exchange(loggingClientRequest)
         .map(
             clientResponse ->

@@ -6,9 +6,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
-import org.springframework.web.reactive.function.client.WebClient;
 import java.util.function.Consumer;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
+
 /**
  * Component that provides configured WebClient instances for making HTTP requests.
  * Supports custom header configuration and automatic request/response logging.
