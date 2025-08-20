@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategy;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
-
 import com.vitruv.methodologist.apihandler.dto.response.KeycloakWebToken;
 import com.vitruv.methodologist.exception.ParseException;
 import com.vitruv.methodologist.exception.UnauthorizedException;

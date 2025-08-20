@@ -21,6 +21,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
+/**
+ * Service component that handles user management operations with Keycloak authentication server.
+ * Provides functionality for user creation, role management, password operations, and user profile
+ * updates.
+ */
 @Component
 public class KeycloakService {
   public static final String USER_CONFIRMED;
