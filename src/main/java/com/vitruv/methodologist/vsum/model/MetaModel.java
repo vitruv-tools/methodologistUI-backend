@@ -10,7 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
