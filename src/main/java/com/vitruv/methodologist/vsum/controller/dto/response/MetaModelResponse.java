@@ -1,7 +1,11 @@
 package com.vitruv.methodologist.vsum.controller.dto.response;
 
 import java.time.Instant;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * Data Transfer Object (DTO) for representing metamodel information in API responses.
