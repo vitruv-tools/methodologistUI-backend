@@ -8,8 +8,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Data Transfer Object (DTO) for representing metamodel information in API responses.
- * Contains all relevant metamodel attributes including timestamps for creation, updates, and deletion.
+ * Data Transfer Object (DTO) for representing metamodel information in API responses. Contains all
+ * relevant metamodel attributes including timestamps for creation, updates, and deletion.
  */
 @Builder
 @Getter

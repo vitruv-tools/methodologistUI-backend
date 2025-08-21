@@ -15,17 +15,39 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Service class for managing VSUM (Virtual Single Underlying Model) operations. Handles the
+ * business logic for VSUM creation, updates, retrieval and removal while ensuring proper validation
+ * and persistence.
+ *
+ * @see Vsum
+ * @see VsumRepository
+ * @see VsumMapper
+ */
 @Service
 @Slf4j
 public class VsumService {
   private final VsumMapper vsumMapper;
   private final VsumRepository vsumRepository;
 
-    public VsumService(VsumMapper vsumMapper, VsumRepository vsumRepository) {
-        this.vsumMapper = vsumMapper;
-        this.vsumRepository = vsumRepository;
-    }
+  /**
+   * Constructs a new VsumService with the specified dependencies.
+   *
+   * @param vsumMapper mapper for VSUM conversions
+   * @param vsumRepository repository for VSUM operations
+   */
+  public VsumService(VsumMapper vsumMapper, VsumRepository vsumRepository) {
+    this.vsumMapper = vsumMapper;
+    this.vsumRepository = vsumRepository;
+  }
 
+  /**
+   * Creates a new VSUM with the specified details.
+   *
+   * @param vsumPostRequest DTO containing the VSUM creation details
+   * @return the created Vsum entity
+   * @throws ConflictException if a VSUM with the same name already exists
+   */
   @Transactional
   public Vsum create(VsumPostRequest vsumPostRequest) {
     vsumRepository
@@ -40,6 +62,14 @@ public class VsumService {
     return vsum;
   }
 
+  /**
+   * Updates an existing VSUM with the specified details.
+   *
+   * @param id the ID of the VSUM to update
+   * @param vsumPutRequest DTO containing the update details
+   * @return the updated Vsum entity
+   * @throws NotFoundException if the VSUM ID is not found or is marked as removed
+   */
   @Transactional
   public Vsum update(Long id, VsumPutRequest vsumPutRequest) {
     var vsum =
@@ -52,6 +82,13 @@ public class VsumService {
     return vsum;
   }
 
+  /**
+   * Retrieves a VSUM by its ID.
+   *
+   * @param id the ID of the VSUM to retrieve
+   * @return VsumResponse DTO containing the VSUM details
+   * @throws NotFoundException if the VSUM ID is not found or is marked as removed
+   */
   @Transactional
   public VsumResponse findById(Long id) {
     var vsum =
@@ -61,6 +98,13 @@ public class VsumService {
     return vsumMapper.toVsumResponse(vsum);
   }
 
+  /**
+   * Marks a VSUM as removed by setting its removal timestamp.
+   *
+   * @param id the ID of the VSUM to remove
+   * @return the removed Vsum entity
+   * @throws NotFoundException if the VSUM ID is not found or is marked as removed
+   */
   @Transactional
   public Vsum remove(Long id) {
     var vsum =

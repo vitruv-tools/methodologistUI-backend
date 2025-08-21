@@ -6,10 +6,10 @@ import com.vitruv.methodologist.exception.NotFoundException;
 import com.vitruv.methodologist.general.model.FileStorage;
 import com.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import com.vitruv.methodologist.user.model.repository.UserRepository;
-import java.util.HexFormat;
 import java.security.MessageDigest;
-import org.springframework.transaction.annotation.Transactional;
+import java.util.HexFormat;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 /**

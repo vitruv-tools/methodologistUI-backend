@@ -193,6 +193,12 @@ public class KeycloakService {
     }
   }
 
+  /**
+   * Resets a user's password in Keycloak.
+   *
+   * @param username the username of the user
+   * @param password the new password to set
+   */
   public void resetPassword(String username, String password) {
     var credentialRepresentation = preparePasswordRepresentation(password, false);
     keycloakAdmin
@@ -202,6 +208,12 @@ public class KeycloakService {
         .resetPassword(credentialRepresentation);
   }
 
+  /**
+   * Sends a reset password email to the user with instructions.
+   * Triggers Keycloak's built-in password reset email workflow.
+   *
+   * @param username the username of the user to send reset email to
+   */
   public void sendResetPasswordEmail(String username) {
     keycloakAdmin
         .realm(realm)
@@ -223,6 +235,13 @@ public class KeycloakService {
         .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
   }
 
+  /**
+   * Sets a new password for a user in Keycloak.
+   * Similar to resetPassword but used in different contexts.
+   *
+   * @param username the username of the user
+   * @param password the new password to set
+   */
   public void setPassword(String username, String password) {
     var credentialRepresentation = preparePasswordRepresentation(password, false);
     keycloakAdmin

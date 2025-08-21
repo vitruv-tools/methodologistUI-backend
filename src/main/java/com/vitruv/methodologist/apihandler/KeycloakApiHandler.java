@@ -6,8 +6,8 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategy;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.vitruv.methodologist.apihandler.dto.response.KeycloakWebToken;
 import com.vitruv.methodologist.exception.ParseException;
-import com.vitruv.methodologist.exception.UnauthorizedException;
 import com.vitruv.methodologist.exception.UncaughtRuntimeException;
+import com.vitruv.methodologist.exception.UnauthorizedException;
 import java.time.Duration;
 import java.util.Map;
 import lombok.AllArgsConstructor;
@@ -15,11 +15,11 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -29,8 +29,8 @@ import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 
 /**
- * Component responsible for handling authentication-related API calls to Keycloak.
- * Provides functionality for token exchange, access token retrieval, and refresh token operations.
+ * Component responsible for handling authentication-related API calls to Keycloak. Provides
+ * functionality for token exchange, access token retrieval, and refresh token operations.
  */
 @Component
 public class KeycloakApiHandler {
@@ -45,8 +45,8 @@ public class KeycloakApiHandler {
   public static final String POST_TOKEN_URL = "/realms/methodologist/protocol/openid-connect/token";
 
   /**
-   * Constructs a KeycloakApiHandler with the specified base URL.
-   * Configures WebClient with response timeout and content type headers.
+   * Constructs a KeycloakApiHandler with the specified base URL. Configures WebClient with response
+   * timeout and content type headers.
    *
    * @param baseUrl the base URL of the Keycloak server
    */
@@ -125,9 +125,9 @@ public class KeycloakApiHandler {
                     .bodyToMono(String.class)
                     .handle(
                         (body, handler) -> {
-                          if (response.statusCode().equals(HttpStatus.UNAUTHORIZED)){
+                          if (response.statusCode().equals(HttpStatus.UNAUTHORIZED)) {
                             throw new UnauthorizedException();
-                            }
+                          }
                           throw new UncaughtRuntimeException(body);
                         }))
         .bodyToMono(KeycloakWebToken.class)
@@ -176,9 +176,7 @@ public class KeycloakApiHandler {
         .block();
   }
 
-  /**
-   * DTO for token exchange request body parameters.
-   */
+  /** DTO for token exchange request body parameters. */
   @Setter
   @Getter
   @JsonNaming(PropertyNamingStrategy.SnakeCaseStrategy.class)
@@ -195,10 +193,9 @@ public class KeycloakApiHandler {
       this.requestedSubject = requestedSubject;
     }
 
-    /**
-     * DTO for token request body parameters.
-     */
+    /** DTO for token request body parameters. */
     String clientId = "tardi-manager-customer-web-panel";
+
     String grantType = "urn:ietf:params:oauth:grant-type:token-exchange";
     String subjectToken;
     String subjectTokenType = "urn:ietf:params:oauth:token-type:access_token";
@@ -207,6 +204,10 @@ public class KeycloakApiHandler {
     String requestedSubject;
   }
 
+  /**
+   * Data Transfer Object (DTO) representing the request body parameters for token operations.
+   * Uses snake_case naming strategy for JSON serialization.
+   */
   @Setter
   @Getter
   @Builder

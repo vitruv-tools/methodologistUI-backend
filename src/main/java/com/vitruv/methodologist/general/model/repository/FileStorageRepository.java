@@ -1,9 +1,8 @@
 package com.vitruv.methodologist.general.model.repository;
 
 import com.vitruv.methodologist.general.model.FileStorage;
-import org.springframework.data.repository.CrudRepository;
-
 import java.util.Optional;
+import org.springframework.data.repository.CrudRepository;
 
 /**
  * Spring Data repository interface for managing StoredFile entities. Provides CRUD operations and
