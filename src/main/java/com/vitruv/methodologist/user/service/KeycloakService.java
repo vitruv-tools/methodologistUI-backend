@@ -102,11 +102,8 @@ public class KeycloakService {
     userRepresentation.setLastName(keycloakUser.getLastName());
     userRepresentation.setCredentials(List.of(credentialRepresentation));
     userRepresentation.setEnabled(true);
-    /* force verified email: userRepresentation.setEmailVerified(true) */
     userRepresentation.singleAttribute(USER_CONFIRMED, "false");
     userRepresentation.singleAttribute(ROLE_TYPE, keycloakUser.getRole());
-    /* force verified email and update password: setRequiredActions(List.of("UPDATE_PASSWORD", "VERIFY_EMAIL")) */
-
     return userRepresentation;
   }
 
@@ -141,9 +138,10 @@ public class KeycloakService {
     UserRepresentation userRepresentation = prepareUserRepresentation(keycloakUser);
 
     var response = keycloakAdmin.realm(realm).users().create(userRepresentation);
-    if (response.getStatus() != HttpStatus.CREATED.value())
+    if (response.getStatus() != HttpStatus.CREATED.value()) {
       throw new ClientErrorException(
           ((ClientResponse) response).getReasonPhrase(), response.getStatus());
+    }
     response.close();
 
     /* assign role user to the new user in keycloak, if not remove the created user */
@@ -188,8 +186,7 @@ public class KeycloakService {
               .build()
               .tokenManager()
               .getAccessTokenString();
-    } catch (NotAuthorizedException notAuthorizedException) // change it!
-    {
+    } catch (NotAuthorizedException notAuthorizedException) {
       throw new BadRequestException(USER_WRONG_PASSWORD_ERROR);
     } catch (Exception e) {
       throw new UncaughtRuntimeException(e.getMessage());

@@ -1,10 +1,9 @@
 package com.vitruv.methodologist.vsum.model.repository;
 
-import java.util.Optional;
-
 import com.vitruv.methodologist.vsum.model.Vsum;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import java.util.Optional;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 

@@ -44,6 +44,12 @@ public class KeycloakApiHandler {
 
   public static final String POST_TOKEN_URL = "/realms/methodologist/protocol/openid-connect/token";
 
+  /**
+   * Constructs a KeycloakApiHandler with the specified base URL.
+   * Configures WebClient with response timeout and content type headers.
+   *
+   * @param baseUrl the base URL of the Keycloak server
+   */
   public KeycloakApiHandler(@Value("${third_api.keycloak.base_url}") String baseUrl) {
     HttpClient httpClient =
         HttpClient.create().responseTimeout(Duration.ofSeconds(RESPONSE_TIMEOUT_IN_SECONDS));
