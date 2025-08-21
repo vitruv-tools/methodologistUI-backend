@@ -11,6 +11,10 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * Entity representing version information for an application. Stores the application name, version
+ * string, and force update flag.
+ */
 @Data
 @Builder
 @Entity
