@@ -1,8 +1,6 @@
 package com.vitruv.methodologist.messages;
 
-/**
- * Contains constant messages used throughout the application for user operations.
- */
+/** Contains constant messages used throughout the application for user operations. */
 public class Message {
   public static final String LOGIN_USER_SUCCESSFULLY = "User successfully logged in";
   public static final String SIGNUP_USER_SUCCESSFULLY = "User successfully signed up";
@@ -12,5 +10,4 @@ public class Message {
   public static final String META_MODEL_CREATED_SUCCESSFULLY = "Meta model successfully created";
   public static final String VSUM_UPDATED_SUCCESSFULLY = "Vsum successfully updated";
   public static final String VSUM_REMOVED_SUCCESSFULLY = "Vsum successfully removed";
-
 }

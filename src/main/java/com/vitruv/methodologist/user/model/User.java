@@ -17,10 +17,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
-/**
- * Entity representing a user in the system.
- * Maps to the `usr` table in the database.
- */
+/** Entity representing a user in the system. Maps to the `usr` table in the database. */
 @Data
 @Builder
 @Entity

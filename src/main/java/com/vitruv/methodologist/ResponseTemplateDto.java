@@ -10,6 +10,6 @@ import lombok.Setter;
 @Builder
 @AllArgsConstructor
 public class ResponseTemplateDto<T> {
-    private T data;
-    private String message;
+  private T data;
+  private String message;
 }

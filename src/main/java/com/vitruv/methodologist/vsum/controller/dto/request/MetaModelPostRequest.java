@@ -9,8 +9,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Data Transfer Object (DTO) for creating a new metamodel.
- * Represents the request payload for POST operations on metamodels.
+ * Data Transfer Object (DTO) for creating a new metamodel. Represents the request payload for POST
+ * operations on metamodels.
  */
 @Getter
 @Setter

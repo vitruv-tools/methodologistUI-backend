@@ -209,8 +209,8 @@ public class KeycloakService {
   }
 
   /**
-   * Sends a reset password email to the user with instructions.
-   * Triggers Keycloak's built-in password reset email workflow.
+   * Sends a reset password email to the user with instructions. Triggers Keycloak's built-in
+   * password reset email workflow.
    *
    * @param username the username of the user to send reset email to
    */
@@ -236,8 +236,8 @@ public class KeycloakService {
   }
 
   /**
-   * Sets a new password for a user in Keycloak.
-   * Similar to resetPassword but used in different contexts.
+   * Sets a new password for a user in Keycloak. Similar to resetPassword but used in different
+   * contexts.
    *
    * @param username the username of the user
    * @param password the new password to set

@@ -16,8 +16,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * REST controller for managing user operations.
- * Provides endpoints for user sign-up, retrieval, update, and deletion.
+ * REST controller for managing user operations. Provides endpoints for user sign-up, retrieval,
+ * update, and deletion.
  */
 @RestController
 @RequestMapping("/api/")

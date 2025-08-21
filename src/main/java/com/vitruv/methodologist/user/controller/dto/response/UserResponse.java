@@ -7,8 +7,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Data transfer object for user response.
- * Contains user identification and profile information returned by API endpoints.
+ * Data transfer object for user response. Contains user identification and profile information
+ * returned by API endpoints.
  */
 @Builder
 @Getter

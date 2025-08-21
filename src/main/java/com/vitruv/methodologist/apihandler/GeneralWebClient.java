@@ -11,8 +11,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 
 /**
- * Component that provides configured WebClient instances for making HTTP requests.
- * Supports custom header configuration and automatic request/response logging.
+ * Component that provides configured WebClient instances for making HTTP requests. Supports custom
+ * header configuration and automatic request/response logging.
  */
 @Slf4j
 @Component

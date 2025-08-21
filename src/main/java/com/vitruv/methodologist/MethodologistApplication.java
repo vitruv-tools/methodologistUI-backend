@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @EnableScheduling
 public class MethodologistApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(MethodologistApplication.class, args);
-    }
+  public static void main(String[] args) {
+    SpringApplication.run(MethodologistApplication.class, args);
+  }
 }

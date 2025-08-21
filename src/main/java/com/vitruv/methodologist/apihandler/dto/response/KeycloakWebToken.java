@@ -10,9 +10,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Data Transfer Object (DTO) representing a Keycloak authentication token response.
- * Maps the JSON response from Keycloak's token endpoint to a Java object.
- * Uses snake case naming strategy for JSON property mapping.
+ * Data Transfer Object (DTO) representing a Keycloak authentication token response. Maps the JSON
+ * response from Keycloak's token endpoint to a Java object. Uses snake case naming strategy for
+ * JSON property mapping.
  */
 @Data
 @AllArgsConstructor

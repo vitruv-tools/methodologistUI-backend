@@ -16,6 +16,7 @@
 
 package com.vitruv.methodologist.exception;
 
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -30,7 +31,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.method.HandlerMethod;
-import java.util.Objects;
 
 /**
  * Handles exceptions thrown by controllers in the application and returns standardized error

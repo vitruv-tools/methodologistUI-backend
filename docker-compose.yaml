@@ -8,12 +8,12 @@ services:
       - '8787:8787'
       - '5027:5027'
     environment:
-        JAVA_OPTIONS: >-
-          -Xmx1024m
-          -Xdebug
-          -Dspring.profiles.active=docker
-        JAVA_TOOL_OPTIONS:
-          -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+      JAVA_OPTIONS: >-
+        -Xmx1024m
+        -Xdebug
+        -Dspring.profiles.active=docker
+      JAVA_TOOL_OPTIONS:
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
     depends_on:
       - methodologist-postgresdb
 

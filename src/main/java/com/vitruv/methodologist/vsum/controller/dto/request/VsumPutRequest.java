@@ -9,8 +9,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Data Transfer Object (DTO) for updating an existing VSUM.
- * Contains validated fields required for VSUM update requests.
+ * Data Transfer Object (DTO) for updating an existing VSUM. Contains validated fields required for
+ * VSUM update requests.
  */
 @Getter
 @Setter
@@ -18,7 +18,5 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 public class VsumPutRequest {
-  @NotNull
-  @NotBlank
-  private String name;
+  @NotNull @NotBlank private String name;
 }

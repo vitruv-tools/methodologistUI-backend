@@ -18,9 +18,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Service class for managing metamodel operations including creation and retrieval.
- * Handles the business logic for metamodel management while ensuring proper validation
- * and relationships with files and users.
+ * Service class for managing metamodel operations including creation and retrieval. Handles the
+ * business logic for metamodel management while ensuring proper validation and relationships with
+ * files and users.
  *
  * @see MetaModel
  * @see MetaModelRepository
@@ -44,9 +44,10 @@ public class MetaModelService {
    * @param userRepository repository for user operations
    */
   public MetaModelService(
-          MetaModelMapper metaModelMapper,
-          MetaModelRepository metaModelRepository,
-          FileStorageRepository fileStorageRepository, UserRepository userRepository) {
+      MetaModelMapper metaModelMapper,
+      MetaModelRepository metaModelRepository,
+      FileStorageRepository fileStorageRepository,
+      UserRepository userRepository) {
     this.metaModelMapper = metaModelMapper;
     this.metaModelRepository = metaModelRepository;
     this.fileStorageRepository = fileStorageRepository;
@@ -76,7 +77,9 @@ public class MetaModelService {
             .findById(metaModelPostRequest.getUploadedFileId())
             .orElseThrow(() -> new NotFoundException(FILE_STORAGE_ID_NOT_FOUND_ERROR));
 
-    var user = userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
+    var user =
+        userRepository
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
             .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
     metaModel.setFileStorage(fileStorage);
     metaModel.setUser(user);

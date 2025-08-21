@@ -7,8 +7,8 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * Application configuration class for setting up global CORS policies.
- * Reads allowed origins and headers from application properties.
+ * Application configuration class for setting up global CORS policies. Reads allowed origins and
+ * headers from application properties.
  */
 @Configuration
 public class ApplicationConfiguration {
@@ -19,8 +19,8 @@ public class ApplicationConfiguration {
   private String allowedHeaders;
 
   /**
-   * Configures CORS mappings for the application.
-   * Allows specified origins, headers, and HTTP methods.
+   * Configures CORS mappings for the application. Allows specified origins, headers, and HTTP
+   * methods.
    *
    * @return a {@link WebMvcConfigurer} bean with CORS settings
    */

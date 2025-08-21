@@ -7,5 +7,5 @@ import org.mapstruct.ReportingPolicy;
 
 @Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE, componentModel = "spring")
 public interface VersioningMapper {
-    LatestVersionResponse toLatestVersionResponse(Versioning versioning);
+  LatestVersionResponse toLatestVersionResponse(Versioning versioning);
 }

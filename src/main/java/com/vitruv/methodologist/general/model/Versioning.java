@@ -17,18 +17,13 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Versioning {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @NotNull
-    @NotBlank
-    private String appName;
+  @NotNull @NotBlank private String appName;
 
-    @NotNull
-    @NotBlank
-    private String version;
+  @NotNull @NotBlank private String version;
 
-    @NotNull
-    private Boolean forceUpdate;
+  @NotNull private Boolean forceUpdate;
 }

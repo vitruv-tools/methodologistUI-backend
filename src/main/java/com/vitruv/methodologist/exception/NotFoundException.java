@@ -1,8 +1,8 @@
 package com.vitruv.methodologist.exception;
 
 /**
- * Exception thrown when a requested object is not found.
- * Used to indicate resource absence in service or repository layers.
+ * Exception thrown when a requested object is not found. Used to indicate resource absence in
+ * service or repository layers.
  */
 public class NotFoundException extends RuntimeException {
   public static final String messageTemplate = "%s not found!";

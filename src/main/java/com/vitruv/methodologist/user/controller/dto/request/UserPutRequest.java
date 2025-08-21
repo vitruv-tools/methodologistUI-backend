@@ -9,8 +9,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Data transfer object for updating user information.
- * Contains fields required to update a user's profile.
+ * Data transfer object for updating user information. Contains fields required to update a user's
+ * profile.
  */
 @Getter
 @Setter
@@ -18,11 +18,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 public class UserPutRequest {
-  @NotNull
-  @NotBlank
-  private String firstName;
+  @NotNull @NotBlank private String firstName;
 
-  @NotNull
-  @NotBlank
-  private String lastName;
+  @NotNull @NotBlank private String lastName;
 }

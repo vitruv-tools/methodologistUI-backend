@@ -20,8 +20,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 /**
- * Represents a Virtual Single Underlying Model (VSUM) entity.
- * Provides basic information about a VSUM including its name and timestamps.
+ * Represents a Virtual Single Underlying Model (VSUM) entity. Provides basic information about a
+ * VSUM including its name and timestamps.
  */
 @Data
 @Builder

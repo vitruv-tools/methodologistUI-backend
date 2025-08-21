@@ -17,8 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Service class for managing user operations.
- * Handles business logic for creating, updating, retrieving, and removing users.
+ * Service class for managing user operations. Handles business logic for creating, updating,
+ * retrieving, and removing users.
  */
 @Service
 @Slf4j
@@ -41,8 +41,8 @@ public class UserService {
   }
 
   /**
-   * Creates a new user from the provided sign-up request.
-   * Throws UserConflictException if the email already exists.
+   * Creates a new user from the provided sign-up request. Throws UserConflictException if the email
+   * already exists.
    *
    * @param userPostRequest the request containing user sign-up information
    * @return the created User entity
@@ -57,7 +57,8 @@ public class UserService {
             });
     var user = userMapper.toUser(userPostRequest);
 
-    var keycloakUser = KeycloakUser.builder()
+    var keycloakUser =
+        KeycloakUser.builder()
             .firstName(user.getFirstName())
             .lastName(user.getLastName())
             .email(user.getEmail())
@@ -73,8 +74,8 @@ public class UserService {
   }
 
   /**
-   * Updates an existing user by ID with the provided update request.
-   * Throws NotFoundException if the user is not found.
+   * Updates an existing user by ID with the provided update request. Throws NotFoundException if
+   * the user is not found.
    *
    * @param id the ID of the user to update
    * @param userPutRequest the request containing updated user information
@@ -93,8 +94,7 @@ public class UserService {
   }
 
   /**
-   * Retrieves a user by ID.
-   * Throws NotFoundException if the user is not found.
+   * Retrieves a user by ID. Throws NotFoundException if the user is not found.
    *
    * @param id the ID of the user to retrieve
    * @return the UserResponse DTO containing user data
@@ -109,8 +109,8 @@ public class UserService {
   }
 
   /**
-   * Marks a user as removed by setting the removedAt timestamp.
-   * Throws NotFoundException if the user is not found.
+   * Marks a user as removed by setting the removedAt timestamp. Throws NotFoundException if the
+   * user is not found.
    *
    * @param id the ID of the user to remove
    * @return the updated User entity with removedAt set

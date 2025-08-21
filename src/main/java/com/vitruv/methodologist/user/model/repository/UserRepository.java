@@ -6,8 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * Repository interface for accessing and managing {@link User} entities.
- * Extends {@link JpaRepository} to provide CRUD operations.
+ * Repository interface for accessing and managing {@link User} entities. Extends {@link
+ * JpaRepository} to provide CRUD operations.
  */
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
@@ -29,8 +29,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
   Optional<User> findByEmailIgnoreCase(String email);
 
   /**
-   * Retrieves a non-deleted user by their email address, ignoring case sensitivity.
-   * Only returns users where removedAt is null.
+   * Retrieves a non-deleted user by their email address, ignoring case sensitivity. Only returns
+   * users where removedAt is null.
    *
    * @param email the email address to search for (case insensitive)
    * @return an Optional containing the user if found and not removed, empty otherwise

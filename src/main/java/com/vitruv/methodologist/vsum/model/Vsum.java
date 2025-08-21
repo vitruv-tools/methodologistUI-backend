@@ -1,9 +1,9 @@
 package com.vitruv.methodologist.vsum.model;
 
 import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import lombok.AllArgsConstructor;
@@ -14,8 +14,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 /**
- * Represents a Virtual Single Underlying Model (VSUM) entity.
- * Provides basic information about a VSUM including its name and timestamps.
+ * Represents a Virtual Single Underlying Model (VSUM) entity. Provides basic information about a
+ * VSUM including its name and timestamps.
  */
 @Data
 @Builder

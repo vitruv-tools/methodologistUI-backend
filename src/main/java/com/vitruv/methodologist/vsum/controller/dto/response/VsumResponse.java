@@ -8,8 +8,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Data Transfer Object (DTO) for VSUM response data.
- * Contains fields representing a VSUM's state when returned by the API.
+ * Data Transfer Object (DTO) for VSUM response data. Contains fields representing a VSUM's state
+ * when returned by the API.
  */
 @Builder
 @Getter

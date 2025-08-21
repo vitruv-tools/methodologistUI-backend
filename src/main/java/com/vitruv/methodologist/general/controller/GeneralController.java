@@ -9,19 +9,20 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-
 @RestController
 @RequestMapping("/api/")
 @Validated
 public class GeneralController {
 
-    private final GeneralService generalService;
-    public GeneralController(GeneralService generalService) {
-        this.generalService = generalService;
-    }
+  private final GeneralService generalService;
 
-    @GetMapping("v1/general/latestVersion/{clientName}")
-    public ResponseTemplateDto<LatestVersionResponse> getLatestVersion(@PathVariable(value = "clientName") String clientName) {
-        return generalService.getLatestVersion(clientName);
-    }
+  public GeneralController(GeneralService generalService) {
+    this.generalService = generalService;
+  }
+
+  @GetMapping("v1/general/latestVersion/{clientName}")
+  public ResponseTemplateDto<LatestVersionResponse> getLatestVersion(
+      @PathVariable(value = "clientName") String clientName) {
+    return generalService.getLatestVersion(clientName);
+  }
 }

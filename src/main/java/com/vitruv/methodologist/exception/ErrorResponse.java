@@ -8,19 +8,19 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
 /**
- * Data transfer object representing error details returned by the API.
- * Contains timestamp, error type, message, and request path for debugging and client feedback.
+ * Data transfer object representing error details returned by the API. Contains timestamp, error
+ * type, message, and request path for debugging and client feedback.
  */
 @Value
 @Builder
 public class ErrorResponse {
-   @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSxxx")
-   @Builder.Default
-   private ZonedDateTime timestamp = ZonedDateTime.now(ZoneId.of("UTC"));
+  @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSxxx")
+  @Builder.Default
+  private ZonedDateTime timestamp = ZonedDateTime.now(ZoneId.of("UTC"));
 
-   private String error;
+  private String error;
 
-   private String message;
+  private String message;
 
-   private String path;
+  private String path;
 }

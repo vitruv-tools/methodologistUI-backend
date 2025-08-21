@@ -9,8 +9,8 @@ import org.mapstruct.MappingTarget;
 import org.mapstruct.ReportingPolicy;
 
 /**
- * MapStruct mapper interface for converting between VSUM domain and DTO objects.
- * Uses Spring component model for dependency injection and ignores unmapped target properties.
+ * MapStruct mapper interface for converting between VSUM domain and DTO objects. Uses Spring
+ * component model for dependency injection and ignores unmapped target properties.
  */
 @Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE, componentModel = "spring")
 public interface VsumMapper {

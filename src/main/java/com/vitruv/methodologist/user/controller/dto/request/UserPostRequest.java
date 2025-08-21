@@ -11,8 +11,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Data transfer object for creating a new user.
- * Contains required user information for registration.
+ * Data transfer object for creating a new user. Contains required user information for
+ * registration.
  */
 @Getter
 @Setter

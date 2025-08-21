@@ -8,8 +8,8 @@ import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 
 /**
- * MapStruct mapper interface for converting between MetaModel entities and DTOs.
- * Handles the mapping of MetaModel-related objects while ignoring unmapped target properties.
+ * MapStruct mapper interface for converting between MetaModel entities and DTOs. Handles the
+ * mapping of MetaModel-related objects while ignoring unmapped target properties.
  *
  * @see MetaModel
  * @see MetaModelPostRequest
@@ -26,8 +26,8 @@ public interface MetaModelMapper {
   MetaModel toMetaModel(MetaModelPostRequest metaModelPostRequest);
 
   /**
-   * Converts a MetaModel entity to a MetaModelResponse DTO.
-   * Maps the fileStorage.id to storageFileId in the response.
+   * Converts a MetaModel entity to a MetaModelResponse DTO. Maps the fileStorage.id to
+   * storageFileId in the response.
    *
    * @param metaModel the metamodel entity to convert
    * @return the mapped MetaModelResponse DTO

@@ -8,8 +8,8 @@ import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * Repository interface for managing {@link Vsum} entities.
- * Provides CRUD operations and custom queries for VSUM data access.
+ * Repository interface for managing {@link Vsum} entities. Provides CRUD operations and custom
+ * queries for VSUM data access.
  */
 @Repository
 public interface VsumRepository extends CrudRepository<Vsum, Long> {

@@ -12,6 +12,6 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 public class LatestVersionResponse {
-    private Boolean forceUpdate;
-    private String version;
+  private Boolean forceUpdate;
+  private String version;
 }
