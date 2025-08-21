@@ -5,6 +5,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Main entry point for the Methodologist Spring Boot application.
+ * Enables scheduling and registers REST controllers.
+ */
 @SpringBootApplication
 @RestController
 @EnableScheduling
