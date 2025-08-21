@@ -2,11 +2,10 @@ package com.vitruv.methodologist.vsum.model;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
+import java.time.Instant;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-
-import java.time.Instant;
 
 /**
  * Represents a Virtual Single Underlying Model (VSUM) entity.
