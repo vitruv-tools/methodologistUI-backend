@@ -6,11 +6,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.vitruv.methodologist.exception.EmailExistsException;
 import com.vitruv.methodologist.user.RoleType;
 import com.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import com.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import com.vitruv.methodologist.user.mapper.UserMapperImpl;
-import com.vitruv.methodologist.exception.EmailExistsException;
 import com.vitruv.methodologist.user.model.User;
 import com.vitruv.methodologist.user.model.repository.UserRepository;
 import java.time.Instant;
