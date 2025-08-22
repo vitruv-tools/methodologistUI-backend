@@ -38,6 +38,7 @@ public class KeycloakApiHandler {
   public static final String POST_TOKEN_URL = "/realms/methodologist/protocol/openid-connect/token";
   private final WebClient webClient;
   private final ObjectMapper mapper = new ObjectMapper();
+
   @Value("${investino.keycloak.client-id}")
   private String clientId;
 
@@ -182,12 +183,14 @@ public class KeycloakApiHandler {
 
     /** DTO for token request body parameters. */
     String clientId = "tardi-manager-customer-web-panel";
+
     String grantType = "urn:ietf:params:oauth:grant-type:token-exchange";
     String subjectToken;
     String subjectTokenType = "urn:ietf:params:oauth:token-type:access_token";
     String audience = "tardi-manager-customer-web-panel";
     String requestedTokenType = "urn:ietf:params:oauth:token-type:refresh_token";
     String requestedSubject;
+
     /**
      * Constructs a new ExchangeTokenPostBody with the specified tokens.
      *
