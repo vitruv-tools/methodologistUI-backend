@@ -5,9 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategy;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.vitruv.methodologist.apihandler.dto.response.KeycloakWebToken;
-import com.vitruv.methodologist.exception.ParseException;
+import com.vitruv.methodologist.exception.ParseThirdPartyApiResponseException;
 import com.vitruv.methodologist.exception.UnauthorizedException;
-import com.vitruv.methodologist.exception.UncaughtRuntimeException;
+import com.vitruv.methodologist.exception.UncheckedRuntimeException;
 import java.time.Duration;
 import java.util.Map;
 import lombok.AllArgsConstructor;
@@ -68,8 +68,8 @@ public class KeycloakApiHandler {
    * @param token the original token to exchange
    * @param userId the ID of the user for whom to exchange the token
    * @return KeycloakWebToken containing the exchanged token information
-   * @throws ParseException if token exchange request body cannot be parsed
-   * @throws UncaughtRuntimeException if the exchange request fails
+   * @throws com.vitruv.methodologist.exception.ParseThirdPartyApiResponseException if token exchange request body cannot be parsed
+   * @throws com.vitruv.methodologist.exception.UncheckedRuntimeException if the exchange request fails
    */
   public KeycloakWebToken getExchangeTokenOrThrow(String token, String userId) {
     MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
@@ -80,7 +80,7 @@ public class KeycloakApiHandler {
               new TypeReference<Map<String, String>>() {});
       formData.setAll(fieldMap);
     } catch (Exception e) {
-      throw new ParseException(e.getMessage());
+      throw new ParseThirdPartyApiResponseException(e.getMessage());
     }
 
     return webClient
@@ -91,7 +91,7 @@ public class KeycloakApiHandler {
         .bodyToMono(KeycloakWebToken.class)
         .doOnError(
             (exception) -> {
-              throw new UncaughtRuntimeException(exception.getMessage());
+              throw new UncheckedRuntimeException(exception.getMessage());
             })
         .block();
   }
@@ -103,10 +103,10 @@ public class KeycloakApiHandler {
    * @param password the user's password
    * @return KeycloakWebToken containing the access token information
    * @throws UnauthorizedException if credentials are invalid
-   * @throws UncaughtRuntimeException if the token request fails
+   * @throws com.vitruv.methodologist.exception.UncheckedRuntimeException if the token request fails
    */
   public KeycloakWebToken getAccessTokenOrThrow(String username, String password) {
-    var formData = new LinkedMultiValueMap<String, String>();
+    LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<String, String>();
     formData.add("client_id", clientId);
     formData.add("grant_type", "password");
     formData.add("username", username);
@@ -128,12 +128,12 @@ public class KeycloakApiHandler {
                           if (response.statusCode().equals(HttpStatus.UNAUTHORIZED)) {
                             throw new UnauthorizedException();
                           }
-                          throw new UncaughtRuntimeException(body);
+                          throw new UncheckedRuntimeException(body);
                         }))
         .bodyToMono(KeycloakWebToken.class)
         .doOnError(
             exception -> {
-              throw new UncaughtRuntimeException(exception.getMessage());
+              throw new UncheckedRuntimeException(exception.getMessage());
             })
         .block();
   }
@@ -144,10 +144,10 @@ public class KeycloakApiHandler {
    * @param refreshToken the refresh token to use
    * @return KeycloakWebToken containing the new access token information
    * @throws UnauthorizedException if the refresh token is invalid
-   * @throws UncaughtRuntimeException if the token refresh request fails
+   * @throws com.vitruv.methodologist.exception.UncheckedRuntimeException if the token refresh request fails
    */
   public KeycloakWebToken getAccessTokenByRefreshToken(String refreshToken) {
-    var formData = new LinkedMultiValueMap<String, String>();
+    LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<String, String>();
     formData.add("client_id", clientId);
     formData.add("grant_type", "refresh_token");
     formData.add("refresh_token", refreshToken);
@@ -166,12 +166,12 @@ public class KeycloakApiHandler {
                 return Mono.error(new UnauthorizedException());
               }
               return Mono.error(
-                  new UncaughtRuntimeException("Client error: " + response.statusCode()));
+                  new UncheckedRuntimeException("Client error: " + response.statusCode()));
             })
         .onStatus(
             HttpStatusCode::is5xxServerError,
             response ->
-                Mono.error(new UncaughtRuntimeException("Client error: " + response.statusCode())))
+                Mono.error(new UncheckedRuntimeException("Client error: " + response.statusCode())))
         .bodyToMono(KeycloakWebToken.class)
         .block();
   }

@@ -2,7 +2,6 @@ package com.vitruv.methodologist.vsum.service;
 
 import static com.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
-import com.vitruv.methodologist.exception.ConflictException;
 import com.vitruv.methodologist.exception.NotFoundException;
 import com.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import com.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
@@ -46,16 +45,9 @@ public class VsumService {
    *
    * @param vsumPostRequest DTO containing the VSUM creation details
    * @return the created Vsum entity
-   * @throws ConflictException if a VSUM with the same name already exists
    */
   @Transactional
   public Vsum create(VsumPostRequest vsumPostRequest) {
-    vsumRepository
-        .findByNameIgnoreCase(vsumPostRequest.getName())
-        .ifPresent(
-            user -> {
-              throw new ConflictException(vsumPostRequest.getName());
-            });
     var vsum = vsumMapper.toVsum(vsumPostRequest);
     vsumRepository.save(vsum);
 

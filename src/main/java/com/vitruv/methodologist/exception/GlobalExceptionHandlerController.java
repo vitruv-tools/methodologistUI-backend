@@ -58,12 +58,11 @@ public class GlobalExceptionHandlerController {
    * @param request the current web request
    * @return ErrorResponse with conflict details
    */
-  @ExceptionHandler(value = ConflictException.class)
+  @ExceptionHandler(value = EmailExistsException.class)
   @ResponseStatus(HttpStatus.CONFLICT)
-  public ErrorResponse conflictException(
-      ConflictException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+  public ErrorResponse emailExistsException(
+          EmailExistsException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
-        .error(ConflictException.USER_CONFLICT_ERROR)
         .message(ex.getMessage())
         .path(getPath(request))
         .build();

@@ -4,7 +4,7 @@ import static com.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR
 import static com.vitruv.methodologist.messages.Error.USER_WRONG_PASSWORD_ERROR;
 
 import com.vitruv.methodologist.exception.NotFoundException;
-import com.vitruv.methodologist.exception.UncaughtRuntimeException;
+import com.vitruv.methodologist.exception.UncheckedRuntimeException;
 import com.vitruv.methodologist.user.controller.dto.KeycloakUser;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.ClientErrorException;
@@ -171,7 +171,7 @@ public class KeycloakService {
    * @param username the username
    * @param password the password to verify
    * @throws BadRequestException if the password is incorrect
-   * @throws UncaughtRuntimeException for other authentication errors
+   * @throws UncheckedRuntimeException for other authentication errors
    */
   public void verifyUserPasswordOrThrow(String username, String password) {
     try {
@@ -189,7 +189,7 @@ public class KeycloakService {
     } catch (NotAuthorizedException notAuthorizedException) {
       throw new BadRequestException(USER_WRONG_PASSWORD_ERROR);
     } catch (Exception e) {
-      throw new UncaughtRuntimeException(e.getMessage());
+      throw new UncheckedRuntimeException(e.getMessage());
     }
   }
 

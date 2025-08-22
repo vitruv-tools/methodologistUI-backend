@@ -23,6 +23,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 import org.springframework.web.util.ContentCachingResponseWrapper;
+import net.logstash.logback.marker.LogstashMarker;
 
 /**
  * Filter component that logs HTTP request and response details in a structured format. Implements
@@ -55,8 +56,8 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
 
-    var reqWrapper = new ContentCachingRequestWrapper(request);
-    var resWrapper = new ContentCachingResponseWrapper(response);
+    ContentCachingRequestWrapper reqWrapper = new ContentCachingRequestWrapper(request);
+    ContentCachingResponseWrapper resWrapper = new ContentCachingResponseWrapper(response);
 
     MDC.put("requestId", UUID.randomUUID().toString());
     MDC.put("api", request.getRequestURI());
@@ -75,9 +76,9 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
 
         if (!shouldSkip(request.getRequestURI())) {
           // ---- REQUEST ----
-          var reqCt = safeContentType(reqWrapper.getContentType());
-          var reqBodyBytes = reqWrapper.getContentAsByteArray();
-          var reqCharset = safeCharset(reqWrapper.getCharacterEncoding());
+          String reqCt = safeContentType(reqWrapper.getContentType());
+          byte[] reqBodyBytes = reqWrapper.getContentAsByteArray();
+          Charset reqCharset = safeCharset(reqWrapper.getCharacterEncoding());
 
           logEntry.put(
               "requestMeta",
@@ -103,9 +104,9 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
           }
 
           // ---- RESPONSE ----
-          var resCt = safeContentType(resWrapper.getContentType());
-          var resBodyBytes = resWrapper.getContentAsByteArray();
-          var resCharset = safeCharset(resWrapper.getCharacterEncoding());
+          String resCt = safeContentType(resWrapper.getContentType());
+          byte[] resBodyBytes = resWrapper.getContentAsByteArray();
+          Charset resCharset = safeCharset(resWrapper.getCharacterEncoding());
 
           logEntry.put(
               "responseMeta",
@@ -129,8 +130,8 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
         resWrapper.copyBodyToResponse();
 
         // Log with markers
-        var duration = System.currentTimeMillis() - start;
-        var marker =
+        long duration = System.currentTimeMillis() - start;
+        LogstashMarker marker =
             append("type", "SERVED_API")
                 .and(append("status", resWrapper.getStatus()))
                 .and(append("duration_ms", duration))
@@ -155,8 +156,8 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
       return true;
     }
     ;
-    var u = uri.toLowerCase();
-    for (var s : SKIP_PATHS) {
+    String u = uri.toLowerCase();
+    for (String s : SKIP_PATHS) {
       if (u.contains(s)) {
         return true;
       }

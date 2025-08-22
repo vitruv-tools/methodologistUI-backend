@@ -3,7 +3,7 @@ package com.vitruv.methodologist.vsum.service;
 import static com.vitruv.methodologist.messages.Error.FILE_STORAGE_ID_NOT_FOUND_ERROR;
 import static com.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
-import com.vitruv.methodologist.exception.ConflictException;
+import com.vitruv.methodologist.exception.EmailExistsException;
 import com.vitruv.methodologist.exception.NotFoundException;
 import com.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import com.vitruv.methodologist.user.model.repository.UserRepository;
@@ -60,7 +60,7 @@ public class MetaModelService {
    * @param callerEmail email of the user creating the metamodel
    * @param metaModelPostRequest DTO containing the metamodel details
    * @return the created MetaModel entity
-   * @throws ConflictException if a metamodel with the same name already exists
+   * @throws EmailExistsException if a metamodel with the same name already exists
    * @throws NotFoundException if the file storage ID or user email is not found
    */
   @Transactional
@@ -69,7 +69,7 @@ public class MetaModelService {
         .findByNameIgnoreCase(metaModelPostRequest.getName())
         .ifPresent(
             metaModel -> {
-              throw new ConflictException(metaModelPostRequest.getName());
+              throw new EmailExistsException(metaModelPostRequest.getName());
             });
     var metaModel = metaModelMapper.toMetaModel(metaModelPostRequest);
     var fileStorage =
