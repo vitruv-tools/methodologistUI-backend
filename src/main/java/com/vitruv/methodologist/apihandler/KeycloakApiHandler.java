@@ -68,8 +68,8 @@ public class KeycloakApiHandler {
    * @param token the original token to exchange
    * @param userId the ID of the user for whom to exchange the token
    * @return KeycloakWebToken containing the exchanged token information
-   * @throws com.vitruv.methodologist.exception.ParseThirdPartyApiResponseException if token exchange request body cannot be parsed
-   * @throws com.vitruv.methodologist.exception.UncheckedRuntimeException if the exchange request fails
+   * @throws ParseThirdPartyApiResponseException if token exchange request body cannot be parsed
+   * @throws UncheckedRuntimeException if the exchange request fails
    */
   public KeycloakWebToken getExchangeTokenOrThrow(String token, String userId) {
     MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
@@ -103,7 +103,7 @@ public class KeycloakApiHandler {
    * @param password the user's password
    * @return KeycloakWebToken containing the access token information
    * @throws UnauthorizedException if credentials are invalid
-   * @throws com.vitruv.methodologist.exception.UncheckedRuntimeException if the token request fails
+   * @throws UncheckedRuntimeException if the token request fails
    */
   public KeycloakWebToken getAccessTokenOrThrow(String username, String password) {
     LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<String, String>();
@@ -144,7 +144,8 @@ public class KeycloakApiHandler {
    * @param refreshToken the refresh token to use
    * @return KeycloakWebToken containing the new access token information
    * @throws UnauthorizedException if the refresh token is invalid
-   * @throws com.vitruv.methodologist.exception.UncheckedRuntimeException if the token refresh request fails
+   * @throws com.vitruv.methodologist.exception.UncheckedRuntimeException if the token refresh
+   *     request fails
    */
   public KeycloakWebToken getAccessTokenByRefreshToken(String refreshToken) {
     LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<String, String>();
@@ -205,8 +206,8 @@ public class KeycloakApiHandler {
   }
 
   /**
-   * Data Transfer Object (DTO) representing the request body parameters for token operations.
-   * Uses snake_case naming strategy for JSON serialization.
+   * Data Transfer Object (DTO) representing the request body parameters for token operations. Uses
+   * snake_case naming strategy for JSON serialization.
    */
   @Setter
   @Getter
