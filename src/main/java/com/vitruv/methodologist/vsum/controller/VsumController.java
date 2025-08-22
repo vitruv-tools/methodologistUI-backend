@@ -23,8 +23,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * REST controller for managing VSUM (Virtual Single Underlying Model) resources.
- * Provides endpoints for CRUD operations on VSUMs.
+ * REST controller for managing VSUM (Virtual Single Underlying Model) resources. Provides endpoints
+ * for CRUD operations on VSUMs.
  */
 @RestController
 @RequestMapping("/api/")

@@ -11,8 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Service class for managing general application operations.
- * Handles version information retrieval and other general functionality.
+ * Service class for managing general application operations. Handles version information retrieval
+ * and other general functionality.
  */
 @Service
 public class GeneralService {

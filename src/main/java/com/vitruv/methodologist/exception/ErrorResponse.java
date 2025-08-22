@@ -1,11 +1,10 @@
 package com.vitruv.methodologist.exception;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import lombok.Builder;
-import lombok.Value;
-
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import lombok.Builder;
+import lombok.Value;
 
 /**
  * Data transfer object representing error details returned by the API. Contains timestamp, error

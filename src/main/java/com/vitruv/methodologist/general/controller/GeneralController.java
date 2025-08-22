@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * REST controller for managing general application operations.
- * Provides endpoints for retrieving system-wide information.
+ * REST controller for managing general application operations. Provides endpoints for retrieving
+ * system-wide information.
  *
  * @see GeneralService
  */

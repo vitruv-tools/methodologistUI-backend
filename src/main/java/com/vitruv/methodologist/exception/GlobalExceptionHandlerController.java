@@ -61,11 +61,8 @@ public class GlobalExceptionHandlerController {
   @ExceptionHandler(value = EmailExistsException.class)
   @ResponseStatus(HttpStatus.CONFLICT)
   public ErrorResponse emailExistsException(
-          EmailExistsException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    return ErrorResponse.builder()
-        .message(ex.getMessage())
-        .path(getPath(request))
-        .build();
+      EmailExistsException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder().message(ex.getMessage()).path(getPath(request)).build();
   }
 
   /**
@@ -216,8 +213,8 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
-   * Handles exceptions for malformed request bodies.
-   * Provides specific error messages for type resolution and deserialization issues.
+   * Handles exceptions for malformed request bodies. Provides specific error messages for type
+   * resolution and deserialization issues.
    *
    * @param ex the caught HttpMessageNotReadableException
    * @param handlerMethod the handler method that threw the exception
