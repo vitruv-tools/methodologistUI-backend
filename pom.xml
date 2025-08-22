@@ -9,7 +9,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
 
-    <groupId>com.vitruv.methodologist</groupId>
+    <groupId>tools.vitruv.methodologist</groupId>
     <artifactId>Methodologist</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <packaging>jar</packaging>
@@ -194,7 +194,7 @@
                 <executions>
                     <execution>
                         <configuration>
-                            <mainClass>com.vitruv.MethodologistApplication</mainClass>
+                            <mainClass>tools.vitruv.MethodologistApplication</mainClass>
                         </configuration>
                     </execution>
                 </executions>
