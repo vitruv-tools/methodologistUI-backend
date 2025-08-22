@@ -2,13 +2,13 @@ package tools.vitruv.methodologist.general.service;
 
 import static tools.vitruv.methodologist.messages.Error.CLIENT_NOT_FOUND_ERROR;
 
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.controller.responsedto.LatestVersionResponse;
 import tools.vitruv.methodologist.general.mapper.VersioningMapper;
 import tools.vitruv.methodologist.general.model.repository.VersioningRepository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Service class for managing general application operations. Handles version information retrieval

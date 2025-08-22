@@ -1,11 +1,11 @@
 package tools.vitruv.methodologist.vsum.mapper;
 
-import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
-import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
-import tools.vitruv.methodologist.vsum.model.MetaModel;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
+import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
+import tools.vitruv.methodologist.vsum.model.MetaModel;
 
 /**
  * MapStruct mapper interface for converting between MetaModel entities and DTOs. Handles the

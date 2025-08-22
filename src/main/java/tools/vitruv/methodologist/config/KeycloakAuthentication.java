@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import tools.vitruv.methodologist.user.RoleType;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -17,6 +16,7 @@ import lombok.Setter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import tools.vitruv.methodologist.user.RoleType;
 
 /**
  * Custom authentication token for Keycloak JWTs. Parses JWT claims into a strongly-typed {@link

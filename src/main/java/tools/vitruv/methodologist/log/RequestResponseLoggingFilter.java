@@ -40,6 +40,59 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
   private static final Set<String> SKIP_PATHS = Set.of("swagger", "actuator");
   private final ObjectMapper mapper = new ObjectMapper();
 
+  private static boolean shouldSkip(String uri) {
+    if (!StringUtils.hasText(uri)) {
+      return true;
+    }
+    ;
+    String u = uri.toLowerCase();
+    for (String s : SKIP_PATHS) {
+      if (u.contains(s)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // ---------- helpers ----------
+
+  private static boolean isJson(String contentType) {
+    if (!StringUtils.hasText(contentType)) {
+      return false;
+    }
+    try {
+      return MediaType.valueOf(contentType).isCompatibleWith(MediaType.APPLICATION_JSON);
+    } catch (Exception ignored) {
+      return false;
+    }
+  }
+
+  private static String safeContentType(String ct) {
+    return StringUtils.hasText(ct) ? ct : "application/octet-stream";
+  }
+
+  private static Charset safeCharset(String enc) {
+    if (!StringUtils.hasText(enc)) {
+      return StandardCharsets.UTF_8;
+    }
+    try {
+      return Charset.forName(enc);
+    } catch (Exception e) {
+      return StandardCharsets.UTF_8;
+    }
+  }
+
+  private static String bytesToString(byte[] bytes, Charset cs) {
+    return new String(bytes, cs);
+  }
+
+  private static String truncate(String s, int max) {
+    if (s == null) {
+      return null;
+    }
+    return s.length() <= max ? s : s.substring(0, max) + "…";
+  }
+
   /**
    * Processes HTTP requests and responses, generating structured logs with detailed information.
    * Caches request/response content for logging while preserving the original stream. Includes
@@ -147,59 +200,6 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
         MDC.clear();
       }
     }
-  }
-
-  // ---------- helpers ----------
-
-  private static boolean shouldSkip(String uri) {
-    if (!StringUtils.hasText(uri)) {
-      return true;
-    }
-    ;
-    String u = uri.toLowerCase();
-    for (String s : SKIP_PATHS) {
-      if (u.contains(s)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static boolean isJson(String contentType) {
-    if (!StringUtils.hasText(contentType)) {
-      return false;
-    }
-    try {
-      return MediaType.valueOf(contentType).isCompatibleWith(MediaType.APPLICATION_JSON);
-    } catch (Exception ignored) {
-      return false;
-    }
-  }
-
-  private static String safeContentType(String ct) {
-    return StringUtils.hasText(ct) ? ct : "application/octet-stream";
-  }
-
-  private static Charset safeCharset(String enc) {
-    if (!StringUtils.hasText(enc)) {
-      return StandardCharsets.UTF_8;
-    }
-    try {
-      return Charset.forName(enc);
-    } catch (Exception e) {
-      return StandardCharsets.UTF_8;
-    }
-  }
-
-  private static String bytesToString(byte[] bytes, Charset cs) {
-    return new String(bytes, cs);
-  }
-
-  private static String truncate(String s, int max) {
-    if (s == null) {
-      return null;
-    }
-    return s.length() <= max ? s : s.substring(0, max) + "…";
   }
 
   private void addJsonSafely(Map<String, Object> logEntry, String key, String body) {

@@ -4,12 +4,6 @@ import static tools.vitruv.methodologist.messages.Message.VSUM_CREATED_SUCCESSFU
 import static tools.vitruv.methodologist.messages.Message.VSUM_REMOVED_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_UPDATED_SUCCESSFULLY;
 
-import tools.vitruv.methodologist.ResponseTemplateDto;
-import tools.vitruv.methodologist.config.KeycloakAuthentication;
-import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
-import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
-import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
-import tools.vitruv.methodologist.vsum.service.VsumService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
@@ -21,6 +15,12 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.vitruv.methodologist.ResponseTemplateDto;
+import tools.vitruv.methodologist.config.KeycloakAuthentication;
+import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
+import tools.vitruv.methodologist.vsum.service.VsumService;
 
 /**
  * REST controller for managing VSUM (Virtual Single Underlying Model) resources. Provides endpoints

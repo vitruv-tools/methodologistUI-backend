@@ -1,9 +1,9 @@
 package tools.vitruv.methodologist.general.mapper;
 
-import tools.vitruv.methodologist.general.controller.responsedto.LatestVersionResponse;
-import tools.vitruv.methodologist.general.model.Versioning;
 import org.mapstruct.Mapper;
 import org.mapstruct.ReportingPolicy;
+import tools.vitruv.methodologist.general.controller.responsedto.LatestVersionResponse;
+import tools.vitruv.methodologist.general.model.Versioning;
 
 /**
  * MapStruct mapper for converting {@link Versioning} entities to DTOs. Used to map versioning data

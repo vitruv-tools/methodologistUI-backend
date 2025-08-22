@@ -1,8 +1,8 @@
 package tools.vitruv.methodologist.general.model.repository;
 
-import tools.vitruv.methodologist.general.model.Versioning;
 import java.util.Optional;
 import org.springframework.data.repository.CrudRepository;
+import tools.vitruv.methodologist.general.model.Versioning;
 
 /**
  * Repository interface for managing Versioning entities. Extends CrudRepository to provide basic

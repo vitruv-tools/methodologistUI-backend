@@ -3,9 +3,6 @@ package tools.vitruv.methodologist.user.service;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_WRONG_PASSWORD_ERROR;
 
-import tools.vitruv.methodologist.exception.NotFoundException;
-import tools.vitruv.methodologist.exception.UncheckedRuntimeException;
-import tools.vitruv.methodologist.user.controller.dto.KeycloakUser;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.NotAuthorizedException;
@@ -20,6 +17,9 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import tools.vitruv.methodologist.exception.NotFoundException;
+import tools.vitruv.methodologist.exception.UncheckedRuntimeException;
+import tools.vitruv.methodologist.user.controller.dto.KeycloakUser;
 
 /**
  * Service component that handles user management operations with Keycloak authentication server.

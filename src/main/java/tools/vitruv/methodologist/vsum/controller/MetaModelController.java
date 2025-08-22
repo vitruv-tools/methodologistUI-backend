@@ -2,11 +2,6 @@ package tools.vitruv.methodologist.vsum.controller;
 
 import static tools.vitruv.methodologist.messages.Message.META_MODEL_CREATED_SUCCESSFULLY;
 
-import tools.vitruv.methodologist.ResponseTemplateDto;
-import tools.vitruv.methodologist.config.KeycloakAuthentication;
-import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
-import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
-import tools.vitruv.methodologist.vsum.service.MetaModelService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,6 +11,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.vitruv.methodologist.ResponseTemplateDto;
+import tools.vitruv.methodologist.config.KeycloakAuthentication;
+import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
+import tools.vitruv.methodologist.vsum.service.MetaModelService;
 
 /**
  * REST controller for managing metamodel operations. Provides endpoints for creating and retrieving

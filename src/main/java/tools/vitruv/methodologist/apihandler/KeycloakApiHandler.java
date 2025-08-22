@@ -4,10 +4,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategy;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
-import tools.vitruv.methodologist.apihandler.dto.response.KeycloakWebToken;
-import tools.vitruv.methodologist.exception.ParseThirdPartyApiResponseException;
-import tools.vitruv.methodologist.exception.UnauthorizedException;
-import tools.vitruv.methodologist.exception.UncheckedRuntimeException;
 import java.time.Duration;
 import java.util.Map;
 import lombok.AllArgsConstructor;
@@ -27,6 +23,10 @@ import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
+import tools.vitruv.methodologist.apihandler.dto.response.KeycloakWebToken;
+import tools.vitruv.methodologist.exception.ParseThirdPartyApiResponseException;
+import tools.vitruv.methodologist.exception.UnauthorizedException;
+import tools.vitruv.methodologist.exception.UncheckedRuntimeException;
 
 /**
  * Component responsible for handling authentication-related API calls to Keycloak. Provides
@@ -34,15 +34,12 @@ import reactor.netty.http.client.HttpClient;
  */
 @Component
 public class KeycloakApiHandler {
+  public static final int RESPONSE_TIMEOUT_IN_SECONDS = 5;
+  public static final String POST_TOKEN_URL = "/realms/methodologist/protocol/openid-connect/token";
   private final WebClient webClient;
   private final ObjectMapper mapper = new ObjectMapper();
-
   @Value("${investino.keycloak.client-id}")
   private String clientId;
-
-  public static final int RESPONSE_TIMEOUT_IN_SECONDS = 5;
-
-  public static final String POST_TOKEN_URL = "/realms/methodologist/protocol/openid-connect/token";
 
   /**
    * Constructs a KeycloakApiHandler with the specified base URL. Configures WebClient with response
@@ -183,6 +180,14 @@ public class KeycloakApiHandler {
   @JsonNaming(PropertyNamingStrategy.SnakeCaseStrategy.class)
   public static class ExchangeTokenPostBody {
 
+    /** DTO for token request body parameters. */
+    String clientId = "tardi-manager-customer-web-panel";
+    String grantType = "urn:ietf:params:oauth:grant-type:token-exchange";
+    String subjectToken;
+    String subjectTokenType = "urn:ietf:params:oauth:token-type:access_token";
+    String audience = "tardi-manager-customer-web-panel";
+    String requestedTokenType = "urn:ietf:params:oauth:token-type:refresh_token";
+    String requestedSubject;
     /**
      * Constructs a new ExchangeTokenPostBody with the specified tokens.
      *
@@ -193,16 +198,6 @@ public class KeycloakApiHandler {
       this.subjectToken = subjectToken;
       this.requestedSubject = requestedSubject;
     }
-
-    /** DTO for token request body parameters. */
-    String clientId = "tardi-manager-customer-web-panel";
-
-    String grantType = "urn:ietf:params:oauth:grant-type:token-exchange";
-    String subjectToken;
-    String subjectTokenType = "urn:ietf:params:oauth:token-type:access_token";
-    String audience = "tardi-manager-customer-web-panel";
-    String requestedTokenType = "urn:ietf:params:oauth:token-type:refresh_token";
-    String requestedSubject;
   }
 
   /**

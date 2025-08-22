@@ -4,16 +4,16 @@ import static tools.vitruv.methodologist.messages.Message.SIGNUP_USER_SUCCESSFUL
 import static tools.vitruv.methodologist.messages.Message.USER_REMOVED_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.USER_UPDATED_SUCCESSFULLY;
 
+import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import tools.vitruv.methodologist.user.controller.dto.response.UserResponse;
 import tools.vitruv.methodologist.user.service.UserService;
-import jakarta.validation.Valid;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
 
 /**
  * REST controller for managing user operations. Provides endpoints for user sign-up, retrieval,

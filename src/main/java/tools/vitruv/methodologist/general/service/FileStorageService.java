@@ -2,15 +2,15 @@ package tools.vitruv.methodologist.general.service;
 
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
-import tools.vitruv.methodologist.exception.NotFoundException;
-import tools.vitruv.methodologist.general.model.FileStorage;
-import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
-import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import tools.vitruv.methodologist.exception.NotFoundException;
+import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
+import tools.vitruv.methodologist.user.model.repository.UserRepository;
 
 /**
  * Service class that handles file storage operations including storing, retrieving, and deleting
@@ -31,6 +31,18 @@ public class FileStorageService {
       FileStorageRepository fileStorageRepository, UserRepository userRepository) {
     this.fileStorageRepository = fileStorageRepository;
     this.userRepository = userRepository;
+  }
+
+  /**
+   * Calculates the SHA-256 hash of the given data and returns it as a hexadecimal string.
+   *
+   * @param data the byte array to hash
+   * @return hexadecimal string representation of the SHA-256 hash
+   * @throws Exception if the hashing algorithm is not available
+   */
+  private static String sha256Hex(byte[] data) throws Exception {
+    MessageDigest md = MessageDigest.getInstance("SHA-256");
+    return HexFormat.of().formatHex(md.digest(data));
   }
 
   /**
@@ -98,17 +110,5 @@ public class FileStorageService {
   @Transactional
   public void deleteFile(Long id) {
     fileStorageRepository.deleteById(id);
-  }
-
-  /**
-   * Calculates the SHA-256 hash of the given data and returns it as a hexadecimal string.
-   *
-   * @param data the byte array to hash
-   * @return hexadecimal string representation of the SHA-256 hash
-   * @throws Exception if the hashing algorithm is not available
-   */
-  private static String sha256Hex(byte[] data) throws Exception {
-    MessageDigest md = MessageDigest.getInstance("SHA-256");
-    return HexFormat.of().formatHex(md.digest(data));
   }
 }

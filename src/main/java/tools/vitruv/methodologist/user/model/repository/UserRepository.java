@@ -1,9 +1,9 @@
 package tools.vitruv.methodologist.user.model.repository;
 
-import tools.vitruv.methodologist.user.model.User;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import tools.vitruv.methodologist.user.model.User;
 
 /**
  * Repository interface for accessing and managing {@link User} entities. Extends {@link

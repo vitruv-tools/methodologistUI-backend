@@ -1,8 +1,5 @@
 package tools.vitruv.methodologist.general.controller;
 
-import tools.vitruv.methodologist.ResponseTemplateDto;
-import tools.vitruv.methodologist.config.KeycloakAuthentication;
-import tools.vitruv.methodologist.general.service.FileStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -19,6 +16,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import tools.vitruv.methodologist.ResponseTemplateDto;
+import tools.vitruv.methodologist.config.KeycloakAuthentication;
+import tools.vitruv.methodologist.general.service.FileStorageService;
 
 /**
  * REST controller for handling file storage operations. Provides endpoints for uploading,

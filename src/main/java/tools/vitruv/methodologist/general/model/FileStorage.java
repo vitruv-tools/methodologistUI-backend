@@ -1,6 +1,5 @@
 package tools.vitruv.methodologist.general.model;
 
-import tools.vitruv.methodologist.user.model.User;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -16,6 +15,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import tools.vitruv.methodologist.user.model.User;
 
 /**
  * Entity class representing a file stored in the database. Contains metadata and binary content of

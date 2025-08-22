@@ -1,13 +1,13 @@
 package tools.vitruv.methodologist.general.controller;
 
-import tools.vitruv.methodologist.ResponseTemplateDto;
-import tools.vitruv.methodologist.general.controller.responsedto.LatestVersionResponse;
-import tools.vitruv.methodologist.general.service.GeneralService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.vitruv.methodologist.ResponseTemplateDto;
+import tools.vitruv.methodologist.general.controller.responsedto.LatestVersionResponse;
+import tools.vitruv.methodologist.general.service.GeneralService;
 
 /**
  * REST controller for managing general application operations. Provides endpoints for retrieving

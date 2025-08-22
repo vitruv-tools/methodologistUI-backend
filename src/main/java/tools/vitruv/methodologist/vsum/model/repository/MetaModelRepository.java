@@ -1,11 +1,11 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
-import tools.vitruv.methodologist.vsum.model.MetaModel;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.Optional;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
+import tools.vitruv.methodologist.vsum.model.MetaModel;
 
 /**
  * Spring Data repository interface for managing MetaModel entities. Provides standard CRUD

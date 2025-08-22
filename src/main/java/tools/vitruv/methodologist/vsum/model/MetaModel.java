@@ -1,7 +1,5 @@
 package tools.vitruv.methodologist.vsum.model;
 
-import tools.vitruv.methodologist.general.model.FileStorage;
-import tools.vitruv.methodologist.user.model.User;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -18,6 +16,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.user.model.User;
 
 /**
  * Represents a Virtual Single Underlying Model (VSUM) entity. Provides basic information about a

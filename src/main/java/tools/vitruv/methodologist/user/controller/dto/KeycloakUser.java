@@ -1,11 +1,11 @@
 package tools.vitruv.methodologist.user.controller.dto;
 
-import tools.vitruv.methodologist.user.RoleType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tools.vitruv.methodologist.user.RoleType;
 
 /**
  * Data Transfer Object (DTO) representing user information for Keycloak operations. Contains user

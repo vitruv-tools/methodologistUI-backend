@@ -1,11 +1,11 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
-import tools.vitruv.methodologist.vsum.model.Vsum;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.Optional;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
+import tools.vitruv.methodologist.vsum.model.Vsum;
 
 /**
  * Repository interface for managing {@link Vsum} entities. Provides CRUD operations and custom
