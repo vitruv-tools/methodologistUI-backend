@@ -8,7 +8,6 @@ import lombok.Setter;
 
 /**
  * Data Transfer Object (DTO) representing the latest version information of the application.
- * <p>
  * This response is typically returned by version-check endpoints to inform clients
  * about the current version and whether a forced update is required.
  */
