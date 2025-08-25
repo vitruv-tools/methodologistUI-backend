@@ -19,7 +19,7 @@ import org.mockito.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.*;
 import org.springframework.boot.test.context.*;
-import org.springframework.context.annotation.Bean;
+import org.springframework.boot.test.mock.mockito.*;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -38,7 +38,7 @@ class UserControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @Autowired private ObjectMapper objectMapper;
-  @Autowired private UserService userService;
+  @MockBean private UserService userService;
   private UserWebToken token;
   private UserResponse userResponse;
 
@@ -181,13 +181,5 @@ class UserControllerTest {
 
   private String json(Object o) throws Exception {
     return objectMapper.writeValueAsString(o);
-  }
-
-  @TestConfiguration
-  static class TestConfig {
-    @Bean
-    UserService userService() {
-      return Mockito.mock(UserService.class);
-    }
   }
 }
