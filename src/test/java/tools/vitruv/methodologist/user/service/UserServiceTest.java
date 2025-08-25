@@ -109,8 +109,7 @@ class UserServiceTest {
   @Test
   void create_persistsUser_andCreatesKeycloakUser_whenEmailFree() {
     // arrange
-    when(userRepository.findByEmailIgnoreCase("alice@example.com"))
-            .thenReturn(Optional.empty());
+    when(userRepository.findByEmailIgnoreCase("alice@example.com")).thenReturn(Optional.empty());
 
     User entity = new User();
     entity.setFirstName("Alice");
@@ -122,14 +121,14 @@ class UserServiceTest {
     when(userMapper.toUser(any(UserPostRequest.class))).thenReturn(entity);
 
     UserPostRequest req =
-            UserPostRequest.builder()
-                    .firstName("Alice")
-                    .lastName("Doe")
-                    .email("alice@example.com")
-                    .username("alice")
-                    .password("p@ssw0rd")
-                    .roleType(tools.vitruv.methodologist.user.RoleType.USER)
-                    .build();
+        UserPostRequest.builder()
+            .firstName("Alice")
+            .lastName("Doe")
+            .email("alice@example.com")
+            .username("alice")
+            .password("p@ssw0rd")
+            .roleType(tools.vitruv.methodologist.user.RoleType.USER)
+            .build();
 
     User result = userService.create(req);
 
