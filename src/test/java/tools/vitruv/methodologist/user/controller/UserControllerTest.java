@@ -18,7 +18,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.*;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -30,7 +31,7 @@ import tools.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import tools.vitruv.methodologist.user.controller.dto.response.UserResponse;
 import tools.vitruv.methodologist.user.controller.dto.response.UserWebToken;
-import tools.vitruv.methodologist.user.model.*;
+import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.service.UserService;
 
 @ActiveProfiles("test")
