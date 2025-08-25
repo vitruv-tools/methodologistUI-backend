@@ -22,6 +22,7 @@ import org.springframework.boot.test.context.*;
 import org.springframework.boot.test.mock.mockito.*;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.*;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenByRefreshTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenRequest;
@@ -32,8 +33,9 @@ import tools.vitruv.methodologist.user.controller.dto.response.UserWebToken;
 import tools.vitruv.methodologist.user.model.*;
 import tools.vitruv.methodologist.user.service.UserService;
 
-@WebMvcTest(controllers = UserController.class)
-@AutoConfigureMockMvc(addFilters = false)
+@ActiveProfiles("test")
+@WebMvcTest(UserController.class)
+@AutoConfigureMockMvc(addFilters = false) // skip security filters to avoid OAuth/Keycloak setup
 class UserControllerTest {
 
   @Autowired private MockMvc mockMvc;
