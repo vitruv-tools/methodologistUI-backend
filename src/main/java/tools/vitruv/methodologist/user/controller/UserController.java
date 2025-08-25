@@ -7,12 +7,22 @@ import static tools.vitruv.methodologist.messages.Message.USER_UPDATED_SUCCESSFU
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
+import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenByRefreshTokenRequest;
+import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import tools.vitruv.methodologist.user.controller.dto.response.UserResponse;
+import tools.vitruv.methodologist.user.controller.dto.response.UserWebToken;
 import tools.vitruv.methodologist.user.service.UserService;
 
 /**
@@ -32,6 +42,27 @@ public class UserController {
    */
   public UserController(UserService userService) {
     this.userService = userService;
+  }
+
+  /**
+   * Handles the login request and returns a user access token. The provided credentials are
+   * validated and exchanged for a token that can be used to access secured endpoints.
+   */
+  @PostMapping("/v1/users/login")
+  public UserWebToken getAccessToken(
+      @Valid @RequestBody PostAccessTokenRequest postAccessTokenRequest) {
+    return userService.getAccessToken(postAccessTokenRequest);
+  }
+
+  /**
+   * Issues a new access token using a valid refresh token. The refresh token is validated and
+   * exchanged for a fresh access token without requiring the user to log in again.
+   */
+  @PostMapping("/v1/users/access-token/by-refresh-token")
+  public UserWebToken getAccessTokenByRefreshToken(
+      @Valid @RequestBody
+          PostAccessTokenByRefreshTokenRequest postAccessTokenByRefreshTokenRequest) {
+    return userService.getAccessTokenByRefreshToken(postAccessTokenByRefreshTokenRequest);
   }
 
   /**

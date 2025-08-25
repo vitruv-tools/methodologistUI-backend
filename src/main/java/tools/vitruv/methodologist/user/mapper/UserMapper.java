@@ -3,9 +3,11 @@ package tools.vitruv.methodologist.user.mapper;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.ReportingPolicy;
+import tools.vitruv.methodologist.apihandler.dto.response.KeycloakWebToken;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import tools.vitruv.methodologist.user.controller.dto.response.UserResponse;
+import tools.vitruv.methodologist.user.controller.dto.response.UserWebToken;
 import tools.vitruv.methodologist.user.model.User;
 
 /**
@@ -38,4 +40,11 @@ public interface UserMapper {
    * @param user the target user entity to update
    */
   void updateByUserPutRequest(UserPutRequest userPutRequest, @MappingTarget User user);
+
+  /**
+   * Converts a {@link KeycloakWebToken} into an application-specific {@link UserWebToken}. This
+   * allows the system to map Keycloak token data into the format expected by internal services and
+   * clients.
+   */
+  UserWebToken toUserWebToken(KeycloakWebToken keycloakWebToken);
 }

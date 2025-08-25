@@ -27,7 +27,8 @@ class UserServiceTest {
   void initialize() {
     userRepositoryMock = mock(UserRepository.class);
     keycloakServiceMock = mock(KeycloakService.class);
-    userService = new UserService(new UserMapperImpl(), userRepositoryMock, keycloakServiceMock);
+    userService =
+        new UserService(new UserMapperImpl(), userRepositoryMock, keycloakServiceMock, null);
   }
 
   @Test
