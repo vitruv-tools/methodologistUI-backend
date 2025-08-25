@@ -111,14 +111,14 @@ class UserServiceTest {
     when(userRepository.findByEmailIgnoreCase("alice@example.com")).thenReturn(Optional.empty());
 
     UserPostRequest req =
-            UserPostRequest.builder()
-                    .firstName("Alice")
-                    .lastName("Doe")
-                    .email("alice@example.com")
-                    .username("alice")
-                    .password("p@ssw0rd")
-                    .roleType(tools.vitruv.methodologist.user.RoleType.USER)
-                    .build();
+        UserPostRequest.builder()
+            .firstName("Alice")
+            .lastName("Doe")
+            .email("alice@example.com")
+            .username("alice")
+            .password("p@ssw0rd")
+            .roleType(tools.vitruv.methodologist.user.RoleType.USER)
+            .build();
 
     User entity = new User();
     entity.setFirstName("Alice");
