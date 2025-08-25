@@ -108,32 +108,33 @@ class UserServiceTest {
 
   @Test
   void create_persistsUser_andCreatesKeycloakUser_whenEmailFree() {
-    var req =
-        UserPostRequest.builder()
-            .firstName("Alice")
-            .lastName("Doe")
-            .email("alice@example.com")
-            .username("alice")
-            .password("p@ssw0rd")
-            .roleType(tools.vitruv.methodologist.user.RoleType.USER)
-            .build();
+    when(userRepository.findByEmailIgnoreCase("alice@example.com")).thenReturn(Optional.empty());
 
-    var entity = new User();
+    UserPostRequest req =
+            UserPostRequest.builder()
+                    .firstName("Alice")
+                    .lastName("Doe")
+                    .email("alice@example.com")
+                    .username("alice")
+                    .password("p@ssw0rd")
+                    .roleType(tools.vitruv.methodologist.user.RoleType.USER)
+                    .build();
+
+    User entity = new User();
     entity.setFirstName("Alice");
     entity.setLastName("Doe");
     entity.setEmail("alice@example.com");
     entity.setUsername("alice");
     entity.setRoleType(tools.vitruv.methodologist.user.RoleType.USER);
 
-    when(userRepository.findByEmailIgnoreCase("alice@example.com")).thenReturn(Optional.empty());
     when(userMapper.toUser(req)).thenReturn(entity);
 
-    var savedCaptor = ArgumentCaptor.forClass(User.class);
-
-    var result = userService.create(req);
+    User result = userService.create(req);
 
     assertThat(result).isEqualTo(entity);
     verify(keycloakService).createUser(any(KeycloakUser.class));
+
+    ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
     verify(userRepository).save(savedCaptor.capture());
     assertThat(savedCaptor.getValue().getEmail()).isEqualTo("alice@example.com");
   }
