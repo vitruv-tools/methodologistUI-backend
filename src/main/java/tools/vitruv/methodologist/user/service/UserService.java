@@ -6,12 +6,17 @@ import java.time.Instant;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.apihandler.KeycloakApiHandler;
 import tools.vitruv.methodologist.exception.EmailExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
+import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.user.controller.dto.KeycloakUser;
+import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenByRefreshTokenRequest;
+import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import tools.vitruv.methodologist.user.controller.dto.response.UserResponse;
+import tools.vitruv.methodologist.user.controller.dto.response.UserWebToken;
 import tools.vitruv.methodologist.user.mapper.UserMapper;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
@@ -26,6 +31,7 @@ public class UserService {
   private final UserMapper userMapper;
   private final UserRepository userRepository;
   private final KeycloakService keycloakService;
+  private final KeycloakApiHandler keycloakApiHandler;
 
   /**
    * Constructs a new UserService with the specified UserMapper and UserRepository.
@@ -34,10 +40,52 @@ public class UserService {
    * @param userRepository the repository for user persistence operations
    */
   public UserService(
-      UserMapper userMapper, UserRepository userRepository, KeycloakService keycloakService) {
+      UserMapper userMapper,
+      UserRepository userRepository,
+      KeycloakService keycloakService,
+      KeycloakApiHandler keycloakApiHandler) {
     this.userMapper = userMapper;
     this.userRepository = userRepository;
     this.keycloakService = keycloakService;
+    this.keycloakApiHandler = keycloakApiHandler;
+  }
+
+  /**
+   * Retrieves a user access token using the provided username and password. The request is
+   * validated through Keycloak, and if successful, the response is converted into an
+   * application-specific UserWebToken. If validation fails or an unexpected error occurs, an
+   * UnauthorizedException is thrown.
+   */
+  @Transactional
+  public UserWebToken getAccessToken(PostAccessTokenRequest postAccessTokenRequest) {
+    try {
+      var response =
+          keycloakApiHandler.getAccessTokenOrThrow(
+              postAccessTokenRequest.getUsername(), postAccessTokenRequest.getPassword());
+
+      return userMapper.toUserWebToken(response);
+    } catch (Exception e) {
+      throw new UnauthorizedException();
+    }
+  }
+
+  /**
+   * Retrieves a new access token using the provided refresh token. The refresh token is sent to
+   * Keycloak for validation and exchange. If successful, the response is converted into a
+   * UserWebToken. If validation fails or an error occurs, an UnauthorizedException is thrown.
+   */
+  @Transactional
+  public UserWebToken getAccessTokenByRefreshToken(
+      PostAccessTokenByRefreshTokenRequest postAccessTokenByRefreshTokenRequest) {
+    try {
+      var response =
+          keycloakApiHandler.getAccessTokenByRefreshToken(
+              postAccessTokenByRefreshTokenRequest.getRefreshToken());
+
+      return userMapper.toUserWebToken(response);
+    } catch (Exception e) {
+      throw new UnauthorizedException();
+    }
   }
 
   /**

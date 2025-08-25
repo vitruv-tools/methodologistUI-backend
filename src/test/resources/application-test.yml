@@ -1,7 +1,13 @@
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost/dummy # prevents context failures if parsed
   main:
     allow-bean-definition-overriding: true
-    web-application-type: none
+  jackson:
+    property-naming-strategy: SNAKE_CASE
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
@@ -29,8 +35,8 @@ spring:
 
 # Security configuration for tests
 allowed:
-  origins: http://localhost:8080,http://127.0.0.1:8080
-  headers: Content-Type,Authorization,loggedInUserId,Cache-Control,Pragma,Expires
+  origins: "*"
+  headers: "*"
 
 # Server configuration for tests
 server:

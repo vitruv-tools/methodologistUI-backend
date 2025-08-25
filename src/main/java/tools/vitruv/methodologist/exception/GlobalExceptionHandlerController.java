@@ -51,6 +51,29 @@ public class GlobalExceptionHandlerController {
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
   /**
+   * Handles {@link UnauthorizedException} thrown by controller methods. Returns an {@link
+   * ErrorResponse} with HTTP 401 (Unauthorized) status, including the error message, error code,
+   * and request path. This method ensures clients receive a consistent error response format when
+   * authentication or authorization fails.
+   *
+   * @param ex the {@code UnauthorizedException} that was thrown
+   * @param handlerMethod the Spring {@code HandlerMethod} where the exception occurred
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the unauthorized error
+   */
+  @ExceptionHandler(value = UnauthorizedException.class)
+  @ResponseStatus(HttpStatus.UNAUTHORIZED)
+  @ResponseBody
+  public ErrorResponse unauthorizedException(
+      UnauthorizedException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(UnauthorizedException.messageTemplate)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles conflict exceptions related to user operations.
    *
    * @param ex the caught ConflictException
