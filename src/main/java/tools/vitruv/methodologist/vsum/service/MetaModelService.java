@@ -61,45 +61,62 @@ public class MetaModelService {
     this.metamodelBuildService = metamodelBuildService;
   }
 
+  @Transactional
+  protected PairAndModel savePendingAndLoad(String callerEmail, MetaModelPostRequest req) {
+    User user =
+        userRepository
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
+            .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
+
+    MetaModel mm = metaModelMapper.toMetaModel(req);
+
+    var ecoreFile =
+        fileStorageRepository
+            .findByIdAndType(req.getEcoreFileId(), FileEnumType.ECORE)
+            .orElseThrow(() -> new NotFoundException(ECORE_FILE_ID_NOT_FOUND_ERROR));
+
+    var genModelFile =
+        fileStorageRepository
+            .findByIdAndType(req.getGenModelFileId(), FileEnumType.GEN_MODEL)
+            .orElseThrow(() -> new NotFoundException(GEN_MODEL_FILE_ID_NOT_FOUND_ERROR));
+
+    mm.setUser(user);
+    mm.setEcoreFile(ecoreFile);
+    mm.setGenModelFile(genModelFile);
+
+    mm = metaModelRepository.save(mm);
+
+    // MATERIALIZE bytes while the session is open
+    FilePair files = new FilePair(ecoreFile.getData(), genModelFile.getData());
+
+    return new PairAndModel(mm, files);
+  }
+
   /** Creates a metamodel, runs headless build, and accepts/rejects it. */
   public MetaModel create(String callerEmail, MetaModelPostRequest req) {
-    // ---- Tx #1: prepare & save as PENDING (short transaction)
-    MetaModel metaModel = savePending(callerEmail, req);
+    // Tx: save + load bytes
+    PairAndModel p = savePendingAndLoad(callerEmail, req);
+    MetaModel mm = p.mm;
+    FilePair files = p.files;
 
-    // ---- Build outside of transaction
-    MetamodelBuildService.BuildResult result;
-    try {
-      result =
-          metamodelBuildService.buildAndValidate(
-              MetamodelBuildService.MetamodelBuildInput.builder()
-                  .metaModelId(metaModel.getId())
-                  .ecoreFile(metaModel.getEcoreFile())
-                  .genModelFile(metaModel.getGenModelFile())
-                  .runMwe2(true)
-                  .build());
-    } catch (Exception ex) {
-      log.error("Metamodel build crashed for id={}", metaModel.getId(), ex);
-      // ---- Tx #2: mark FAILED
-      markFailed(metaModel.getId(), "Builder crashed: " + safe(ex.getMessage()));
-      // surface a 422/500 depending on your API design
-      throw new RuntimeException("Metamodel build failed unexpectedly");
+    // Run isolated build (no TX)
+    var result =
+        metamodelBuildService.buildAndValidate(
+            MetamodelBuildService.MetamodelBuildInput.builder()
+                .metaModelId(mm.getId())
+                .ecoreBytes(files.ecore())
+                .genModelBytes(files.gen())
+                .runMwe2(true)
+                .build());
+
+    // Decide accept/reject (keep it simple)
+    if (!result.isSuccess()) {
+      // optionally store result.getReport() somewhere
+      throw new RuntimeException("Metamodel rejected: " + result.getReport());
     }
 
-    // ---- Tx #3: persist result (ACCEPTED/FAILED)
-    if (result != null && result.isSuccess()) {
-      markAccepted(
-          metaModel.getId(),
-          result.getReport(),
-          result.getWarnings(),
-          result.getDiscoveredNsUris());
-    } else {
-      String report = (result == null) ? "No result produced" : result.getReport();
-      markFailed(metaModel.getId(), report);
-      throw new RuntimeException("Metamodel rejected: validation/build errors");
-    }
-
-    // Return the fresh entity
-    return metaModelRepository.findById(metaModel.getId()).orElseThrow();
+    // success → just return (or mark accepted if you have a status field)
+    return mm;
   }
 
   @Transactional(readOnly = true)
@@ -176,4 +193,17 @@ public class MetaModelService {
     ACCEPTED,
     FAILED
   }
+
+  // small holder
+  private static final class PairAndModel {
+    final MetaModel mm;
+    final FilePair files;
+
+    PairAndModel(MetaModel mm, FilePair files) {
+      this.mm = mm;
+      this.files = files;
+    }
+  }
+
+  private record FilePair(byte[] ecore, byte[] gen) {}
 }
