@@ -32,6 +32,7 @@ public interface MetaModelMapper {
    * @param metaModel the metamodel entity to convert
    * @return the mapped MetaModelResponse DTO
    */
-  @Mapping(source = "fileStorage.id", target = "storageFileId")
+  @Mapping(source = "ecoreFile.id", target = "ecoreFileId")
+  @Mapping(source = "genModelFile.id", target = "genModelFileId")
   MetaModelResponse toMetaModelResponse(MetaModel metaModel);
 }

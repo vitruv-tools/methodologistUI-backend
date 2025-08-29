@@ -1,5 +1,7 @@
 package tools.vitruv.methodologist.general.controller;
 
+import static tools.vitruv.methodologist.messages.Message.FILE_UPLOADED_SUCCESSFULLY;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
+import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.service.FileStorageService;
 
 /**
@@ -49,7 +52,7 @@ public class FileStorageController {
    */
   @Operation(summary = "Upload a file", description = "Upload a file to the server")
   @PostMapping(
-      value = "/upload",
+      value = "/upload/type={type}",
       consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
       produces = MediaType.APPLICATION_JSON_VALUE)
   @PreAuthorize("hasRole('user')")
@@ -59,12 +62,13 @@ public class FileStorageController {
               description = "File to upload",
               content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE))
           @RequestParam("file")
-          MultipartFile file)
+          MultipartFile file,
+      @PathVariable FileEnumType type)
       throws Exception {
     var email = authentication.getParsedToken().getEmail();
-    fileStorageService.storeFile(email, file);
+    fileStorageService.storeFile(email, file, type);
 
-    return ResponseTemplateDto.<String>builder().message("File uploaded successfully").build();
+    return ResponseTemplateDto.<String>builder().message(FILE_UPLOADED_SUCCESSFULLY).build();
   }
 
   /**

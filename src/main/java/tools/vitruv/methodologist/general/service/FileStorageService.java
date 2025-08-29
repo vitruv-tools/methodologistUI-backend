@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import tools.vitruv.methodologist.exception.NotFoundException;
+import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
@@ -57,7 +58,8 @@ public class FileStorageService {
    * @throws IllegalArgumentException if the file is empty
    */
   @Transactional
-  public FileStorage storeFile(String callerUserEmail, MultipartFile file) throws Exception {
+  public FileStorage storeFile(String callerUserEmail, MultipartFile file, FileEnumType type)
+      throws Exception {
     var user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
@@ -76,6 +78,7 @@ public class FileStorageService {
             () -> {
               FileStorage f = new FileStorage();
               f.setFilename(file.getOriginalFilename());
+              f.setType(type);
               f.setContentType(
                   file.getContentType() == null
                       ? "application/octet-stream"

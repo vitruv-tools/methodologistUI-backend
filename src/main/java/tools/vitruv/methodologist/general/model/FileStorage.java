@@ -1,6 +1,9 @@
 package tools.vitruv.methodologist.general.model;
 
+import jakarta.persistence.Basic;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -15,6 +18,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.user.model.User;
 
 /**
@@ -33,13 +37,20 @@ public class FileStorage {
 
   @NotNull private String filename;
 
+  @NotNull
+  @Enumerated(EnumType.STRING)
+  private FileEnumType type;
+
   @NotNull private String contentType;
 
   @NotNull private long sizeBytes;
 
   @NotNull private String sha256;
 
-  @Lob @NotNull private byte[] data;
+  @Lob
+  @Basic(fetch = FetchType.LAZY)
+  @NotNull
+  private byte[] data;
 
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY)

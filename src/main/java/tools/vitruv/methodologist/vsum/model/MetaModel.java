@@ -7,9 +7,10 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToOne;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -34,7 +35,10 @@ public class MetaModel {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @NotNull private String name;
+  @NotNull @NotBlank private String name;
+  @NotNull @NotBlank private String description;
+  @NotNull @NotBlank private String domain;
+  @NotNull private List<String> keyword;
 
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
@@ -42,9 +46,14 @@ public class MetaModel {
   private User user;
 
   @NotNull
-  @OneToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "file_storage_id")
-  private FileStorage fileStorage;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "ecore_file_id")
+  private FileStorage ecoreFile;
+
+  @NotNull
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "gen_model_file_id")
+  private FileStorage genModelFile;
 
   @CreationTimestamp private Instant createdAt;
 
