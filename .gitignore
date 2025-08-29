@@ -27,3 +27,4 @@ replay_pid*
 /log/
 /docker/keycloak/hsperfdata_keycloak/
 /builder/target/
+/app/target/
