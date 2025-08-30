@@ -4,17 +4,22 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import tools.vitruv.methodologist.vsum.service.MetamodelBuildService;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DockerEphemeralBuildService implements MetamodelBuildService {
 
   private static final ObjectMapper OM = new ObjectMapper();
@@ -34,7 +39,6 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
     try {
       job = Files.createTempDirectory("mm-" + in.getMetaModelId() + "-");
       Path inDir = Files.createDirectories(job.resolve("input"));
-      Path outDir = Files.createDirectories(job.resolve("output"));
 
       // write inputs
       Path ecore = inDir.resolve("model.ecore");
@@ -94,6 +98,7 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
             .build();
       }
 
+      Path outDir = Files.createDirectories(job.resolve("output"));
       Path resultJson = outDir.resolve("result.json");
       if (Files.exists(resultJson)) {
         JsonNode dto = OM.readTree(resultJson.toFile());
@@ -106,7 +111,9 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
         if (dto.has("nsUris") && dto.get("nsUris").isArray()) {
           List<String> list =
               OM.convertValue(dto.get("nsUris"), new TypeReference<List<String>>() {});
-          if (list != null && !list.isEmpty()) ns = String.join(", ", list);
+          if (list != null && !list.isEmpty()) {
+            ns = String.join(", ", list);
+          }
         }
 
         return BuildResult.builder()
@@ -144,10 +151,12 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
                   p -> {
                     try {
                       Files.deleteIfExists(p);
-                    } catch (Exception ignored) {
+                    } catch (Exception e) {
+                      log.error(e.getMessage(), e);
                     }
                   });
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+          log.error(e.getMessage(), e);
         }
       }
     }
