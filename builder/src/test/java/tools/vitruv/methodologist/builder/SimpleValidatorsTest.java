@@ -130,15 +130,15 @@ class SimpleValidatorsTest {
 
   @Test
   void assertValidEcore_throws_whenFeatureWithoutName() {
-    Resource resource = newResource("mem:/featurenoname.ecore");
-    EPackage ePackage = createMinimalEPackage("pkg", "http://example/x");
 
     EClass classC = EcoreFactory.eINSTANCE.createEClass();
     classC.setName("C");
 
     EAttribute unnamedAttribute = EcoreFactory.eINSTANCE.createEAttribute();
     unnamedAttribute.setEType(EcorePackage.Literals.ESTRING);
-    // name not set
+
+    Resource resource = newResource("mem:/featurenoname.ecore");
+    EPackage ePackage = createMinimalEPackage("pkg", "http://example/x");
 
     classC.getEStructuralFeatures().add(unnamedAttribute);
     ePackage.getEClassifiers().add(classC);
@@ -150,16 +150,14 @@ class SimpleValidatorsTest {
 
   @Test
   void assertValidEcore_throws_whenReferenceWithoutType() {
-    Resource resource = newResource("mem:/reftypemissing.ecore");
-    EPackage ePackage = createMinimalEPackage("pkg", "http://example/x");
-
     EClass classC = EcoreFactory.eINSTANCE.createEClass();
     classC.setName("C");
 
     org.eclipse.emf.ecore.EReference referenceWithoutType =
         EcoreFactory.eINSTANCE.createEReference();
     referenceWithoutType.setName("toX");
-    // EType not set
+    Resource resource = newResource("mem:/reftypemissing.ecore");
+    EPackage ePackage = createMinimalEPackage("pkg", "http://example/x");
 
     classC.getEStructuralFeatures().add(referenceWithoutType);
     ePackage.getEClassifiers().add(classC);
@@ -171,18 +169,17 @@ class SimpleValidatorsTest {
 
   @Test
   void assertValidEcore_throws_whenAttributeWithoutDatatype() {
-    Resource resource = newResource("mem:/attrtypemissing.ecore");
-    EPackage ePackage = createMinimalEPackage("pkg", "http://example/x");
-
     EClass classC = EcoreFactory.eINSTANCE.createEClass();
     classC.setName("C");
 
     EAttribute attributeWithoutDatatype = EcoreFactory.eINSTANCE.createEAttribute();
     attributeWithoutDatatype.setName("n");
-    // EAttributeType not set
 
     classC.getEStructuralFeatures().add(attributeWithoutDatatype);
+    EPackage ePackage = createMinimalEPackage("pkg", "http://example/x");
     ePackage.getEClassifiers().add(classC);
+
+    Resource resource = newResource("mem:/attrtypemissing.ecore");
     resource.getContents().add(ePackage);
 
     assertThrows(
