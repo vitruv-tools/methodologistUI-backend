@@ -53,15 +53,8 @@ public class GlobalExceptionHandlerController {
   /**
    * Handles cases where building or validating an MWE2 file fails. When a {@link
    * CreateMwe2FileException} is thrown anywhere in the application, this handler captures it and
-   * returns a structured {@link ErrorResponse}. The response includes:
-   *
-   * <ul>
-   *   <li>A generic error type
-   *   <li>The detailed rejection reason from the exception message
-   *   <li>The request path that triggered the error
-   * </ul>
-   *
-   * The response is sent with HTTP 400 (Bad Request).
+   * returns a structured {@link ErrorResponse}. The response includes: The response is sent with
+   * HTTP 400 (Bad Request).
    *
    * @param ex the thrown exception containing the reason for rejection
    * @param handlerMethod the controller method where the exception was raised
