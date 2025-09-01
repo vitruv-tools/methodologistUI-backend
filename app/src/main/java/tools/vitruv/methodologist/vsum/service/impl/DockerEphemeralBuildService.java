@@ -1,13 +1,11 @@
 package tools.vitruv.methodologist.vsum.service.impl;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -37,100 +35,79 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
   public BuildResult buildAndValidate(MetamodelBuildInput in) {
     Path job = null;
     try {
+      // 1) temp workspace
       job = Files.createTempDirectory("mm-" + in.getMetaModelId() + "-");
       Path inDir = Files.createDirectories(job.resolve("input"));
+      Path outDir = Files.createDirectories(job.resolve("output"));
 
-      // write inputs
+      // 2) write inputs from DB bytes
       Path ecore = inDir.resolve("model.ecore");
       Path gen = inDir.resolve("model.genmodel");
       Files.write(ecore, in.getEcoreBytes());
       Files.write(gen, in.getGenModelBytes());
 
-      // copy builder jar into job dir
-      Path jarCopy = job.resolve("methodologist-build.jar");
-      Files.copy(Paths.get(jarPath), jarCopy, StandardCopyOption.REPLACE_EXISTING);
-
+      // 3) run the jar
       List<String> cmd =
           List.of(
-              "docker",
-              "run",
-              "--rm",
-              "--read-only",
-              "--network",
-              "none",
-              "--cpus",
-              "1",
-              "--memory",
-              "1g",
-              "--cap-drop",
-              "ALL",
-              "--security-opt",
-              "no-new-privileges",
-              "--pids-limit",
-              "256",
-              "--tmpfs",
-              "/tmp:rw,noexec,nosuid,size=256m",
-              "-v",
-              job.toAbsolutePath() + ":/work:rw",
-              image,
               "java",
               "-jar",
-              "/work/methodologist-build.jar",
+              jarPath,
               "--ecore",
-              "/work/input/model.ecore",
+              ecore.toAbsolutePath().toString(),
               "--genmodel",
-              "/work/input/model.genmodel",
+              gen.toAbsolutePath().toString(),
               "--out",
-              "/work/output",
-              "--run-mwe2",
-              String.valueOf(in.isRunMwe2()));
-
+              outDir.toAbsolutePath().toString());
       Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
-      String console = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-      if (!p.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+
+      boolean finished = p.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+      if (!finished) {
         p.destroyForcibly();
         return BuildResult.builder()
             .success(false)
             .errors(1)
             .warnings(0)
-            .report("Timeout")
+            .report("Timeout after " + timeoutSeconds + "s")
             .discoveredNsUris(null)
             .build();
       }
+      String console = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
 
-      Path outDir = Files.createDirectories(job.resolve("output"));
+      // 4) parse result.json if present
       Path resultJson = outDir.resolve("result.json");
       if (Files.exists(resultJson)) {
         JsonNode dto = OM.readTree(resultJson.toFile());
         boolean ok = dto.path("success").asBoolean(false);
-        int err = dto.path("errors").asInt(0);
-        int warn = dto.path("warnings").asInt(0);
-        String rep = dto.path("report").asText("");
+        int errors = dto.path("errors").asInt(0);
+        int warnings = dto.path("warnings").asInt(0);
+        String report = dto.path("report").asText(console);
 
-        String ns = null;
-        if (dto.has("nsUris") && dto.get("nsUris").isArray()) {
-          List<String> list =
-              OM.convertValue(dto.get("nsUris"), new TypeReference<List<String>>() {});
-          if (list != null && !list.isEmpty()) {
-            ns = String.join(", ", list);
-          }
-        }
+        String ns =
+            dto.has("nsUris") && dto.get("nsUris").isArray()
+                ? String.join(
+                    (CharSequence) ", ",
+                    (Iterable<? extends CharSequence>) OM.convertValue(
+                        dto.get("nsUris"),
+                        OM.getTypeFactory()
+                            .constructCollectionType(List.class, String.class)))
+                : null;
 
         return BuildResult.builder()
             .success(ok)
-            .errors(err)
-            .warnings(warn)
-            .report(rep)
+            .errors(errors)
+            .warnings(warnings)
+            .report(report)
             .discoveredNsUris(ns)
             .build();
       }
 
+      // fallback: use exit code + console
       int exit = p.exitValue();
       return BuildResult.builder()
           .success(exit == 0)
           .errors(exit == 0 ? 0 : 1)
           .warnings(0)
-          .report(console)
+          .report(console.isBlank() ? ("Process exit " + exit) : console)
           .discoveredNsUris(null)
           .build();
 
@@ -143,6 +120,7 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
           .discoveredNsUris(null)
           .build();
     } finally {
+      // 5) cleanup
       if (job != null) {
         try {
           Files.walk(job)
@@ -151,12 +129,10 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
                   p -> {
                     try {
                       Files.deleteIfExists(p);
-                    } catch (Exception e) {
-                      log.error(e.getMessage(), e);
+                    } catch (IOException ignored) {
                     }
                   });
-        } catch (Exception e) {
-          log.error(e.getMessage(), e);
+        } catch (IOException ignored) {
         }
       }
     }

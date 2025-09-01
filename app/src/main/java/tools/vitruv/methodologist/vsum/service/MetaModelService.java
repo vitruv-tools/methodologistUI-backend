@@ -104,9 +104,9 @@ public class MetaModelService {
         metamodelBuildService.buildAndValidate(
             MetamodelBuildService.MetamodelBuildInput.builder()
                 .metaModelId(mm.getId())
-                .ecoreBytes(files.ecore())
-                .genModelBytes(files.gen())
-                .runMwe2(true)
+                .ecoreBytes(mm.getEcoreFile().getData()) // byte[] from DB
+                .genModelBytes(mm.getGenModelFile().getData()) // byte[] from DB
+                .runMwe2(true) // ignored by local-builder, OK
                 .build());
 
     // Decide accept/reject (keep it simple)

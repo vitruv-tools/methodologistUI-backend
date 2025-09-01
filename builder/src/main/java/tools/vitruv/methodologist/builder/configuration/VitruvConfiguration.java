@@ -1,5 +1,7 @@
 package tools.vitruv.methodologist.builder.configuration;
 
+import static tools.vitruv.methodologist.builder.SimpleValidators.*;
+
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -18,7 +20,7 @@ public class VitruvConfiguration {
   private String packageName;
 
   public static String removeLastSegment(String s) {
-    int i = s == null ? -1 : s.lastIndexOf('.');
+    int i = (s == null ? -1 : s.lastIndexOf('.'));
     return i < 0 ? s : s.substring(0, i);
   }
 
@@ -34,40 +36,45 @@ public class VitruvConfiguration {
     return metamodels;
   }
 
+  /** pairs format: "path/to.a.ecore,path/to.a.genmodel;path/to.b.ecore,path/to.b.genmodel" */
   public void setMetaModelLocations(String pairs) {
-    // Factories
+    // EMF factories
     Resource.Factory.Registry reg = Resource.Factory.Registry.INSTANCE;
     reg.getExtensionToFactoryMap().put("ecore", new XMIResourceFactoryImpl());
     reg.getExtensionToFactoryMap().put("genmodel", new XMIResourceFactoryImpl());
     GenModelPackage.eINSTANCE.eClass();
 
+    if (pairs == null || pairs.isBlank()) return;
+
     for (String pair : pairs.split(";")) {
       if (pair.isBlank() || !pair.contains(",")) continue;
+
       String e = pair.split(",")[0].trim();
       String g = pair.split(",")[1].trim();
-      File ecore = new File(e), gen = new File(g);
 
-      if (!ecore.isFile() || ecore.length() == 0)
+      File ecore = new File(e);
+      File gen = new File(g);
+
+      if (!ecore.isFile() || ecore.length() == 0L)
         throw new IllegalArgumentException("Ecore missing/empty: " + ecore);
-      if (!gen.isFile() || gen.length() == 0)
+      if (!gen.isFile() || gen.length() == 0L)
         throw new IllegalArgumentException("GenModel missing/empty: " + gen);
 
       ResourceSet rs = new ResourceSetImpl();
+
+      // load & validate ecore
       Resource eRes = rs.getResource(URI.createFileURI(ecore.getAbsolutePath()), true);
-      if (!eRes.getErrors().isEmpty())
-        throw new IllegalArgumentException("Ecore parse error: " + eRes.getErrors().get(0));
-      if (eRes.getContents().isEmpty() || !(eRes.getContents().get(0) instanceof EPackage ep))
-        throw new IllegalArgumentException("Ecore root is not an EPackage: " + ecore);
+      assertValidEcore(eRes, "Ecore: " + ecore.getName());
+      EPackage ep = (EPackage) eRes.getContents().get(0);
 
+      // load & validate genmodel
       Resource gRes = rs.getResource(URI.createFileURI(gen.getAbsolutePath()), true);
-      if (!gRes.getErrors().isEmpty())
-        throw new IllegalArgumentException("GenModel parse error: " + gRes.getErrors().get(0));
-      if (gRes.getContents().isEmpty() || !(gRes.getContents().get(0) instanceof GenModel gm))
-        throw new IllegalArgumentException("GenModel root is not a GenModel: " + gen);
+      assertValidGenModel(gRes, "GenModel: " + gen.getName());
+      GenModel gm = (GenModel) gRes.getContents().get(0);
 
+      // collect
       this.metamodels.add(new MetamodelLocation(ecore, gen, ep.getNsURI()));
-      this.setPackageName(
-          removeLastSegment(((GenModel) gRes.getContents().get(0)).getModelPluginID()));
+      this.setPackageName(removeLastSegment(gm.getModelPluginID()));
     }
   }
 
