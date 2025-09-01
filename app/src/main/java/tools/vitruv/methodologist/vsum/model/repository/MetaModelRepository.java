@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.model.repository;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
@@ -27,8 +28,8 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
    * Finds all metamodels associated with a specific user's email.
    *
    * @param userEmail the email of the user whose metamodels to find
-   * @return Optional containing the found MetaModels or empty if none found
+   * @return List containing the found MetaModels or empty if none found
    * @throws IllegalArgumentException if userEmail is null or blank
    */
-  Optional<MetaModel> findAllByUser_email(@NotNull @NotBlank String userEmail);
+  List<MetaModel> findAllByUser_email(@NotNull @NotBlank String userEmail);
 }

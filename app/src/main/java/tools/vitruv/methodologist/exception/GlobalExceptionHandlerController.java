@@ -51,6 +51,36 @@ public class GlobalExceptionHandlerController {
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
   /**
+   * Handles cases where building or validating an MWE2 file fails. When a {@link
+   * CreateMwe2FileException} is thrown anywhere in the application, this handler captures it and
+   * returns a structured {@link ErrorResponse}. The response includes:
+   *
+   * <ul>
+   *   <li>A generic error type
+   *   <li>The detailed rejection reason from the exception message
+   *   <li>The request path that triggered the error
+   * </ul>
+   *
+   * The response is sent with HTTP 400 (Bad Request).
+   *
+   * @param ex the thrown exception containing the reason for rejection
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the web request containing request context
+   * @return an {@link ErrorResponse} describing the failure
+   */
+  @ExceptionHandler(value = CreateMwe2FileException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse createMwe2FileException(
+      UnauthorizedException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(UnauthorizedException.messageTemplate)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles {@link tools.vitruv.methodologist.exception.UnauthorizedException} thrown by controller
    * methods. Returns an {@link tools.vitruv.methodologist.exception.ErrorResponse} with HTTP 401
    * (Unauthorized) status, including the error message, error code, and request path. This method

@@ -15,6 +15,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import tools.vitruv.methodologist.vsum.service.MetamodelBuildService;
 
+/**
+ * Executes the metamodel builder JAR in an isolated ephemeral job. Creates a temp directory, writes
+ * model files, runs the process, and parses result.json into a structured build result.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -22,31 +26,36 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
 
   private static final ObjectMapper OM = new ObjectMapper();
 
+  /** Base Docker image to use for the process (defaults to Eclipse Temurin JRE). */
   @Value("${builder.baseImage:eclipse-temurin:21-jre}")
-  private String image;
+  protected String image;
 
+  /** Path to the builder JAR file on the host. */
   @Value("${builder.jarPath}")
-  private String jarPath; // host path to methodologist-build.jar
+  protected String jarPath;
 
+  /** Maximum time to wait for the process before failing. */
   @Value("${builder.timeoutSeconds:300}")
-  private int timeoutSeconds;
+  protected int timeoutSeconds;
 
+  /**
+   * Runs the builder JAR on the given metamodel input, writes files to a temp job dir, waits for
+   * the process, parses the JSON output, and maps it into a BuildResult. Cleans up all temporary
+   * files after completion.
+   */
   @Override
-  public BuildResult buildAndValidate(MetamodelBuildInput in) {
+  public BuildResult buildAndValidate(MetamodelBuildInput input) {
     Path job = null;
     try {
-      // 1) temp workspace
-      job = Files.createTempDirectory("mm-" + in.getMetaModelId() + "-");
+      job = Files.createTempDirectory("mm-" + input.getMetaModelId() + "-");
       Path inDir = Files.createDirectories(job.resolve("input"));
       Path outDir = Files.createDirectories(job.resolve("output"));
 
-      // 2) write inputs from DB bytes
       Path ecore = inDir.resolve("model.ecore");
       Path gen = inDir.resolve("model.genmodel");
-      Files.write(ecore, in.getEcoreBytes());
-      Files.write(gen, in.getGenModelBytes());
+      Files.write(ecore, input.getEcoreBytes());
+      Files.write(gen, input.getGenModelBytes());
 
-      // 3) run the jar
       List<String> cmd =
           List.of(
               "java",
@@ -58,7 +67,7 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
               gen.toAbsolutePath().toString(),
               "--out",
               outDir.toAbsolutePath().toString());
-      Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
+      Process p = startProcess(cmd);
 
       boolean finished = p.waitFor(timeoutSeconds, TimeUnit.SECONDS);
       if (!finished) {
@@ -73,7 +82,6 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
       }
       String console = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
 
-      // 4) parse result.json if present
       Path resultJson = outDir.resolve("result.json");
       if (Files.exists(resultJson)) {
         JsonNode dto = OM.readTree(resultJson.toFile());
@@ -82,15 +90,14 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
         int warnings = dto.path("warnings").asInt(0);
         String report = dto.path("report").asText(console);
 
-        String ns =
-            dto.has("nsUris") && dto.get("nsUris").isArray()
-                ? String.join(
-                    (CharSequence) ", ",
-                    (Iterable<? extends CharSequence>) OM.convertValue(
-                        dto.get("nsUris"),
-                        OM.getTypeFactory()
-                            .constructCollectionType(List.class, String.class)))
-                : null;
+        List<String> nsList = null;
+        if (dto.has("nsUris") && dto.get("nsUris").isArray()) {
+          nsList =
+              OM.convertValue(
+                  dto.get("nsUris"),
+                  OM.getTypeFactory().constructCollectionType(List.class, String.class));
+        }
+        String ns = (nsList == null || nsList.isEmpty()) ? null : String.join(", ", nsList);
 
         return BuildResult.builder()
             .success(ok)
@@ -101,7 +108,6 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
             .build();
       }
 
-      // fallback: use exit code + console
       int exit = p.exitValue();
       return BuildResult.builder()
           .success(exit == 0)
@@ -120,7 +126,6 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
           .discoveredNsUris(null)
           .build();
     } finally {
-      // 5) cleanup
       if (job != null) {
         try {
           Files.walk(job)
@@ -129,12 +134,23 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
                   p -> {
                     try {
                       Files.deleteIfExists(p);
-                    } catch (IOException ignored) {
+                    } catch (IOException e) {
+                      log.error(e.getMessage(), e);
                     }
                   });
-        } catch (IOException ignored) {
+        } catch (IOException e) {
+          log.error(e.getMessage(), e);
         }
       }
     }
+  }
+
+  /**
+   * Starts an external process using the given command list. Configures the process to merge
+   * standard error into standard output. Returns the running Process handle for further
+   * interaction.
+   */
+  protected Process startProcess(List<String> cmd) throws IOException {
+    return new ProcessBuilder(cmd).redirectErrorStream(true).start();
   }
 }

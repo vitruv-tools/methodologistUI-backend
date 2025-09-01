@@ -8,9 +8,9 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
-import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
@@ -52,8 +52,7 @@ public class MetaModelService {
       MetaModelRepository metaModelRepository,
       FileStorageRepository fileStorageRepository,
       UserRepository userRepository,
-      MetamodelBuildService metamodelBuildService // ✅ inject it
-      ) {
+      MetamodelBuildService metamodelBuildService) {
     this.metaModelMapper = metaModelMapper;
     this.metaModelRepository = metaModelRepository;
     this.fileStorageRepository = fileStorageRepository;
@@ -61,6 +60,11 @@ public class MetaModelService {
     this.metamodelBuildService = metamodelBuildService;
   }
 
+  /**
+   * Saves a new MetaModel linked to the given user and the uploaded Ecore/GenModel files. Persists
+   * the MetaModel and returns it together with the raw file data. Throws NotFoundException if the
+   * user or files cannot be found.
+   */
   @Transactional
   protected PairAndModel savePendingAndLoad(String callerEmail, MetaModelPostRequest req) {
     User user =
@@ -68,7 +72,7 @@ public class MetaModelService {
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
             .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
 
-    MetaModel mm = metaModelMapper.toMetaModel(req);
+    MetaModel metaModel = metaModelMapper.toMetaModel(req);
 
     var ecoreFile =
         fileStorageRepository
@@ -80,100 +84,36 @@ public class MetaModelService {
             .findByIdAndType(req.getGenModelFileId(), FileEnumType.GEN_MODEL)
             .orElseThrow(() -> new NotFoundException(GEN_MODEL_FILE_ID_NOT_FOUND_ERROR));
 
-    mm.setUser(user);
-    mm.setEcoreFile(ecoreFile);
-    mm.setGenModelFile(genModelFile);
-
-    mm = metaModelRepository.save(mm);
-
-    // MATERIALIZE bytes while the session is open
-    FilePair files = new FilePair(ecoreFile.getData(), genModelFile.getData());
-
-    return new PairAndModel(mm, files);
-  }
-
-  /** Creates a metamodel, runs headless build, and accepts/rejects it. */
-  public MetaModel create(String callerEmail, MetaModelPostRequest req) {
-    // Tx: save + load bytes
-    PairAndModel p = savePendingAndLoad(callerEmail, req);
-    MetaModel mm = p.mm;
-    FilePair files = p.files;
-
-    // Run isolated build (no TX)
-    var result =
-        metamodelBuildService.buildAndValidate(
-            MetamodelBuildService.MetamodelBuildInput.builder()
-                .metaModelId(mm.getId())
-                .ecoreBytes(mm.getEcoreFile().getData()) // byte[] from DB
-                .genModelBytes(mm.getGenModelFile().getData()) // byte[] from DB
-                .runMwe2(true) // ignored by local-builder, OK
-                .build());
-
-    // Decide accept/reject (keep it simple)
-    if (!result.isSuccess()) {
-      // optionally store result.getReport() somewhere
-      throw new RuntimeException("Metamodel rejected: " + result.getReport());
-    }
-
-    // success → just return (or mark accepted if you have a status field)
-    return mm;
-  }
-
-  @Transactional(readOnly = true)
-  protected MetaModel savePending(String callerEmail, MetaModelPostRequest req) {
-    User user =
-        userRepository
-            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
-            .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
-
-    MetaModel metaModel = metaModelMapper.toMetaModel(req);
-
-    fileStorageRepository.findAll();
-    FileStorage ecoreFile =
-        fileStorageRepository
-            .findByIdAndType(req.getEcoreFileId(), FileEnumType.ECORE)
-            .orElseThrow(() -> new NotFoundException(ECORE_FILE_ID_NOT_FOUND_ERROR));
-
-    FileStorage genModelFile =
-        fileStorageRepository
-            .findByIdAndType(req.getGenModelFileId(), FileEnumType.GEN_MODEL)
-            .orElseThrow(() -> new NotFoundException(GEN_MODEL_FILE_ID_NOT_FOUND_ERROR));
-
     metaModel.setUser(user);
     metaModel.setEcoreFile(ecoreFile);
     metaModel.setGenModelFile(genModelFile);
-    //    metaModel.setStatus(MetaModelStatus.PENDING);          // ✅ track status
-    //    metaModel.setErrorsCount(0);
-    //    metaModel.setWarningsCount(0);
-    //    metaModel.setValidationReport(null);
-    //    metaModel.setNsUris(null);
 
-    return metaModelRepository.save(metaModel);
+    metaModel = metaModelRepository.save(metaModel);
+
+    FilePair files = new FilePair(ecoreFile.getData(), genModelFile.getData());
+    return new PairAndModel(metaModel, files);
   }
 
+  /** Creates a metamodel, runs headless build, and accepts/rejects it. */
   @Transactional
-  protected void markAccepted(Long id, String report, int warnings, String nsUris) {
-    MetaModel mm = metaModelRepository.findById(id).orElseThrow();
-    //    mm.setStatus(MetaModelStatus.ACCEPTED);
-    //    mm.setWarningsCount(warnings);
-    //    mm.setErrorsCount(0);
-    //    mm.setValidationReport(safe(report));
-    //    mm.setNsUris(nsUris);
-    metaModelRepository.save(mm);
-  }
+  public MetaModel create(String callerEmail, MetaModelPostRequest req) {
+    PairAndModel pairAndModel = savePendingAndLoad(callerEmail, req);
+    MetaModel metaModel = pairAndModel.metaModel;
 
-  @Transactional
-  protected void markFailed(Long id, String report) {
-    MetaModel mm = metaModelRepository.findById(id).orElseThrow();
-    //    mm.setStatus(MetaModelStatus.FAILED);
-    //    mm.setErrorsCount((mm.getErrorsCount() == null ? 0 : mm.getErrorsCount()) + 1);
-    //    mm.setValidationReport(safe(report));
-    metaModelRepository.save(mm);
-  }
+    var result =
+        metamodelBuildService.buildAndValidate(
+            MetamodelBuildService.MetamodelBuildInput.builder()
+                .metaModelId(metaModel.getId())
+                .ecoreBytes(metaModel.getEcoreFile().getData())
+                .genModelBytes(metaModel.getGenModelFile().getData())
+                .runMwe2(true)
+                .build());
 
-  private String safe(String s) {
-    if (s == null) return null;
-    return s.length() <= 8000 ? s : s.substring(0, 8000);
+    if (!result.isSuccess()) {
+      throw new CreateMwe2FileException(result.getReport());
+    }
+
+    return metaModel;
   }
 
   /**
@@ -188,22 +128,17 @@ public class MetaModelService {
     return metaModels.stream().map(metaModelMapper::toMetaModelResponse).toList();
   }
 
-  public enum MetaModelStatus {
-    PENDING,
-    ACCEPTED,
-    FAILED
-  }
-
-  // small holder
+  /** Holds a MetaModel and its associated file pair. */
   private static final class PairAndModel {
-    final MetaModel mm;
+    final MetaModel metaModel;
     final FilePair files;
 
-    PairAndModel(MetaModel mm, FilePair files) {
-      this.mm = mm;
+    PairAndModel(MetaModel metaModel, FilePair files) {
+      this.metaModel = metaModel;
       this.files = files;
     }
   }
 
+  /** Pair of raw Ecore and GenModel file data. */
   private record FilePair(byte[] ecore, byte[] gen) {}
 }
