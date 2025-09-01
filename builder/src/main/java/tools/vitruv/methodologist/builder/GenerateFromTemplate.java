@@ -1,15 +1,29 @@
 package tools.vitruv.methodologist.builder;
 
-import freemarker.template.*;
+import freemarker.template.Configuration;
+import freemarker.template.Template;
+import freemarker.template.TemplateExceptionHandler;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import tools.vitruv.methodologist.builder.configuration.MetamodelLocation;
 import tools.vitruv.methodologist.builder.configuration.VitruvConfiguration;
 
+/**
+ * Utility for generating workflow configuration files from FreeMarker templates. It prepares
+ * template data from metamodel locations and a Vitruv configuration, then renders the workflow
+ * definition to a file on disk.
+ */
 public class GenerateFromTemplate {
+  /**
+   * Creates and configures a FreeMarker configuration instance. Uses UTF-8 encoding, loads
+   * templates from the classpath under /templates, and throws exceptions on template errors.
+   */
   private Configuration cfg() {
     Configuration c = new Configuration(Configuration.VERSION_2_3_31);
     c.setDefaultEncoding("UTF-8");
@@ -18,6 +32,13 @@ public class GenerateFromTemplate {
     return c;
   }
 
+  /**
+   * Generates a workflow.mwe2 file from the generator.ftl template. Collects all metamodel
+   * locations and configuration values, builds a data model for the template, and writes the
+   * rendered file to the configured local output directory. Creates directories if they do not
+   * exist. Returns the path to the generated workflow file, or throws an IOException if rendering
+   * fails.
+   */
   public Path generateMwe2(List<MetamodelLocation> models, VitruvConfiguration config)
       throws IOException {
     var items = new ArrayList<Map<String, Object>>();

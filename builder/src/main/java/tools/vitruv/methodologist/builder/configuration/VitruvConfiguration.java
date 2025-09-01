@@ -10,33 +10,53 @@ import org.eclipse.emf.codegen.ecore.genmodel.GenModel;
 import org.eclipse.emf.codegen.ecore.genmodel.GenModelPackage;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EPackage;
-import org.eclipse.emf.ecore.resource.*;
+import org.eclipse.emf.ecore.resource.Resource;
+import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
 
+/**
+ * Configuration object for Vitruv metamodel builds. Stores references to validated metamodels
+ * (Ecore and GenModel pairs), the local output path, and the base package name. Responsible for
+ * parsing input pairs, loading resources with EMF, and validating their correctness before they are
+ * used in code generation.
+ */
 public class VitruvConfiguration {
   private final List<MetamodelLocation> metamodels = new ArrayList<>();
   private Path localPath;
   private String packageName;
 
+  /**
+   * Removes the last segment after a dot from a string, often used to trim a plugin identifier into
+   * a package name.
+   */
   public static String removeLastSegment(String s) {
     int i = (s == null ? -1 : s.lastIndexOf('.'));
     return i < 0 ? s : s.substring(0, i);
   }
 
+  /** Returns the configured local path for generated artifacts. */
   public Path getLocalPath() {
     return localPath;
   }
 
+  /** Sets the local path for generated artifacts. */
   public void setLocalPath(Path p) {
     this.localPath = p;
   }
 
+  /** Returns the list of loaded and validated metamodel locations. */
   public List<MetamodelLocation> getMetaModelLocations() {
     return metamodels;
   }
 
-  /** pairs format: "path/to.a.ecore,path/to.a.genmodel;path/to.b.ecore,path/to.b.genmodel" */
+  /**
+   * Parses a string of pairs describing Ecore and GenModel files, loads them with EMF, validates
+   * them, and stores the results. The expected format is: {@code
+   * "path/to/model.ecore,path/to/model.genmodel;path/to/other.ecore,path/to/other.genmodel"}
+   * Invalid or missing files will cause exceptions. On success, the namespace URI and package name
+   * are derived from the resources.
+   */
   public void setMetaModelLocations(String pairs) {
     // EMF factories
     Resource.Factory.Registry reg = Resource.Factory.Registry.INSTANCE;
@@ -62,26 +82,25 @@ public class VitruvConfiguration {
 
       ResourceSet rs = new ResourceSetImpl();
 
-      // load & validate ecore
       Resource eRes = rs.getResource(URI.createFileURI(ecore.getAbsolutePath()), true);
       assertValidEcore(eRes, "Ecore: " + ecore.getName());
       EPackage ep = (EPackage) eRes.getContents().get(0);
 
-      // load & validate genmodel
       Resource gRes = rs.getResource(URI.createFileURI(gen.getAbsolutePath()), true);
       assertValidGenModel(gRes, "GenModel: " + gen.getName());
       GenModel gm = (GenModel) gRes.getContents().get(0);
 
-      // collect
       this.metamodels.add(new MetamodelLocation(ecore, gen, ep.getNsURI()));
       this.setPackageName(removeLastSegment(gm.getModelPluginID()));
     }
   }
 
+  /** Returns the current package name, stripped of whitespace. */
   public String getPackageName() {
     return packageName;
   }
 
+  /** Sets the package name, removing all whitespace if present. */
   public void setPackageName(String s) {
     this.packageName = (s == null ? null : s.replaceAll("\\s", ""));
   }
