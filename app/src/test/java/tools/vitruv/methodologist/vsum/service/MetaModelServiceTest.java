@@ -72,12 +72,12 @@ class MetaModelServiceTest {
     metamodelBuildService = mock(MetamodelBuildService.class);
 
     metaModelService =
-            new MetaModelService(
-                    metaModelMapper,
-                    metaModelRepository,
-                    fileStorageRepository,
-                    userRepository,
-                    metamodelBuildService);
+        new MetaModelService(
+            metaModelMapper,
+            metaModelRepository,
+            fileStorageRepository,
+            userRepository,
+            metamodelBuildService);
   }
 
   @Test
@@ -88,15 +88,15 @@ class MetaModelServiceTest {
     final User user = new User();
     user.setEmail(email);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
-            .thenReturn(Optional.of(user));
+        .thenReturn(Optional.of(user));
 
     final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
     when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
-            .thenReturn(Optional.of(ecore));
+        .thenReturn(Optional.of(ecore));
 
     final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
     when(fileStorageRepository.findByIdAndType(20L, FileEnumType.GEN_MODEL))
-            .thenReturn(Optional.of(gen));
+        .thenReturn(Optional.of(gen));
 
     final MetaModel mapped = metaModel(null, ecore, gen);
     when(metaModelMapper.toMetaModel(request)).thenReturn(mapped);
@@ -105,21 +105,21 @@ class MetaModelServiceTest {
     when(metaModelRepository.save(any(MetaModel.class))).thenReturn(saved);
 
     when(metamodelBuildService.buildAndValidate(any()))
-            .thenReturn(
-                    MetamodelBuildService.BuildResult.builder()
-                            .success(true)
-                            .errors(0)
-                            .warnings(0)
-                            .report("OK")
-                            .discoveredNsUris("http://x")
-                            .build());
+        .thenReturn(
+            MetamodelBuildService.BuildResult.builder()
+                .success(true)
+                .errors(0)
+                .warnings(0)
+                .report("OK")
+                .discoveredNsUris("http://x")
+                .build());
 
     final MetaModel result = metaModelService.create(email, request);
 
     assertThat(result.getId()).isEqualTo(100L);
 
     final ArgumentCaptor<MetamodelBuildService.MetamodelBuildInput> captor =
-            ArgumentCaptor.forClass(MetamodelBuildService.MetamodelBuildInput.class);
+        ArgumentCaptor.forClass(MetamodelBuildService.MetamodelBuildInput.class);
     verify(metamodelBuildService).buildAndValidate(captor.capture());
     assertThat(captor.getValue().getEcoreBytes()).containsExactly(ecore.getData());
     assertThat(captor.getValue().getGenModelBytes()).containsExactly(gen.getData());
@@ -134,15 +134,15 @@ class MetaModelServiceTest {
     final User user = new User();
     user.setEmail(email);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
-            .thenReturn(Optional.of(user));
+        .thenReturn(Optional.of(user));
 
     final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
     when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
-            .thenReturn(Optional.of(ecore));
+        .thenReturn(Optional.of(ecore));
 
     final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
     when(fileStorageRepository.findByIdAndType(20L, FileEnumType.GEN_MODEL))
-            .thenReturn(Optional.of(gen));
+        .thenReturn(Optional.of(gen));
 
     final MetaModel mapped = metaModel(null, ecore, gen);
     when(metaModelMapper.toMetaModel(request)).thenReturn(mapped);
@@ -151,28 +151,28 @@ class MetaModelServiceTest {
     when(metaModelRepository.save(any(MetaModel.class))).thenReturn(saved);
 
     when(metamodelBuildService.buildAndValidate(any()))
-            .thenReturn(
-                    MetamodelBuildService.BuildResult.builder()
-                            .success(false)
-                            .errors(1)
-                            .warnings(0)
-                            .report("bad model")
-                            .build());
+        .thenReturn(
+            MetamodelBuildService.BuildResult.builder()
+                .success(false)
+                .errors(1)
+                .warnings(0)
+                .report("bad model")
+                .build());
 
     assertThatThrownBy(() -> metaModelService.create(email, request))
-            .isInstanceOf(CreateMwe2FileException.class)
-            .hasMessageContaining("bad model");
+        .isInstanceOf(CreateMwe2FileException.class)
+        .hasMessageContaining("bad model");
   }
 
   @Test
   void create_throwsNotFound_whenUserMissing() {
     final String email = "missing@ex.com";
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
-            .thenReturn(Optional.empty());
+        .thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
-            .isInstanceOf(NotFoundException.class)
-            .hasMessageContaining(USER_EMAIL_NOT_FOUND_ERROR);
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(USER_EMAIL_NOT_FOUND_ERROR);
   }
 
   @Test
@@ -181,14 +181,14 @@ class MetaModelServiceTest {
     final User user = new User();
     user.setEmail(email);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
-            .thenReturn(Optional.of(user));
+        .thenReturn(Optional.of(user));
 
     when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
-            .thenReturn(Optional.empty());
+        .thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
-            .isInstanceOf(NotFoundException.class)
-            .hasMessageContaining(ECORE_FILE_ID_NOT_FOUND_ERROR);
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(ECORE_FILE_ID_NOT_FOUND_ERROR);
   }
 
   @Test
@@ -197,18 +197,18 @@ class MetaModelServiceTest {
     final User user = new User();
     user.setEmail(email);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
-            .thenReturn(Optional.of(user));
+        .thenReturn(Optional.of(user));
 
     final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
     when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
-            .thenReturn(Optional.of(ecore));
+        .thenReturn(Optional.of(ecore));
 
     when(fileStorageRepository.findByIdAndType(20L, FileEnumType.GEN_MODEL))
-            .thenReturn(Optional.empty());
+        .thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
-            .isInstanceOf(NotFoundException.class)
-            .hasMessageContaining(GEN_MODEL_FILE_ID_NOT_FOUND_ERROR);
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(GEN_MODEL_FILE_ID_NOT_FOUND_ERROR);
   }
 
   @Test
