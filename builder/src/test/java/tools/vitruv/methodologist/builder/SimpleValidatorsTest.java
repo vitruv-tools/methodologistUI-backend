@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.builder;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.eclipse.emf.codegen.ecore.genmodel.GenModel;
 import org.eclipse.emf.codegen.ecore.genmodel.GenModelFactory;
@@ -43,9 +44,6 @@ class SimpleValidatorsTest {
 
   @Test
   void assertValidEcore_acceptsMinimalValidPackage() {
-    Resource resource = newResource("mem:/valid.ecore");
-
-    EPackage ePackage = createMinimalEPackage("pkg", "http://example/pkg");
     EcoreFactory factory = EcoreFactory.eINSTANCE;
 
     EClass classA = factory.createEClass();
@@ -64,9 +62,11 @@ class SimpleValidatorsTest {
 
     classA.getEStructuralFeatures().add(attributeName);
     classA.getEStructuralFeatures().add(referenceToB);
+    EPackage ePackage = createMinimalEPackage("pkg", "http://example/pkg");
 
     ePackage.getEClassifiers().add(classA);
     ePackage.getEClassifiers().add(classB);
+    Resource resource = newResource("mem:/valid.ecore");
 
     resource.getContents().add(ePackage);
 

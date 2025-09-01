@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.builder.configuration;
 
-import static tools.vitruv.methodologist.builder.SimpleValidators.*;
+import static tools.vitruv.methodologist.builder.SimpleValidators.assertValidEcore;
+import static tools.vitruv.methodologist.builder.SimpleValidators.assertValidGenModel;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -58,16 +59,19 @@ public class VitruvConfiguration {
    * are derived from the resources.
    */
   public void setMetaModelLocations(String pairs) {
-    // EMF factories
     Resource.Factory.Registry reg = Resource.Factory.Registry.INSTANCE;
     reg.getExtensionToFactoryMap().put("ecore", new XMIResourceFactoryImpl());
     reg.getExtensionToFactoryMap().put("genmodel", new XMIResourceFactoryImpl());
     GenModelPackage.eINSTANCE.eClass();
 
-    if (pairs == null || pairs.isBlank()) return;
+    if (pairs == null || pairs.isBlank()) {
+      return;
+    }
 
     for (String pair : pairs.split(";")) {
-      if (pair.isBlank() || !pair.contains(",")) continue;
+      if (pair.isBlank() || !pair.contains(",")) {
+        continue;
+      }
 
       String e = pair.split(",")[0].trim();
       String g = pair.split(",")[1].trim();
@@ -75,10 +79,12 @@ public class VitruvConfiguration {
       File ecore = new File(e);
       File gen = new File(g);
 
-      if (!ecore.isFile() || ecore.length() == 0L)
+      if (!ecore.isFile() || ecore.length() == 0L) {
         throw new IllegalArgumentException("Ecore missing/empty: " + ecore);
-      if (!gen.isFile() || gen.length() == 0L)
+      }
+      if (!gen.isFile() || gen.length() == 0L) {
         throw new IllegalArgumentException("GenModel missing/empty: " + gen);
+      }
 
       ResourceSet rs = new ResourceSetImpl();
 

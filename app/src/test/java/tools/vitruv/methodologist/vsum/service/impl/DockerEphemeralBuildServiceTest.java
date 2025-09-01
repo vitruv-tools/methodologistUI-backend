@@ -11,10 +11,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tools.vitruv.methodologist.vsum.service.MetamodelBuildService;
 
+@Slf4j
 class DockerEphemeralBuildServiceTest {
 
   private static final byte[] ECORE = "dummy-ecore".getBytes(StandardCharsets.UTF_8);
@@ -35,8 +37,7 @@ class DockerEphemeralBuildServiceTest {
     String json =
         """
       { "success": true, "errors": 0, "warnings": 1,
-        "report":"OK", "nsUris": ["http://a","http://b"] }
-      """;
+        "report":"OK", "nsUris": ["http://a","http://b"] }""";
     testableService.fake = FakeProcess.withResultJson(json, 0, "");
     var in =
         MetamodelBuildService.MetamodelBuildInput.builder()
@@ -137,7 +138,9 @@ class DockerEphemeralBuildServiceTest {
 
     @Override
     protected Process startProcess(List<String> cmd) throws IOException {
-      if (throwOnStart != null) throw throwOnStart;
+      if (throwOnStart != null) {
+        throw throwOnStart;
+      }
       return fake == null ? FakeProcess.withExit(0, "") : fake;
     }
   }
@@ -191,7 +194,8 @@ class DockerEphemeralBuildServiceTest {
               Files.createDirectories(newestOut);
               Files.writeString(newestOut.resolve("result.json"), json);
             }
-          } catch (IOException ignore) {
+          } catch (IOException e) {
+            log.error(e.getMessage());
           }
           return r;
         }

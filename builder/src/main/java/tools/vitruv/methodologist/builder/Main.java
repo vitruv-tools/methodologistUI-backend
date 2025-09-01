@@ -42,9 +42,13 @@ public class Main {
       } else {
         StringBuilder sb = new StringBuilder();
         for (String pair : pairs.split(";")) {
-          if (pair.isBlank()) continue;
+          if (pair.isBlank()) {
+            continue;
+          }
           String[] pg = pair.split(",");
-          if (pg.length != 2) throw new IllegalArgumentException("Bad pair: " + pair);
+          if (pg.length != 2) {
+            throw new IllegalArgumentException("Bad pair: " + pair);
+          }
           sb.append(expandPath(pg[0].trim()))
               .append(",")
               .append(expandPath(pg[1].trim()))
@@ -65,20 +69,22 @@ public class Main {
       cfg.getMetaModelLocations()
           .forEach(
               loc -> {
-                if (!loc.ecore().isFile() || loc.ecore().length() == 0L)
+                if (!loc.ecore().isFile() || loc.ecore().length() == 0L) {
                   throw new IllegalArgumentException("Ecore is missing/empty: " + loc.ecore());
-                if (!loc.genmodel().isFile() || loc.genmodel().length() == 0L)
+                }
+                if (!loc.genmodel().isFile() || loc.genmodel().length() == 0L) {
                   throw new IllegalArgumentException(
                       "GenModel is missing/empty: " + loc.genmodel());
+                }
               });
-
-      Path mwe2 = new GenerateFromTemplate().generateMwe2(cfg.getMetaModelLocations(), cfg);
 
       nsUris = cfg.getMetaModelLocations().stream().map(MetamodelLocation::nsUri).toList();
 
       result.put("success", true);
       result.put("errors", 0);
       result.put("warnings", 0);
+
+      Path mwe2 = new GenerateFromTemplate().generateMwe2(cfg.getMetaModelLocations(), cfg);
       result.put("report", "Generated " + mwe2.getFileName());
       result.put("nsUris", nsUris);
       System.out.println(result);
