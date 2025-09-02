@@ -15,6 +15,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Pageable;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
@@ -217,7 +218,7 @@ class MetaModelServiceTest {
 
     final MetaModel m1 = metaModel(1L, null, null);
     final MetaModel m2 = metaModel(2L, null, null);
-    when(metaModelRepository.findAllByUser_email(email)).thenReturn(List.of(m1, m2));
+    when(metaModelRepository.findAll(any(), any())).thenReturn(List.of(m1, m2));
 
     final MetaModelResponse r1 = new MetaModelResponse();
     r1.setId(1L);
@@ -230,7 +231,8 @@ class MetaModelServiceTest {
     when(metaModelMapper.toMetaModelResponse(m1)).thenReturn(r1);
     when(metaModelMapper.toMetaModelResponse(m2)).thenReturn(r2);
 
-    final List<MetaModelResponse> list = metaModelService.findAllByUser(email);
+    final List<MetaModelResponse> list =
+        metaModelService.findAllByUser(email, null, Pageable.ofSize(1));
 
     assertThat(list).extracting(MetaModelResponse::getId).containsExactly(1L, 2L);
     assertThat(list).extracting(MetaModelResponse::getName).containsExactly("mm1", "mm2");

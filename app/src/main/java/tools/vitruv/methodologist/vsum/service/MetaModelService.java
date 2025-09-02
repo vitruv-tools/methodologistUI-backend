@@ -6,6 +6,8 @@ import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERR
 
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
@@ -14,11 +16,13 @@ import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
+import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelFilterRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelRepository;
+import tools.vitruv.methodologist.vsum.model.repository.MetaModelSpecifications;
 
 /**
  * Service class for managing metamodel operations including creation and retrieval. Handles the
@@ -117,14 +121,25 @@ public class MetaModelService {
   }
 
   /**
-   * Retrieves all metamodels associated with a specific user.
+   * Retrieves a paginated list of metamodels belonging to the given user, applying optional
+   * filtering criteria.
    *
-   * @param callerEmail email of the user whose metamodels to retrieve
-   * @return list of MetaModelResponse DTOs containing the metamodel details
+   * <p>This method constructs a {@link Specification} based on the caller's email and the provided
+   * filter request, executes the query with pagination, and maps the resulting entities to {@link
+   * MetaModelResponse} DTOs.
+   *
+   * @param callerEmail the email of the user whose metamodels are being requested
+   * @param metaModelFilterRequest filter criteria to apply when searching for metamodels
+   * @param pageable pagination information including page size and sort order
+   * @return a paginated list of metamodel responses matching the user and filters
    */
   @Transactional
-  public List<MetaModelResponse> findAllByUser(String callerEmail) {
-    var metaModels = metaModelRepository.findAllByUser_email(callerEmail);
+  public List<MetaModelResponse> findAllByUser(
+      String callerEmail, MetaModelFilterRequest metaModelFilterRequest, Pageable pageable) {
+    Specification<MetaModel> spec =
+        Specification.where(
+            MetaModelSpecifications.buildSpecification(callerEmail, metaModelFilterRequest));
+    var metaModels = metaModelRepository.findAll(spec, pageable);
     return metaModels.stream().map(metaModelMapper::toMetaModelResponse).toList();
   }
 

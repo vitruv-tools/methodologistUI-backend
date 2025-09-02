@@ -22,6 +22,7 @@ CREATE TABLE meta_model
     user_id           BIGINT                                  NOT NULL,
     ecore_file_id     BIGINT                                  NOT NULL,
     gen_model_file_id BIGINT                                  NOT NULL,
+    is_clone          BOOLEAN                                 NOT NULL,
     created_at        TIMESTAMP WITHOUT TIME ZONE,
     updated_at        TIMESTAMP WITHOUT TIME ZONE,
     removed_at        TIMESTAMP WITHOUT TIME ZONE,

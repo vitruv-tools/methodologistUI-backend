@@ -55,6 +55,8 @@ public class MetaModel {
   @JoinColumn(name = "gen_model_file_id")
   private FileStorage genModelFile;
 
+  @NotNull @Builder.Default private Boolean isClone = false;
+
   @CreationTimestamp private Instant createdAt;
 
   @UpdateTimestamp private Instant updatedAt;

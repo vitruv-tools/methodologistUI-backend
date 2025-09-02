@@ -4,14 +4,15 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 
 /**
- * Spring Data repository interface for managing MetaModel entities. Provides standard CRUD
- * operations for MetaModel persistence. Extends CrudRepository to leverage basic database
- * operations.
+ * Repository interface for managing {@link tools.vitruv.methodologist.vsum.model.MetaModel}
+ * entities. Provides CRUD operations and custom queries for MetaModel data access.
  */
 @Repository
 public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
@@ -25,11 +26,16 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
   Optional<MetaModel> findByNameIgnoreCase(@NotNull @NotBlank String name);
 
   /**
-   * Finds all metamodels associated with a specific user's email.
+   * Retrieves all {@link MetaModel} entities matching the given JPA specification with pagination
+   * support.
    *
-   * @param userEmail the email of the user whose metamodels to find
-   * @return List containing the found MetaModels or empty if none found
-   * @throws IllegalArgumentException if userEmail is null or blank
+   * <p>The provided {@link Specification} defines filtering conditions, while the {@link Pageable}
+   * parameter determines page number, size, and sorting.
+   *
+   * @param spec specification defining filtering conditions for metamodels (may be null to fetch
+   *     all)
+   * @param pageable pagination information including page index, size, and sort order
+   * @return a list of {@link MetaModel} entities that match the specification and pagination
    */
-  List<MetaModel> findAllByUser_email(@NotNull @NotBlank String userEmail);
+  List<MetaModel> findAll(Specification<MetaModel> spec, Pageable pageable);
 }
