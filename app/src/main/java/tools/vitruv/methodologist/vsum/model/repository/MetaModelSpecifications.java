@@ -13,6 +13,26 @@ import tools.vitruv.methodologist.vsum.model.MetaModel;
  */
 public class MetaModelSpecifications {
 
+  /**
+   * Builds a JPA {@link Specification} for filtering {@link MetaModel} entities based on the
+   * provided user email and filter request.
+   *
+   * <p>The generated specification always restricts results to metamodels owned by the specified
+   * user (by email) and excludes cloned models. Additional conditions are applied if present in the
+   * {@link MetaModelFilterRequest}:
+   *
+   * <ul>
+   *   <li><b>Name</b> — case-insensitive substring match on the metamodel name.
+   *   <li><b>Description</b> — case-insensitive substring match on the metamodel description.
+   *   <li><b>CreatedFrom</b> — include only models created at or after the given timestamp.
+   *   <li><b>CreatedTo</b> — include only models created at or before the given timestamp.
+   * </ul>
+   *
+   * @param callerEmail the email of the user whose metamodels should be retrieved
+   * @param metaModelFilterRequest object containing optional filter values for name, description,
+   *     and creation date ranges
+   * @return a {@link Specification} combining all applicable filter predicates
+   */
   public static Specification<MetaModel> buildSpecification(
       String callerEmail, MetaModelFilterRequest metaModelFilterRequest) {
 
