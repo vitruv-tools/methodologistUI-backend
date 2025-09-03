@@ -35,4 +35,16 @@ public interface MetaModelMapper {
   @Mapping(source = "ecoreFile.id", target = "ecoreFileId")
   @Mapping(source = "genModelFile.id", target = "genModelFileId")
   MetaModelResponse toMetaModelResponse(MetaModel metaModel);
+
+  /**
+   * Creates a copy of the given {@link MetaModel} while ignoring system-managed fields such as
+   * {@code createdAt}, {@code updatedAt}, and {@code isClone}.
+   *
+   * @param metaModel the source metamodel to clone
+   * @return a new {@link MetaModel} instance with copied values
+   */
+  @Mapping(ignore = true, target = "createdAt")
+  @Mapping(ignore = true, target = "updatedAt")
+  @Mapping(ignore = true, target = "isClone")
+  MetaModel clone(MetaModel metaModel);
 }

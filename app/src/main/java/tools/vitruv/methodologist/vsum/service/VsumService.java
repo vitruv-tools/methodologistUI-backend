@@ -3,13 +3,17 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
+import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
@@ -28,6 +32,7 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
 public class VsumService {
   private final VsumMapper vsumMapper;
   private final VsumRepository vsumRepository;
+  private final MetaModelMapper metaModelMapper;
 
   /**
    * Constructs a new VsumService with the specified dependencies.
@@ -35,9 +40,11 @@ public class VsumService {
    * @param vsumMapper mapper for VSUM conversions
    * @param vsumRepository repository for VSUM operations
    */
-  public VsumService(VsumMapper vsumMapper, VsumRepository vsumRepository) {
+  public VsumService(
+      VsumMapper vsumMapper, VsumRepository vsumRepository, MetaModelMapper metaModelMapper) {
     this.vsumMapper = vsumMapper;
     this.vsumRepository = vsumRepository;
+    this.metaModelMapper = metaModelMapper;
   }
 
   /**
@@ -110,5 +117,36 @@ public class VsumService {
     vsumRepository.save(vsum);
 
     return vsum;
+  }
+
+  /**
+   * Fetches a VSUM owned by the caller and returns its details together with the mapped
+   * meta-models. Throws {@code NotFoundException} if the VSUM does not exist or does not belong to
+   * the caller.
+   *
+   * @param callerEmail the authenticated user's email (owner of the VSUM)
+   * @param id the VSUM id to fetch
+   * @return a response DTO with VSUM data and its meta-models
+   * @throws NotFoundException if no matching VSUM is found
+   */
+  @Transactional(readOnly = true)
+  public VsumMetaModelResponse findVsumWithDetails(String callerEmail, Long id) {
+    Vsum vsum =
+        vsumRepository
+            .findByIdAndUser_emailAndRemovedAtIsNull(id, callerEmail)
+            .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
+
+    VsumMetaModelResponse response = vsumMapper.toVsumMetaModelResponse(vsum);
+
+    List<MetaModelResponse> metaModels =
+        (vsum.getVsumMetaModels() == null
+                ? List.<tools.vitruv.methodologist.vsum.model.VsumMetaModel>of()
+                : vsum.getVsumMetaModels())
+            .stream()
+                .map(link -> metaModelMapper.toMetaModelResponse(link.getMetaModel()))
+                .toList();
+
+    response.setMetaModels(metaModels);
+    return response;
   }
 }

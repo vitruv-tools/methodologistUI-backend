@@ -29,4 +29,14 @@ public interface VsumRepository extends CrudRepository<Vsum, Long> {
    * @return an Optional containing the found VSUM, or empty if not found
    */
   Optional<Vsum> findByNameIgnoreCase(@NotNull @NotBlank String name);
+
+  /**
+   * Retrieves a {@link Vsum} by its ID and the owning user's email, ensuring that the entity has
+   * not been marked as removed.
+   *
+   * @param id the ID of the Vsum to retrieve
+   * @param email the email of the owning user
+   * @return an Optional containing the Vsum if found and not removed, otherwise empty
+   */
+  Optional<Vsum> findByIdAndUser_emailAndRemovedAtIsNull(Long id, String email);
 }

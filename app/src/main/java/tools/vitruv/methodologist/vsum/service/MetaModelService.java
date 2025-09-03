@@ -143,6 +143,15 @@ public class MetaModelService {
     return metaModels.stream().map(metaModelMapper::toMetaModelResponse).toList();
   }
 
+  /**
+   * Persists the given cloned {@link MetaModel} into the repository.
+   *
+   * @param clonedMetaModel the metamodel instance to save
+   */
+  public void save(MetaModel clonedMetaModel) {
+    metaModelRepository.save(clonedMetaModel);
+  }
+
   /** Holds a MetaModel and its associated file pair. */
   private static final class PairAndModel {
     final MetaModel metaModel;
