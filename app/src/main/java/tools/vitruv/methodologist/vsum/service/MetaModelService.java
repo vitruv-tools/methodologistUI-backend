@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
+import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
@@ -23,6 +24,7 @@ import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelSpecifications;
+import tools.vitruv.methodologist.vsum.service.MetamodelBuildService.BuildResult;
 
 /**
  * Service class for managing metamodel operations including creation and retrieval. Handles the
@@ -78,12 +80,12 @@ public class MetaModelService {
 
     MetaModel metaModel = metaModelMapper.toMetaModel(req);
 
-    var ecoreFile =
+    FileStorage ecoreFile =
         fileStorageRepository
             .findByIdAndType(req.getEcoreFileId(), FileEnumType.ECORE)
             .orElseThrow(() -> new NotFoundException(ECORE_FILE_ID_NOT_FOUND_ERROR));
 
-    var genModelFile =
+    FileStorage genModelFile =
         fileStorageRepository
             .findByIdAndType(req.getGenModelFileId(), FileEnumType.GEN_MODEL)
             .orElseThrow(() -> new NotFoundException(GEN_MODEL_FILE_ID_NOT_FOUND_ERROR));
@@ -104,7 +106,7 @@ public class MetaModelService {
     PairAndModel pairAndModel = savePendingAndLoad(callerEmail, req);
     MetaModel metaModel = pairAndModel.metaModel;
 
-    var result =
+    BuildResult result =
         metamodelBuildService.buildAndValidate(
             MetamodelBuildService.MetamodelBuildInput.builder()
                 .metaModelId(metaModel.getId())
@@ -139,7 +141,7 @@ public class MetaModelService {
     Specification<MetaModel> spec =
         Specification.where(
             MetaModelSpecifications.buildSpecification(callerEmail, metaModelFilterRequest));
-    var metaModels = metaModelRepository.findAll(spec, pageable);
+    List<MetaModel> metaModels = metaModelRepository.findAll(spec, pageable);
     return metaModels.stream().map(metaModelMapper::toMetaModelResponse).toList();
   }
 

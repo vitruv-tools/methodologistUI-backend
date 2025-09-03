@@ -123,7 +123,7 @@ public class Main {
    * directory if it does not exist.
    */
   private static void writeResult(String out, Map<String, Object> result) throws Exception {
-    var outDir = Paths.get(out);
+    Path outDir = Paths.get(out);
     createDirectories(outDir);
     new ObjectMapper()
         .writerWithDefaultPrettyPrinter()

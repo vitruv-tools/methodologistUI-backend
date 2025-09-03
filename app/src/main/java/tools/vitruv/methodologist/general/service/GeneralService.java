@@ -8,6 +8,7 @@ import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.controller.responsedto.LatestVersionResponse;
 import tools.vitruv.methodologist.general.mapper.VersioningMapper;
+import tools.vitruv.methodologist.general.model.Versioning;
 import tools.vitruv.methodologist.general.model.repository.VersioningRepository;
 
 /**
@@ -42,7 +43,7 @@ public class GeneralService {
    */
   @Transactional
   public ResponseTemplateDto<LatestVersionResponse> getLatestVersion(String clientName) {
-    var client =
+    Versioning client =
         versioningRepository
             .findTopByAppNameOrderByIdDesc(clientName)
             .orElseThrow(() -> new NotFoundException(CLIENT_NOT_FOUND_ERROR));

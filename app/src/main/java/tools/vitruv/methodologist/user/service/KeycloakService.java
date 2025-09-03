@@ -6,6 +6,7 @@ import static tools.vitruv.methodologist.messages.Error.USER_WRONG_PASSWORD_ERRO
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.NotAuthorizedException;
+import jakarta.ws.rs.core.Response;
 import java.util.List;
 import org.jboss.resteasy.client.jaxrs.internal.ClientResponse;
 import org.keycloak.OAuth2Constants;
@@ -92,7 +93,7 @@ public class KeycloakService {
     // todo, we disable password change for all the manager users, even registrar! Change it in the
     // future flow!
     //        boolean forceChangePasswordOnFirstLogin = !keycloakUser.getRole().equals(USER_ROLE);
-    var credentialRepresentation =
+    CredentialRepresentation credentialRepresentation =
         preparePasswordRepresentation(
             keycloakUser.getPassword(), false /*forceChangePasswordOnFirstLogin*/);
 
@@ -114,7 +115,7 @@ public class KeycloakService {
    * @param role the role to assign
    */
   public void assignUserRole(String username, String role) {
-    var userRepresentation = getUserRepresentationOrThrow(username);
+    UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
 
     RoleRepresentation roleRepresentation =
         keycloakAdmin.realm(realm).roles().get(role).toRepresentation();
@@ -137,7 +138,7 @@ public class KeycloakService {
   public void createUser(KeycloakUser keycloakUser) {
     UserRepresentation userRepresentation = prepareUserRepresentation(keycloakUser);
 
-    var response = keycloakAdmin.realm(realm).users().create(userRepresentation);
+    Response response = keycloakAdmin.realm(realm).users().create(userRepresentation);
     if (response.getStatus() != HttpStatus.CREATED.value()) {
       throw new ClientErrorException(
           ((ClientResponse) response).getReasonPhrase(), response.getStatus());
@@ -145,7 +146,7 @@ public class KeycloakService {
     response.close();
 
     /* assign role user to the new user in keycloak, if not remove the created user */
-    var userName = keycloakUser.getUsername();
+    String userName = keycloakUser.getUsername();
     try {
       assignUserRole(userName, keycloakUser.getRole());
     } catch (Exception any) {
@@ -160,8 +161,7 @@ public class KeycloakService {
    * @param username the username of the user to remove
    */
   public void removeUser(String username) {
-    var userRepresentation = getUserRepresentationOrThrow(username);
-
+    UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
     keycloakAdmin.realm(realm).users().get(userRepresentation.getId()).remove();
   }
 
@@ -201,7 +201,8 @@ public class KeycloakService {
    * @param password the new password to set
    */
   public void resetPassword(String username, String password) {
-    var credentialRepresentation = preparePasswordRepresentation(password, false);
+    CredentialRepresentation credentialRepresentation =
+        preparePasswordRepresentation(password, false);
     keycloakAdmin
         .realm(realm)
         .users()
@@ -244,7 +245,8 @@ public class KeycloakService {
    * @param password the new password to set
    */
   public void setPassword(String username, String password) {
-    var credentialRepresentation = preparePasswordRepresentation(password, false);
+    CredentialRepresentation credentialRepresentation =
+        preparePasswordRepresentation(password, false);
     keycloakAdmin
         .realm(realm)
         .users()

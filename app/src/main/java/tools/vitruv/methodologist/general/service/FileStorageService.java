@@ -11,6 +11,7 @@ import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
+import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 
 /**
@@ -60,7 +61,7 @@ public class FileStorageService {
   @Transactional
   public FileStorage storeFile(String callerUserEmail, MultipartFile file, FileEnumType type)
       throws Exception {
-    var user =
+    User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
             .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));

@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.model.repository;
 
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
+import java.util.List;
 import org.springframework.data.jpa.domain.Specification;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelFilterRequest;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
@@ -37,20 +38,20 @@ public class MetaModelSpecifications {
       String callerEmail, MetaModelFilterRequest metaModelFilterRequest) {
 
     return (root, query, cb) -> {
-      var predicates = new ArrayList<Predicate>();
+      List<Predicate> predicates = new ArrayList<Predicate>();
       predicates.add(cb.equal(root.get("user").get("email"), callerEmail));
       predicates.add(cb.equal(root.get("isClone"), false));
 
       if (metaModelFilterRequest.getName() != null) {
         String name = "%" + metaModelFilterRequest.getName().trim().toLowerCase() + "%";
-        var nameLike = cb.like(cb.lower(root.get("name")), name);
+        Predicate nameLike = cb.like(cb.lower(root.get("name")), name);
         predicates.add(cb.or(nameLike));
       }
 
       if (metaModelFilterRequest.getDescription() != null) {
         String description =
             "%" + metaModelFilterRequest.getDescription().trim().toLowerCase() + "%";
-        var descLike = cb.like(cb.lower(root.get("description")), description);
+        Predicate descLike = cb.like(cb.lower(root.get("description")), description);
         predicates.add(cb.or(descLike));
       }
 

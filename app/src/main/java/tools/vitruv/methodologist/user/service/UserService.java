@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.apihandler.KeycloakApiHandler;
+import tools.vitruv.methodologist.apihandler.dto.response.KeycloakWebToken;
 import tools.vitruv.methodologist.exception.EmailExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
@@ -59,7 +60,7 @@ public class UserService {
   @Transactional
   public UserWebToken getAccessToken(PostAccessTokenRequest postAccessTokenRequest) {
     try {
-      var response =
+      KeycloakWebToken response =
           keycloakApiHandler.getAccessTokenOrThrow(
               postAccessTokenRequest.getUsername(), postAccessTokenRequest.getPassword());
 
@@ -78,7 +79,7 @@ public class UserService {
   public UserWebToken getAccessTokenByRefreshToken(
       PostAccessTokenByRefreshTokenRequest postAccessTokenByRefreshTokenRequest) {
     try {
-      var response =
+      KeycloakWebToken response =
           keycloakApiHandler.getAccessTokenByRefreshToken(
               postAccessTokenByRefreshTokenRequest.getRefreshToken());
 
@@ -103,9 +104,9 @@ public class UserService {
             user -> {
               throw new EmailExistsException(userPostRequest.getEmail());
             });
-    var user = userMapper.toUser(userPostRequest);
+    User user = userMapper.toUser(userPostRequest);
 
-    var keycloakUser =
+    KeycloakUser keycloakUser =
         KeycloakUser.builder()
             .firstName(user.getFirstName())
             .lastName(user.getLastName())
@@ -117,7 +118,6 @@ public class UserService {
             .build();
     keycloakService.createUser(keycloakUser);
     userRepository.save(user);
-
     return user;
   }
 
@@ -131,13 +131,12 @@ public class UserService {
    */
   @Transactional
   public User update(Long id, UserPutRequest userPutRequest) {
-    var user =
+    User user =
         userRepository
             .findByIdAndRemovedAtIsNull(id)
             .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
     userMapper.updateByUserPutRequest(userPutRequest, user);
     userRepository.save(user);
-
     return user;
   }
 
@@ -149,7 +148,7 @@ public class UserService {
    */
   @Transactional
   public UserResponse findById(Long id) {
-    var user =
+    User user =
         userRepository
             .findByIdAndRemovedAtIsNull(id)
             .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
@@ -165,13 +164,12 @@ public class UserService {
    */
   @Transactional
   public User remove(Long id) {
-    var user =
+    User user =
         userRepository
             .findByIdAndRemovedAtIsNull(id)
             .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
     user.setRemovedAt(Instant.now());
     userRepository.save(user);
-
     return user;
   }
 }
