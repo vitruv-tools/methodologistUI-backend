@@ -48,9 +48,8 @@ public class VsumService {
    */
   @Transactional
   public Vsum create(VsumPostRequest vsumPostRequest) {
-    var vsum = vsumMapper.toVsum(vsumPostRequest);
+    Vsum vsum = vsumMapper.toVsum(vsumPostRequest);
     vsumRepository.save(vsum);
-
     return vsum;
   }
 
@@ -65,13 +64,12 @@ public class VsumService {
    */
   @Transactional
   public Vsum update(Long id, VsumPutRequest vsumPutRequest) {
-    var vsum =
+    Vsum vsum =
         vsumRepository
             .findByIdAndRemovedAtIsNull(id)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
     vsumMapper.updateByVsumPutRequest(vsumPutRequest, vsum);
     vsumRepository.save(vsum);
-
     return vsum;
   }
 
@@ -85,7 +83,7 @@ public class VsumService {
    */
   @Transactional
   public VsumResponse findById(Long id) {
-    var vsum =
+    Vsum vsum =
         vsumRepository
             .findByIdAndRemovedAtIsNull(id)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
@@ -102,13 +100,12 @@ public class VsumService {
    */
   @Transactional
   public Vsum remove(Long id) {
-    var vsum =
+    Vsum vsum =
         vsumRepository
             .findByIdAndRemovedAtIsNull(id)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
     vsum.setRemovedAt(Instant.now());
     vsumRepository.save(vsum);
-
     return vsum;
   }
 }

@@ -205,7 +205,7 @@ public class GlobalExceptionHandlerController {
         handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
         ex.getMessage());
     log.debug(STACKTRACE_LOG, ex.toString());
-    var errorResponse =
+    ErrorResponse errorResponse =
         ErrorResponse.builder().error(ex.getMessage().toUpperCase()).path(getPath(request)).build();
     return new ResponseEntity<>(errorResponse, ex.getStatusCode());
   }

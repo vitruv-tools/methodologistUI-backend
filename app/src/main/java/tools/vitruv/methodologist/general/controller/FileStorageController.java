@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.general.FileEnumType;
+import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.service.FileStorageService;
 
 /**
@@ -65,7 +66,7 @@ public class FileStorageController {
           MultipartFile file,
       @PathVariable FileEnumType type)
       throws Exception {
-    var email = authentication.getParsedToken().getEmail();
+    String email = authentication.getParsedToken().getEmail();
     fileStorageService.storeFile(email, file, type);
 
     return ResponseTemplateDto.<String>builder().message(FILE_UPLOADED_SUCCESSFULLY).build();
@@ -77,11 +78,12 @@ public class FileStorageController {
    * @param id the ID of the file to download
    * @return ResponseEntity containing the file as a ByteArrayResource
    */
+  @SuppressWarnings("null")
   @GetMapping(value = "/api/files/{id}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
   @PreAuthorize("hasRole('user')")
   public ResponseEntity<ByteArrayResource> download(@PathVariable Long id) {
-    var f = fileStorageService.getFile(id);
-    var bytes = f.getData();
+    FileStorage f = fileStorageService.getFile(id);
+    byte[] bytes = f.getData();
     return ResponseEntity.ok()
         .contentType(
             MediaType.parseMediaType(

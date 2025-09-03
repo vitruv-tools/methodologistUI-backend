@@ -97,7 +97,7 @@ public class SecurityConfiguration {
     configuration.setAllowCredentials(true);
     configuration.setMaxAge(3600L); // 1 hour
 
-    var source = new UrlBasedCorsConfigurationSource();
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", configuration);
     return source;
   }

@@ -52,7 +52,7 @@ public class MetaModelController {
   public ResponseTemplateDto<Void> create(
       KeycloakAuthentication authentication,
       @Valid @RequestBody MetaModelPostRequest metaModelPostRequest) {
-    var callerEmail = authentication.getParsedToken().getEmail();
+    String callerEmail = authentication.getParsedToken().getEmail();
     metaModelService.create(callerEmail, metaModelPostRequest);
     return ResponseTemplateDto.<Void>builder().message(META_MODEL_CREATED_SUCCESSFULLY).build();
   }
@@ -78,7 +78,7 @@ public class MetaModelController {
       @Valid @RequestBody MetaModelFilterRequest metaModelFilterRequest,
       @RequestParam(defaultValue = "0") int pageNumber,
       @RequestParam(defaultValue = "50") int pageSize) {
-    var callerEmail = authentication.getParsedToken().getEmail();
+    String callerEmail = authentication.getParsedToken().getEmail();
     Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by("id").descending());
     return ResponseTemplateDto.<List<MetaModelResponse>>builder()
         .data(metaModelService.findAllByUser(callerEmail, metaModelFilterRequest, pageable))

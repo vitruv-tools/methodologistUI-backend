@@ -15,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tools.vitruv.methodologist.vsum.service.MetamodelBuildService;
+import tools.vitruv.methodologist.vsum.service.MetamodelBuildService.BuildResult;
+import tools.vitruv.methodologist.vsum.service.MetamodelBuildService.MetamodelBuildInput;
 
 @Slf4j
 class DockerEphemeralBuildServiceTest {
@@ -36,10 +38,11 @@ class DockerEphemeralBuildServiceTest {
   void success_whenResultJsonPresent() throws Exception {
     String json =
         """
-      { "success": true, "errors": 0, "warnings": 1,
-        "report":"OK", "nsUris": ["http://a","http://b"] }""";
+        { "success": true, "errors": 0, "warnings": 1,
+          "report":"OK", "nsUris": ["http://a","http://b"] }\
+        """;
     testableService.fake = FakeProcess.withResultJson(json, 0, "");
-    var in =
+    MetamodelBuildInput in =
         MetamodelBuildService.MetamodelBuildInput.builder()
             .metaModelId(42L)
             .ecoreBytes(ECORE)
@@ -47,7 +50,7 @@ class DockerEphemeralBuildServiceTest {
             .runMwe2(true)
             .build();
 
-    var res = testableService.buildAndValidate(in);
+    BuildResult res = testableService.buildAndValidate(in);
 
     assertThat(res.isSuccess()).isTrue();
     assertThat(res.getErrors()).isZero();
@@ -61,7 +64,7 @@ class DockerEphemeralBuildServiceTest {
     testableService.fake = FakeProcess.neverEnds();
     testableService.timeoutSeconds = 1;
 
-    var in =
+    MetamodelBuildInput in =
         MetamodelBuildService.MetamodelBuildInput.builder()
             .metaModelId(1L)
             .ecoreBytes(ECORE)
@@ -69,7 +72,7 @@ class DockerEphemeralBuildServiceTest {
             .runMwe2(true)
             .build();
 
-    var res = testableService.buildAndValidate(in);
+    BuildResult res = testableService.buildAndValidate(in);
 
     assertThat(res.isSuccess()).isFalse();
     assertThat(res.getErrors()).isEqualTo(1);
@@ -80,7 +83,7 @@ class DockerEphemeralBuildServiceTest {
   void noResultJson_exitZero_usesConsole() throws Exception {
     testableService.fake = FakeProcess.withExit(0, "console ok");
 
-    var in =
+    MetamodelBuildInput in =
         MetamodelBuildService.MetamodelBuildInput.builder()
             .metaModelId(2L)
             .ecoreBytes(ECORE)
@@ -88,7 +91,7 @@ class DockerEphemeralBuildServiceTest {
             .runMwe2(true)
             .build();
 
-    var res = testableService.buildAndValidate(in);
+    BuildResult res = testableService.buildAndValidate(in);
 
     assertThat(res.isSuccess()).isTrue();
     assertThat(res.getErrors()).isZero();
@@ -99,7 +102,7 @@ class DockerEphemeralBuildServiceTest {
   void noResultJson_exitNonZero_isFailure() throws Exception {
     testableService.fake = FakeProcess.withExit(7, "boom");
 
-    var in =
+    MetamodelBuildInput in =
         MetamodelBuildService.MetamodelBuildInput.builder()
             .metaModelId(3L)
             .ecoreBytes(ECORE)
@@ -107,7 +110,7 @@ class DockerEphemeralBuildServiceTest {
             .runMwe2(true)
             .build();
 
-    var res = testableService.buildAndValidate(in);
+    BuildResult res = testableService.buildAndValidate(in);
 
     assertThat(res.isSuccess()).isFalse();
     assertThat(res.getErrors()).isEqualTo(1);
@@ -117,7 +120,7 @@ class DockerEphemeralBuildServiceTest {
   @Test
   void crash_exception_isFailure() throws Exception {
     testableService.throwOnStart = new IOException("cannot start");
-    var in =
+    MetamodelBuildInput in =
         MetamodelBuildService.MetamodelBuildInput.builder()
             .metaModelId(4L)
             .ecoreBytes(ECORE)
@@ -125,7 +128,7 @@ class DockerEphemeralBuildServiceTest {
             .runMwe2(true)
             .build();
 
-    var res = testableService.buildAndValidate(in);
+    BuildResult res = testableService.buildAndValidate(in);
 
     assertThat(res.isSuccess()).isFalse();
     assertThat(res.getErrors()).isEqualTo(1);

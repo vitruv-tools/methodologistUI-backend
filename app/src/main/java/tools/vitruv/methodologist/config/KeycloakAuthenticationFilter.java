@@ -5,7 +5,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Collection;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -39,11 +41,12 @@ public class KeycloakAuthenticationFilter extends OncePerRequestFilter {
 
     if (authentication instanceof JwtAuthenticationToken jwtAuthenticationToken) {
       Jwt jwt = jwtAuthenticationToken.getToken();
-      var authenticated = SecurityContextHolder.getContext().getAuthentication().isAuthenticated();
-      var authorities = authentication.getAuthorities();
-      var details = authentication.getDetails();
+      boolean authenticated =
+          SecurityContextHolder.getContext().getAuthentication().isAuthenticated();
+      Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
+      Object details = authentication.getDetails();
 
-      var newToken = new KeycloakAuthentication(jwt, authorities);
+      KeycloakAuthentication newToken = new KeycloakAuthentication(jwt, authorities);
       newToken.setDetails(details);
       newToken.setAuthenticated(authenticated);
 
