@@ -8,6 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.NotFoundException;
+import tools.vitruv.methodologist.exception.UnauthorizedException;
+import tools.vitruv.methodologist.user.model.User;
+import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
@@ -33,6 +36,8 @@ public class VsumService {
   private final VsumMapper vsumMapper;
   private final VsumRepository vsumRepository;
   private final MetaModelMapper metaModelMapper;
+  private final VsumMetaModelService vsumMetaModelService;
+  private final UserRepository userRepository;
 
   /**
    * Constructs a new VsumService with the specified dependencies.
@@ -41,10 +46,16 @@ public class VsumService {
    * @param vsumRepository repository for VSUM operations
    */
   public VsumService(
-      VsumMapper vsumMapper, VsumRepository vsumRepository, MetaModelMapper metaModelMapper) {
+      VsumMapper vsumMapper,
+      VsumRepository vsumRepository,
+      MetaModelMapper metaModelMapper,
+      VsumMetaModelService vsumMetaModelService,
+      UserRepository userRepository) {
     this.vsumMapper = vsumMapper;
     this.vsumRepository = vsumRepository;
     this.metaModelMapper = metaModelMapper;
+    this.vsumMetaModelService = vsumMetaModelService;
+    this.userRepository = userRepository;
   }
 
   /**
@@ -54,9 +65,14 @@ public class VsumService {
    * @return the created Vsum entity
    */
   @Transactional
-  public Vsum create(VsumPostRequest vsumPostRequest) {
+  public Vsum create(String callerEmail, VsumPostRequest vsumPostRequest) {
+    User user =
+        userRepository
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
+            .orElseThrow(UnauthorizedException::new);
     Vsum vsum = vsumMapper.toVsum(vsumPostRequest);
-    vsumRepository.save(vsum);
+    vsum.setUser(user);
+    vsum = vsumRepository.save(vsum);
     return vsum;
   }
 
@@ -70,12 +86,13 @@ public class VsumService {
    *     is marked as removed
    */
   @Transactional
-  public Vsum update(Long id, VsumPutRequest vsumPutRequest) {
+  public Vsum update(String callerEmail, Long id, VsumPutRequest vsumPutRequest) {
     Vsum vsum =
         vsumRepository
-            .findByIdAndRemovedAtIsNull(id)
+            .findByIdAndUser_emailAndRemovedAtIsNull(id, callerEmail)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
     vsumMapper.updateByVsumPutRequest(vsumPutRequest, vsum);
+    vsumMetaModelService.sync(vsum, vsumPutRequest.getMetaModelIds());
     vsumRepository.save(vsum);
     return vsum;
   }
@@ -89,10 +106,10 @@ public class VsumService {
    *     is marked as removed
    */
   @Transactional
-  public VsumResponse findById(Long id) {
+  public VsumResponse findById(String callerEmail, Long id) {
     Vsum vsum =
         vsumRepository
-            .findByIdAndRemovedAtIsNull(id)
+            .findByIdAndUser_emailAndRemovedAtIsNull(id, callerEmail)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
     return vsumMapper.toVsumResponse(vsum);
   }
@@ -106,10 +123,10 @@ public class VsumService {
    *     is marked as removed
    */
   @Transactional
-  public Vsum remove(Long id) {
+  public Vsum remove(String callerEmail, Long id) {
     Vsum vsum =
         vsumRepository
-            .findByIdAndRemovedAtIsNull(id)
+            .findByIdAndUser_emailAndRemovedAtIsNull(id, callerEmail)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
     vsum.setRemovedAt(Instant.now());
     vsumRepository.save(vsum);
@@ -140,10 +157,24 @@ public class VsumService {
                 ? List.<tools.vitruv.methodologist.vsum.model.VsumMetaModel>of()
                 : vsum.getVsumMetaModels())
             .stream()
-                .map(link -> metaModelMapper.toMetaModelResponse(link.getMetaModel()))
+                .map(metaModel -> metaModelMapper.toMetaModelResponse(metaModel.getMetaModel()))
                 .toList();
 
     response.setMetaModels(metaModels);
     return response;
+  }
+
+  /**
+   * Retrieves all {@link Vsum} entities for the given user and maps them to {@link VsumResponse}.
+   * Only {@link Vsum} records whose associated user has not been removed are returned.
+   *
+   * @param callerEmail the email of the user whose {@link Vsum} records should be fetched
+   * @return a list of {@link VsumResponse} objects representing the user's active {@link Vsum}
+   *     entities
+   */
+  public List<VsumResponse> findAllByUser(String callerEmail) {
+    List<Vsum> vsums = vsumRepository.findAllByUser_emailAndUser_removedAtIsNull(callerEmail);
+
+    return vsums.stream().map(vsumMapper::toVsumResponse).toList();
   }
 }

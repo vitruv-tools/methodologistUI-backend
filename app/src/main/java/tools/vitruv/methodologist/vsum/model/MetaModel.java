@@ -55,7 +55,9 @@ public class MetaModel {
   @JoinColumn(name = "gen_model_file_id")
   private FileStorage genModelFile;
 
-  @NotNull @Builder.Default private Boolean isClone = false;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "source_id")
+  private MetaModel source;
 
   @CreationTimestamp private Instant createdAt;
 

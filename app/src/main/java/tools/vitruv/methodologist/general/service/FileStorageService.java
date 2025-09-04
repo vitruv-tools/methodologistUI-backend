@@ -4,11 +4,13 @@ import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERR
 
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
+import tools.vitruv.methodologist.general.mapper.FileStorageMapper;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.user.model.User;
@@ -22,6 +24,7 @@ import tools.vitruv.methodologist.user.model.repository.UserRepository;
 public class FileStorageService {
   private final FileStorageRepository fileStorageRepository;
   private final UserRepository userRepository;
+  private final FileStorageMapper fileStorageMapper;
 
   /**
    * Constructs a new FileStorageService with the specified repositories.
@@ -30,9 +33,12 @@ public class FileStorageService {
    * @param userRepository repository for user operations
    */
   public FileStorageService(
-      FileStorageRepository fileStorageRepository, UserRepository userRepository) {
+      FileStorageRepository fileStorageRepository,
+      UserRepository userRepository,
+      FileStorageMapper fileStorageMapper) {
     this.fileStorageRepository = fileStorageRepository;
     this.userRepository = userRepository;
+    this.fileStorageMapper = fileStorageMapper;
   }
 
   /**
@@ -114,5 +120,31 @@ public class FileStorageService {
   @Transactional
   public void deleteFile(Long id) {
     fileStorageRepository.deleteById(id);
+  }
+
+  /**
+   * Creates a clone of the provided FileStorage object, saves the cloned instance into the
+   * repository, and returns the saved instance.
+   *
+   * @param fileStorage the FileStorage object to be cloned
+   * @return the cloned and saved FileStorage object
+   */
+  @Transactional
+  public FileStorage clone(FileStorage fileStorage) {
+    FileStorage clonedFileStorage = fileStorageMapper.clone(fileStorage);
+    fileStorageRepository.save(clonedFileStorage);
+    return clonedFileStorage;
+  }
+
+  /**
+   * Deletes the given list of {@link FileStorage} entities from the repository.
+   *
+   * <p>This method removes all provided file storage records in a single transactional operation.
+   *
+   * @param fileStorages the list of {@link FileStorage} entities to delete
+   */
+  @Transactional
+  public void deleteFiles(List<FileStorage> fileStorages) {
+    fileStorageRepository.deleteAll(fileStorages);
   }
 }

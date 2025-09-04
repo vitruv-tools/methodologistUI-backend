@@ -50,6 +50,6 @@ public class Vsum {
   private Instant removedAt;
 
   @ToString.Exclude
-  @OneToMany(mappedBy = "user", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+  @OneToMany(mappedBy = "vsum", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
   private List<VsumMetaModel> vsumMetaModels = new ArrayList<>();
 }

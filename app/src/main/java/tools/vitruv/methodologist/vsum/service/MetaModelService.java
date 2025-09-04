@@ -4,6 +4,7 @@ import static tools.vitruv.methodologist.messages.Error.ECORE_FILE_ID_NOT_FOUND_
 import static tools.vitruv.methodologist.messages.Error.GEN_MODEL_FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
+import java.util.ArrayList;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +16,7 @@ import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
+import tools.vitruv.methodologist.general.service.FileStorageService;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelFilterRequest;
@@ -44,6 +46,7 @@ public class MetaModelService {
   private final FileStorageRepository fileStorageRepository;
   private final UserRepository userRepository;
   private final MetamodelBuildService metamodelBuildService;
+  private final FileStorageService fileStorageService;
 
   /**
    * Constructs a new MetaModelService with the specified dependencies.
@@ -58,12 +61,14 @@ public class MetaModelService {
       MetaModelRepository metaModelRepository,
       FileStorageRepository fileStorageRepository,
       UserRepository userRepository,
-      MetamodelBuildService metamodelBuildService) {
+      MetamodelBuildService metamodelBuildService,
+      FileStorageService fileStorageService) {
     this.metaModelMapper = metaModelMapper;
     this.metaModelRepository = metaModelRepository;
     this.fileStorageRepository = fileStorageRepository;
     this.userRepository = userRepository;
     this.metamodelBuildService = metamodelBuildService;
+    this.fileStorageService = fileStorageService;
   }
 
   /**
@@ -146,12 +151,39 @@ public class MetaModelService {
   }
 
   /**
-   * Persists the given cloned {@link MetaModel} into the repository.
+   * Clones an existing MetaModel instance, including its associated files, and marks the cloned
+   * model as a clone. The cloned MetaModel is saved in the repository.
    *
-   * @param clonedMetaModel the metamodel instance to save
+   * @param metaModel the MetaModel instance to clone
+   * @return the cloned MetaModel instance
    */
-  public void save(MetaModel clonedMetaModel) {
+  @Transactional
+  public MetaModel clone(MetaModel metaModel) {
+    MetaModel clonedMetaModel = metaModelMapper.clone(metaModel);
+    FileStorage ecoreFile = fileStorageService.clone(metaModel.getEcoreFile());
+    FileStorage genModelFile = fileStorageService.clone(metaModel.getGenModelFile());
+    clonedMetaModel.setSource(metaModel);
+    clonedMetaModel.setEcoreFile(ecoreFile);
+    clonedMetaModel.setGenModelFile(genModelFile);
     metaModelRepository.save(clonedMetaModel);
+    return clonedMetaModel;
+  }
+
+  /**
+   * Deletes the file storage records associated with the given cloned {@link MetaModel} entities.
+   *
+   * <p>Collects all linked Ecore and GenModel files from the provided metamodels and removes them
+   * from persistent storage using {@link
+   * tools.vitruv.methodologist.general.service.FileStorageService}.
+   *
+   * @param metaModels the list of cloned {@link MetaModel} entities whose files should be deleted
+   */
+  public void deleteCloned(List<MetaModel> metaModels) {
+    metaModelRepository.deleteAll(metaModels);
+    List<FileStorage> fileStorages = new ArrayList<>();
+    fileStorages.addAll(metaModels.stream().map(MetaModel::getEcoreFile).toList());
+    fileStorages.addAll(metaModels.stream().map(MetaModel::getGenModelFile).toList());
+    fileStorageService.deleteFiles(fileStorages);
   }
 
   /** Holds a MetaModel and its associated file pair. */

@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.vsum.model.repository;
 import java.util.List;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
+import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 
 /**
@@ -23,11 +24,10 @@ import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 @Repository
 public interface VsumMetaModelRepository extends CrudRepository<VsumMetaModel, Long> {
   /**
-   * Retrieves all {@link VsumMetaModel} entities associated with the given user email where the
-   * entry has not been marked as removed.
+   * Retrieves all {@link VsumMetaModel} entries that belong to the specified {@link Vsum}.
    *
-   * @param email the email of the user whose {@link VsumMetaModel} associations should be fetched
-   * @return a list of active {@link VsumMetaModel} records linked to the specified user
+   * @param vsum the Vsum entity whose associated VsumMetaModels should be fetched
+   * @return list of VsumMetaModel entities linked to the given Vsum
    */
-  List<VsumMetaModel> findAllByUser_emailAndRemovedAtIsNull(String email);
+  List<VsumMetaModel> findAllByVsum(Vsum vsum);
 }

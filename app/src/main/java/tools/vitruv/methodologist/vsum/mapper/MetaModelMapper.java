@@ -38,13 +38,13 @@ public interface MetaModelMapper {
 
   /**
    * Creates a copy of the given {@link MetaModel} while ignoring system-managed fields such as
-   * {@code createdAt}, {@code updatedAt}, and {@code isClone}.
+   * {@code createdAt}, {@code updatedAt} and {@code id}.
    *
    * @param metaModel the source metamodel to clone
    * @return a new {@link MetaModel} instance with copied values
    */
+  @Mapping(ignore = true, target = "id")
   @Mapping(ignore = true, target = "createdAt")
   @Mapping(ignore = true, target = "updatedAt")
-  @Mapping(ignore = true, target = "isClone")
   MetaModel clone(MetaModel metaModel);
 }

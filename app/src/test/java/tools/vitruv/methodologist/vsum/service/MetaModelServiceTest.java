@@ -2,14 +2,17 @@ package tools.vitruv.methodologist.vsum.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.ECORE_FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.GEN_MODEL_FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +24,7 @@ import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
+import tools.vitruv.methodologist.general.service.FileStorageService;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
@@ -36,6 +40,7 @@ class MetaModelServiceTest {
   private FileStorageRepository fileStorageRepository;
   private UserRepository userRepository;
   private MetamodelBuildService metamodelBuildService;
+  private FileStorageService fileStorageService;
 
   private MetaModelService metaModelService;
 
@@ -66,6 +71,7 @@ class MetaModelServiceTest {
 
   @BeforeEach
   void setup() {
+    fileStorageService = mock(FileStorageService.class);
     metaModelMapper = mock(MetaModelMapper.class);
     metaModelRepository = mock(MetaModelRepository.class);
     fileStorageRepository = mock(FileStorageRepository.class);
@@ -78,7 +84,8 @@ class MetaModelServiceTest {
             metaModelRepository,
             fileStorageRepository,
             userRepository,
-            metamodelBuildService);
+            metamodelBuildService,
+            fileStorageService);
   }
 
   @Test
@@ -236,5 +243,116 @@ class MetaModelServiceTest {
 
     assertThat(list).extracting(MetaModelResponse::getId).containsExactly(1L, 2L);
     assertThat(list).extracting(MetaModelResponse::getName).containsExactly("mm1", "mm2");
+  }
+
+  @Test
+  void clone_copiesFiles_setsSource_andSaves() {
+    FileStorage sourceEcore = new FileStorage();
+    sourceEcore.setId(10L);
+    sourceEcore.setData("x".getBytes());
+
+    FileStorage sourceGen = new FileStorage();
+    sourceGen.setId(11L);
+    sourceGen.setData("y".getBytes());
+
+    MetaModel source = new MetaModel();
+    source.setId(1L);
+    source.setEcoreFile(sourceEcore);
+    source.setGenModelFile(sourceGen);
+
+    MetaModel mappedClone = new MetaModel();
+    when(metaModelMapper.clone(source)).thenReturn(mappedClone);
+
+    FileStorage clonedEcore = new FileStorage();
+    clonedEcore.setId(20L);
+    FileStorage clonedGen = new FileStorage();
+    clonedGen.setId(21L);
+
+    when(fileStorageService.clone(sourceEcore)).thenReturn(clonedEcore);
+    when(fileStorageService.clone(sourceGen)).thenReturn(clonedGen);
+    when(metaModelRepository.save(mappedClone)).thenReturn(mappedClone);
+
+    MetaModel result = metaModelService.clone(source);
+
+    verify(metaModelMapper).clone(source);
+    verify(fileStorageService).clone(sourceEcore);
+    verify(fileStorageService).clone(sourceGen);
+    verify(metaModelRepository).save(mappedClone);
+
+    assertThat(result).isSameAs(mappedClone);
+    assertThat(result.getSource()).isSameAs(source);
+    assertThat(result.getEcoreFile()).isSameAs(clonedEcore);
+    assertThat(result.getGenModelFile()).isSameAs(clonedGen);
+  }
+
+  @Test
+  void clone_propagates_whenFileCloneFails() {
+    FileStorage sourceEcore = new FileStorage();
+    sourceEcore.setId(10L);
+    FileStorage sourceGen = new FileStorage();
+    sourceGen.setId(11L);
+
+    MetaModel source = new MetaModel();
+    source.setId(1L);
+    source.setEcoreFile(sourceEcore);
+    source.setGenModelFile(sourceGen);
+
+    MetaModel mappedClone = new MetaModel();
+    when(metaModelMapper.clone(source)).thenReturn(mappedClone);
+
+    when(fileStorageService.clone(sourceEcore)).thenThrow(new RuntimeException("disk full"));
+
+    assertThatThrownBy(() -> metaModelService.clone(source))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("disk full");
+
+    verify(metaModelRepository, never()).save(any(MetaModel.class));
+  }
+
+  @Test
+  void deleteCloned_deletesModels_thenDeletesBothFileTypes() {
+    FileStorage ecoreA = new FileStorage();
+    ecoreA.setId(100L);
+    FileStorage genA = new FileStorage();
+    genA.setId(101L);
+    MetaModel cloneA = new MetaModel();
+    cloneA.setId(1000L);
+    cloneA.setEcoreFile(ecoreA);
+    cloneA.setGenModelFile(genA);
+
+    FileStorage ecoreB = new FileStorage();
+    ecoreB.setId(200L);
+    FileStorage genB = new FileStorage();
+    genB.setId(201L);
+    MetaModel cloneB = new MetaModel();
+    cloneB.setId(2000L);
+    cloneB.setEcoreFile(ecoreB);
+    cloneB.setGenModelFile(genB);
+
+    List<MetaModel> clones = List.of(cloneA, cloneB);
+
+    ArgumentCaptor<List<FileStorage>> filesCaptor = ArgumentCaptor.forClass(List.class);
+
+    metaModelService.deleteCloned(clones);
+
+    verify(metaModelRepository).deleteAll(clones);
+    verify(fileStorageService).deleteFiles(filesCaptor.capture());
+
+    List<FileStorage> sentFiles = filesCaptor.getValue();
+    assertThat(sentFiles)
+        .extracting(FileStorage::getId)
+        .containsExactlyInAnyOrder(
+            ecoreA.getId(), genA.getId(),
+            ecoreB.getId(), genB.getId());
+  }
+
+  @Test
+  void deleteCloned_handlesEmptyList() {
+    List<MetaModel> empty = new ArrayList<>();
+
+    metaModelService.deleteCloned(empty);
+
+    verify(metaModelRepository).deleteAll(empty);
+    verify(fileStorageService).deleteFiles(eq(List.of()));
   }
 }

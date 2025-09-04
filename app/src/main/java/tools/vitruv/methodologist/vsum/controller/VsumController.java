@@ -5,6 +5,7 @@ import static tools.vitruv.methodologist.messages.Message.VSUM_REMOVED_SUCCESSFU
 import static tools.vitruv.methodologist.messages.Message.VSUM_UPDATED_SUCCESSFULLY;
 
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,6 +20,7 @@ import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.service.VsumService;
 
@@ -51,7 +53,8 @@ public class VsumController {
   @PostMapping("/v1/vsums")
   public ResponseTemplateDto<Void> create(
       KeycloakAuthentication authentication, @Valid @RequestBody VsumPostRequest vsumPostRequest) {
-    vsumService.create(vsumPostRequest);
+    String callerEmail = authentication.getParsedToken().getEmail();
+    vsumService.create(callerEmail, vsumPostRequest);
     return ResponseTemplateDto.<Void>builder().message(VSUM_CREATED_SUCCESSFULLY).build();
   }
 
@@ -66,7 +69,10 @@ public class VsumController {
   @PreAuthorize("hasRole('user')")
   public ResponseTemplateDto<VsumResponse> findById(
       KeycloakAuthentication authentication, @PathVariable Long id) {
-    return ResponseTemplateDto.<VsumResponse>builder().data(vsumService.findById(id)).build();
+    String callerEmail = authentication.getParsedToken().getEmail();
+    return ResponseTemplateDto.<VsumResponse>builder()
+        .data(vsumService.findById(callerEmail, id))
+        .build();
   }
 
   /**
@@ -82,7 +88,8 @@ public class VsumController {
       KeycloakAuthentication authentication,
       @PathVariable Long id,
       @Valid @RequestBody VsumPutRequest vsumPutRequest) {
-    vsumService.update(id, vsumPutRequest);
+    String callerEmail = authentication.getParsedToken().getEmail();
+    vsumService.update(callerEmail, id, vsumPutRequest);
     return ResponseTemplateDto.<Void>builder().message(VSUM_UPDATED_SUCCESSFULLY).build();
   }
 
@@ -96,7 +103,48 @@ public class VsumController {
   @DeleteMapping("/v1/vsums/{id}")
   public ResponseTemplateDto<Void> remove(
       KeycloakAuthentication authentication, @PathVariable Long id) {
-    vsumService.remove(id);
+    String callerEmail = authentication.getParsedToken().getEmail();
+    vsumService.remove(callerEmail, id);
     return ResponseTemplateDto.<Void>builder().message(VSUM_REMOVED_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Retrieves all {@link tools.vitruv.methodologist.vsum.model.Vsum} records that belong to the
+   * currently authenticated user.
+   *
+   * <p>The user's email is resolved from the provided {@link KeycloakAuthentication} token and used
+   * to query associated VSUMs.
+   *
+   * @param authentication the Keycloak authentication containing the caller's email
+   * @return a {@link ResponseTemplateDto} wrapping a list of {@link VsumResponse} objects
+   */
+  @GetMapping("/v1/vsums/find-all")
+  public ResponseTemplateDto<List<VsumResponse>> findAllByUser(
+      KeycloakAuthentication authentication) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    return ResponseTemplateDto.<List<VsumResponse>>builder()
+        .data(vsumService.findAllByUser(callerEmail))
+        .build();
+  }
+
+  /**
+   * Retrieves detailed information about a specific {@link
+   * tools.vitruv.methodologist.vsum.model.Vsum} owned by the authenticated user. Includes the VSUM
+   * metadata and its associated metamodels.
+   *
+   * <p>The VSUM is looked up by its identifier, ensuring it belongs to the user identified by the
+   * provided {@link KeycloakAuthentication}.
+   *
+   * @param authentication the Keycloak authentication containing the caller's email
+   * @param id the identifier of the VSUM to retrieve
+   * @return a {@link ResponseTemplateDto} wrapping the detailed {@link VsumMetaModelResponse}
+   */
+  @GetMapping("/v1/vsums/{id}/details")
+  public ResponseTemplateDto<VsumMetaModelResponse> findVsumWithDetails(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    return ResponseTemplateDto.<VsumMetaModelResponse>builder()
+        .data(vsumService.findVsumWithDetails(callerEmail, id))
+        .build();
   }
 }
