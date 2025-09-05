@@ -69,35 +69,27 @@ public class FileStorageService {
   @Transactional
   public FileStorageResponse storeFile(
       String callerUserEmail, MultipartFile file, FileEnumType type) throws Exception {
-    User user =
-        userRepository
-            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
-            .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
     if (file.isEmpty()) {
       throw new IllegalArgumentException("File is empty");
     }
 
+    User user =
+        userRepository
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
+            .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
     byte[] data = file.getBytes();
     String sha = sha256Hex(data);
 
-    FileStorage fileStorage =
-        fileStorageRepository
-            .findBySha256AndSizeBytes(sha, data.length)
-            .orElseGet(
-                () -> {
-                  FileStorage f = new FileStorage();
-                  f.setFilename(file.getOriginalFilename());
-                  f.setType(type);
-                  f.setContentType(
-                      file.getContentType() == null
-                          ? "application/octet-stream"
-                          : file.getContentType());
-                  f.setSizeBytes(data.length);
-                  f.setSha256(sha);
-                  f.setData(data);
-                  f.setUser(user);
-                  return fileStorageRepository.save(f);
-                });
+    FileStorage fileStorage = new FileStorage();
+    fileStorage.setFilename(file.getOriginalFilename());
+    fileStorage.setType(type);
+    fileStorage.setContentType(
+        file.getContentType() == null ? "application/octet-stream" : file.getContentType());
+    fileStorage.setSizeBytes(data.length);
+    fileStorage.setSha256(sha);
+    fileStorage.setData(data);
+    fileStorage.setUser(user);
+    fileStorageRepository.save(fileStorage);
 
     return FileStorageResponse.builder().id(fileStorage.getId()).build();
   }
