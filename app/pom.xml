@@ -11,7 +11,7 @@
         <relativePath>..</relativePath>
     </parent>
 
-    <artifactId>src</artifactId>
+    <artifactId>app</artifactId>
     <name>Methodologist - App</name>
     <packaging>jar</packaging>
 

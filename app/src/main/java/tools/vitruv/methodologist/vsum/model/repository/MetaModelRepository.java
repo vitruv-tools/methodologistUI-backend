@@ -4,10 +4,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
+import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 
 /**
@@ -38,4 +40,15 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
    * @return a list of {@link MetaModel} entities that match the specification and pagination
    */
   List<MetaModel> findAll(Specification<MetaModel> spec, Pageable pageable);
+
+  /**
+   * Retrieves all {@link MetaModel} entities that match the given identifiers and belong to the
+   * specified {@link User}, filtering out any that have a non-null {@code source}.
+   *
+   * @param metaModelIds the set of metamodel identifiers to search for
+   * @param user the owner of the metamodels
+   * @return a list of {@link MetaModel} entities that match the given IDs, belong to the user, and
+   *     have {@code source} set to null
+   */
+  List<MetaModel> findAllByIdInAndUserAndSourceIsNull(Set<Long> metaModelIds, User user);
 }

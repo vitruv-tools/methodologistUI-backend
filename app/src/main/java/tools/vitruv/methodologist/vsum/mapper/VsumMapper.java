@@ -5,6 +5,7 @@ import org.mapstruct.MappingTarget;
 import org.mapstruct.ReportingPolicy;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 
@@ -38,4 +39,12 @@ public interface VsumMapper {
    * @return the mapped VSUM response DTO
    */
   VsumResponse toVsumResponse(Vsum vsum);
+
+  /**
+   * Maps a Vsum entity to its corresponding response DTO representation.
+   *
+   * @param vsum the Vsum entity to map
+   * @return a populated VsumMetaModelResponse containing the entity's data
+   */
+  VsumMetaModelResponse toVsumMetaModelResponse(Vsum vsum);
 }
