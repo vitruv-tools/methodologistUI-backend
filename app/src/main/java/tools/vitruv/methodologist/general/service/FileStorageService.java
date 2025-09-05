@@ -4,13 +4,12 @@ import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERR
 
 import java.security.MessageDigest;
 import java.util.HexFormat;
-import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
-import tools.vitruv.methodologist.general.mapper.FileStorageMapper;
+import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.user.model.User;
@@ -24,7 +23,6 @@ import tools.vitruv.methodologist.user.model.repository.UserRepository;
 public class FileStorageService {
   private final FileStorageRepository fileStorageRepository;
   private final UserRepository userRepository;
-  private final FileStorageMapper fileStorageMapper;
 
   /**
    * Constructs a new FileStorageService with the specified repositories.
@@ -33,12 +31,9 @@ public class FileStorageService {
    * @param userRepository repository for user operations
    */
   public FileStorageService(
-      FileStorageRepository fileStorageRepository,
-      UserRepository userRepository,
-      FileStorageMapper fileStorageMapper) {
+      FileStorageRepository fileStorageRepository, UserRepository userRepository) {
     this.fileStorageRepository = fileStorageRepository;
     this.userRepository = userRepository;
-    this.fileStorageMapper = fileStorageMapper;
   }
 
   /**
@@ -54,19 +49,20 @@ public class FileStorageService {
   }
 
   /**
-   * Stores a file with deduplication check based on SHA-256 hash and file size. If a file with the
-   * same hash and size exists, returns the existing file entry.
+   * Stores a file in the system with deduplication based on SHA-256 hash and file size. If a file
+   * with the same hash and size exists, returns that file instead of creating a duplicate.
    *
    * @param callerUserEmail email of the user storing the file
-   * @param file the multipart file to store
-   * @return the stored or existing FileStorage entity
-   * @throws Exception if file processing or storage fails
-   * @throws tools.vitruv.methodologist.exception.NotFoundException if the user email is not found
+   * @param file the MultipartFile to store
+   * @param type the type of file being stored
+   * @return FileStorageResponse containing the stored file's ID
+   * @throws Exception if file hashing fails
+   * @throws NotFoundException if the user email is not found
    * @throws IllegalArgumentException if the file is empty
    */
   @Transactional
-  public FileStorage storeFile(String callerUserEmail, MultipartFile file, FileEnumType type)
-      throws Exception {
+  public FileStorageResponse storeFile(
+      String callerUserEmail, MultipartFile file, FileEnumType type) throws Exception {
     User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
@@ -78,24 +74,26 @@ public class FileStorageService {
     byte[] data = file.getBytes();
     String sha = sha256Hex(data);
 
-    // dedup check
-    return fileStorageRepository
-        .findBySha256AndSizeBytes(sha, data.length)
-        .orElseGet(
-            () -> {
-              FileStorage f = new FileStorage();
-              f.setFilename(file.getOriginalFilename());
-              f.setType(type);
-              f.setContentType(
-                  file.getContentType() == null
-                      ? "application/octet-stream"
-                      : file.getContentType());
-              f.setSizeBytes(data.length);
-              f.setSha256(sha);
-              f.setData(data);
-              f.setUser(user);
-              return fileStorageRepository.save(f);
-            });
+    FileStorage fileStorage =
+        fileStorageRepository
+            .findBySha256AndSizeBytes(sha, data.length)
+            .orElseGet(
+                () -> {
+                  FileStorage f = new FileStorage();
+                  f.setFilename(file.getOriginalFilename());
+                  f.setType(type);
+                  f.setContentType(
+                      file.getContentType() == null
+                          ? "application/octet-stream"
+                          : file.getContentType());
+                  f.setSizeBytes(data.length);
+                  f.setSha256(sha);
+                  f.setData(data);
+                  f.setUser(user);
+                  return fileStorageRepository.save(f);
+                });
+
+    return FileStorageResponse.builder().id(fileStorage.getId()).build();
   }
 
   /**
@@ -120,31 +118,5 @@ public class FileStorageService {
   @Transactional
   public void deleteFile(Long id) {
     fileStorageRepository.deleteById(id);
-  }
-
-  /**
-   * Creates a clone of the provided FileStorage object, saves the cloned instance into the
-   * repository, and returns the saved instance.
-   *
-   * @param fileStorage the FileStorage object to be cloned
-   * @return the cloned and saved FileStorage object
-   */
-  @Transactional
-  public FileStorage clone(FileStorage fileStorage) {
-    FileStorage clonedFileStorage = fileStorageMapper.clone(fileStorage);
-    fileStorageRepository.save(clonedFileStorage);
-    return clonedFileStorage;
-  }
-
-  /**
-   * Deletes the given list of {@link FileStorage} entities from the repository.
-   *
-   * <p>This method removes all provided file storage records in a single transactional operation.
-   *
-   * @param fileStorages the list of {@link FileStorage} entities to delete
-   */
-  @Transactional
-  public void deleteFiles(List<FileStorage> fileStorages) {
-    fileStorageRepository.deleteAll(fileStorages);
   }
 }
