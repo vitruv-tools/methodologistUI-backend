@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.general.FileEnumType;
+import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.service.FileStorageService;
 
@@ -57,7 +58,7 @@ public class FileStorageController {
       consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
       produces = MediaType.APPLICATION_JSON_VALUE)
   @PreAuthorize("hasRole('user')")
-  public ResponseTemplateDto<String> upload(
+  public ResponseTemplateDto<FileStorageResponse> upload(
       KeycloakAuthentication authentication,
       @Parameter(
               description = "File to upload",
@@ -67,9 +68,12 @@ public class FileStorageController {
       @PathVariable FileEnumType type)
       throws Exception {
     String email = authentication.getParsedToken().getEmail();
-    fileStorageService.storeFile(email, file, type);
+    FileStorageResponse response = fileStorageService.storeFile(email, file, type);
 
-    return ResponseTemplateDto.<String>builder().message(FILE_UPLOADED_SUCCESSFULLY).build();
+    return ResponseTemplateDto.<FileStorageResponse>builder()
+        .data(response)
+        .message(FILE_UPLOADED_SUCCESSFULLY)
+        .build();
   }
 
   /**
