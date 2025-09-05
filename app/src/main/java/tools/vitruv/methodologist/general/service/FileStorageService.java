@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
+import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.user.model.User;
@@ -48,19 +49,20 @@ public class FileStorageService {
   }
 
   /**
-   * Stores a file with deduplication check based on SHA-256 hash and file size. If a file with the
-   * same hash and size exists, returns the existing file entry.
+   * Stores a file in the system with deduplication based on SHA-256 hash and file size. If a file
+   * with the same hash and size exists, returns that file instead of creating a duplicate.
    *
    * @param callerUserEmail email of the user storing the file
-   * @param file the multipart file to store
-   * @return the stored or existing FileStorage entity
-   * @throws Exception if file processing or storage fails
-   * @throws tools.vitruv.methodologist.exception.NotFoundException if the user email is not found
+   * @param file the MultipartFile to store
+   * @param type the type of file being stored
+   * @return FileStorageResponse containing the stored file's ID
+   * @throws Exception if file hashing fails
+   * @throws NotFoundException if the user email is not found
    * @throws IllegalArgumentException if the file is empty
    */
   @Transactional
-  public FileStorage storeFile(String callerUserEmail, MultipartFile file, FileEnumType type)
-      throws Exception {
+  public FileStorageResponse storeFile(
+      String callerUserEmail, MultipartFile file, FileEnumType type) throws Exception {
     User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
@@ -72,24 +74,26 @@ public class FileStorageService {
     byte[] data = file.getBytes();
     String sha = sha256Hex(data);
 
-    // dedup check
-    return fileStorageRepository
-        .findBySha256AndSizeBytes(sha, data.length)
-        .orElseGet(
-            () -> {
-              FileStorage f = new FileStorage();
-              f.setFilename(file.getOriginalFilename());
-              f.setType(type);
-              f.setContentType(
-                  file.getContentType() == null
-                      ? "application/octet-stream"
-                      : file.getContentType());
-              f.setSizeBytes(data.length);
-              f.setSha256(sha);
-              f.setData(data);
-              f.setUser(user);
-              return fileStorageRepository.save(f);
-            });
+    FileStorage fileStorage =
+        fileStorageRepository
+            .findBySha256AndSizeBytes(sha, data.length)
+            .orElseGet(
+                () -> {
+                  FileStorage f = new FileStorage();
+                  f.setFilename(file.getOriginalFilename());
+                  f.setType(type);
+                  f.setContentType(
+                      file.getContentType() == null
+                          ? "application/octet-stream"
+                          : file.getContentType());
+                  f.setSizeBytes(data.length);
+                  f.setSha256(sha);
+                  f.setData(data);
+                  f.setUser(user);
+                  return fileStorageRepository.save(f);
+                });
+
+    return FileStorageResponse.builder().id(fileStorage.getId()).build();
   }
 
   /**
