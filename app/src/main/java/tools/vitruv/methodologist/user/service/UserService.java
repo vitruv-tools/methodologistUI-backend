@@ -98,12 +98,7 @@ public class UserService {
    */
   @Transactional
   public User create(UserPostRequest userPostRequest) {
-    userRepository
-        .findByEmailIgnoreCase(userPostRequest.getEmail())
-        .ifPresent(
-            user -> {
-              throw new EmailExistsException(userPostRequest.getEmail());
-            });
+    ensureEmailNotExists(userPostRequest.getEmail());
     User user = userMapper.toUser(userPostRequest);
 
     KeycloakUser keycloakUser =
@@ -119,6 +114,20 @@ public class UserService {
     keycloakService.createUser(keycloakUser);
     userRepository.save(user);
     return user;
+  }
+
+  /**
+   * Checks if a user with the given email already exists in either the application database or
+   * Keycloak authentication system.
+   *
+   * @param email the email address to check for existence
+   * @throws EmailExistsException if the email already exists in either system
+   */
+  private void ensureEmailNotExists(String email) {
+    if (userRepository.findByEmailIgnoreCase(email).isPresent()
+        || keycloakService.existUser(email)) {
+      throw new EmailExistsException(email);
+    }
   }
 
   /**
