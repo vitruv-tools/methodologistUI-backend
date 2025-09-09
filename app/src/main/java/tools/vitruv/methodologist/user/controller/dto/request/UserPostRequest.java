@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.user.controller.dto.request;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -24,13 +25,16 @@ public class UserPostRequest {
 
   @NotNull @Builder.Default private RoleType roleType = RoleType.USER;
 
-  @NotNull @NotBlank private String username;
+  @NotNull
+  @NotBlank
+  @Size(min = 4)
+  private String username;
 
   @NotNull @NotBlank private String firstName;
 
   @NotNull @NotBlank private String lastName;
 
   // todo: consider using a more secure password policy And need to hide it and dont show it in the
-  // logs
+  //  logs
   @NotNull @NotBlank private String password;
 }
