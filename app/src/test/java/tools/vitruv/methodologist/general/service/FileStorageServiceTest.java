@@ -1,9 +1,16 @@
 package tools.vitruv.methodologist.general.service;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyList;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.List;
@@ -59,7 +66,7 @@ class FileStorageServiceTest {
   }
 
   @Test
-  void storeFile_NewFile_Success() throws Exception {
+  void storeFile_newFile_success() throws Exception {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(anyString()))
         .thenReturn(Optional.of(testUser));
     when(fileStorageRepository.findByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
@@ -81,7 +88,7 @@ class FileStorageServiceTest {
   }
 
   @Test
-  void storeFile_ExistingFile_ReturnsExisting() throws Exception {
+  void storeFile_existingFile_returnsExisting() throws Exception {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(anyString()))
         .thenReturn(Optional.of(testUser));
     when(fileStorageRepository.findByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
@@ -96,7 +103,7 @@ class FileStorageServiceTest {
   }
 
   @Test
-  void storeFile_UserNotFound_ThrowsNotFoundException() {
+  void storeFile_userNotFound_throwsNotFoundException() {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(anyString()))
         .thenReturn(Optional.empty());
 
@@ -106,7 +113,7 @@ class FileStorageServiceTest {
   }
 
   @Test
-  void storeFile_EmptyFile_ThrowsIllegalArgumentException() {
+  void storeFile_emptyFile_throwsIllegalArgumentException() {
     MockMultipartFile emptyFile =
         new MockMultipartFile("file", "empty.txt", "text/plain", new byte[0]);
 
@@ -119,7 +126,7 @@ class FileStorageServiceTest {
   }
 
   @Test
-  void getFile_ExistingFile_ReturnsFile() {
+  void getFile_existingFile_returnsFile() {
     when(fileStorageRepository.findById(1L)).thenReturn(Optional.of(testFileStorage));
 
     FileStorage result = fileStorageService.getFile(1L);
@@ -129,20 +136,20 @@ class FileStorageServiceTest {
   }
 
   @Test
-  void getFile_NonExistingFile_ThrowsException() {
+  void getFile_nonExistingFile_throwsException() {
     when(fileStorageRepository.findById(1L)).thenReturn(Optional.empty());
 
     assertThrows(IllegalArgumentException.class, () -> fileStorageService.getFile(1L));
   }
 
   @Test
-  void deleteFile_Success() {
+  void deleteFile_success() {
     fileStorageService.deleteFile(1L);
     verify(fileStorageRepository).deleteById(1L);
   }
 
   @Test
-  void clone_Success() {
+  void clone_success() {
     FileStorage clonedStorage = new FileStorage();
     clonedStorage.setId(2L);
     clonedStorage.setData(testFileStorage.getData());
@@ -163,13 +170,13 @@ class FileStorageServiceTest {
   }
 
   @Test
-  void deleteFiles_WithNullList_HandlesGracefully() {
+  void deleteFiles_withNullList_handlesGracefully() {
     fileStorageService.deleteFiles(List.of(FileStorage.builder().build()));
     verify(fileStorageRepository).deleteAll(anyList());
   }
 
   @Test
-  void deleteFiles_Success() {
+  void deleteFiles_success() {
     FileStorage file1 = new FileStorage();
     FileStorage file2 = new FileStorage();
 
