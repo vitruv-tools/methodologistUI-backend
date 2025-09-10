@@ -166,18 +166,16 @@ class UserServiceTest {
   @Test
   void create_throwsEmailExists_whenEmailAlreadyExistInKeycloak() {
     UserPostRequest req =
-            UserPostRequest.builder()
-                    .email("alice@example.com")
-                    .username("alice")
-                    .password("x")
-                    .roleType(tools.vitruv.methodologist.user.RoleType.USER)
-                    .build();
+        UserPostRequest.builder()
+            .email("alice@example.com")
+            .username("alice")
+            .password("x")
+            .roleType(tools.vitruv.methodologist.user.RoleType.USER)
+            .build();
 
-    when(userRepository.findByEmailIgnoreCase("alice@example.com"))
-            .thenReturn(Optional.empty());
+    when(userRepository.findByEmailIgnoreCase("alice@example.com")).thenReturn(Optional.empty());
 
-    when(keycloakService.existUser("alice@example.com"))
-            .thenReturn(true);
+    when(keycloakService.existUser("alice@example.com")).thenReturn(true);
 
     assertThatThrownBy(() -> userService.create(req)).isInstanceOf(EmailExistsException.class);
 
