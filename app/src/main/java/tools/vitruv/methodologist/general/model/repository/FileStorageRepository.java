@@ -4,6 +4,7 @@ import java.util.Optional;
 import org.springframework.data.repository.CrudRepository;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.user.model.User;
 
 /**
  * Spring Data repository interface for managing StoredFile entities. Provides CRUD operations and
@@ -12,14 +13,15 @@ import tools.vitruv.methodologist.general.model.FileStorage;
 public interface FileStorageRepository extends CrudRepository<FileStorage, Long> {
 
   /**
-   * Finds a stored file by its SHA-256 hash and size in bytes. Used to check for duplicate files in
-   * storage.
+   * Finds a stored file by its SHA-256 hash and size in bytes. Used to check for duplicate user's
+   * files in storage.
    *
+   * @param user the owner of the file
    * @param sha256 the SHA-256 hash of the file
    * @param sizeBytes the size of the file in bytes
    * @return an Optional containing the found StoredFile, or empty if not found
    */
-  Optional<FileStorage> findBySha256AndSizeBytes(String sha256, long sizeBytes);
+  Optional<FileStorage> findByUserAndSha256AndSizeBytes(User user, String sha256, long sizeBytes);
 
   /**
    * Finds a {@link tools.vitruv.methodologist.general.model.FileStorage} by its unique identifier

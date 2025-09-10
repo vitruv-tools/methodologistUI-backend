@@ -62,7 +62,7 @@ class FileStorageServiceTest {
   void storeFile_NewFile_Success() throws Exception {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(anyString()))
         .thenReturn(Optional.of(testUser));
-    when(fileStorageRepository.findBySha256AndSizeBytes(any(), anyLong()))
+    when(fileStorageRepository.findByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
         .thenReturn(Optional.empty());
     when(fileStorageRepository.save(any(FileStorage.class))).thenReturn(testFileStorage);
 
@@ -84,7 +84,7 @@ class FileStorageServiceTest {
   void storeFile_ExistingFile_ReturnsExisting() throws Exception {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(anyString()))
         .thenReturn(Optional.of(testUser));
-    when(fileStorageRepository.findBySha256AndSizeBytes(any(), anyLong()))
+    when(fileStorageRepository.findByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
         .thenReturn(Optional.of(testFileStorage));
 
     FileStorageResponse response =
