@@ -98,7 +98,7 @@ public class UserService {
    */
   @Transactional
   public User create(UserPostRequest userPostRequest) {
-    ensureEmailNotExists(userPostRequest.getEmail());
+    checkEmailExistsOrThrow(userPostRequest.getEmail());
     User user = userMapper.toUser(userPostRequest);
 
     KeycloakUser keycloakUser =
@@ -123,7 +123,7 @@ public class UserService {
    * @param email the email address to check for existence
    * @throws EmailExistsException if the email already exists in either system
    */
-  private void ensureEmailNotExists(String email) {
+  private void checkEmailExistsOrThrow(String email) {
     if (userRepository.findByEmailIgnoreCase(email).isPresent()
         || keycloakService.existUser(email)) {
       throw new EmailExistsException(email);
