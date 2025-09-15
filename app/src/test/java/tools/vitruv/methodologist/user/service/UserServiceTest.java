@@ -164,6 +164,27 @@ class UserServiceTest {
   }
 
   @Test
+  void create_throwsEmailExists_whenEmailAlreadyExistInKeycloak() {
+    UserPostRequest req =
+        UserPostRequest.builder()
+            .email("alice@example.com")
+            .username("alice")
+            .password("x")
+            .roleType(tools.vitruv.methodologist.user.RoleType.USER)
+            .build();
+
+    when(userRepository.findByEmailIgnoreCase("alice@example.com")).thenReturn(Optional.empty());
+
+    when(keycloakService.existUser("alice@example.com")).thenReturn(true);
+
+    assertThatThrownBy(() -> userService.create(req)).isInstanceOf(EmailExistsException.class);
+
+    verify(userMapper, never()).toUser(any());
+    verify(keycloakService, never()).createUser(any());
+    verify(userRepository, never()).save(any());
+  }
+
+  @Test
   void update_appliesChanges_andSaves_whenUserExists() {
     long id = 42L;
     User existing = new User();

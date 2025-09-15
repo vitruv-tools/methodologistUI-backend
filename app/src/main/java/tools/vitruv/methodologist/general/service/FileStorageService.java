@@ -82,7 +82,7 @@ public class FileStorageService {
 
     FileStorage fileStorage =
         fileStorageRepository
-            .findBySha256AndSizeBytes(sha, data.length)
+            .findByUserAndSha256AndSizeBytes(user, sha, data.length)
             .orElseGet(
                 () -> {
                   FileStorage f = new FileStorage();

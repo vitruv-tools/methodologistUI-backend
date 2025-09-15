@@ -65,9 +65,9 @@ public class GlobalExceptionHandlerController {
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   @ResponseBody
   public ErrorResponse createMwe2FileException(
-      UnauthorizedException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+      CreateMwe2FileException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
-        .error(UnauthorizedException.messageTemplate)
+        .error(CreateMwe2FileException.messageTemplate)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
         .build();
