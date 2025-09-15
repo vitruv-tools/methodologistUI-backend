@@ -51,6 +51,29 @@ public class GlobalExceptionHandlerController {
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
   /**
+   * Handles exceptions when attempting to add a user to a VSUM with a role they already have.
+   * Returns a BAD_REQUEST (400) response with details about the duplicate user-role assignment.
+   *
+   * @param ex the exception containing details about the duplicate user-role assignment
+   * @param handlerMethod the handler method where the exception occurred
+   * @param request the current web request
+   * @return an ErrorResponse containing the error details and request path
+   */
+  @ExceptionHandler(value = UserAlreadyExistInVsumWithSameRoleException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse userAlreadyExistInVsumWithSameRoleException(
+      UserAlreadyExistInVsumWithSameRoleException ex,
+      HandlerMethod handlerMethod,
+      ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(UserAlreadyExistInVsumWithSameRoleException.messageTemplate)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles cases where building or validating an MWE2 file fails. When a {@link
    * CreateMwe2FileException} is thrown anywhere in the application, this handler captures it and
    * returns a structured {@link ErrorResponse}. The response includes: The response is sent with
