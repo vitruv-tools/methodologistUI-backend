@@ -1,6 +1,5 @@
 package tools.vitruv.methodologist.exception;
 
-
 /**
  * Exception thrown when attempting to add a user to a VSUM with a role they already have. This
  * runtime exception indicates a duplicate user-role assignment attempt within a VSUM.

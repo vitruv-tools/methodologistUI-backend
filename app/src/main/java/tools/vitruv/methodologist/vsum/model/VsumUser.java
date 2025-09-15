@@ -23,8 +23,8 @@ import tools.vitruv.methodologist.vsum.VsumRole;
  * Entity representing the relationship between a User and a VSUM (Virtual Single Underlying Model).
  * Maps users to their roles within specific VSUMs and tracks when the relationship was created.
  *
- * Each VsumUser entry associates a user with a VSUM and defines their role (e.g., MEMBER)
- * in that VSUM's context. This enables role-based access control for VSUM operations.
+ * <p>Each VsumUser entry associates a user with a VSUM and defines their role (e.g., MEMBER) in
+ * that VSUM's context. This enables role-based access control for VSUM operations.
  */
 @Data
 @Builder
