@@ -19,7 +19,9 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
 import tools.vitruv.methodologist.vsum.model.Vsum;
+import tools.vitruv.methodologist.vsum.model.VsumUser;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 
 /**
  * Service class for managing VSUM (Virtual Single Underlying Model) operations. Handles the
@@ -38,6 +40,7 @@ public class VsumService {
   private final MetaModelMapper metaModelMapper;
   private final VsumMetaModelService vsumMetaModelService;
   private final UserRepository userRepository;
+  private final VsumUserRepository vsumUserRepository;
 
   /**
    * Constructs a new VsumService with the specified dependencies.
@@ -50,12 +53,14 @@ public class VsumService {
       VsumRepository vsumRepository,
       MetaModelMapper metaModelMapper,
       VsumMetaModelService vsumMetaModelService,
-      UserRepository userRepository) {
+      UserRepository userRepository,
+      VsumUserRepository vsumUserRepository) {
     this.vsumMapper = vsumMapper;
     this.vsumRepository = vsumRepository;
     this.metaModelMapper = metaModelMapper;
     this.vsumMetaModelService = vsumMetaModelService;
     this.userRepository = userRepository;
+    this.vsumUserRepository = vsumUserRepository;
   }
 
   /**
@@ -165,16 +170,15 @@ public class VsumService {
   }
 
   /**
-   * Retrieves all {@link Vsum} entities for the given user and maps them to {@link VsumResponse}.
-   * Only {@link Vsum} records whose associated user has not been removed are returned.
+   * Retrieves all VSUMs associated with a given user's email. Returns a list of VSUMs where the
+   * user has any role or permission.
    *
-   * @param callerEmail the email of the user whose {@link Vsum} records should be fetched
-   * @return a list of {@link VsumResponse} objects representing the user's active {@link Vsum}
-   *     entities
+   * @param callerEmail the email address of the user whose VSUMs should be retrieved
+   * @return a list of VsumResponse DTOs containing the VSUM details
    */
   public List<VsumResponse> findAllByUser(String callerEmail) {
-    List<Vsum> vsums = vsumRepository.findAllByUser_emailAndUser_removedAtIsNull(callerEmail);
+    List<VsumUser> vsumsUser = vsumUserRepository.findAllByUser_Email(callerEmail);
 
-    return vsums.stream().map(vsumMapper::toVsumResponse).toList();
+    return vsumsUser.stream().map(VsumUser::getVsum).map(vsumMapper::toVsumResponse).toList();
   }
 }
