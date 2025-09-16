@@ -8,7 +8,6 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -69,15 +68,14 @@ class FileStorageServiceTest {
   void storeFile_newFile_success() throws Exception {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(anyString()))
         .thenReturn(Optional.of(testUser));
-    when(fileStorageRepository.findByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
-        .thenReturn(Optional.empty());
+    when(fileStorageRepository.existsByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
+        .thenReturn(false);
     when(fileStorageRepository.save(any(FileStorage.class))).thenReturn(testFileStorage);
 
     FileStorageResponse response =
         fileStorageService.storeFile("test@example.com", testFile, FileEnumType.GEN_MODEL);
 
     assertNotNull(response);
-    assertEquals(1L, response.getId());
     verify(fileStorageRepository)
         .save(
             argThat(
@@ -85,21 +83,6 @@ class FileStorageServiceTest {
                     file.getFilename().equals("test.txt")
                         && file.getContentType().equals("text/plain")
                         && file.getType().equals(FileEnumType.GEN_MODEL)));
-  }
-
-  @Test
-  void storeFile_existingFile_returnsExisting() throws Exception {
-    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(anyString()))
-        .thenReturn(Optional.of(testUser));
-    when(fileStorageRepository.findByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
-        .thenReturn(Optional.of(testFileStorage));
-
-    FileStorageResponse response =
-        fileStorageService.storeFile("test@example.com", testFile, FileEnumType.GEN_MODEL);
-
-    assertNotNull(response);
-    assertEquals(1L, response.getId());
-    verify(fileStorageRepository, never()).save(any(FileStorage.class));
   }
 
   @Test

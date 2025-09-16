@@ -51,6 +51,27 @@ public class GlobalExceptionHandlerController {
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
   /**
+   * Handles exceptions when attempting to upload a duplicate file. Returns a BAD_REQUEST (400)
+   * response with details about the duplicate file.
+   *
+   * @param ex the exception containing details about the duplicate file
+   * @param handlerMethod the handler method where the exception occurred
+   * @param request the current web request
+   * @return an ErrorResponse containing the error message and request path
+   */
+  @ExceptionHandler(value = UserFileIsRepeatedException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse userFileIsRepeatedException(
+      UserFileIsRepeatedException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(UserFileIsRepeatedException.messageTemplate)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles exceptions when attempting to add a user to a VSUM with a role they already have.
    * Returns a BAD_REQUEST (400) response with details about the duplicate user-role assignment.
    *
