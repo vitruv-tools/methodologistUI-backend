@@ -225,9 +225,8 @@ public class MetaModelService {
               .collect(Collectors.joining(",")));
     }
 
-    fileStorageService.deleteFiles(List.of(metaModel.getEcoreFile(), metaModel.getGenModelFile()));
-
     metaModelRepository.delete(metaModel);
+    fileStorageService.deleteFiles(List.of(metaModel.getEcoreFile(), metaModel.getGenModelFile()));
   }
 
   /** Holds a MetaModel and its associated file pair. */
