@@ -83,7 +83,6 @@ public class UserController {
    *
    * @param authentication the Keycloak authentication object containing user details
    * @return ResponseTemplateDto containing the user's information
-   * @throws NotFoundException if no active user is found with the authenticated email
    */
   @GetMapping("/v1/users")
   @PreAuthorize("hasRole('user')")
