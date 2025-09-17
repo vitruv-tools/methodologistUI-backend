@@ -59,13 +59,13 @@ public class GlobalExceptionHandlerController {
    * @param request the current web request
    * @return an ErrorResponse containing the error message and request path
    */
-  @ExceptionHandler(value = UserFileIsRepeatedException.class)
+  @ExceptionHandler(value = AlreadyExistsFileException.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   @ResponseBody
-  public ErrorResponse userFileIsRepeatedException(
-      UserFileIsRepeatedException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+  public ErrorResponse alreadyExistsFileException(
+      AlreadyExistsFileException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
-        .error(UserFileIsRepeatedException.messageTemplate)
+        .error(AlreadyExistsFileException.messageTemplate)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
         .build();
