@@ -66,7 +66,6 @@ public class GlobalExceptionHandlerController {
   public ErrorResponse metaModelUsingInVsumException(
       MetaModelUsingInVsumException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
-        .error(CreateMwe2FileException.messageTemplate)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
         .build();
