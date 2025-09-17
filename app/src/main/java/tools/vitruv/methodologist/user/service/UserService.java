@@ -154,15 +154,15 @@ public class UserService {
    * Retrieves user information for an active user by their email address. Only returns users that
    * have not been marked as removed.
    *
-   * @param callerEmail the email address of the user to retrieve (case-insensitive)
+   * @param email the email address of the user to retrieve (case-insensitive)
    * @return UserResponse containing the user's information
    * @throws NotFoundException if no active user is found with the given email
    */
   @Transactional
-  public UserResponse findByCallerEmail(String callerEmail) {
+  public UserResponse findByEmail(String email) {
     User user =
         userRepository
-            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(email)
             .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
     return userMapper.toUserResponse(user);
   }

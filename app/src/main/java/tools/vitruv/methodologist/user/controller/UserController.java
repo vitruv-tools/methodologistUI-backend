@@ -90,7 +90,7 @@ public class UserController {
       KeycloakAuthentication authentication) {
     String callerEmail = authentication.getParsedToken().getEmail();
     return ResponseTemplateDto.<UserResponse>builder()
-        .data(userService.findByCallerEmail(callerEmail))
+        .data(userService.findByEmail(callerEmail))
         .build();
   }
 

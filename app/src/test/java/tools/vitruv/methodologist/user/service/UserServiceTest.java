@@ -212,7 +212,7 @@ class UserServiceTest {
   }
 
   @Test
-  void findByCallerEmail_returnsMappedResponse_whenUserExists() {
+  void findByEmail_returnsMappedResponse_whenUserExists() {
     long id = 1L;
     String callerEmail = "dummy@dummy.com";
     User user = new User();
@@ -223,18 +223,18 @@ class UserServiceTest {
         .thenReturn(Optional.of(user));
     when(userMapper.toUserResponse(user)).thenReturn(resp);
 
-    UserResponse result = userService.findByCallerEmail(callerEmail);
+    UserResponse result = userService.findByEmail(callerEmail);
 
     assertThat(result).isEqualTo(resp);
   }
 
   @Test
-  void findByCallerEmail_throwsNotFound_whenUserMissing() {
+  void findByEmail_throwsNotFound_whenUserMissing() {
     String callerEmail = "dummy@dummy.com";
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> userService.findByCallerEmail(callerEmail))
+    assertThatThrownBy(() -> userService.findByEmail(callerEmail))
         .isInstanceOf(NotFoundException.class);
   }
 
