@@ -2,16 +2,19 @@ package tools.vitruv.methodologist.vsum.service;
 
 import static tools.vitruv.methodologist.messages.Error.ECORE_FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.GEN_MODEL_FILE_ID_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.META_MODEL_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
+import tools.vitruv.methodologist.exception.MetaModelUsingInVsumException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -24,8 +27,11 @@ import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostReque
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
+import tools.vitruv.methodologist.vsum.model.Vsum;
+import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelSpecifications;
+import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 import tools.vitruv.methodologist.vsum.service.MetamodelBuildService.BuildResult;
 
 /**
@@ -47,6 +53,7 @@ public class MetaModelService {
   private final UserRepository userRepository;
   private final MetamodelBuildService metamodelBuildService;
   private final FileStorageService fileStorageService;
+  private final VsumMetaModelRepository vsumMetaModelRepository;
 
   /**
    * Constructs a new MetaModelService with the specified dependencies.
@@ -62,13 +69,15 @@ public class MetaModelService {
       FileStorageRepository fileStorageRepository,
       UserRepository userRepository,
       MetamodelBuildService metamodelBuildService,
-      FileStorageService fileStorageService) {
+      FileStorageService fileStorageService,
+      VsumMetaModelRepository vsumMetaModelRepository) {
     this.metaModelMapper = metaModelMapper;
     this.metaModelRepository = metaModelRepository;
     this.fileStorageRepository = fileStorageRepository;
     this.userRepository = userRepository;
     this.metamodelBuildService = metamodelBuildService;
     this.fileStorageService = fileStorageService;
+    this.vsumMetaModelRepository = vsumMetaModelRepository;
   }
 
   /**
@@ -178,12 +187,47 @@ public class MetaModelService {
    *
    * @param metaModels the list of cloned {@link MetaModel} entities whose files should be deleted
    */
+  @Transactional
   public void deleteCloned(List<MetaModel> metaModels) {
     metaModelRepository.deleteAll(metaModels);
     List<FileStorage> fileStorages = new ArrayList<>();
     fileStorages.addAll(metaModels.stream().map(MetaModel::getEcoreFile).toList());
     fileStorages.addAll(metaModels.stream().map(MetaModel::getGenModelFile).toList());
     fileStorageService.deleteFiles(fileStorages);
+  }
+
+  /**
+   * Deletes a {@link MetaModel} owned by the specified user, along with its associated Ecore and
+   * GenModel files.
+   *
+   * <p>If the metamodel is currently referenced by any VSUMs, deletion is prevented and a {@link
+   * MetaModelUsingInVsumException} is thrown listing the referencing VSUM names.
+   *
+   * @param callerEmail the email address of the user who owns the metamodel
+   * @param id the unique identifier of the metamodel to delete
+   * @throws NotFoundException if no metamodel exists with the given ID for the specified user
+   * @throws MetaModelUsingInVsumException if the metamodel is being used in any VSUM
+   */
+  @Transactional
+  public void delete(String callerEmail, Long id) {
+    MetaModel metaModel =
+        metaModelRepository
+            .findByIdAndUser_Email(id, callerEmail)
+            .orElseThrow(() -> new NotFoundException(META_MODEL_ID_NOT_FOUND_ERROR));
+
+    List<VsumMetaModel> vsums = vsumMetaModelRepository.findAllByMetaModel_Source(metaModel);
+    if (!vsums.isEmpty()) {
+      throw new MetaModelUsingInVsumException(
+          vsums.stream()
+              .map(VsumMetaModel::getVsum)
+              .map(Vsum::getName)
+              .map(String::valueOf)
+              .collect(Collectors.joining(",")));
+    }
+
+    fileStorageService.deleteFiles(List.of(metaModel.getEcoreFile(), metaModel.getGenModelFile()));
+
+    metaModelRepository.delete(metaModel);
   }
 
   /** Holds a MetaModel and its associated file pair. */
