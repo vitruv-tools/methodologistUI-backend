@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.user.service;
 
+import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
@@ -150,17 +151,19 @@ public class UserService {
   }
 
   /**
-   * Retrieves a user by ID. Throws NotFoundException if the user is not found.
+   * Retrieves user information for an active user by their email address. Only returns users that
+   * have not been marked as removed.
    *
-   * @param id the ID of the user to retrieve
-   * @return the UserResponse DTO containing user data
+   * @param callerEmail the email address of the user to retrieve (case-insensitive)
+   * @return UserResponse containing the user's information
+   * @throws NotFoundException if no active user is found with the given email
    */
   @Transactional
-  public UserResponse findById(Long id) {
+  public UserResponse findByCallerEmail(String callerEmail) {
     User user =
         userRepository
-            .findByIdAndRemovedAtIsNull(id)
-            .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
+            .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
     return userMapper.toUserResponse(user);
   }
 
