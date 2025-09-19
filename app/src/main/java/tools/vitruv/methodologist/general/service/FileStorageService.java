@@ -8,7 +8,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import tools.vitruv.methodologist.exception.AlreadyExistsFileException;
+import tools.vitruv.methodologist.exception.FileAlreadyExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
@@ -82,7 +82,7 @@ public class FileStorageService {
     String sha = sha256Hex(data);
 
     if (fileStorageRepository.existsByUserAndSha256AndSizeBytes(user, sha, data.length)) {
-      throw new AlreadyExistsFileException();
+      throw new FileAlreadyExistsException();
     }
 
     FileStorage fileStorage = new FileStorage();
