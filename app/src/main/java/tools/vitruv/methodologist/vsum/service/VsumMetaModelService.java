@@ -1,6 +1,5 @@
 package tools.vitruv.methodologist.vsum.service;
 
-import jakarta.annotation.Resource;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -30,6 +29,7 @@ public class VsumMetaModelService {
   private final VsumMetaModelRepository vsumMetaModelRepository;
   private final MetaModelService metaModelService;
   private final MetaModelRepository metaModelRepository;
+  private final VsumMetaModelTransactionalService transactionalService;
 
   /**
    * Constructs a new service with the required repository dependency.
@@ -40,13 +40,13 @@ public class VsumMetaModelService {
   public VsumMetaModelService(
       VsumMetaModelRepository vsumMetaModelRepository,
       MetaModelService metaModelService,
-      MetaModelRepository metaModelRepository) {
+      MetaModelRepository metaModelRepository,
+      VsumMetaModelTransactionalService transactionalService) {
     this.vsumMetaModelRepository = vsumMetaModelRepository;
     this.metaModelService = metaModelService;
     this.metaModelRepository = metaModelRepository;
+    this.transactionalService = transactionalService;
   }
-
-  @Resource private VsumMetaModelService vsumMetaModelService;
 
   /**
    * Creates {@link VsumMetaModel} links for the given vsum and metamodel IDs. Each metamodel is
@@ -120,7 +120,6 @@ public class VsumMetaModelService {
 
     Set<Long> toRemoveIds = new HashSet<>(existingIds);
     toRemoveIds.removeAll(desiredIds);
-
     if (!toRemoveIds.isEmpty()) {
       List<VsumMetaModel> toDelete =
           existingLinks.stream()
@@ -128,14 +127,14 @@ public class VsumMetaModelService {
                   vsumMetaModel ->
                       toRemoveIds.contains(vsumMetaModel.getMetaModel().getSource().getId()))
               .toList();
-      vsumMetaModelService.delete(vsum, toDelete);
+      transactionalService.delete(vsum, toDelete);
     }
 
     Set<Long> toAddIds = new HashSet<>(desiredIds);
     toAddIds.removeAll(existingIds);
 
     if (!toAddIds.isEmpty()) {
-      vsumMetaModelService.create(vsum, toAddIds);
+      transactionalService.create(vsum, toAddIds);
     }
   }
 }
