@@ -14,7 +14,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
-import tools.vitruv.methodologist.exception.MetaModelUsingInVsumException;
+import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -201,12 +201,14 @@ public class MetaModelService {
    * GenModel files.
    *
    * <p>If the metamodel is currently referenced by any VSUMs, deletion is prevented and a {@link
-   * MetaModelUsingInVsumException} is thrown listing the referencing VSUM names.
+   * tools.vitruv.methodologist.exception.MetaModelUsedInVsumException} is thrown listing the
+   * referencing VSUM names.
    *
    * @param callerEmail the email address of the user who owns the metamodel
    * @param id the unique identifier of the metamodel to delete
    * @throws NotFoundException if no metamodel exists with the given ID for the specified user
-   * @throws MetaModelUsingInVsumException if the metamodel is being used in any VSUM
+   * @throws tools.vitruv.methodologist.exception.MetaModelUsedInVsumException if the metamodel is
+   *     being used in any VSUM
    */
   @Transactional
   public void delete(String callerEmail, Long id) {
@@ -217,7 +219,7 @@ public class MetaModelService {
 
     List<VsumMetaModel> vsums = vsumMetaModelRepository.findAllByMetaModel_Source(metaModel);
     if (!vsums.isEmpty()) {
-      throw new MetaModelUsingInVsumException(
+      throw new MetaModelUsedInVsumException(
           vsums.stream()
               .map(VsumMetaModel::getVsum)
               .map(Vsum::getName)

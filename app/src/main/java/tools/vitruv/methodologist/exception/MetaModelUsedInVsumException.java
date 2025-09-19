@@ -9,7 +9,7 @@ package tools.vitruv.methodologist.exception;
  *
  * <p>The exception message will include the names of the VSUMs where the metamodel is being used.
  */
-public class MetaModelUsingInVsumException extends RuntimeException {
+public class MetaModelUsedInVsumException extends RuntimeException {
   public static final String messageTemplate = "Meta model is using in %s";
 
   /**
@@ -17,7 +17,7 @@ public class MetaModelUsingInVsumException extends RuntimeException {
    *
    * @param vsumNames a string containing the names of the VSUMs using the metamodel
    */
-  public MetaModelUsingInVsumException(String vsumNames) {
+  public MetaModelUsedInVsumException(String vsumNames) {
     super(String.format(messageTemplate, vsumNames));
   }
 }

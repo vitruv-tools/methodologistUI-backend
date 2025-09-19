@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.Pageable;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
-import tools.vitruv.methodologist.exception.MetaModelUsingInVsumException;
+import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -410,7 +410,7 @@ class MetaModelServiceTest {
         .thenReturn(List.of(vsumMetaModel));
 
     assertThatThrownBy(() -> metaModelService.delete(email, id))
-        .isInstanceOf(MetaModelUsingInVsumException.class)
+        .isInstanceOf(MetaModelUsedInVsumException.class)
         .hasMessageContaining("VSUM1");
   }
 }

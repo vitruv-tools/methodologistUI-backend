@@ -51,7 +51,7 @@ public class GlobalExceptionHandlerController {
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
   /**
-   * Handles {@link MetaModelUsingInVsumException} thrown when a metamodel is in use by a VSUM.
+   * Handles {@link MetaModelUsedInVsumException} thrown when a metamodel is in use by a VSUM.
    * Returns an {@link ErrorResponse} with HTTP 400 (Bad Request) status, including the error
    * message and request path.
    *
@@ -60,11 +60,11 @@ public class GlobalExceptionHandlerController {
    * @param request the current {@code ServletWebRequest}
    * @return an {@code ErrorResponse} describing the conflict
    */
-  @ExceptionHandler(value = MetaModelUsingInVsumException.class)
+  @ExceptionHandler(value = MetaModelUsedInVsumException.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   @ResponseBody
-  public ErrorResponse metaModelUsingInVsumException(
-      MetaModelUsingInVsumException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+  public ErrorResponse metaModelUsedInVsumException(
+      MetaModelUsedInVsumException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
