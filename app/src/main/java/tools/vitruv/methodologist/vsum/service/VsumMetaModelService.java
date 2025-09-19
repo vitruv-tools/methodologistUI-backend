@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import jakarta.annotation.Resource;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -44,6 +45,8 @@ public class VsumMetaModelService {
     this.metaModelService = metaModelService;
     this.metaModelRepository = metaModelRepository;
   }
+
+  @Resource private VsumMetaModelService vsumMetaModelService;
 
   /**
    * Creates {@link VsumMetaModel} links for the given vsum and metamodel IDs. Each metamodel is
@@ -125,14 +128,14 @@ public class VsumMetaModelService {
                   vsumMetaModel ->
                       toRemoveIds.contains(vsumMetaModel.getMetaModel().getSource().getId()))
               .toList();
-      delete(vsum, toDelete);
+      vsumMetaModelService.delete(vsum, toDelete);
     }
 
     Set<Long> toAddIds = new HashSet<>(desiredIds);
     toAddIds.removeAll(existingIds);
 
     if (!toAddIds.isEmpty()) {
-      create(vsum, toAddIds);
+      vsumMetaModelService.create(vsum, toAddIds);
     }
   }
 }
