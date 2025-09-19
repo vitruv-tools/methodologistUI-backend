@@ -18,6 +18,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -151,7 +152,7 @@ class VsumMetaModelServiceTest {
     doNothing().when(spyTransactionalService).delete(eq(vsum), anyList());
     doNothing().when(spyTransactionalService).create(any(Vsum.class), anySet());
 
-    serviceWithSpy.sync(vsum, List.of((Long) null));
+    serviceWithSpy.sync(vsum, Arrays.asList((Long) null));
 
     verify(spyTransactionalService)
         .delete(eq(vsum), argThat(list -> list.size() == 1 && list.get(0) == link));
