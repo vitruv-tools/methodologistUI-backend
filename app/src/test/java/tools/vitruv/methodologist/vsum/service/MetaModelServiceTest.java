@@ -6,10 +6,12 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.ECORE_FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.GEN_MODEL_FILE_ID_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.META_MODEL_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
 import java.util.ArrayList;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.Pageable;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
+import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -31,7 +34,10 @@ import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostReque
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
+import tools.vitruv.methodologist.vsum.model.Vsum;
+import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 
 class MetaModelServiceTest {
 
@@ -41,6 +47,7 @@ class MetaModelServiceTest {
   private UserRepository userRepository;
   private MetamodelBuildService metamodelBuildService;
   private FileStorageService fileStorageService;
+  private VsumMetaModelRepository vsumMetaModelRepository;
 
   private MetaModelService metaModelService;
 
@@ -77,6 +84,7 @@ class MetaModelServiceTest {
     fileStorageRepository = mock(FileStorageRepository.class);
     userRepository = mock(UserRepository.class);
     metamodelBuildService = mock(MetamodelBuildService.class);
+    vsumMetaModelRepository = mock(VsumMetaModelRepository.class);
 
     metaModelService =
         new MetaModelService(
@@ -85,7 +93,8 @@ class MetaModelServiceTest {
             fileStorageRepository,
             userRepository,
             metamodelBuildService,
-            fileStorageService);
+            fileStorageService,
+            vsumMetaModelRepository);
   }
 
   @Test
@@ -354,5 +363,54 @@ class MetaModelServiceTest {
 
     verify(metaModelRepository).deleteAll(empty);
     verify(fileStorageService).deleteFiles(eq(List.of()));
+  }
+
+  @Test
+  void delete_success_whenNotUsedInVsum() {
+    String email = "user@ex.com";
+    Long id = 1L;
+    MetaModel metaModel = new MetaModel();
+    FileStorage ecore = new FileStorage();
+    FileStorage gen = new FileStorage();
+    metaModel.setEcoreFile(ecore);
+    metaModel.setGenModelFile(gen);
+
+    when(metaModelRepository.findByIdAndUser_Email(id, email)).thenReturn(Optional.of(metaModel));
+    when(vsumMetaModelRepository.findAllByMetaModel_Source(metaModel)).thenReturn(List.of());
+
+    metaModelService.delete(email, id);
+
+    verify(fileStorageService, times(1)).deleteFiles(List.of(ecore, gen));
+    verify(metaModelRepository).delete(metaModel);
+  }
+
+  @Test
+  void delete_throwsNotFoundException_whenMetaModelMissing() {
+    String email = "user@ex.com";
+    Long id = 1L;
+    when(metaModelRepository.findByIdAndUser_Email(id, email)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> metaModelService.delete(email, id))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(META_MODEL_ID_NOT_FOUND_ERROR);
+  }
+
+  @Test
+  void delete_throwsMetaModelUsingInVsumException_whenUsedInVsum() {
+    String email = "user@ex.com";
+    Long id = 1L;
+    MetaModel metaModel = new MetaModel();
+    Vsum vsum = new Vsum();
+    vsum.setName("VSUM1");
+    VsumMetaModel vsumMetaModel = new VsumMetaModel();
+    vsumMetaModel.setVsum(vsum);
+
+    when(metaModelRepository.findByIdAndUser_Email(id, email)).thenReturn(Optional.of(metaModel));
+    when(vsumMetaModelRepository.findAllByMetaModel_Source(metaModel))
+        .thenReturn(List.of(vsumMetaModel));
+
+    assertThatThrownBy(() -> metaModelService.delete(email, id))
+        .isInstanceOf(MetaModelUsedInVsumException.class)
+        .hasMessageContaining("VSUM1");
   }
 }

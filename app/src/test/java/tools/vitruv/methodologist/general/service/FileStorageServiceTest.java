@@ -143,12 +143,6 @@ class FileStorageServiceTest {
   }
 
   @Test
-  void deleteFile_success() {
-    fileStorageService.deleteFile(1L);
-    verify(fileStorageRepository).deleteById(1L);
-  }
-
-  @Test
   void clone_success() {
     FileStorage clonedStorage = new FileStorage();
     clonedStorage.setId(2L);

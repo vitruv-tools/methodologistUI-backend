@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.vsum.controller;
 
 import static tools.vitruv.methodologist.messages.Message.META_MODEL_CREATED_SUCCESSFULLY;
+import static tools.vitruv.methodologist.messages.Message.META_MODEL_REMOVED_SUCCESSFULLY;
 
 import jakarta.validation.Valid;
 import java.util.List;
@@ -9,6 +10,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -83,5 +86,21 @@ public class MetaModelController {
     return ResponseTemplateDto.<List<MetaModelResponse>>builder()
         .data(metaModelService.findAllByUser(callerEmail, metaModelFilterRequest, pageable))
         .build();
+  }
+
+  /**
+   * Deletes a metamodel owned by the authenticated user.
+   *
+   * @param authentication the Keycloak authentication object containing user details
+   * @param id the unique identifier of the metamodel to delete
+   * @return ResponseTemplateDto with success message
+   */
+  @DeleteMapping("/v1/meta-models/{id}")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> findAllByUser(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    metaModelService.delete(callerEmail, id);
+    return ResponseTemplateDto.<Void>builder().message(META_MODEL_REMOVED_SUCCESSFULLY).build();
   }
 }
