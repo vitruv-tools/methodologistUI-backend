@@ -51,4 +51,14 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
    *     have {@code source} set to null
    */
   List<MetaModel> findAllByIdInAndUserAndSourceIsNull(Set<Long> metaModelIds, User user);
+
+  /**
+   * Finds a metamodel by its ID and the associated user's email address.
+   *
+   * @param id the unique identifier of the metamodel to find
+   * @param callerEmail the email address of the user who owns the metamodel
+   * @return Optional containing the found MetaModel if it exists and belongs to the specified user,
+   *     or empty if no match is found
+   */
+  Optional<MetaModel> findByIdAndUser_Email(Long id, String callerEmail);
 }
