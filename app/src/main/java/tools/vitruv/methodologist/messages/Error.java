@@ -9,4 +9,6 @@ public class Error {
   public static final String GEN_MODEL_FILE_ID_NOT_FOUND_ERROR = "Gen model file id";
   public static final String USER_EMAIL_NOT_FOUND_ERROR = "Email";
   public static final String USER_WRONG_PASSWORD_ERROR = "Wrong password";
+  public static final String SOURCE_META_MODEL_ID_NOT_FOUND_ERROR = "Source meta model id";
+  public static final String TARGET_META_MODEL_ID_NOT_FOUND_ERROR = "Target meta model id";
 }

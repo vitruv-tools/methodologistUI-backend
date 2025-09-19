@@ -13,8 +13,11 @@ import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 
 /**
- * Repository interface for managing {@link tools.vitruv.methodologist.vsum.model.MetaModel}
- * entities. Provides CRUD operations and custom queries for MetaModel data access.
+ * Repository interface for managing and accessing {@link MetaModel} entities.
+ *
+ * <p>Extends {@link CrudRepository} to provide standard CRUD operations. Includes additional
+ * methods to support custom query functionality such as finding entities by name, filtering by
+ * specifications, and querying based on specific conditions.
  */
 @Repository
 public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
@@ -51,4 +54,15 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
    *     have {@code source} set to null
    */
   List<MetaModel> findAllByIdInAndUserAndSourceIsNull(Set<Long> metaModelIds, User user);
+
+  /**
+   * Retrieves a {@link MetaModel} by its identifier only if its {@code source} is not null.
+   *
+   * <p>Returns empty if no entity exists with the given id or if {@code source} is null.
+   *
+   * @param id the identifier of the metamodel to retrieve
+   * @return an optional containing the matching {@link MetaModel} when found with a non\-null
+   *     {@code source}; otherwise empty
+   */
+  Optional<MetaModel> findByIdAndSourceIsNotNull(Long id);
 }
