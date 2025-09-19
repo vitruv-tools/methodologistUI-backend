@@ -29,7 +29,9 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
 import tools.vitruv.methodologist.vsum.model.Vsum;
+import tools.vitruv.methodologist.vsum.model.VsumUser;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 
 @ExtendWith(MockitoExtension.class)
 class VsumServiceTest {
@@ -39,6 +41,7 @@ class VsumServiceTest {
   @Mock private MetaModelMapper metaModelMapper;
   @Mock private VsumMetaModelService vsumMetaModelService;
   @Mock private UserRepository userRepository;
+  @Mock private VsumUserRepository vsumUserRepository;
 
   private VsumService service;
 
@@ -46,7 +49,12 @@ class VsumServiceTest {
   void setUp() {
     service =
         new VsumService(
-            vsumMapper, vsumRepository, metaModelMapper, vsumMetaModelService, userRepository);
+            vsumMapper,
+            vsumRepository,
+            metaModelMapper,
+            vsumMetaModelService,
+            userRepository,
+            vsumUserRepository);
   }
 
   @Test
@@ -214,10 +222,18 @@ class VsumServiceTest {
     String email = "u@ex.com";
     Vsum a = new Vsum();
     a.setId(1L);
+
+    VsumUser x = new VsumUser();
+    x.setId(1L);
+    x.setVsum(a);
+
     Vsum b = new Vsum();
     b.setId(2L);
-    when(vsumRepository.findAllByUser_emailAndUser_removedAtIsNull(email))
-        .thenReturn(List.of(a, b));
+
+    VsumUser y = new VsumUser();
+    y.setId(1L);
+    y.setVsum(b);
+    when(vsumUserRepository.findAllByUser_Email(email)).thenReturn(List.of(x, y));
 
     VsumResponse ra = new VsumResponse();
     ra.setId(1L);

@@ -8,6 +8,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import tools.vitruv.methodologist.exception.FileAlreadyExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
@@ -80,24 +81,20 @@ public class FileStorageService {
     byte[] data = file.getBytes();
     String sha = sha256Hex(data);
 
-    FileStorage fileStorage =
-        fileStorageRepository
-            .findByUserAndSha256AndSizeBytes(user, sha, data.length)
-            .orElseGet(
-                () -> {
-                  FileStorage f = new FileStorage();
-                  f.setFilename(file.getOriginalFilename());
-                  f.setType(type);
-                  f.setContentType(
-                      file.getContentType() == null
-                          ? "application/octet-stream"
-                          : file.getContentType());
-                  f.setSizeBytes(data.length);
-                  f.setSha256(sha);
-                  f.setData(data);
-                  f.setUser(user);
-                  return fileStorageRepository.save(f);
-                });
+    if (fileStorageRepository.existsByUserAndSha256AndSizeBytes(user, sha, data.length)) {
+      throw new FileAlreadyExistsException();
+    }
+
+    FileStorage fileStorage = new FileStorage();
+    fileStorage.setFilename(file.getOriginalFilename());
+    fileStorage.setType(type);
+    fileStorage.setContentType(
+        file.getContentType() == null ? "application/octet-stream" : file.getContentType());
+    fileStorage.setSizeBytes(data.length);
+    fileStorage.setSha256(sha);
+    fileStorage.setData(data);
+    fileStorage.setUser(user);
+    fileStorageRepository.save(fileStorage);
 
     return FileStorageResponse.builder().id(fileStorage.getId()).build();
   }
