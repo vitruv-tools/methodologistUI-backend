@@ -95,6 +95,27 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
+   * Handles {@link MetaModelUsedInVsumException} thrown when a metamodel is in use by a VSUM.
+   * Returns an {@link ErrorResponse} with HTTP 400 (Bad Request) status, including the error
+   * message and request path.
+   *
+   * @param ex the thrown {@code MetaModelUsingInVsumException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return an {@code ErrorResponse} describing the conflict
+   */
+  @ExceptionHandler(value = MetaModelUsedInVsumException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse metaModelUsedInVsumException(
+      MetaModelUsedInVsumException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles cases where building or validating an MWE2 file fails. When a {@link
    * CreateMwe2FileException} is thrown anywhere in the application, this handler captures it and
    * returns a structured {@link ErrorResponse}. The response includes: The response is sent with

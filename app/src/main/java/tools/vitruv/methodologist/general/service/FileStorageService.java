@@ -114,16 +114,6 @@ public class FileStorageService {
   }
 
   /**
-   * Deletes a file by its ID.
-   *
-   * @param id the ID of the file to delete
-   */
-  @Transactional
-  public void deleteFile(Long id) {
-    fileStorageRepository.deleteById(id);
-  }
-
-  /**
    * Creates a clone of the provided FileStorage object, saves the cloned instance into the
    * repository, and returns the saved instance.
    *
