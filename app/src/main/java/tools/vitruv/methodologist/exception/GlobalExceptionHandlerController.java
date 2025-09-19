@@ -59,13 +59,13 @@ public class GlobalExceptionHandlerController {
    * @param request the current web request
    * @return an ErrorResponse containing the error message and request path
    */
-  @ExceptionHandler(value = AlreadyExistsFileException.class)
+  @ExceptionHandler(value = FileAlreadyExistsException.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   @ResponseBody
-  public ErrorResponse alreadyExistsFileException(
-      AlreadyExistsFileException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+  public ErrorResponse fileAlreadyExistsException(
+      FileAlreadyExistsException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
-        .error(AlreadyExistsFileException.messageTemplate)
+        .error(FileAlreadyExistsException.messageTemplate)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
         .build();
