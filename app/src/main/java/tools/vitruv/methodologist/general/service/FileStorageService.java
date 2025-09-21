@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.general.service;
 
+import static tools.vitruv.methodologist.messages.Error.FILE_HASHING_EXCEPTION;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
 import java.security.MessageDigest;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import tools.vitruv.methodologist.exception.FileAlreadyExistsException;
+import tools.vitruv.methodologist.exception.FileHashingException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
@@ -46,7 +48,7 @@ public class FileStorageService {
       MessageDigest md = MessageDigest.getInstance("SHA-256");
       return HexFormat.of().formatHex(md.digest(data));
     } catch (NoSuchAlgorithmException e) {
-      throw new FileHashingException("Failed to compute SHA-256 hash", e);
+      throw new FileHashingException(FILE_HASHING_EXCEPTION, e);
     }
   }
 

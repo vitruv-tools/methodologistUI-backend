@@ -51,6 +51,27 @@ public class GlobalExceptionHandlerController {
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
   /**
+   * Handles {@link FileHashingException} thrown when computing a file's SHA-256 fails. Returns an
+   * {@link ErrorResponse} with HTTP 500 (Internal Server Error), including the error code, message,
+   * and request path.
+   *
+   * @param ex the thrown {@code FileHashingException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the hashing failure
+   */
+  @ExceptionHandler(value = FileAlreadyExistsException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse fileHashingException(
+      FileHashingException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles exceptions when attempting to upload a duplicate file. Returns a BAD_REQUEST (400)
    * response with details about the duplicate file.
    *
