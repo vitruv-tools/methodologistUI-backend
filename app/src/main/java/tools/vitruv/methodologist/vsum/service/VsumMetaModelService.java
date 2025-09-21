@@ -42,7 +42,6 @@ public class VsumMetaModelService {
    * @param vsum the parent vsum
    * @param metaModelIds IDs of metamodels to associate
    */
-  @Transactional
   public void create(Vsum vsum, Set<Long> metaModelIds) {
     List<MetaModel> metaModels =
         metaModelRepository.findAllByIdInAndUserAndSourceIsNull(metaModelIds, vsum.getUser());
@@ -66,7 +65,6 @@ public class VsumMetaModelService {
    * @param vsum the parent {@link Vsum} whose associations are being recreated
    * @param vsumMetaModels the list of {@link VsumMetaModel} associations to remove before creation
    */
-  @Transactional
   public void delete(Vsum vsum, List<VsumMetaModel> vsumMetaModels) {
     vsumMetaModelRepository.deleteAll(vsumMetaModels);
     vsum.getVsumMetaModels().removeAll(vsumMetaModels);
@@ -114,7 +112,7 @@ public class VsumMetaModelService {
                   vsumMetaModel ->
                       toRemoveIds.contains(vsumMetaModel.getMetaModel().getSource().getId()))
               .toList();
-      this.delete(vsum, toDelete);
+      delete(vsum, toDelete);
     }
 
     Set<Long> toAddIds = new HashSet<>(desiredIds);
