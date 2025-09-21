@@ -113,7 +113,7 @@ public class UserService {
    * @throws EmailExistsException if the email already exists in either system
    */
   @Transactional
-  private void checkEmailExistsOrThrow(String email) {
+  protected void checkEmailExistsOrThrow(String email) {
     if (userRepository.findByEmailIgnoreCase(email).isPresent()
         || keycloakService.existUser(email)) {
       throw new EmailExistsException(email);
