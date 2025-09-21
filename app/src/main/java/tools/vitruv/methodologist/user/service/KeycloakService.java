@@ -93,7 +93,7 @@ public class KeycloakService {
    * @return a populated {@link CredentialRepresentation}
    */
   @Transactional
-  protected CredentialRepresentation preparePasswordRepresentation(
+  public CredentialRepresentation preparePasswordRepresentation(
       String password, Boolean temporary) {
     CredentialRepresentation credentialRepresentation = new CredentialRepresentation();
     credentialRepresentation.setTemporary(temporary);
@@ -118,7 +118,7 @@ public class KeycloakService {
    * @return a populated {@link UserRepresentation} ready for creation via the Keycloak Admin API
    */
   @Transactional
-  protected UserRepresentation prepareUserRepresentation(KeycloakUser keycloakUser) {
+  public UserRepresentation prepareUserRepresentation(KeycloakUser keycloakUser) {
     UserRepresentation userRepresentation = new UserRepresentation();
 
     // todo, we disable password change for all the manager users, even registrar! Change it in the
