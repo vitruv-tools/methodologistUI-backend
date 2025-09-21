@@ -113,8 +113,11 @@ public class UserService {
    * @throws EmailExistsException if the email already exists in either system
    */
   public void checkEmailExistsOrThrow(String email) {
-    if (userRepository.findByEmailIgnoreCase(email).isPresent()
-        || keycloakService.existUser(email)) {
+    boolean existsInDb = userRepository.findByEmailIgnoreCase(email).isPresent();
+    boolean existsInKeycloak =
+        Boolean.TRUE.equals(keycloakService.existUser(email)); // primitive-safe
+
+    if (existsInDb || existsInKeycloak) {
       throw new EmailExistsException(email);
     }
   }
