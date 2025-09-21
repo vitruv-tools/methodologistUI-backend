@@ -112,7 +112,6 @@ public class UserService {
    * @param email the email address to check for existence
    * @throws EmailExistsException if the email already exists in either system
    */
-  @Transactional
   public void checkEmailExistsOrThrow(String email) {
     if (userRepository.findByEmailIgnoreCase(email).isPresent()
         || keycloakService.existUser(email)) {
