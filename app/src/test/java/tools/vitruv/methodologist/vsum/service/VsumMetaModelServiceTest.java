@@ -35,8 +35,6 @@ class VsumMetaModelServiceTest {
   private VsumMetaModelRepository vsumMetaModelRepository;
   private MetaModelService metaModelService;
   private MetaModelRepository metaModelRepository;
-  private VsumMetaModelTransactionalService transactionalService;
-
   private VsumMetaModelService service;
 
   @BeforeEach

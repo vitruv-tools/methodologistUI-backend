@@ -5,6 +5,9 @@ import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERR
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,25 +26,12 @@ import tools.vitruv.methodologist.user.model.repository.UserRepository;
  * files. Provides deduplication of files based on SHA-256 hash and file size.
  */
 @Service
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class FileStorageService {
-  private final FileStorageRepository fileStorageRepository;
-  private final UserRepository userRepository;
-  private final FileStorageMapper fileStorageMapper;
-
-  /**
-   * Constructs a new FileStorageService with the specified repositories.
-   *
-   * @param fileStorageRepository repository for file storage operations
-   * @param userRepository repository for user operations
-   */
-  public FileStorageService(
-      FileStorageRepository fileStorageRepository,
-      UserRepository userRepository,
-      FileStorageMapper fileStorageMapper) {
-    this.fileStorageRepository = fileStorageRepository;
-    this.userRepository = userRepository;
-    this.fileStorageMapper = fileStorageMapper;
-  }
+  FileStorageRepository fileStorageRepository;
+  UserRepository userRepository;
+  FileStorageMapper fileStorageMapper;
 
   /**
    * Calculates the SHA-256 hash of the given data and returns it as a hexadecimal string.
@@ -50,7 +40,8 @@ public class FileStorageService {
    * @return hexadecimal string representation of the SHA-256 hash
    * @throws Exception if the hashing algorithm is not available
    */
-  private static String sha256Hex(byte[] data) throws Exception {
+  @Transactional
+  protected String sha256Hex(byte[] data) throws Exception {
     MessageDigest md = MessageDigest.getInstance("SHA-256");
     return HexFormat.of().formatHex(md.digest(data));
   }

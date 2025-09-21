@@ -4,6 +4,9 @@ import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
 import java.util.List;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,34 +37,15 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
  */
 @Service
 @Slf4j
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumService {
-  private final VsumMapper vsumMapper;
-  private final VsumRepository vsumRepository;
-  private final MetaModelMapper metaModelMapper;
-  private final VsumMetaModelService vsumMetaModelService;
-  private final UserRepository userRepository;
-  private final VsumUserRepository vsumUserRepository;
-
-  /**
-   * Constructs a new VsumService with the specified dependencies.
-   *
-   * @param vsumMapper mapper for VSUM conversions
-   * @param vsumRepository repository for VSUM operations
-   */
-  public VsumService(
-      VsumMapper vsumMapper,
-      VsumRepository vsumRepository,
-      MetaModelMapper metaModelMapper,
-      VsumMetaModelService vsumMetaModelService,
-      UserRepository userRepository,
-      VsumUserRepository vsumUserRepository) {
-    this.vsumMapper = vsumMapper;
-    this.vsumRepository = vsumRepository;
-    this.metaModelMapper = metaModelMapper;
-    this.vsumMetaModelService = vsumMetaModelService;
-    this.userRepository = userRepository;
-    this.vsumUserRepository = vsumUserRepository;
-  }
+  VsumMapper vsumMapper;
+  VsumRepository vsumRepository;
+  MetaModelMapper metaModelMapper;
+  VsumMetaModelService vsumMetaModelService;
+  UserRepository userRepository;
+  VsumUserRepository vsumUserRepository;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -176,6 +160,7 @@ public class VsumService {
    * @param callerEmail the email address of the user whose VSUMs should be retrieved
    * @return a list of VsumResponse DTOs containing the VSUM details
    */
+  @Transactional
   public List<VsumResponse> findAllByUser(String callerEmail) {
     List<VsumUser> vsumsUser = vsumUserRepository.findAllByUser_Email(callerEmail);
 

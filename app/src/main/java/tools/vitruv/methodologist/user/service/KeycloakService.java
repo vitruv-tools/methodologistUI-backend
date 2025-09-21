@@ -18,6 +18,7 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UncheckedRuntimeException;
 import tools.vitruv.methodologist.user.controller.dto.KeycloakUser;
@@ -78,7 +79,21 @@ public class KeycloakService {
     // adminPassword, clientId, secret);
   }
 
-  private CredentialRepresentation preparePasswordRepresentation(
+  /**
+   * Builds a Keycloak {@link CredentialRepresentation} for a password.
+   *
+   * <p>Sets the credential {@code type} to {@link CredentialRepresentation#PASSWORD}, assigns the
+   * provided plaintext password as the {@code value}, and marks it as temporary or permanent based
+   * on the {@code temporary} flag.
+   *
+   * <p>Executed within a Spring transaction.
+   *
+   * @param password the plaintext password to set; must not be {@code null}
+   * @param temporary whether the password is temporary (forces update on next login)
+   * @return a populated {@link CredentialRepresentation}
+   */
+  @Transactional
+  protected CredentialRepresentation preparePasswordRepresentation(
       String password, Boolean temporary) {
     CredentialRepresentation credentialRepresentation = new CredentialRepresentation();
     credentialRepresentation.setTemporary(temporary);
@@ -87,7 +102,23 @@ public class KeycloakService {
     return credentialRepresentation;
   }
 
-  private UserRepresentation prepareUserRepresentation(KeycloakUser keycloakUser) {
+  /**
+   * Builds a Keycloak {@link UserRepresentation} from the provided {@link KeycloakUser}.
+   *
+   * <p>Populates username, email, first name, last name, enables the user, attaches a password
+   * credential marked as non-temporary, and sets custom attributes: {@code user_confirmed} to
+   * {@code "false"} and {@code role_type} to the user's role.
+   *
+   * <p>This method does not persist the user or assign roles; callers must use the Keycloak Admin
+   * API to create the user and manage role assignments. <implNote>First-login password change is
+   * disabled by creating the credential with {@code temporary = false}.</implNote>
+   *
+   * @param keycloakUser the source DTO containing username, email, first name, last name, password,
+   *     and role
+   * @return a populated {@link UserRepresentation} ready for creation via the Keycloak Admin API
+   */
+  @Transactional
+  protected UserRepresentation prepareUserRepresentation(KeycloakUser keycloakUser) {
     UserRepresentation userRepresentation = new UserRepresentation();
 
     // todo, we disable password change for all the manager users, even registrar! Change it in the
@@ -114,6 +145,7 @@ public class KeycloakService {
    * @param username the username of the user
    * @param role the role to assign
    */
+  @Transactional
   public void assignUserRole(String username, String role) {
     UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
 
@@ -135,6 +167,7 @@ public class KeycloakService {
    * @param keycloakUser the user details to create
    * @throws jakarta.ws.rs.ClientErrorException if user creation fails
    */
+  @Transactional
   public void createUser(KeycloakUser keycloakUser) {
     UserRepresentation userRepresentation = prepareUserRepresentation(keycloakUser);
 
@@ -160,6 +193,7 @@ public class KeycloakService {
    *
    * @param username the username of the user to remove
    */
+  @Transactional
   public void removeUser(String username) {
     UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
     keycloakAdmin.realm(realm).users().get(userRepresentation.getId()).remove();
@@ -174,6 +208,7 @@ public class KeycloakService {
    * @throws tools.vitruv.methodologist.exception.UncheckedRuntimeException for other authentication
    *     errors
    */
+  @Transactional
   public void verifyUserPasswordOrThrow(String username, String password) {
     try {
       String dummy =
@@ -200,6 +235,7 @@ public class KeycloakService {
    * @param username the username of the user
    * @param password the new password to set
    */
+  @Transactional
   public void resetPassword(String username, String password) {
     CredentialRepresentation credentialRepresentation =
         preparePasswordRepresentation(password, false);
@@ -216,6 +252,7 @@ public class KeycloakService {
    *
    * @param username the username of the user to send reset email to
    */
+  @Transactional
   public void sendResetPasswordEmail(String username) {
     keycloakAdmin
         .realm(realm)
@@ -231,6 +268,7 @@ public class KeycloakService {
    * @return UserRepresentation of the found user
    * @throws tools.vitruv.methodologist.exception.NotFoundException if the user doesn't exist
    */
+  @Transactional
   public UserRepresentation getUserRepresentationOrThrow(String username) {
     return keycloakAdmin.realm(realm).users().search(username).stream()
         .findFirst()
@@ -244,6 +282,7 @@ public class KeycloakService {
    * @param username the username of the user
    * @param password the new password to set
    */
+  @Transactional
   public void setPassword(String username, String password) {
     CredentialRepresentation credentialRepresentation =
         preparePasswordRepresentation(password, false);
@@ -260,6 +299,7 @@ public class KeycloakService {
    * @param username the username to check
    * @return true if the user exists, false otherwise
    */
+  @Transactional
   public Boolean existUser(String username) {
     return keycloakAdmin.realm(realm).users().search(username).stream().findFirst().isPresent();
   }

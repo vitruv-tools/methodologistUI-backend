@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,28 +28,12 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
  */
 @Service
 @Slf4j
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumMetaModelService {
-  private final VsumMetaModelRepository vsumMetaModelRepository;
-  private final MetaModelService metaModelService;
-  private final MetaModelRepository metaModelRepository;
-  private final VsumMetaModelTransactionalService transactionalService;
-
-  /**
-   * Constructs a new service with the required repository dependency.
-   *
-   * @param vsumMetaModelRepository repository for accessing and persisting {@link
-   *     tools.vitruv.methodologist.vsum.model.VsumMetaModel}
-   */
-  public VsumMetaModelService(
-      VsumMetaModelRepository vsumMetaModelRepository,
-      MetaModelService metaModelService,
-      MetaModelRepository metaModelRepository,
-      VsumMetaModelTransactionalService transactionalService) {
-    this.vsumMetaModelRepository = vsumMetaModelRepository;
-    this.metaModelService = metaModelService;
-    this.metaModelRepository = metaModelRepository;
-    this.transactionalService = transactionalService;
-  }
+  VsumMetaModelRepository vsumMetaModelRepository;
+  MetaModelService metaModelService;
+  MetaModelRepository metaModelRepository;
 
   /**
    * Creates {@link VsumMetaModel} links for the given vsum and metamodel IDs. Each metamodel is
@@ -127,14 +114,14 @@ public class VsumMetaModelService {
                   vsumMetaModel ->
                       toRemoveIds.contains(vsumMetaModel.getMetaModel().getSource().getId()))
               .toList();
-      transactionalService.delete(vsum, toDelete);
+      this.delete(vsum, toDelete);
     }
 
     Set<Long> toAddIds = new HashSet<>(desiredIds);
     toAddIds.removeAll(existingIds);
 
     if (!toAddIds.isEmpty()) {
-      transactionalService.create(vsum, toAddIds);
+      create(vsum, toAddIds);
     }
   }
 }
