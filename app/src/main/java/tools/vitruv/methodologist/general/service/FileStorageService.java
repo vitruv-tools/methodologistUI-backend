@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.general.service;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
 import lombok.AccessLevel;
@@ -40,10 +41,13 @@ public class FileStorageService {
    * @return hexadecimal string representation of the SHA-256 hash
    * @throws Exception if the hashing algorithm is not available
    */
-  @Transactional
-  protected String sha256Hex(byte[] data) throws Exception {
-    MessageDigest md = MessageDigest.getInstance("SHA-256");
-    return HexFormat.of().formatHex(md.digest(data));
+  private String sha256Hex(byte[] data) {
+    try {
+      MessageDigest md = MessageDigest.getInstance("SHA-256");
+      return HexFormat.of().formatHex(md.digest(data));
+    } catch (NoSuchAlgorithmException e) {
+      throw new FileHashingException("Failed to compute SHA-256 hash", e);
+    }
   }
 
   /**
