@@ -60,7 +60,7 @@ public class GlobalExceptionHandlerController {
    * @param request the current {@code ServletWebRequest}
    * @return a standardized {@code ErrorResponse} describing the hashing failure
    */
-  @ExceptionHandler(value = FileAlreadyExistsException.class)
+  @ExceptionHandler(value = FileHashingException.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   @ResponseBody
   public ErrorResponse fileHashingException(
