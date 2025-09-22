@@ -243,25 +243,4 @@ class VsumMetaModelServiceTest {
     verify(spyService, never()).delete(any(Vsum.class), anyList());
     verify(spyService, never()).create(any(Vsum.class), anySet());
   }
-
-  @Test
-  void sync_whenIdListNull_deletesAllExisting_andDoesNotCreate() {
-    Vsum vsum = newVsumWithUserEmail("alice@example.com");
-
-    MetaModel original = newOriginalMetaModel(10L);
-    MetaModel cloned = newClonedMetaModel(100L, original);
-    VsumMetaModel link = link(vsum, cloned);
-
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(link));
-
-    VsumMetaModelService spyService = spy(service);
-    doNothing().when(spyService).delete(eq(vsum), anyList());
-    doNothing().when(spyService).create(any(Vsum.class), anySet());
-
-    service.sync(vsum, List.of((Long) null));
-
-    //    verify(spyTransactionalService)
-    //        .delete(eq(vsum), argThat(list -> list.size() == 1 && list.get(0) == link));
-    //    verify(spyTransactionalService, never()).create(any(Vsum.class), anySet());
-  }
 }

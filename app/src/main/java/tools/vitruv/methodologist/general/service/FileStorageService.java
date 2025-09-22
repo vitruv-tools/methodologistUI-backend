@@ -37,11 +37,16 @@ public class FileStorageService {
   FileStorageMapper fileStorageMapper;
 
   /**
-   * Calculates the SHA-256 hash of the given data and returns it as a hexadecimal string.
+   * Computes the SHA\-256 digest of the given bytes and returns its lowercase hexadecimal string.
    *
-   * @param data the byte array to hash
-   * @return hexadecimal string representation of the SHA-256 hash
-   * @throws Exception if the hashing algorithm is not available
+   * <p>Uses {@link java.security.MessageDigest} with the {@code SHA\-256} algorithm and wraps any
+   * algorithm lookup failure into {@link
+   * tools.vitruv.methodologist.exception.FileHashingException}.
+   *
+   * @param data the bytes to hash; must not be {@code null}
+   * @return lowercase hex representation of the SHA\-256 digest
+   * @throws tools.vitruv.methodologist.exception.FileHashingException if hashing cannot be
+   *     performed
    */
   private String sha256Hex(byte[] data) {
     try {
