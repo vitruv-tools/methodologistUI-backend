@@ -11,4 +11,6 @@ public class Error {
   public static final String USER_WRONG_PASSWORD_ERROR = "Wrong password";
   public static final String SOURCE_META_MODEL_ID_NOT_FOUND_ERROR = "Source meta model id";
   public static final String TARGET_META_MODEL_ID_NOT_FOUND_ERROR = "Target meta model id";
+  public static final String META_MODEL_ID_NOT_FOUND_ERROR = "Meta model id";
+  public static final String FILE_HASHING_EXCEPTION = "Failed to compute SHA-256 hash";
 }

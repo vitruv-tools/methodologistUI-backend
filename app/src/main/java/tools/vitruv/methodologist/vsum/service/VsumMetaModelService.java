@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,25 +28,12 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
  */
 @Service
 @Slf4j
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumMetaModelService {
-  private final VsumMetaModelRepository vsumMetaModelRepository;
-  private final MetaModelService metaModelService;
-  private final MetaModelRepository metaModelRepository;
-
-  /**
-   * Constructs a new service with the required repository dependency.
-   *
-   * @param vsumMetaModelRepository repository for accessing and persisting {@link
-   *     tools.vitruv.methodologist.vsum.model.VsumMetaModel}
-   */
-  public VsumMetaModelService(
-      VsumMetaModelRepository vsumMetaModelRepository,
-      MetaModelService metaModelService,
-      MetaModelRepository metaModelRepository) {
-    this.vsumMetaModelRepository = vsumMetaModelRepository;
-    this.metaModelService = metaModelService;
-    this.metaModelRepository = metaModelRepository;
-  }
+  VsumMetaModelRepository vsumMetaModelRepository;
+  MetaModelService metaModelService;
+  MetaModelRepository metaModelRepository;
 
   /**
    * Creates {@link VsumMetaModel} links for the given vsum and metamodel IDs. Each metamodel is
@@ -52,7 +42,6 @@ public class VsumMetaModelService {
    * @param vsum the parent vsum
    * @param metaModelIds IDs of metamodels to associate
    */
-  @Transactional
   public void create(Vsum vsum, Set<Long> metaModelIds) {
     List<MetaModel> metaModels =
         metaModelRepository.findAllByIdInAndUserAndSourceIsNull(metaModelIds, vsum.getUser());
@@ -76,7 +65,6 @@ public class VsumMetaModelService {
    * @param vsum the parent {@link Vsum} whose associations are being recreated
    * @param vsumMetaModels the list of {@link VsumMetaModel} associations to remove before creation
    */
-  @Transactional
   public void delete(Vsum vsum, List<VsumMetaModel> vsumMetaModels) {
     vsumMetaModelRepository.deleteAll(vsumMetaModels);
     vsum.getVsumMetaModels().removeAll(vsumMetaModels);
@@ -117,7 +105,6 @@ public class VsumMetaModelService {
 
     Set<Long> toRemoveIds = new HashSet<>(existingIds);
     toRemoveIds.removeAll(desiredIds);
-
     if (!toRemoveIds.isEmpty()) {
       List<VsumMetaModel> toDelete =
           existingLinks.stream()

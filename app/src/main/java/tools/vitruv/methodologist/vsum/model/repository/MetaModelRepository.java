@@ -13,11 +13,8 @@ import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 
 /**
- * Repository interface for managing and accessing {@link MetaModel} entities.
- *
- * <p>Extends {@link CrudRepository} to provide standard CRUD operations. Includes additional
- * methods to support custom query functionality such as finding entities by name, filtering by
- * specifications, and querying based on specific conditions.
+ * Repository interface for managing {@link tools.vitruv.methodologist.vsum.model.MetaModel}
+ * entities. Provides CRUD operations and custom queries for MetaModel data access.
  */
 @Repository
 public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
@@ -65,4 +62,14 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
    *     {@code source}; otherwise empty
    */
   Optional<MetaModel> findByIdAndSourceIsNotNull(Long id);
+
+  /**
+   * Finds a metamodel by its ID and the associated user's email address.
+   *
+   * @param id the unique identifier of the metamodel to find
+   * @param callerEmail the email address of the user who owns the metamodel
+   * @return Optional containing the found MetaModel if it exists and belongs to the specified user,
+   *     or empty if no match is found
+   */
+  Optional<MetaModel> findByIdAndUser_Email(Long id, String callerEmail);
 }

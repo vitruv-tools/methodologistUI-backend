@@ -51,6 +51,7 @@ public class VsumController {
    * @return response indicating successful VSUM creation
    */
   @PostMapping("/v1/vsums")
+  @PreAuthorize("hasRole('user')")
   public ResponseTemplateDto<Void> create(
       KeycloakAuthentication authentication, @Valid @RequestBody VsumPostRequest vsumPostRequest) {
     String callerEmail = authentication.getParsedToken().getEmail();
@@ -84,6 +85,7 @@ public class VsumController {
    * @return response indicating successful VSUM update
    */
   @PutMapping("/v1/vsums/{id}")
+  @PreAuthorize("hasRole('user')")
   public ResponseTemplateDto<Void> update(
       KeycloakAuthentication authentication,
       @PathVariable Long id,
@@ -101,6 +103,7 @@ public class VsumController {
    * @return response indicating successful VSUM removal
    */
   @DeleteMapping("/v1/vsums/{id}")
+  @PreAuthorize("hasRole('user')")
   public ResponseTemplateDto<Void> remove(
       KeycloakAuthentication authentication, @PathVariable Long id) {
     String callerEmail = authentication.getParsedToken().getEmail();
@@ -119,6 +122,7 @@ public class VsumController {
    * @return a {@link ResponseTemplateDto} wrapping a list of {@link VsumResponse} objects
    */
   @GetMapping("/v1/vsums/find-all")
+  @PreAuthorize("hasRole('user')")
   public ResponseTemplateDto<List<VsumResponse>> findAllByUser(
       KeycloakAuthentication authentication) {
     String callerEmail = authentication.getParsedToken().getEmail();
@@ -140,6 +144,7 @@ public class VsumController {
    * @return a {@link ResponseTemplateDto} wrapping the detailed {@link VsumMetaModelResponse}
    */
   @GetMapping("/v1/vsums/{id}/details")
+  @PreAuthorize("hasRole('user')")
   public ResponseTemplateDto<VsumMetaModelResponse> findVsumWithDetails(
       KeycloakAuthentication authentication, @PathVariable Long id) {
     String callerEmail = authentication.getParsedToken().getEmail();

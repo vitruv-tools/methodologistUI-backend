@@ -1,8 +1,12 @@
 package tools.vitruv.methodologist.user.service;
 
+import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,28 +32,13 @@ import tools.vitruv.methodologist.user.model.repository.UserRepository;
  */
 @Service
 @Slf4j
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class UserService {
-  private final UserMapper userMapper;
-  private final UserRepository userRepository;
-  private final KeycloakService keycloakService;
-  private final KeycloakApiHandler keycloakApiHandler;
-
-  /**
-   * Constructs a new UserService with the specified UserMapper and UserRepository.
-   *
-   * @param userMapper the mapper for converting between user DTOs and entities
-   * @param userRepository the repository for user persistence operations
-   */
-  public UserService(
-      UserMapper userMapper,
-      UserRepository userRepository,
-      KeycloakService keycloakService,
-      KeycloakApiHandler keycloakApiHandler) {
-    this.userMapper = userMapper;
-    this.userRepository = userRepository;
-    this.keycloakService = keycloakService;
-    this.keycloakApiHandler = keycloakApiHandler;
-  }
+  UserMapper userMapper;
+  UserRepository userRepository;
+  KeycloakService keycloakService;
+  KeycloakApiHandler keycloakApiHandler;
 
   /**
    * Retrieves a user access token using the provided username and password. The request is
@@ -123,9 +112,12 @@ public class UserService {
    * @param email the email address to check for existence
    * @throws EmailExistsException if the email already exists in either system
    */
-  private void checkEmailExistsOrThrow(String email) {
-    if (userRepository.findByEmailIgnoreCase(email).isPresent()
-        || keycloakService.existUser(email)) {
+  public void checkEmailExistsOrThrow(String email) {
+    boolean existsInDb = userRepository.findByEmailIgnoreCase(email).isPresent();
+    boolean existsInKeycloak =
+        Boolean.TRUE.equals(keycloakService.existUser(email)); // primitive-safe
+
+    if (existsInDb || existsInKeycloak) {
       throw new EmailExistsException(email);
     }
   }
@@ -150,17 +142,19 @@ public class UserService {
   }
 
   /**
-   * Retrieves a user by ID. Throws NotFoundException if the user is not found.
+   * Retrieves user information for an active user by their email address. Only returns users that
+   * have not been marked as removed.
    *
-   * @param id the ID of the user to retrieve
-   * @return the UserResponse DTO containing user data
+   * @param email the email address of the user to retrieve (case-insensitive)
+   * @return UserResponse containing the user's information
+   * @throws NotFoundException if no active user is found with the given email
    */
   @Transactional
-  public UserResponse findById(Long id) {
+  public UserResponse findByEmail(String email) {
     User user =
         userRepository
-            .findByIdAndRemovedAtIsNull(id)
-            .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(email)
+            .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
     return userMapper.toUserResponse(user);
   }
 

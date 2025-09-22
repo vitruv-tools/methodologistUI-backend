@@ -51,6 +51,92 @@ public class GlobalExceptionHandlerController {
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
   /**
+   * Handles {@link FileHashingException} thrown when computing a file's SHA-256 fails. Returns an
+   * {@link ErrorResponse} with HTTP 500 (Internal Server Error), including the error code, message,
+   * and request path.
+   *
+   * @param ex the thrown {@code FileHashingException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the hashing failure
+   */
+  @ExceptionHandler(value = FileHashingException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse fileHashingException(
+      FileHashingException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles exceptions when attempting to upload a duplicate file. Returns a BAD_REQUEST (400)
+   * response with details about the duplicate file.
+   *
+   * @param ex the exception containing details about the duplicate file
+   * @param handlerMethod the handler method where the exception occurred
+   * @param request the current web request
+   * @return an ErrorResponse containing the error message and request path
+   */
+  @ExceptionHandler(value = FileAlreadyExistsException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse fileAlreadyExistsException(
+      FileAlreadyExistsException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(FileAlreadyExistsException.messageTemplate)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles exceptions when attempting to add a user to a VSUM with a role they already have.
+   * Returns a BAD_REQUEST (400) response with details about the duplicate user-role assignment.
+   *
+   * @param ex the exception containing details about the duplicate user-role assignment
+   * @param handlerMethod the handler method where the exception occurred
+   * @param request the current web request
+   * @return an ErrorResponse containing the error details and request path
+   */
+  @ExceptionHandler(value = UserAlreadyExistInVsumWithSameRoleException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse userAlreadyExistInVsumWithSameRoleException(
+      UserAlreadyExistInVsumWithSameRoleException ex,
+      HandlerMethod handlerMethod,
+      ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(UserAlreadyExistInVsumWithSameRoleException.messageTemplate)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link MetaModelUsedInVsumException} thrown when a metamodel is in use by a VSUM.
+   * Returns an {@link ErrorResponse} with HTTP 400 (Bad Request) status, including the error
+   * message and request path.
+   *
+   * @param ex the thrown {@code MetaModelUsingInVsumException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return an {@code ErrorResponse} describing the conflict
+   */
+  @ExceptionHandler(value = MetaModelUsedInVsumException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse metaModelUsedInVsumException(
+      MetaModelUsedInVsumException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles cases where building or validating an MWE2 file fails. When a {@link
    * CreateMwe2FileException} is thrown anywhere in the application, this handler captures it and
    * returns a structured {@link ErrorResponse}. The response includes: The response is sent with
