@@ -1,5 +1,8 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,17 +19,10 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
  */
 @Service
 @Slf4j
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumUserService {
-  private final VsumUserRepository vsumRepository;
-
-  /**
-   * Constructs a new VSUM user service with the given repository.
-   *
-   * @param vsumRepository repository for VSUM user operations
-   */
-  public VsumUserService(VsumUserRepository vsumRepository) {
-    this.vsumRepository = vsumRepository;
-  }
+  VsumUserRepository vsumRepository;
 
   /**
    * Creates a new VSUM user relationship with the specified parameters. Throws an exception if the

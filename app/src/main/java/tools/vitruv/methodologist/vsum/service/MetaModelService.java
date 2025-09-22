@@ -8,6 +8,9 @@ import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERR
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -46,39 +49,16 @@ import tools.vitruv.methodologist.vsum.service.MetamodelBuildService.BuildResult
  */
 @Service
 @Slf4j
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class MetaModelService {
-  private final MetaModelMapper metaModelMapper;
-  private final MetaModelRepository metaModelRepository;
-  private final FileStorageRepository fileStorageRepository;
-  private final UserRepository userRepository;
-  private final MetamodelBuildService metamodelBuildService;
-  private final FileStorageService fileStorageService;
-  private final VsumMetaModelRepository vsumMetaModelRepository;
-
-  /**
-   * Constructs a new MetaModelService with the specified dependencies.
-   *
-   * @param metaModelMapper mapper for MetaModel conversions
-   * @param metaModelRepository repository for metamodel operations
-   * @param fileStorageRepository repository for file storage operations
-   * @param userRepository repository for user operations
-   */
-  public MetaModelService(
-      MetaModelMapper metaModelMapper,
-      MetaModelRepository metaModelRepository,
-      FileStorageRepository fileStorageRepository,
-      UserRepository userRepository,
-      MetamodelBuildService metamodelBuildService,
-      FileStorageService fileStorageService,
-      VsumMetaModelRepository vsumMetaModelRepository) {
-    this.metaModelMapper = metaModelMapper;
-    this.metaModelRepository = metaModelRepository;
-    this.fileStorageRepository = fileStorageRepository;
-    this.userRepository = userRepository;
-    this.metamodelBuildService = metamodelBuildService;
-    this.fileStorageService = fileStorageService;
-    this.vsumMetaModelRepository = vsumMetaModelRepository;
-  }
+  MetaModelMapper metaModelMapper;
+  MetaModelRepository metaModelRepository;
+  FileStorageRepository fileStorageRepository;
+  UserRepository userRepository;
+  MetamodelBuildService metamodelBuildService;
+  FileStorageService fileStorageService;
+  VsumMetaModelRepository vsumMetaModelRepository;
 
   /**
    * Saves a new MetaModel linked to the given user and the uploaded Ecore/GenModel files. Persists
@@ -232,7 +212,8 @@ public class MetaModelService {
   }
 
   /** Holds a MetaModel and its associated file pair. */
-  private static final class PairAndModel {
+  @Transactional
+  public static class PairAndModel {
     final MetaModel metaModel;
     final FilePair files;
 

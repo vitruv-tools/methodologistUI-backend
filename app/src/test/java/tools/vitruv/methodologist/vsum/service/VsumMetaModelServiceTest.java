@@ -2,10 +2,6 @@ package tools.vitruv.methodologist.vsum.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anySet;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.anySet;
 import static org.mockito.Mockito.argThat;
@@ -34,7 +30,6 @@ class VsumMetaModelServiceTest {
   private VsumMetaModelRepository vsumMetaModelRepository;
   private MetaModelService metaModelService;
   private MetaModelRepository metaModelRepository;
-  private VsumMetaModelTransactionalService transactionalService;
 
   private VsumMetaModelService service;
 
@@ -44,12 +39,8 @@ class VsumMetaModelServiceTest {
     metaModelService = mock(MetaModelService.class);
     metaModelRepository = mock(MetaModelRepository.class);
 
-    transactionalService =
-        new VsumMetaModelTransactionalService(
-            vsumMetaModelRepository, metaModelService, metaModelRepository);
     service =
-        new VsumMetaModelService(
-            vsumMetaModelRepository, metaModelService, metaModelRepository, transactionalService);
+        new VsumMetaModelService(vsumMetaModelRepository, metaModelService, metaModelRepository);
   }
 
   private Vsum newVsumWithUserEmail(String email) {
@@ -132,33 +123,6 @@ class VsumMetaModelServiceTest {
   }
 
   @Test
-  void sync_whenIdListNull_deletesAllExisting_andDoesNotCreate() {
-    Vsum vsum = newVsumWithUserEmail("alice@example.com");
-
-    MetaModel original = newOriginalMetaModel(10L);
-    MetaModel cloned = newClonedMetaModel(100L, original);
-    VsumMetaModel link = link(vsum, cloned);
-
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(link));
-
-    VsumMetaModelTransactionalService spyTransactionalService = spy(transactionalService);
-    VsumMetaModelService serviceWithSpy =
-        new VsumMetaModelService(
-            vsumMetaModelRepository,
-            metaModelService,
-            metaModelRepository,
-            spyTransactionalService);
-    doNothing().when(spyTransactionalService).delete(eq(vsum), anyList());
-    doNothing().when(spyTransactionalService).create(any(Vsum.class), anySet());
-
-    serviceWithSpy.sync(vsum, List.of((Long) null));
-
-    verify(spyTransactionalService)
-        .delete(eq(vsum), argThat(list -> list.size() == 1 && list.get(0) == link));
-    verify(spyTransactionalService, never()).create(any(Vsum.class), anySet());
-  }
-
-  @Test
   void sync_whenIdsNull_deletesAllExisting_andDoesNotCreate() {
     Vsum vsum = newVsumWithUserEmail("alice@example.com");
 
@@ -168,21 +132,14 @@ class VsumMetaModelServiceTest {
 
     when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(link));
 
-    VsumMetaModelTransactionalService spyTransactionalService = spy(transactionalService);
-    VsumMetaModelService serviceWithSpy =
-        new VsumMetaModelService(
-            vsumMetaModelRepository,
-            metaModelService,
-            metaModelRepository,
-            spyTransactionalService);
-    doNothing().when(spyTransactionalService).delete(eq(vsum), anyList());
-    doNothing().when(spyTransactionalService).create(any(Vsum.class), anySet());
+    VsumMetaModelService spyService = spy(service);
+    doNothing().when(spyService).delete(eq(vsum), anyList());
+    doNothing().when(spyService).create(any(Vsum.class), anySet());
 
-    serviceWithSpy.sync(vsum, null);
+    spyService.sync(vsum, null);
 
-    verify(spyTransactionalService)
-        .delete(eq(vsum), argThat(list -> list.size() == 1 && list.get(0) == link));
-    verify(spyTransactionalService, never()).create(any(Vsum.class), anySet());
+    verify(spyService).delete(eq(vsum), argThat(list -> list.size() == 1 && list.get(0) == link));
+    verify(spyService, never()).create(any(Vsum.class), anySet());
   }
 
   @Test
@@ -197,25 +154,19 @@ class VsumMetaModelServiceTest {
 
     List<Long> desired = List.of(2L);
 
-    VsumMetaModelTransactionalService spyTransactionalService = spy(transactionalService);
-    VsumMetaModelService serviceWithSpy =
-        new VsumMetaModelService(
-            vsumMetaModelRepository,
-            metaModelService,
-            metaModelRepository,
-            spyTransactionalService);
-    doNothing().when(spyTransactionalService).delete(eq(vsum), anyList());
-    doNothing().when(spyTransactionalService).create(any(Vsum.class), anySet());
+    VsumMetaModelService spyService = spy(service);
+    doNothing().when(spyService).delete(eq(vsum), anyList());
+    doNothing().when(spyService).create(any(Vsum.class), anySet());
 
-    serviceWithSpy.sync(vsum, desired);
+    spyService.sync(vsum, desired);
 
-    verify(spyTransactionalService)
+    verify(spyService)
         .delete(
             eq(vsum),
             argThat(
                 list ->
                     list.size() == 1 && list.get(0).getMetaModel().getSource().getId().equals(1L)));
-    verify(spyTransactionalService).create(eq(vsum), eq(Set.of(2L)));
+    verify(spyService).create(eq(vsum), eq(Set.of(2L)));
   }
 
   @Test
@@ -230,20 +181,14 @@ class VsumMetaModelServiceTest {
 
     List<Long> desired = List.of(1L, 2L);
 
-    VsumMetaModelTransactionalService spyTransactionalService = spy(transactionalService);
-    VsumMetaModelService serviceWithSpy =
-        new VsumMetaModelService(
-            vsumMetaModelRepository,
-            metaModelService,
-            metaModelRepository,
-            spyTransactionalService);
-    doNothing().when(spyTransactionalService).delete(eq(vsum), anyList());
-    doNothing().when(spyTransactionalService).create(any(Vsum.class), anySet());
+    VsumMetaModelService spyService = spy(service);
+    doNothing().when(spyService).delete(eq(vsum), anyList());
+    doNothing().when(spyService).create(any(Vsum.class), anySet());
 
-    serviceWithSpy.sync(vsum, desired);
+    spyService.sync(vsum, desired);
 
-    verify(spyTransactionalService, never()).delete(any(Vsum.class), anyList());
-    verify(spyTransactionalService).create(vsum, (Set.of(2L)));
+    verify(spyService, never()).delete(any(Vsum.class), anyList());
+    verify(spyService).create(eq(vsum), eq(Set.of(2L)));
   }
 
   @Test
@@ -262,25 +207,19 @@ class VsumMetaModelServiceTest {
 
     List<Long> desired = List.of(1L);
 
-    VsumMetaModelTransactionalService spyTransactionalService = spy(transactionalService);
-    VsumMetaModelService serviceWithSpy =
-        new VsumMetaModelService(
-            vsumMetaModelRepository,
-            metaModelService,
-            metaModelRepository,
-            spyTransactionalService);
-    doNothing().when(spyTransactionalService).delete(eq(vsum), anyList());
-    doNothing().when(spyTransactionalService).create(any(Vsum.class), anySet());
+    VsumMetaModelService spyService = spy(service);
+    doNothing().when(spyService).delete(eq(vsum), anyList());
+    doNothing().when(spyService).create(any(Vsum.class), anySet());
 
-    serviceWithSpy.sync(vsum, desired);
+    spyService.sync(vsum, desired);
 
-    verify(spyTransactionalService)
+    verify(spyService)
         .delete(
             eq(vsum),
             argThat(
                 list ->
                     list.size() == 1 && list.get(0).getMetaModel().getSource().getId().equals(2L)));
-    verify(spyTransactionalService, never()).create(any(Vsum.class), anySet());
+    verify(spyService, never()).create(any(Vsum.class), anySet());
   }
 
   @Test
@@ -296,13 +235,12 @@ class VsumMetaModelServiceTest {
     List<Long> desired = List.of(5L);
 
     VsumMetaModelService spyService = spy(service);
-    VsumMetaModelTransactionalService spyTransactionalService = spy(transactionalService);
-    doNothing().when(spyTransactionalService).delete(eq(vsum), anyList());
-    doNothing().when(spyTransactionalService).create(any(Vsum.class), anySet());
+    doNothing().when(spyService).delete(eq(vsum), anyList());
+    doNothing().when(spyService).create(any(Vsum.class), anySet());
 
     spyService.sync(vsum, desired);
 
-    verify(spyTransactionalService, never()).delete(any(Vsum.class), anyList());
-    verify(spyTransactionalService, never()).create(any(Vsum.class), anySet());
+    verify(spyService, never()).delete(any(Vsum.class), anyList());
+    verify(spyService, never()).create(any(Vsum.class), anySet());
   }
 }
