@@ -78,16 +78,20 @@ public class UserController {
   }
 
   /**
-   * Retrieves a user by ID.
+   * Retrieves the authenticated user's information. This endpoint requires the user to have the
+   * 'user' role.
    *
-   * @param id the ID of the user to retrieve
-   * @return a response template containing the user data
+   * @param authentication the Keycloak authentication object containing user details
+   * @return ResponseTemplateDto containing the user's information
    */
-  @GetMapping("/v1/users/{id}")
+  @GetMapping("/v1/users")
   @PreAuthorize("hasRole('user')")
-  public ResponseTemplateDto<UserResponse> findById(
-      KeycloakAuthentication authentication, @PathVariable Long id) {
-    return ResponseTemplateDto.<UserResponse>builder().data(userService.findById(id)).build();
+  public ResponseTemplateDto<UserResponse> findByCallerEmail(
+      KeycloakAuthentication authentication) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    return ResponseTemplateDto.<UserResponse>builder()
+        .data(userService.findByEmail(callerEmail))
+        .build();
   }
 
   /**

@@ -1,14 +1,20 @@
 package tools.vitruv.methodologist.general.service;
 
+import static tools.vitruv.methodologist.messages.Error.FILE_HASHING_EXCEPTION;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import tools.vitruv.methodologist.exception.FileAlreadyExistsException;
+import tools.vitruv.methodologist.exception.FileHashingException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
@@ -23,36 +29,32 @@ import tools.vitruv.methodologist.user.model.repository.UserRepository;
  * files. Provides deduplication of files based on SHA-256 hash and file size.
  */
 @Service
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class FileStorageService {
-  private final FileStorageRepository fileStorageRepository;
-  private final UserRepository userRepository;
-  private final FileStorageMapper fileStorageMapper;
+  FileStorageRepository fileStorageRepository;
+  UserRepository userRepository;
+  FileStorageMapper fileStorageMapper;
 
   /**
-   * Constructs a new FileStorageService with the specified repositories.
+   * Computes the SHA\-256 digest of the given bytes and returns its lowercase hexadecimal string.
    *
-   * @param fileStorageRepository repository for file storage operations
-   * @param userRepository repository for user operations
-   */
-  public FileStorageService(
-      FileStorageRepository fileStorageRepository,
-      UserRepository userRepository,
-      FileStorageMapper fileStorageMapper) {
-    this.fileStorageRepository = fileStorageRepository;
-    this.userRepository = userRepository;
-    this.fileStorageMapper = fileStorageMapper;
-  }
-
-  /**
-   * Calculates the SHA-256 hash of the given data and returns it as a hexadecimal string.
+   * <p>Uses {@link java.security.MessageDigest} with the {@code SHA\-256} algorithm and wraps any
+   * algorithm lookup failure into {@link
+   * tools.vitruv.methodologist.exception.FileHashingException}.
    *
-   * @param data the byte array to hash
-   * @return hexadecimal string representation of the SHA-256 hash
-   * @throws Exception if the hashing algorithm is not available
+   * @param data the bytes to hash; must not be {@code null}
+   * @return lowercase hex representation of the SHA\-256 digest
+   * @throws tools.vitruv.methodologist.exception.FileHashingException if hashing cannot be
+   *     performed
    */
-  private static String sha256Hex(byte[] data) throws Exception {
-    MessageDigest md = MessageDigest.getInstance("SHA-256");
-    return HexFormat.of().formatHex(md.digest(data));
+  private String sha256Hex(byte[] data) {
+    try {
+      MessageDigest md = MessageDigest.getInstance("SHA-256");
+      return HexFormat.of().formatHex(md.digest(data));
+    } catch (NoSuchAlgorithmException e) {
+      throw new FileHashingException(FILE_HASHING_EXCEPTION, e);
+    }
   }
 
   /**

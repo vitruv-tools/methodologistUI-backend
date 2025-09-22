@@ -2,6 +2,9 @@ package tools.vitruv.methodologist.general.service;
 
 import static tools.vitruv.methodologist.messages.Error.CLIENT_NOT_FOUND_ERROR;
 
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.ResponseTemplateDto;
@@ -16,22 +19,11 @@ import tools.vitruv.methodologist.general.model.repository.VersioningRepository;
  * and other general functionality.
  */
 @Service
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class GeneralService {
-
-  private final VersioningRepository versioningRepository;
-  private final VersioningMapper versioningMapper;
-
-  /**
-   * Constructs a new GeneralService with the specified dependencies.
-   *
-   * @param versioningRepository repository for version information
-   * @param versioningMapper mapper for version-related conversions
-   */
-  public GeneralService(
-      VersioningRepository versioningRepository, VersioningMapper versioningMapper) {
-    this.versioningRepository = versioningRepository;
-    this.versioningMapper = versioningMapper;
-  }
+  VersioningRepository versioningRepository;
+  VersioningMapper versioningMapper;
 
   /**
    * Retrieves the latest version information for a specified client application.
