@@ -6,9 +6,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import org.hibernate.boot.model.naming.IllegalIdentifierException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
@@ -33,7 +31,21 @@ public class MetaModelRelationService {
     this.metaModelRelationRepository = metaModelRelationRepository;
   }
 
-  @Transactional
+  /**
+   * Synchronizes persisted relations for the given {@link Vsum} and source {@link MetaModel} to
+   * match the provided desired target meta models.
+   *
+   * <p>Loads existing relations, computes differences by target id, deletes relations for targets
+   * no longer desired, and creates relations for newly desired targets. Ignores {@code null} and
+   * duplicate entries in {@code desiredTargets}. A {@code null} {@code desiredTargets} is treated
+   * as an empty list (removing all existing targets).
+   *
+   * @param vsum the VSUM context whose relations are synchronized; must not be {@code null}
+   * @param sourceMetaModel the source meta model whose outgoing relations are synchronized; must
+   *     not be {@code null}
+   * @param desiredTargets the desired set of target meta models; may be {@code null}, {@code null}
+   *     elements are ignored
+   */
   public void sync(Vsum vsum, MetaModel sourceMetaModel, List<MetaModel> desiredTargets) {
     List<MetaModel> desired =
         desiredTargets == null
@@ -80,16 +92,8 @@ public class MetaModelRelationService {
    *     {@code source}
    * @param targetMetaModels the target {@link MetaModel} instances; each must have a non\-null
    *     {@code source}
-   * @throws IllegalIdentifierException if the source or any target has a {@code null} {@code
-   *     source}
    */
-  @Transactional
   public void create(Vsum vsum, MetaModel sourceMetaModel, List<MetaModel> targetMetaModels) {
-    if (sourceMetaModel.getSource() == null
-        || targetMetaModels.stream().anyMatch(metaModel -> metaModel.getSource() == null)) {
-      throw new IllegalIdentifierException("Choosen meta models are not valid");
-    }
-
     List<MetaModelRelation> newMetaModelRelations =
         targetMetaModels.stream()
             .map(
@@ -113,7 +117,6 @@ public class MetaModelRelationService {
    * @param sourceMetaModel the source meta model of the relations to delete
    * @param targetMetaModels the target meta models to match \(`IN` clause\)
    */
-  @Transactional
   public void delete(Vsum vsum, MetaModel sourceMetaModel, List<MetaModel> targetMetaModels) {
     metaModelRelationRepository.deleteByVsumAndSourceAndTargetIn(
         vsum, sourceMetaModel, targetMetaModels);
