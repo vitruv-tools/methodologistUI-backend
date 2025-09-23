@@ -14,6 +14,7 @@ import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
+import tools.vitruv.methodologist.vsum.VsumRole;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
@@ -46,6 +47,7 @@ public class VsumService {
   VsumMetaModelService vsumMetaModelService;
   UserRepository userRepository;
   VsumUserRepository vsumUserRepository;
+  private final VsumUserService vsumUserService;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -62,6 +64,7 @@ public class VsumService {
     Vsum vsum = vsumMapper.toVsum(vsumPostRequest);
     vsum.setUser(user);
     vsum = vsumRepository.save(vsum);
+    vsumUserService.create(vsum, user, VsumRole.OWNER);
     return vsum;
   }
 

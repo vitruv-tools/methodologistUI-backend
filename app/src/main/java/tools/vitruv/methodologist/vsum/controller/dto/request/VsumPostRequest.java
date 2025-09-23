@@ -19,4 +19,5 @@ import lombok.Setter;
 @NoArgsConstructor
 public class VsumPostRequest {
   @NotNull @NotBlank private String name;
+  private String description;
 }

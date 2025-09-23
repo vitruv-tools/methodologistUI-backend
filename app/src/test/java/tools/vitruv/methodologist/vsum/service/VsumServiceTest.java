@@ -22,6 +22,7 @@ import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
+import tools.vitruv.methodologist.vsum.VsumRole;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
@@ -42,6 +43,7 @@ class VsumServiceTest {
   @Mock private VsumMetaModelService vsumMetaModelService;
   @Mock private UserRepository userRepository;
   @Mock private VsumUserRepository vsumUserRepository;
+  @Mock private VsumUserService vsumUserService;
 
   private VsumService service;
 
@@ -54,7 +56,8 @@ class VsumServiceTest {
             metaModelMapper,
             vsumMetaModelService,
             userRepository,
-            vsumUserRepository);
+            vsumUserRepository,
+            vsumUserService);
   }
 
   @Test
@@ -78,6 +81,7 @@ class VsumServiceTest {
     assertThat(result.getId()).isEqualTo(10L);
     assertThat(mapped.getUser()).isSameAs(user);
     verify(vsumRepository).save(mapped);
+    verify(vsumUserService).create(saved, user, VsumRole.OWNER);
   }
 
   @Test
