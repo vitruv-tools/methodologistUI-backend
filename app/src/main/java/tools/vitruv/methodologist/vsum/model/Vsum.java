@@ -38,6 +38,7 @@ public class Vsum {
   private Long id;
 
   @NotNull private String name;
+  private String description;
 
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY)

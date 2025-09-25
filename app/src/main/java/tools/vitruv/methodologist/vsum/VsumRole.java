@@ -7,6 +7,7 @@ import lombok.Getter;
  * Modification). Defines possible user roles and their string representations.
  */
 public enum VsumRole {
+  OWNER("owner"),
   MEMBER("member");
 
   @Getter private final String name;
