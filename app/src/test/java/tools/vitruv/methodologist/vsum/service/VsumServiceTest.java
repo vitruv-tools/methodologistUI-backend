@@ -44,6 +44,7 @@ class VsumServiceTest {
   @Mock private UserRepository userRepository;
   @Mock private VsumUserRepository vsumUserRepository;
   @Mock private VsumUserService vsumUserService;
+  @Mock private MetaModelRelationService metaModelRelationService;
 
   private VsumService service;
 
@@ -57,7 +58,9 @@ class VsumServiceTest {
             vsumMetaModelService,
             userRepository,
             vsumUserRepository,
-            vsumUserService);
+            vsumUserService,
+            metaModelRelationService,
+            null);
   }
 
   @Test

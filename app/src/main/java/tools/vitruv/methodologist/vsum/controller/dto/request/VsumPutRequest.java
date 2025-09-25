@@ -21,4 +21,5 @@ import lombok.Setter;
 public class VsumPutRequest {
   @NotNull @NotBlank private String name;
   @NotNull private List<Long> metaModelIds;
+  private List<MetaModelRelationRequest> metaModelRelationRequests;
 }

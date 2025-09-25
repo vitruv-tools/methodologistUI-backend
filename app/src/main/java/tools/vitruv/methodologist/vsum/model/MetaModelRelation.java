@@ -7,7 +7,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import lombok.AllArgsConstructor;
@@ -32,8 +31,6 @@ public class MetaModelRelation {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @NotNull @NotBlank private String name;
-
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "vsum_id")
@@ -52,7 +49,7 @@ public class MetaModelRelation {
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "reaction_file_id")
-  private FileStorage fileStorage;
+  private FileStorage reactionFileStorage;
 
   @CreationTimestamp private Instant createdAt;
 }

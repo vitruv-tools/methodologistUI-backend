@@ -1,6 +1,8 @@
 package tools.vitruv.methodologist.general.model.repository;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.data.repository.CrudRepository;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -37,4 +39,14 @@ public interface FileStorageRepository extends CrudRepository<FileStorage, Long>
    *     java.util.Optional} if no match exists
    */
   Optional<FileStorage> findByIdAndType(Long id, FileEnumType type);
+
+  /**
+   * Retrieves all {@link FileStorage} entities whose IDs are contained in the given set.
+   *
+   * <p>Duplicates are ignored. If the set is empty, an empty list is returned.
+   *
+   * @param fileIds the set of file IDs to match; must not be {@code null}
+   * @return a list of matching {@link FileStorage} entities
+   */
+  List<FileStorage> findAllByIdIn(Set<Long> fileIds);
 }

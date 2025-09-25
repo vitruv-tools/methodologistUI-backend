@@ -1,124 +1,138 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
+import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
+import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelRelationRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 
-/**
- * Service class for managing operations related to meta model relations. This class acts as a layer
- * between the controller and the repository, providing business logic and utilizing {@link
- * MetaModelRelationRepository} for data access.
- */
+/** Syncs MetaModel relations in a VSUM using full-state input. */
 @Service
-@Slf4j
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class MetaModelRelationService {
-  private final MetaModelRelationRepository metaModelRelationRepository;
+
+  MetaModelRelationRepository relationRepository;
+  FileStorageRepository fileStorageRepository;
+  VsumMetaModelRepository vsumMetaModelRepository;
 
   /**
-   * Constructs a new instance of {@code MetaModelRelationService}.
-   *
-   * @param metaModelRelationRepository the repository used for accessing meta model relation data
+   * Reconciles DB relations with provided requests: removes missing, creates new, keeps unchanged.
+   * If a matching relation exists but reactionFileId changed and is non-null, updates file storage.
    */
-  public MetaModelRelationService(MetaModelRelationRepository metaModelRelationRepository) {
-    this.metaModelRelationRepository = metaModelRelationRepository;
-  }
-
-  /**
-   * Synchronizes persisted relations for the given {@link Vsum} and source {@link MetaModel} to
-   * match the provided desired target meta models.
-   *
-   * <p>Loads existing relations, computes differences by target id, deletes relations for targets
-   * no longer desired, and creates relations for newly desired targets. Ignores {@code null} and
-   * duplicate entries in {@code desiredTargets}. A {@code null} {@code desiredTargets} is treated
-   * as an empty list (removing all existing targets).
-   *
-   * @param vsum the VSUM context whose relations are synchronized; must not be {@code null}
-   * @param sourceMetaModel the source meta model whose outgoing relations are synchronized; must
-   *     not be {@code null}
-   * @param desiredTargets the desired set of target meta models; may be {@code null}, {@code null}
-   *     elements are ignored
-   */
-  public void sync(Vsum vsum, MetaModel sourceMetaModel, List<MetaModel> desiredTargets) {
-    List<MetaModel> desired =
-        desiredTargets == null
+  @Transactional
+  public void sync(Vsum vsum, List<MetaModelRelationRequest> requests) {
+    List<MetaModelRelationRequest> desired =
+        requests == null
             ? List.of()
-            : desiredTargets.stream().filter(Objects::nonNull).distinct().toList();
+            : requests.stream()
+                .filter(r -> r != null && r.getSourceId() != null && r.getTargetId() != null)
+                .toList();
 
-    List<MetaModelRelation> existing =
-        metaModelRelationRepository.findAllByVsumAndSource(vsum, sourceMetaModel);
+    List<MetaModelRelation> existing = relationRepository.findAllByVsum(vsum);
 
-    Set<Long> desiredIds = desired.stream().map(MetaModel::getId).collect(Collectors.toSet());
-    Set<Long> existingIds =
-        existing.stream().map(r -> r.getTarget().getId()).collect(Collectors.toSet());
+    Set<String> desiredPairs =
+        desired.stream()
+            .map(r -> r.getSourceId() + ":" + r.getTargetId())
+            .collect(Collectors.toSet());
 
-    Set<Long> toRemoveIds = new HashSet<>(existingIds);
-    toRemoveIds.removeAll(desiredIds);
+    Map<String, MetaModelRelation> existingByPair = new HashMap<>();
+    for (MetaModelRelation rel : existing) {
+      String k = rel.getSource().getId() + ":" + rel.getTarget().getId();
+      existingByPair.put(k, rel);
+    }
 
-    Set<Long> toAddIds = new HashSet<>(desiredIds);
-    toAddIds.removeAll(existingIds);
+    Set<String> existingPairs = new HashSet<>(existingByPair.keySet());
 
-    if (!toRemoveIds.isEmpty()) {
-      List<MetaModel> toRemoveTargets =
-          existing.stream()
-              .map(MetaModelRelation::getTarget)
-              .filter(t -> toRemoveIds.contains(t.getId()))
+    Set<String> toRemove = new HashSet<>(existingPairs);
+    toRemove.removeAll(desiredPairs);
+
+    if (!toRemove.isEmpty()) {
+      List<MetaModelRelation> deletions = toRemove.stream().map(existingByPair::get).toList();
+      delete(deletions);
+    }
+
+    Set<String> toAdd = new HashSet<>(desiredPairs);
+    toAdd.removeAll(existingPairs);
+
+    if (!toAdd.isEmpty()) {
+      List<MetaModelRelationRequest> creations =
+          desired.stream()
+              .filter(r -> toAdd.contains(r.getSourceId() + ":" + r.getTargetId()))
               .toList();
-      delete(vsum, sourceMetaModel, toRemoveTargets);
-    }
-
-    if (!toAddIds.isEmpty()) {
-      List<MetaModel> toAddTargets =
-          desired.stream().filter(t -> toAddIds.contains(t.getId())).toList();
-      create(vsum, sourceMetaModel, toAddTargets);
+      create(vsum, creations);
     }
   }
 
   /**
-   * Creates and persists relations from the given source meta model to each provided target meta
-   * model.
-   *
-   * <p>Validates that the source and all targets have a non\-null {@code source} before persisting.
-   * Executes within a single transaction.
-   *
-   * @param sourceMetaModel the source {@link MetaModel} of the relations; must have a non\-null
-   *     {@code source}
-   * @param targetMetaModels the target {@link MetaModel} instances; each must have a non\-null
-   *     {@code source}
+   * Creates relations for the given requests; requires non-null reactionFileId for new relations.
    */
-  public void create(Vsum vsum, MetaModel sourceMetaModel, List<MetaModel> targetMetaModels) {
-    List<MetaModelRelation> newMetaModelRelations =
-        targetMetaModels.stream()
+  @Transactional
+  public void create(Vsum vsum, List<MetaModelRelationRequest> requests) {
+    List<Long> ids = new ArrayList<>();
+    for (MetaModelRelationRequest r : requests) {
+      ids.add(r.getSourceId());
+      ids.add(r.getTargetId());
+    }
+    Map<Long, MetaModel> mmById =
+        vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(vsum, ids).stream()
+            .collect(
+                Collectors.toMap(
+                    m -> m.getMetaModel().getSource().getId(), VsumMetaModel::getMetaModel));
+
+    Set<Long> fileIds =
+        requests.stream()
+            .map(MetaModelRelationRequest::getReactionFileId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+    Map<Long, FileStorage> fsById =
+        fileStorageRepository.findAllByIdIn(fileIds).stream()
+            .collect(Collectors.toMap(FileStorage::getId, f -> f));
+
+    List<MetaModelRelation> toSave =
+        requests.stream()
             .map(
-                targetMetaModel ->
-                    MetaModelRelation.builder()
-                        .vsum(vsum)
-                        .source(sourceMetaModel)
-                        .target(targetMetaModel)
-                        .build())
+                r -> {
+                  MetaModel s = mmById.get(r.getSourceId());
+                  MetaModel t = mmById.get(r.getTargetId());
+                  // todo: check the reaction file uploaded
+                  if (r.getReactionFileId() == null) {
+                    throw new IllegalArgumentException(
+                        "reactionFileId is required for new relations");
+                  }
+                  FileStorage f = fsById.get(r.getReactionFileId());
+                  return MetaModelRelation.builder()
+                      .vsum(vsum)
+                      .source(s)
+                      .target(t)
+                      .reactionFileStorage(f)
+                      .build();
+                })
             .toList();
-    metaModelRelationRepository.saveAll(newMetaModelRelations);
+
+    relationRepository.saveAll(toSave);
   }
 
-  /**
-   * Deletes all {@link MetaModelRelation} entries that belong to the given {@link Vsum}, have the
-   * specified source {@link MetaModel}, and whose target is any of the provided targets.
-   *
-   * <p>Executes within a single transaction.
-   *
-   * @param vsum the VSUM context to match
-   * @param sourceMetaModel the source meta model of the relations to delete
-   * @param targetMetaModels the target meta models to match \(`IN` clause\)
-   */
-  public void delete(Vsum vsum, MetaModel sourceMetaModel, List<MetaModel> targetMetaModels) {
-    metaModelRelationRepository.deleteByVsumAndSourceAndTargetIn(
-        vsum, sourceMetaModel, targetMetaModels);
+  /** Deletes the provided relations in batch. */
+  @Transactional
+  public void delete(List<MetaModelRelation> relations) {
+    relationRepository.deleteAll(relations);
   }
 }

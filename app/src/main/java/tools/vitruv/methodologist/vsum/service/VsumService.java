@@ -17,11 +17,14 @@ import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelationResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
+import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
+import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumUser;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
@@ -47,7 +50,9 @@ public class VsumService {
   VsumMetaModelService vsumMetaModelService;
   UserRepository userRepository;
   VsumUserRepository vsumUserRepository;
-  private final VsumUserService vsumUserService;
+  VsumUserService vsumUserService;
+  MetaModelRelationService metaModelRelationService;
+  private final MetaModelRelationMapper metaModelRelationMapper;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -85,6 +90,7 @@ public class VsumService {
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
     vsumMapper.updateByVsumPutRequest(vsumPutRequest, vsum);
     vsumMetaModelService.sync(vsum, vsumPutRequest.getMetaModelIds());
+    metaModelRelationService.sync(vsum, vsumPutRequest.getMetaModelRelationRequests());
     vsumRepository.save(vsum);
     return vsum;
   }
@@ -151,8 +157,15 @@ public class VsumService {
             .stream()
                 .map(metaModel -> metaModelMapper.toMetaModelResponse(metaModel.getMetaModel()))
                 .toList();
-
     response.setMetaModels(metaModels);
+
+    List<MetaModelRelationResponse> metaModelRelation =
+        (vsum.getMetaModelRelations() == null
+                ? List.<MetaModelRelation>of()
+                : vsum.getMetaModelRelations())
+            .stream().map(metaModelRelationMapper::toMetaModelRelationResponse).toList();
+    response.setMetaModelsrelation(metaModelRelation);
+
     return response;
   }
 
