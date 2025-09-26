@@ -347,7 +347,7 @@ class VsumServiceTest {
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelRelationRequests(List.of(req));
 
-    Vsum result = service.update(email, 2L, put);
+    service.update(email, 2L, put);
 
     verify(metaModelRelationService).create(vsum, List.of(req));
 
