@@ -1,7 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import lombok.AccessLevel;
@@ -9,7 +8,6 @@ import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
@@ -68,22 +66,5 @@ public class VsumMetaModelService {
     vsum.getVsumMetaModels().removeAll(vsumMetaModels);
     metaModelService.deleteCloned(
         vsumMetaModels.stream().map(VsumMetaModel::getMetaModel).toList());
-  }
-
-  public void findDeletedMetaModelsRelationOrThrow(
-      Set<Long> removed, List<MetaModelRelationRequest> metaModelRelationRequests) {
-    Set<Long> metaModelsRelationExistInRequest = new HashSet<>();
-    metaModelsRelationExistInRequest.addAll(
-        metaModelRelationRequests.stream()
-            .map(metaModelRelationRequest -> metaModelRelationRequest.getSourceId())
-            .toList());
-    metaModelsRelationExistInRequest.addAll(
-        metaModelRelationRequests.stream()
-            .map(metaModelRelationRequest -> metaModelRelationRequest.getTargetId())
-            .toList());
-
-    if (removed.containsAll(metaModelsRelationExistInRequest)) {
-      //      throw new Can
-    }
   }
 }
