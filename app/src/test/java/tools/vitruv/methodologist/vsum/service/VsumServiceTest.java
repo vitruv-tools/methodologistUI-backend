@@ -24,7 +24,7 @@ import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
-import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
@@ -114,7 +114,7 @@ class VsumServiceTest {
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(7L, email))
         .thenReturn(Optional.empty());
 
-    VsumPutRequest put = new VsumPutRequest();
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
 
     assertThatThrownBy(() -> service.update(email, 7L, put))
         .isInstanceOf(NotFoundException.class)

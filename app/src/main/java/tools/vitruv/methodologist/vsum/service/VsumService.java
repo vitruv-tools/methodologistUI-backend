@@ -24,6 +24,7 @@ import tools.vitruv.methodologist.vsum.VsumRole;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelationResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
@@ -86,6 +87,31 @@ public class VsumService {
   }
 
   /**
+   * Updates the specified VSUM entity owned by the caller with the provided request data.
+   *
+   * <p>Only mutable fields defined in {@link VsumPutRequest} are updated. The operation is
+   * transactional. Throws {@link NotFoundException} if the VSUM does not exist, is removed, or does
+   * not belong to the caller.
+   *
+   * @param callerEmail the authenticated user's email; must own the VSUM
+   * @param id the identifier of the VSUM to update
+   * @param vsumPutRequest the request containing updated VSUM fields
+   * @return the updated {@link VsumResponse}
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if the VSUM is not found or
+   *     unauthorized
+   */
+  @Transactional
+  public VsumResponse update(String callerEmail, Long id, VsumPutRequest vsumPutRequest) {
+    Vsum vsum =
+        vsumRepository
+            .findByIdAndUser_emailAndRemovedAtIsNull(id, callerEmail)
+            .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
+    vsumMapper.updateByVsumPutRequest(vsumPutRequest, vsum);
+    vsumRepository.save(vsum);
+    return vsumMapper.toVsumResponse(vsum);
+  }
+
+  /**
    * Updates a VSUM owned by the caller and synchronizes its meta-models and meta-model relations
    * with the provided request.
    *
@@ -95,13 +121,14 @@ public class VsumService {
    *
    * @param callerEmail the authenticated user's email; must own the VSUM
    * @param id the VSUM identifier to update
-   * @param vsumPutRequest the desired state (meta-model IDs and relation definitions)
+   * @param vsumSyncChangesPutRequest the desired state (meta-model IDs and relation definitions)
    * @return the persisted, updated {@link Vsum}
    * @throws tools.vitruv.methodologist.exception.NotFoundException if the VSUM does not exist, is
    *     removed, or does not belong to the caller
    */
   @Transactional
-  public Vsum update(String callerEmail, Long id, VsumPutRequest vsumPutRequest) {
+  public Vsum update(
+      String callerEmail, Long id, VsumSyncChangesPutRequest vsumSyncChangesPutRequest) {
     Vsum vsum =
         vsumRepository
             .findByIdAndUser_emailAndRemovedAtIsNull(id, callerEmail)
@@ -109,9 +136,9 @@ public class VsumService {
     //    vsumMapper.updateByVsumPutRequest(vsumPutRequest, vsum);
 
     List<MetaModelRelationRequest> desiredMetaModelRelation =
-        vsumPutRequest.getMetaModelRelationRequests() == null
+        vsumSyncChangesPutRequest.getMetaModelRelationRequests() == null
             ? List.of()
-            : vsumPutRequest.getMetaModelRelationRequests().stream()
+            : vsumSyncChangesPutRequest.getMetaModelRelationRequests().stream()
                 .filter(
                     metaModelRelationRequest ->
                         metaModelRelationRequest != null
@@ -152,7 +179,7 @@ public class VsumService {
       vsum.getMetaModelRelations().removeAll(deletions);
     }
 
-    List<Long> metaModelIds = vsumPutRequest.getMetaModelIds();
+    List<Long> metaModelIds = vsumSyncChangesPutRequest.getMetaModelIds();
     List<VsumMetaModel> existingVsumMetaModel = vsumMetaModelRepository.findAllByVsum(vsum);
 
     Set<Long> existingVsumMetaModelIds =

@@ -25,10 +25,15 @@ public interface VsumMapper {
   Vsum toVsum(VsumPostRequest vsumPostRequest);
 
   /**
-   * Updates an existing VSUM domain entity with data from a VSUM update request DTO.
+   * Updates the given {@link Vsum} in place from the fields of the provided {@link VsumPutRequest}
+   * using MapStruct.
    *
-   * @param vsumPutRequest the DTO containing VSUM update data
-   * @param vsum the existing VSUM entity to be updated
+   * <p>Unmapped target properties are ignored. If {@code vsumPutRequest} is {@code null}, no
+   * changes are applied. By default, {@code null} values in the request overwrite the corresponding
+   * properties of {@code vsum}.
+   *
+   * @param vsumPutRequest the source update request; may be {@code null}
+   * @param vsum the existing entity to mutate; must not be {@code null}
    */
   void updateByVsumPutRequest(VsumPutRequest vsumPutRequest, @MappingTarget Vsum vsum);
 
