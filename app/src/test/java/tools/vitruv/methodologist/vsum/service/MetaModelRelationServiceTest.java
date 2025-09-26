@@ -75,7 +75,7 @@ class MetaModelRelationServiceTest {
 
     List<MetaModelRelation> saved = captor.getValue();
 
-    assertThat(1).isEqualTo(saved.size());
+    assertThat(saved.size()).isEqualTo(1);
     MetaModelRelation rel = saved.get(0);
     assertThat(sourceMM).isEqualTo(rel.getSource());
     assertThat(targetMM).isEqualTo(rel.getTarget());
@@ -89,7 +89,9 @@ class MetaModelRelationServiceTest {
     when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
         .thenReturn(List.of());
 
-    assertThrows(NotFoundException.class, () -> service.create(vsum, List.of(req)));
+    List<MetaModelRelationRequest> requests = List.of(req);
+
+    assertThrows(NotFoundException.class, () -> service.create(vsum, requests));
   }
 
   @Test
@@ -104,8 +106,9 @@ class MetaModelRelationServiceTest {
     when(fileStorageRepository.findAllByIdInAndType(anySet(), eq(FileEnumType.REACTION)))
         .thenReturn(List.of());
 
-    assertThrows(NotFoundException.class, () -> service.create(vsum, List.of(req)));
+    List<MetaModelRelationRequest> requests = List.of(req);
 
+    assertThrows(NotFoundException.class, () -> service.create(vsum, requests));
     verifyNoInteractions(metaModelRelationRepository);
   }
 

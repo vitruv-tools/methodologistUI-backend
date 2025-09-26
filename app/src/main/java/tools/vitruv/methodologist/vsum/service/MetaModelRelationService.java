@@ -117,10 +117,6 @@ public class MetaModelRelationService {
       return;
     }
 
-    // (Optional) If you must avoid duplicates already existing in DB,
-    // todo: either enforce a unique constraint (vsum_id, source_id, target_id, reaction_file_id)
-    // or query & filter here before saving.
-
     metaModelRelationRepository.saveAll(toSave);
   }
 

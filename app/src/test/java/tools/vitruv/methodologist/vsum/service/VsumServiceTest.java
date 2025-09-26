@@ -323,8 +323,7 @@ class VsumServiceTest {
         .delete(
             org.mockito.ArgumentMatchers.argThat(list -> list.size() == 1 && list.contains(relCD)));
 
-    assertThat(result.getMetaModelRelations()).doesNotContain(relCD);
-
+    assertThat(result.getMetaModelRelations()).isNotNull().isNotEmpty().doesNotContain(relCD);
     verify(vsumRepository).save(vsum);
   }
 
