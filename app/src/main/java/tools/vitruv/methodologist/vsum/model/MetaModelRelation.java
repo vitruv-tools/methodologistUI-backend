@@ -7,6 +7,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import lombok.AllArgsConstructor;
@@ -25,6 +27,12 @@ import tools.vitruv.methodologist.general.model.FileStorage;
 @Entity
 @NoArgsConstructor
 @AllArgsConstructor
+@Table(
+    uniqueConstraints = {
+      @UniqueConstraint(
+          name = "uk_vsum_source_target_file",
+          columnNames = {"vsum_id", "source_id", "target_id", "reaction_file_id"})
+    })
 public class MetaModelRelation {
 
   @Id

@@ -10,6 +10,9 @@ CREATE TABLE meta_model_relation
 );
 
 ALTER TABLE meta_model_relation
+    ADD CONSTRAINT uk_vsum_source_target_file UNIQUE (vsum_id, source_id, target_id, reaction_file_id);
+
+ALTER TABLE meta_model_relation
     ADD CONSTRAINT FK_METAMODELRELATION_ON_REACTION_FILE FOREIGN KEY (reaction_file_id) REFERENCES file_storage (id);
 
 ALTER TABLE meta_model_relation

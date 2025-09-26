@@ -30,7 +30,10 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
+import tools.vitruv.methodologist.vsum.model.MetaModel;
+import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
+import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 import tools.vitruv.methodologist.vsum.model.VsumUser;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelRelationRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
@@ -53,6 +56,34 @@ class VsumServiceTest {
   @Mock private MetaModelRelationRepository metaModelRelationRepository;
 
   private VsumService service;
+
+  private MetaModel original(long id) {
+    MetaModel m = new MetaModel();
+    m.setId(id);
+    return m;
+  }
+
+  private MetaModel clonedMetaModel(long id, long originalId) {
+    MetaModel metaModel = new MetaModel();
+    metaModel.setId(id);
+    metaModel.setSource(original(originalId));
+    return metaModel;
+  }
+
+  private MetaModelRelation metaModelRelation(Vsum vsum, MetaModel src, MetaModel tgt) {
+    MetaModelRelation metaModelRelation = new MetaModelRelation();
+    metaModelRelation.setVsum(vsum);
+    metaModelRelation.setSource(src);
+    metaModelRelation.setTarget(tgt);
+    return metaModelRelation;
+  }
+
+  private VsumMetaModel vsumMetaModel(Vsum vsum, MetaModel mm) {
+    VsumMetaModel vsumMetaModel = new VsumMetaModel();
+    vsumMetaModel.setVsum(vsum);
+    vsumMetaModel.setMetaModel(mm);
+    return vsumMetaModel;
+  }
 
   @BeforeEach
   void setUp() {
@@ -237,5 +268,237 @@ class VsumServiceTest {
     List<VsumResponse> result = service.findAllByUser(email);
 
     assertThat(result).extracting(VsumResponse::getId).containsExactly(1L, 2L);
+  }
+
+  @Test
+  void update_throwsNotFound_whenNotOwnedOrMissing_new() {
+    String email = "u@ex.com";
+    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(7L, email))
+        .thenReturn(Optional.empty());
+
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+
+    assertThatThrownBy(() -> service.update(email, 7L, put))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
+
+    verifyNoInteractions(
+        metaModelRelationRepository,
+        metaModelRelationService,
+        vsumMetaModelRepository,
+        vsumMetaModelService);
+  }
+
+  @Test
+  void update_removesRelations_whenPairsMissingInDesired() {
+    String email = "u@ex.com";
+
+    Vsum vsum = new Vsum();
+    vsum.setId(1L);
+    vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    vsum.setVsumMetaModels(new java.util.ArrayList<>());
+    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(1L, email))
+        .thenReturn(Optional.of(vsum));
+
+    MetaModel a = clonedMetaModel(10L, 100L);
+    MetaModel b = clonedMetaModel(20L, 200L);
+    MetaModel c = clonedMetaModel(30L, 300L);
+    MetaModel d = clonedMetaModel(40L, 400L);
+
+    MetaModelRelation relAB = metaModelRelation(vsum, a, b);
+    MetaModelRelation relCD = metaModelRelation(vsum, c, d);
+
+    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(relAB, relCD));
+
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    put.setMetaModelRelationRequests(
+        List.of(
+            new tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest(
+                100L, 200L, 999L)));
+
+    Vsum result = service.update(email, 1L, put);
+
+    verify(metaModelRelationService).delete(List.of(relCD));
+    verify(metaModelRelationService)
+        .delete(
+            org.mockito.ArgumentMatchers.argThat(list -> list.size() == 1 && list.contains(relCD)));
+
+    assertThat(result.getMetaModelRelations()).doesNotContain(relCD);
+
+    verify(vsumRepository).save(vsum);
+  }
+
+  @Test
+  void update_createsRelations_whenNewPairsAppear() {
+    String email = "u@ex.com";
+
+    Vsum vsum = new Vsum();
+    vsum.setId(2L);
+    vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    vsum.setVsumMetaModels(new java.util.ArrayList<>());
+    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(2L, email))
+        .thenReturn(Optional.of(vsum));
+
+    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
+
+    var req =
+        new tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest(
+            100L, 200L, 777L);
+
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    put.setMetaModelRelationRequests(List.of(req));
+
+    Vsum result = service.update(email, 2L, put);
+
+    verify(metaModelRelationService).create(vsum, List.of(req));
+
+    verify(vsumRepository).save(vsum);
+  }
+
+  @Test
+  void update_removesVsumMetaModels_notInDesiredList() {
+    String email = "u@ex.com";
+
+    Vsum vsum = new Vsum();
+    vsum.setId(3L);
+    vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    vsum.setVsumMetaModels(new java.util.ArrayList<>());
+    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(3L, email))
+        .thenReturn(Optional.of(vsum));
+
+    MetaModel mm10 = clonedMetaModel(1000L, 10L);
+    MetaModel mm20 = clonedMetaModel(2000L, 20L);
+    MetaModel mm30 = clonedMetaModel(3000L, 30L);
+    VsumMetaModel v10 = vsumMetaModel(vsum, mm10);
+    VsumMetaModel v20 = vsumMetaModel(vsum, mm20);
+    VsumMetaModel v30 = vsumMetaModel(vsum, mm30);
+
+    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v10, v20, v30));
+
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    put.setMetaModelIds(List.of(10L, 30L));
+
+    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
+
+    Vsum result = service.update(email, 3L, put);
+
+    verify(vsumMetaModelService).delete(vsum, List.of(v20));
+    assertThat(result.getVsumMetaModels()).doesNotContain(v20);
+
+    verify(vsumRepository).save(vsum);
+  }
+
+  @Test
+  void update_addsVsumMetaModels_whenNewIdsAppear() {
+    String email = "u@ex.com";
+
+    Vsum vsum = new Vsum();
+    vsum.setId(4L);
+    vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    vsum.setVsumMetaModels(new java.util.ArrayList<>());
+    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(4L, email))
+        .thenReturn(Optional.of(vsum));
+
+    MetaModel mm11 = clonedMetaModel(1011L, 11L);
+    MetaModel mm12 = clonedMetaModel(1012L, 12L);
+    VsumMetaModel v11 = vsumMetaModel(vsum, mm11);
+    VsumMetaModel v12 = vsumMetaModel(vsum, mm12);
+    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v11, v12));
+
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    put.setMetaModelIds(List.of(11L, 12L, 13L));
+
+    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
+
+    service.update(email, 4L, put);
+
+    verify(vsumMetaModelService).create(vsum, new java.util.HashSet<>(java.util.List.of(13L)));
+
+    verify(vsumRepository).save(vsum);
+  }
+
+  @Test
+  void update_mixedChanges_relationsAndMetaModels() {
+    String email = "u@ex.com";
+
+    Vsum vsum = new Vsum();
+    vsum.setId(5L);
+    vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    vsum.setVsumMetaModels(new java.util.ArrayList<>());
+    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(5L, email))
+        .thenReturn(Optional.of(vsum));
+
+    MetaModel m41 = clonedMetaModel(1041L, 41L);
+    MetaModel m42 = clonedMetaModel(1042L, 42L);
+    VsumMetaModel v41 = vsumMetaModel(vsum, m41);
+    VsumMetaModel v42 = vsumMetaModel(vsum, m42);
+    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v41, v42));
+
+    MetaModel s10 = clonedMetaModel(10L, 10L);
+    MetaModel t20 = clonedMetaModel(20L, 20L);
+    MetaModel s30 = clonedMetaModel(30L, 30L);
+    MetaModel t40 = clonedMetaModel(40L, 40L);
+    MetaModelRelation r10_20 = metaModelRelation(vsum, s10, t20);
+    MetaModelRelation r30_40 = metaModelRelation(vsum, s30, t40);
+    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r10_20, r30_40));
+
+    var addRelationReq =
+        new tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest(
+            50L, 60L, 909L);
+
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    put.setMetaModelRelationRequests(
+        List.of(
+            new tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest(
+                10L, 20L, 111L),
+            addRelationReq));
+    put.setMetaModelIds(List.of(41L, 43L));
+
+    service.update(email, 5L, put);
+
+    verify(vsumMetaModelService).delete(vsum, List.of(v42));
+    verify(vsumMetaModelService).create(vsum, new java.util.HashSet<>(java.util.List.of(43L)));
+
+    verify(metaModelRelationService).delete(List.of(r30_40));
+    verify(metaModelRelationService).create(vsum, List.of(addRelationReq));
+
+    verify(vsumRepository).save(vsum);
+  }
+
+  @Test
+  void update_noChanges_noServiceCallsExceptSave() {
+    String email = "u@ex.com";
+    Vsum vsum = new Vsum();
+    vsum.setId(6L);
+    vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    vsum.setVsumMetaModels(new java.util.ArrayList<>());
+    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(6L, email))
+        .thenReturn(Optional.of(vsum));
+
+    MetaModel m1 = clonedMetaModel(101L, 1L);
+    MetaModel m2 = clonedMetaModel(102L, 2L);
+    VsumMetaModel v1 = vsumMetaModel(vsum, m1);
+    VsumMetaModel v2 = vsumMetaModel(vsum, m2);
+    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v1, v2));
+
+    MetaModel s1 = clonedMetaModel(1L, 1L);
+    MetaModel t2 = clonedMetaModel(2L, 2L);
+    MetaModelRelation r12 = metaModelRelation(vsum, s1, t2);
+    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r12));
+
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    put.setMetaModelIds(List.of(1L, 2L));
+    put.setMetaModelRelationRequests(
+        List.of(
+            new tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest(
+                1L, 2L, 555L)));
+
+    service.update(email, 6L, put);
+
+    verify(vsumMetaModelService, never()).delete(any(), any());
+    verify(vsumMetaModelService, never()).create(any(), any());
+    verify(metaModelRelationService, never()).delete(any());
+    verify(metaModelRelationService, never()).create(any(), any());
+    verify(vsumRepository).save(vsum);
   }
 }
