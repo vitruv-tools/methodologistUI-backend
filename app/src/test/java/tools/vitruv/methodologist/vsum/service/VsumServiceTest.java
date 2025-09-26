@@ -291,11 +291,11 @@ class VsumServiceTest {
 
   @Test
   void update_removesRelations_whenPairsMissingInDesired() {
-    String email = "u@ex.com";
 
     Vsum vsum = new Vsum();
     vsum.setId(1L);
     vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    String email = "u@ex.com";
     vsum.setVsumMetaModels(new java.util.ArrayList<>());
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(1L, email))
         .thenReturn(Optional.of(vsum));
@@ -330,11 +330,11 @@ class VsumServiceTest {
 
   @Test
   void update_createsRelations_whenNewPairsAppear() {
-    String email = "u@ex.com";
 
     Vsum vsum = new Vsum();
     vsum.setId(2L);
     vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    String email = "u@ex.com";
     vsum.setVsumMetaModels(new java.util.ArrayList<>());
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(2L, email))
         .thenReturn(Optional.of(vsum));
@@ -357,11 +357,11 @@ class VsumServiceTest {
 
   @Test
   void update_removesVsumMetaModels_notInDesiredList() {
-    String email = "u@ex.com";
 
     Vsum vsum = new Vsum();
     vsum.setId(3L);
     vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    String email = "u@ex.com";
     vsum.setVsumMetaModels(new java.util.ArrayList<>());
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(3L, email))
         .thenReturn(Optional.of(vsum));
@@ -390,11 +390,11 @@ class VsumServiceTest {
 
   @Test
   void update_addsVsumMetaModels_whenNewIdsAppear() {
-    String email = "u@ex.com";
 
     Vsum vsum = new Vsum();
     vsum.setId(4L);
     vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    String email = "u@ex.com";
     vsum.setVsumMetaModels(new java.util.ArrayList<>());
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(4L, email))
         .thenReturn(Optional.of(vsum));
@@ -419,11 +419,11 @@ class VsumServiceTest {
 
   @Test
   void update_mixedChanges_relationsAndMetaModels() {
-    String email = "u@ex.com";
 
     Vsum vsum = new Vsum();
     vsum.setId(5L);
     vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    String email = "u@ex.com";
     vsum.setVsumMetaModels(new java.util.ArrayList<>());
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(5L, email))
         .thenReturn(Optional.of(vsum));
@@ -438,9 +438,9 @@ class VsumServiceTest {
     MetaModel t20 = clonedMetaModel(20L, 20L);
     MetaModel s30 = clonedMetaModel(30L, 30L);
     MetaModel t40 = clonedMetaModel(40L, 40L);
-    MetaModelRelation r10_20 = metaModelRelation(vsum, s10, t20);
-    MetaModelRelation r30_40 = metaModelRelation(vsum, s30, t40);
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r10_20, r30_40));
+    MetaModelRelation r10And20 = metaModelRelation(vsum, s10, t20);
+    MetaModelRelation r30And40 = metaModelRelation(vsum, s30, t40);
+    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r10And20, r30And40));
 
     var addRelationReq =
         new tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest(
@@ -459,7 +459,7 @@ class VsumServiceTest {
     verify(vsumMetaModelService).delete(vsum, List.of(v42));
     verify(vsumMetaModelService).create(vsum, new java.util.HashSet<>(java.util.List.of(43L)));
 
-    verify(metaModelRelationService).delete(List.of(r30_40));
+    verify(metaModelRelationService).delete(List.of(r30And40));
     verify(metaModelRelationService).create(vsum, List.of(addRelationReq));
 
     verify(vsumRepository).save(vsum);
@@ -467,11 +467,11 @@ class VsumServiceTest {
 
   @Test
   void update_noChanges_noServiceCallsExceptSave() {
-    String email = "u@ex.com";
     Vsum vsum = new Vsum();
     vsum.setId(6L);
     vsum.setMetaModelRelations(new java.util.ArrayList<>());
     vsum.setVsumMetaModels(new java.util.ArrayList<>());
+    String email = "u@ex.com";
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(6L, email))
         .thenReturn(Optional.of(vsum));
 
