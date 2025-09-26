@@ -41,12 +41,11 @@ public interface FileStorageRepository extends CrudRepository<FileStorage, Long>
   Optional<FileStorage> findByIdAndType(Long id, FileEnumType type);
 
   /**
-   * Retrieves all {@link FileStorage} entities whose IDs are contained in the given set.
+   * Retrieves all {@link FileStorage} entities matching the given set of IDs and file type.
    *
-   * <p>Duplicates are ignored. If the set is empty, an empty list is returned.
-   *
-   * @param fileIds the set of file IDs to match; must not be {@code null}
-   * @return a list of matching {@link FileStorage} entities
+   * @param fileIds the set of file storage IDs to search for (must not be {@code null})
+   * @param type the {@link FileEnumType} to filter by (must not be {@code null})
+   * @return a list of matching {@link FileStorage} entities; empty if none found
    */
-  List<FileStorage> findAllByIdIn(Set<Long> fileIds);
+  List<FileStorage> findAllByIdInAndType(Set<Long> fileIds, FileEnumType type);
 }

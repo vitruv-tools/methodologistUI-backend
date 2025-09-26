@@ -133,7 +133,6 @@ public class VsumService {
         vsumRepository
             .findByIdAndUser_emailAndRemovedAtIsNull(id, callerEmail)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
-    //    vsumMapper.updateByVsumPutRequest(vsumPutRequest, vsum);
 
     List<MetaModelRelationRequest> desiredMetaModelRelation =
         vsumSyncChangesPutRequest.getMetaModelRelationRequests() == null
