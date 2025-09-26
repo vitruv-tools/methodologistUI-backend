@@ -28,9 +28,12 @@ import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
+import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumUser;
+import tools.vitruv.methodologist.vsum.model.repository.MetaModelRelationRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 
@@ -45,6 +48,9 @@ class VsumServiceTest {
   @Mock private VsumUserRepository vsumUserRepository;
   @Mock private VsumUserService vsumUserService;
   @Mock private MetaModelRelationService metaModelRelationService;
+  @Mock private MetaModelRelationMapper metaModelRelationMapper;
+  @Mock private VsumMetaModelRepository vsumMetaModelRepository;
+  @Mock private MetaModelRelationRepository metaModelRelationRepository;
 
   private VsumService service;
 
@@ -60,7 +66,9 @@ class VsumServiceTest {
             vsumUserRepository,
             vsumUserService,
             metaModelRelationService,
-            null);
+            metaModelRelationMapper,
+            vsumMetaModelRepository,
+            metaModelRelationRepository);
   }
 
   @Test
@@ -98,29 +106,6 @@ class VsumServiceTest {
     assertThatThrownBy(() -> service.create(email, req)).isInstanceOf(UnauthorizedException.class);
 
     verify(vsumRepository, never()).save(any(Vsum.class));
-  }
-
-  @Test
-  void update_mergesAndSyncs_whenOwnedByCaller() {
-    String email = "u@ex.com";
-    VsumPutRequest put = new VsumPutRequest();
-    put.setMetaModelIds(List.of(1L, 2L));
-
-    Vsum existing = new Vsum();
-    existing.setId(5L);
-    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(5L, email))
-        .thenReturn(Optional.of(existing));
-
-    Vsum saved = new Vsum();
-    saved.setId(5L);
-    when(vsumRepository.save(existing)).thenReturn(saved);
-
-    Vsum result = service.update(email, 5L, put);
-
-    assertThat(result.getId()).isEqualTo(5L);
-    verify(vsumMapper).updateByVsumPutRequest(put, existing);
-    verify(vsumMetaModelService).sync(existing, put.getMetaModelIds());
-    verify(vsumRepository).save(existing);
   }
 
   @Test

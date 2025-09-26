@@ -3,15 +3,13 @@ package tools.vitruv.methodologist.vsum.service;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
@@ -72,54 +70,20 @@ public class VsumMetaModelService {
         vsumMetaModels.stream().map(VsumMetaModel::getMetaModel).toList());
   }
 
-  /**
-   * Synchronizes the metamodel associations of a given {@link Vsum} with the provided list of
-   * metamodel IDs.
-   *
-   * <p>This method ensures that the {@link Vsum} contains exactly the metamodels referenced in the
-   * given ID list:
-   *
-   * <ul>
-   *   <li>Removes any {@link VsumMetaModel} links whose original (source) metamodel IDs are not in
-   *       the provided list.
-   *   <li>Creates new {@link VsumMetaModel} links for metamodel IDs that are missing in the current
-   *       associations.
-   * </ul>
-   *
-   * @param vsum the {@link Vsum} entity whose metamodel links should be synchronized
-   * @param metaModelIds the list of desired metamodel IDs; if {@code null}, all existing
-   *     associations will be removed
-   */
-  @Transactional
-  public void sync(Vsum vsum, List<Long> metaModelIds) {
-    Set<Long> desiredIds =
-        metaModelIds == null
-            ? Set.of()
-            : metaModelIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+  public void findDeletedMetaModelsRelationOrThrow(
+      Set<Long> removed, List<MetaModelRelationRequest> metaModelRelationRequests) {
+    Set<Long> metaModelsRelationExistInRequest = new HashSet<>();
+    metaModelsRelationExistInRequest.addAll(
+        metaModelRelationRequests.stream()
+            .map(metaModelRelationRequest -> metaModelRelationRequest.getSourceId())
+            .toList());
+    metaModelsRelationExistInRequest.addAll(
+        metaModelRelationRequests.stream()
+            .map(metaModelRelationRequest -> metaModelRelationRequest.getTargetId())
+            .toList());
 
-    List<VsumMetaModel> existingLinks = vsumMetaModelRepository.findAllByVsum(vsum);
-    Set<Long> existingIds =
-        existingLinks.stream()
-            .map(vsumMetaModel -> vsumMetaModel.getMetaModel().getSource().getId())
-            .collect(Collectors.toSet());
-
-    Set<Long> toRemoveIds = new HashSet<>(existingIds);
-    toRemoveIds.removeAll(desiredIds);
-    if (!toRemoveIds.isEmpty()) {
-      List<VsumMetaModel> toDelete =
-          existingLinks.stream()
-              .filter(
-                  vsumMetaModel ->
-                      toRemoveIds.contains(vsumMetaModel.getMetaModel().getSource().getId()))
-              .toList();
-      delete(vsum, toDelete);
-    }
-
-    Set<Long> toAddIds = new HashSet<>(desiredIds);
-    toAddIds.removeAll(existingIds);
-
-    if (!toAddIds.isEmpty()) {
-      create(vsum, toAddIds);
+    if (removed.containsAll(metaModelsRelationExistInRequest)) {
+      //      throw new Can
     }
   }
 }
