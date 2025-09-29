@@ -57,17 +57,6 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
   List<MetaModel> findAllByIdInAndUserAndSourceIsNull(Set<Long> metaModelIds, User user);
 
   /**
-   * Retrieves a {@link MetaModel} by its identifier only if its {@code source} is not null.
-   *
-   * <p>Returns empty if no entity exists with the given id or if {@code source} is null.
-   *
-   * @param id the identifier of the metamodel to retrieve
-   * @return an optional containing the matching {@link MetaModel} when found with a non\-null
-   *     {@code source}; otherwise empty
-   */
-  Optional<MetaModel> findByIdAndSourceIsNotNull(Long id);
-
-  /**
    * Finds a metamodel by its ID and the associated user's email address.
    *
    * @param id the unique identifier of the metamodel to find

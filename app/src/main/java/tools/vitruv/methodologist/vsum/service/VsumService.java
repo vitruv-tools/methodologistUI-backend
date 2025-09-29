@@ -296,7 +296,7 @@ public class VsumService {
                 ? List.<MetaModelRelation>of()
                 : vsum.getMetaModelRelations())
             .stream().map(metaModelRelationMapper::toMetaModelRelationResponse).toList();
-    response.setMetaModelsrelation(metaModelRelation);
+    response.setMetaModelsRelation(metaModelRelation);
 
     return response;
   }

@@ -24,5 +24,5 @@ public class VsumMetaModelResponse {
   private Instant updatedAt;
   private Instant removedAt;
   private List<MetaModelResponse> metaModels;
-  private List<MetaModelRelationResponse> metaModelsrelation;
+  private List<MetaModelRelationResponse> metaModelsRelation;
 }
