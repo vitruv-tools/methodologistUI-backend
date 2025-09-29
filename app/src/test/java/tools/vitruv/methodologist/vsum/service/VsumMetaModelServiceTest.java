@@ -59,7 +59,7 @@ class VsumMetaModelServiceTest {
     return m;
   }
 
-  private VsumMetaModel VsumMetaModel(Vsum vsum, MetaModel metaModel) {
+  private VsumMetaModel vsumMetaModel(Vsum vsum, MetaModel metaModel) {
     return VsumMetaModel.builder().vsum(vsum).metaModel(metaModel).build();
   }
 
@@ -101,7 +101,7 @@ class VsumMetaModelServiceTest {
     MetaModel original = newOriginalMetaModel(10L);
     MetaModel cloned = newClonedMetaModel(100L, original);
 
-    VsumMetaModel link = VsumMetaModel(vsum, cloned);
+    VsumMetaModel link = vsumMetaModel(vsum, cloned);
     vsum.getVsumMetaModels().add(link);
 
     List<VsumMetaModel> toDelete = List.of(link);
