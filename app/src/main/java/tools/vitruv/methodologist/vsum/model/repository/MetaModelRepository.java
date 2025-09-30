@@ -11,8 +11,12 @@ import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 
 /**
- * Repository interface for managing {@link tools.vitruv.methodologist.vsum.model.MetaModel}
- * entities. Provides CRUD operations and custom queries for MetaModel data access.
+ * Repository interface for performing CRUD operations and complex queries on {@link MetaModel}
+ * entities. Extends the {@link CrudRepository} interface and includes custom query methods.
+ *
+ * <p>The repository provides methods for searching, filtering, and retrieving MetaModel entities
+ * based on various parameters such as name, user ownership, source identifier, and JPA
+ * specifications.
  */
 @Repository
 public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
