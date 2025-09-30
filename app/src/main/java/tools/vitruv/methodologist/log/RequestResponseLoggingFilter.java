@@ -74,7 +74,7 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
                   append("duration_in_ms", System.currentTimeMillis() - startTime)
                       .and(append("detail", logEntry))));
     } else {
-      logger.info(
+      logger.error(
           append(STATUS, response.getStatus())
               .and(
                   append("duration_in_ms", System.currentTimeMillis() - startTime)
