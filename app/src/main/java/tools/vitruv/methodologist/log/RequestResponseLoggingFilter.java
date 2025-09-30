@@ -29,6 +29,8 @@ import org.springframework.web.util.ContentCachingResponseWrapper;
 @Slf4j
 @Component
 public class RequestResponseLoggingFilter extends OncePerRequestFilter {
+  private static final String STATUS = "status";
+
   @Override
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -64,22 +66,16 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
 
     responseWrapper.copyBodyToResponse();
     long startTime = System.currentTimeMillis();
-    var marker =
-        append("type", "SERVED_API")
-            .and(
-                append("status", response.getStatus())
-                    .and(
-                        append("duration_in_ms", System.currentTimeMillis() - startTime)
-                            .and(append("data", logEntry))));
+
     if (Set.of(200, 201).contains(response.getStatus())) {
       logger.info(
-          append("status", response.getStatus())
+          append(STATUS, response.getStatus())
               .and(
                   append("duration_in_ms", System.currentTimeMillis() - startTime)
                       .and(append("detail", logEntry))));
     } else {
       logger.info(
-          append("status", response.getStatus())
+          append(STATUS, response.getStatus())
               .and(
                   append("duration_in_ms", System.currentTimeMillis() - startTime)
                       .and(append("detail", logEntry))));
