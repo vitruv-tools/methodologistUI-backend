@@ -53,4 +53,8 @@ public class Vsum {
   @ToString.Exclude
   @OneToMany(mappedBy = "vsum", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
   private List<VsumMetaModel> vsumMetaModels = new ArrayList<>();
+
+  @ToString.Exclude
+  @OneToMany(mappedBy = "vsum", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+  private List<MetaModelRelation> metaModelRelations = new ArrayList<>();
 }

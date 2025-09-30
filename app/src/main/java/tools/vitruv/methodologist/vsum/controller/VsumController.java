@@ -20,6 +20,7 @@ import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.service.VsumService;
@@ -77,21 +78,43 @@ public class VsumController {
   }
 
   /**
-   * Updates an existing VSUM resource.
+   * Updates an existing VSUM resource with the provided data.
    *
-   * @param authentication the Keycloak authentication object for the current user
+   * @param authentication the Keycloak authentication for the current user
    * @param id the ID of the VSUM to update
-   * @param vsumPutRequest the request containing VSUM update data
-   * @return response indicating successful VSUM update
+   * @param vsumPutRequest the request containing updated VSUM fields
+   * @return response containing the updated VSUM and a success message
    */
   @PutMapping("/v1/vsums/{id}")
   @PreAuthorize("hasRole('user')")
-  public ResponseTemplateDto<Void> update(
+  public ResponseTemplateDto<VsumResponse> update(
       KeycloakAuthentication authentication,
       @PathVariable Long id,
       @Valid @RequestBody VsumPutRequest vsumPutRequest) {
     String callerEmail = authentication.getParsedToken().getEmail();
-    vsumService.update(callerEmail, id, vsumPutRequest);
+    VsumResponse vsumResponse = vsumService.update(callerEmail, id, vsumPutRequest);
+    return ResponseTemplateDto.<VsumResponse>builder()
+        .data(vsumResponse)
+        .message(VSUM_UPDATED_SUCCESSFULLY)
+        .build();
+  }
+
+  /**
+   * Updates an existing VSUM resource.
+   *
+   * @param authentication the Keycloak authentication object for the current user
+   * @param id the ID of the VSUM to update
+   * @param vsumSyncChangesPutRequest the request containing VSUM update data
+   * @return response indicating successful VSUM update
+   */
+  @PutMapping("/v1/vsums/{id}/sync-changes")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> update(
+      KeycloakAuthentication authentication,
+      @PathVariable Long id,
+      @Valid @RequestBody VsumSyncChangesPutRequest vsumSyncChangesPutRequest) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    vsumService.update(callerEmail, id, vsumSyncChangesPutRequest);
     return ResponseTemplateDto.<Void>builder().message(VSUM_UPDATED_SUCCESSFULLY).build();
   }
 

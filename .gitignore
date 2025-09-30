@@ -28,3 +28,4 @@ replay_pid*
 /docker/keycloak/hsperfdata_keycloak/
 /builder/target/
 /app/target/
+/.vscode/

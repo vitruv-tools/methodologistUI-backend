@@ -3,7 +3,13 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -15,22 +21,30 @@ import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
+import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelationResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
+import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
+import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
+import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 import tools.vitruv.methodologist.vsum.model.VsumUser;
+import tools.vitruv.methodologist.vsum.model.repository.MetaModelRelationRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 
 /**
  * Service class for managing VSUM (Virtual Single Underlying Model) operations. Handles the
- * business logic for VSUM creation, updates, retrieval and removal while ensuring proper validation
- * and persistence.
+ * business logic for VSUM creation, updates, retrieval, and removal while ensuring proper
+ * validation and persistence.
  *
  * @see tools.vitruv.methodologist.vsum.model.Vsum
  * @see tools.vitruv.methodologist.vsum.model.repository.VsumRepository
@@ -47,7 +61,11 @@ public class VsumService {
   VsumMetaModelService vsumMetaModelService;
   UserRepository userRepository;
   VsumUserRepository vsumUserRepository;
-  private final VsumUserService vsumUserService;
+  VsumUserService vsumUserService;
+  MetaModelRelationService metaModelRelationService;
+  private final MetaModelRelationMapper metaModelRelationMapper;
+  private final VsumMetaModelRepository vsumMetaModelRepository;
+  private final MetaModelRelationRepository metaModelRelationRepository;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -69,22 +87,142 @@ public class VsumService {
   }
 
   /**
-   * Updates an existing VSUM with the specified details.
+   * Updates the specified VSUM entity owned by the caller with the provided request data.
    *
-   * @param id the ID of the VSUM to update
-   * @param vsumPutRequest DTO containing the update details
-   * @return the updated Vsum entity
-   * @throws tools.vitruv.methodologist.exception.NotFoundException if the VSUM ID is not found or
-   *     is marked as removed
+   * <p>Only mutable fields defined in {@link VsumPutRequest} are updated. The operation is
+   * transactional. Throws {@link NotFoundException} if the VSUM does not exist, is removed, or does
+   * not belong to the caller.
+   *
+   * @param callerEmail the authenticated user's email; must own the VSUM
+   * @param id the identifier of the VSUM to update
+   * @param vsumPutRequest the request containing updated VSUM fields
+   * @return the updated {@link VsumResponse}
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if the VSUM is not found or
+   *     unauthorized
    */
   @Transactional
-  public Vsum update(String callerEmail, Long id, VsumPutRequest vsumPutRequest) {
+  public VsumResponse update(String callerEmail, Long id, VsumPutRequest vsumPutRequest) {
     Vsum vsum =
         vsumRepository
             .findByIdAndUser_emailAndRemovedAtIsNull(id, callerEmail)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
     vsumMapper.updateByVsumPutRequest(vsumPutRequest, vsum);
-    vsumMetaModelService.sync(vsum, vsumPutRequest.getMetaModelIds());
+    vsumRepository.save(vsum);
+    return vsumMapper.toVsumResponse(vsum);
+  }
+
+  /**
+   * Updates a VSUM owned by the caller and synchronizes its meta-models and meta-model relations
+   * with the provided request.
+   *
+   * <p>Associations not present in the request are removed; missing associations are created. If
+   * collections in the request are null or empty, the corresponding associations are cleared. The
+   * operation is transactional.
+   *
+   * @param callerEmail the authenticated user's email; must own the VSUM
+   * @param id the VSUM identifier to update
+   * @param vsumSyncChangesPutRequest the desired state (meta-model IDs and relation definitions)
+   * @return the persisted, updated {@link Vsum}
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if the VSUM does not exist, is
+   *     removed, or does not belong to the caller
+   */
+  @Transactional
+  public Vsum update(
+      String callerEmail, Long id, VsumSyncChangesPutRequest vsumSyncChangesPutRequest) {
+    Vsum vsum =
+        vsumRepository
+            .findByIdAndUser_emailAndRemovedAtIsNull(id, callerEmail)
+            .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
+
+    List<MetaModelRelationRequest> desiredMetaModelRelation =
+        vsumSyncChangesPutRequest.getMetaModelRelationRequests() == null
+            ? List.of()
+            : vsumSyncChangesPutRequest.getMetaModelRelationRequests().stream()
+                .filter(
+                    metaModelRelationRequest ->
+                        metaModelRelationRequest != null
+                            && metaModelRelationRequest.getSourceId() != null
+                            && metaModelRelationRequest.getTargetId() != null)
+                .toList();
+
+    List<MetaModelRelation> existingMetaModelRelation =
+        metaModelRelationRepository.findAllByVsum(vsum);
+
+    Set<String> desiredMetaModelRelationPairs =
+        desiredMetaModelRelation.stream()
+            .map(
+                metaModelRelationRequest ->
+                    metaModelRelationRequest.getSourceId()
+                        + ":"
+                        + metaModelRelationRequest.getTargetId())
+            .collect(Collectors.toSet());
+
+    Map<String, MetaModelRelation> existingByPair = new HashMap<>();
+    for (MetaModelRelation metaModelRelation : existingMetaModelRelation) {
+      String metaModelRelationPairKey =
+          metaModelRelation.getSource().getSource().getId()
+              + ":"
+              + metaModelRelation.getTarget().getSource().getId();
+      existingByPair.put(metaModelRelationPairKey, metaModelRelation);
+    }
+
+    Set<String> existingMetaModelRelationPairs = new HashSet<>(existingByPair.keySet());
+
+    Set<String> toRemoveMetaModelRelation = new HashSet<>(existingMetaModelRelationPairs);
+    toRemoveMetaModelRelation.removeAll(desiredMetaModelRelationPairs);
+
+    if (!toRemoveMetaModelRelation.isEmpty()) {
+      List<MetaModelRelation> deletions =
+          toRemoveMetaModelRelation.stream().map(existingByPair::get).toList();
+      metaModelRelationService.delete(deletions);
+      vsum.getMetaModelRelations().removeAll(deletions);
+    }
+
+    List<Long> metaModelIds = vsumSyncChangesPutRequest.getMetaModelIds();
+    List<VsumMetaModel> existingVsumMetaModel = vsumMetaModelRepository.findAllByVsum(vsum);
+
+    Set<Long> existingVsumMetaModelIds =
+        existingVsumMetaModel.stream()
+            .map(vsumMetaModel -> vsumMetaModel.getMetaModel().getSource().getId())
+            .collect(Collectors.toSet());
+    Set<Long> desiredMetaModelIds =
+        metaModelIds == null
+            ? Set.of()
+            : metaModelIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+    Set<Long> toRemoveVsumMetaModelIds = new HashSet<>(existingVsumMetaModelIds);
+    toRemoveVsumMetaModelIds.removeAll(desiredMetaModelIds);
+    if (!toRemoveVsumMetaModelIds.isEmpty()) {
+      List<VsumMetaModel> toDeleteVsumMetaModel =
+          existingVsumMetaModel.stream()
+              .filter(
+                  vsumMetaModel ->
+                      toRemoveVsumMetaModelIds.contains(
+                          vsumMetaModel.getMetaModel().getSource().getId()))
+              .toList();
+      vsumMetaModelService.delete(vsum, toDeleteVsumMetaModel);
+      vsum.getVsumMetaModels().removeAll(toDeleteVsumMetaModel);
+    }
+
+    Set<Long> toAddVsumMetaModelIds = new HashSet<>(desiredMetaModelIds);
+    toAddVsumMetaModelIds.removeAll(existingVsumMetaModelIds);
+    if (!toAddVsumMetaModelIds.isEmpty()) {
+      vsumMetaModelService.create(vsum, toAddVsumMetaModelIds);
+    }
+
+    Set<String> toAddMetaModelRelation = new HashSet<>(desiredMetaModelRelationPairs);
+    toAddMetaModelRelation.removeAll(existingMetaModelRelationPairs);
+    if (!toAddMetaModelRelation.isEmpty()) {
+      List<MetaModelRelationRequest> creations =
+          desiredMetaModelRelation.stream()
+              .filter(
+                  metaModelRelationRequest ->
+                      toAddMetaModelRelation.contains(
+                          metaModelRelationRequest.getSourceId()
+                              + ":"
+                              + metaModelRelationRequest.getTargetId()))
+              .toList();
+      metaModelRelationService.create(vsum, creations);
+    }
     vsumRepository.save(vsum);
     return vsum;
   }
@@ -151,8 +289,15 @@ public class VsumService {
             .stream()
                 .map(metaModel -> metaModelMapper.toMetaModelResponse(metaModel.getMetaModel()))
                 .toList();
-
     response.setMetaModels(metaModels);
+
+    List<MetaModelRelationResponse> metaModelRelation =
+        (vsum.getMetaModelRelations() == null
+                ? List.<MetaModelRelation>of()
+                : vsum.getMetaModelRelations())
+            .stream().map(metaModelRelationMapper::toMetaModelRelationResponse).toList();
+    response.setMetaModelsRelation(metaModelRelation);
+
     return response;
   }
 
