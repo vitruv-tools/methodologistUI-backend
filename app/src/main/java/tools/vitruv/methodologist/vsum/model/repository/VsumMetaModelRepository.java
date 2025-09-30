@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
 import java.util.List;
+import java.util.Set;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
@@ -39,5 +40,20 @@ public interface VsumMetaModelRepository extends CrudRepository<VsumMetaModel, L
    * @return a list of VsumMetaModel entities where the specified MetaModel is used as a source,
    *     returns an empty list if no matches are found
    */
+  @SuppressWarnings("checkstyle:MethodName")
   List<VsumMetaModel> findAllByMetaModel_Source(MetaModel metaModel);
+
+  /**
+   * Retrieves all {@link VsumMetaModel} entities associated with the given {@link Vsum} whose
+   * {@code metaModel.source.id} is contained in the provided list of IDs.
+   *
+   * <p>Returns an empty list if no entities match. Order is unspecified. Duplicate IDs are ignored.
+   *
+   * @param vsum the VSUM aggregate to filter by; must not be {@code null}
+   * @param ids the list of nested {@code metaModel.source.id} values to match; must not be {@code
+   *     null} (may be empty)
+   * @return a list of matching {@link VsumMetaModel} entities
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  List<VsumMetaModel> findAllByVsumAndMetaModel_source_idIn(Vsum vsum, Set<Long> ids);
 }
