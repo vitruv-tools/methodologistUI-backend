@@ -68,8 +68,7 @@ class VsumMetaModelServiceTest {
   }
 
   private VsumMetaModel link(Vsum vsum, MetaModel metaModel) {
-    VsumMetaModel link = VsumMetaModel.builder().vsum(vsum).metaModel(metaModel).build();
-    return link;
+      return VsumMetaModel.builder().vsum(vsum).metaModel(metaModel).build();
   }
 
   @Test
