@@ -294,9 +294,9 @@ class VsumServiceTest {
 
     Vsum vsum = new Vsum();
     vsum.setId(1L);
-    vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    vsum.setMetaModelRelations(new java.util.HashSet<>());
     String email = "u@ex.com";
-    vsum.setVsumMetaModels(new java.util.ArrayList<>());
+    vsum.setVsumMetaModels(new java.util.HashSet<>());
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(1L, email))
         .thenReturn(Optional.of(vsum));
 
@@ -332,9 +332,9 @@ class VsumServiceTest {
 
     Vsum vsum = new Vsum();
     vsum.setId(2L);
-    vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    vsum.setMetaModelRelations(new java.util.HashSet<>());
     String email = "u@ex.com";
-    vsum.setVsumMetaModels(new java.util.ArrayList<>());
+    vsum.setVsumMetaModels(new java.util.HashSet<>());
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(2L, email))
         .thenReturn(Optional.of(vsum));
 
@@ -359,9 +359,9 @@ class VsumServiceTest {
 
     Vsum vsum = new Vsum();
     vsum.setId(3L);
-    vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    vsum.setMetaModelRelations(new java.util.HashSet<>());
     String email = "u@ex.com";
-    vsum.setVsumMetaModels(new java.util.ArrayList<>());
+    vsum.setVsumMetaModels(new java.util.HashSet<>());
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(3L, email))
         .thenReturn(Optional.of(vsum));
 
@@ -392,9 +392,9 @@ class VsumServiceTest {
 
     Vsum vsum = new Vsum();
     vsum.setId(4L);
-    vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    vsum.setMetaModelRelations(new java.util.HashSet<>());
     String email = "u@ex.com";
-    vsum.setVsumMetaModels(new java.util.ArrayList<>());
+    vsum.setVsumMetaModels(new java.util.HashSet<>());
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(4L, email))
         .thenReturn(Optional.of(vsum));
 
@@ -421,9 +421,9 @@ class VsumServiceTest {
 
     Vsum vsum = new Vsum();
     vsum.setId(5L);
-    vsum.setMetaModelRelations(new java.util.ArrayList<>());
+    vsum.setMetaModelRelations(new java.util.HashSet<>());
     String email = "u@ex.com";
-    vsum.setVsumMetaModels(new java.util.ArrayList<>());
+    vsum.setVsumMetaModels(new java.util.HashSet<>());
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(5L, email))
         .thenReturn(Optional.of(vsum));
 
@@ -468,8 +468,8 @@ class VsumServiceTest {
   void update_noChanges_noServiceCallsExceptSave() {
     Vsum vsum = new Vsum();
     vsum.setId(6L);
-    vsum.setMetaModelRelations(new java.util.ArrayList<>());
-    vsum.setVsumMetaModels(new java.util.ArrayList<>());
+    vsum.setMetaModelRelations(new java.util.HashSet<>());
+    vsum.setVsumMetaModels(new java.util.HashSet<>());
     String email = "u@ex.com";
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(6L, email))
         .thenReturn(Optional.of(vsum));

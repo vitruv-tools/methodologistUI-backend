@@ -11,8 +11,8 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -52,9 +52,13 @@ public class Vsum {
 
   @ToString.Exclude
   @OneToMany(mappedBy = "vsum", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
-  private List<VsumMetaModel> vsumMetaModels = new ArrayList<>();
+  private Set<VsumUser> vsumUsers = new HashSet<>();
 
   @ToString.Exclude
   @OneToMany(mappedBy = "vsum", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
-  private List<MetaModelRelation> metaModelRelations = new ArrayList<>();
+  private Set<VsumMetaModel> vsumMetaModels = new HashSet<>();
+
+  @ToString.Exclude
+  @OneToMany(mappedBy = "vsum", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+  private Set<MetaModelRelation> metaModelRelations = new HashSet<>();
 }
