@@ -165,7 +165,8 @@ public class VsumService {
    */
   @Transactional
   public List<VsumResponse> findAllByUser(String callerEmail) {
-    List<VsumUser> vsumsUser = vsumUserRepository.findAllByUser_Email(callerEmail);
+    List<VsumUser> vsumsUser =
+        vsumUserRepository.findAllByUser_EmailAndVsum_removedAtIsNull(callerEmail);
 
     return vsumsUser.stream().map(VsumUser::getVsum).map(vsumMapper::toVsumResponse).toList();
   }

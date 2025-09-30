@@ -1,7 +1,5 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -18,15 +16,6 @@ import tools.vitruv.methodologist.vsum.model.MetaModel;
  */
 @Repository
 public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
-  /**
-   * Finds a metamodel by its name, ignoring case sensitivity.
-   *
-   * @param name the name of the metamodel to find (case-insensitive)
-   * @return Optional containing the found MetaModel or empty if not found
-   * @throws IllegalArgumentException if name is null or blank
-   */
-  Optional<MetaModel> findByNameIgnoreCase(@NotNull @NotBlank String name);
-
   /**
    * Retrieves all {@link MetaModel} entities matching the given JPA specification with pagination
    * support.
@@ -60,5 +49,6 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
    * @return Optional containing the found MetaModel if it exists and belongs to the specified user,
    *     or empty if no match is found
    */
+  @SuppressWarnings("checkstyle:MethodName")
   Optional<MetaModel> findByIdAndUser_Email(Long id, String callerEmail);
 }
