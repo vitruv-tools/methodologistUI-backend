@@ -40,6 +40,7 @@ public interface VsumMetaModelRepository extends CrudRepository<VsumMetaModel, L
    * @return a list of VsumMetaModel entities where the specified MetaModel is used as a source,
    *     returns an empty list if no matches are found
    */
+  @SuppressWarnings("checkstyle:MethodName")
   List<VsumMetaModel> findAllByMetaModel_Source(MetaModel metaModel);
 
   /**
