@@ -53,5 +53,6 @@ public interface VsumMetaModelRepository extends CrudRepository<VsumMetaModel, L
    *     null} (may be empty)
    * @return a list of matching {@link VsumMetaModel} entities
    */
+  @SuppressWarnings("checkstyle:MethodName")
   List<VsumMetaModel> findAllByVsumAndMetaModel_source_idIn(Vsum vsum, Set<Long> ids);
 }
