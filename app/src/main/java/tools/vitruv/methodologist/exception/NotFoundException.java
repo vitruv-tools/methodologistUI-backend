@@ -5,7 +5,7 @@ package tools.vitruv.methodologist.exception;
  * service or repository layers.
  */
 public class NotFoundException extends RuntimeException {
-  public static final String messageTemplate = "%s not found!";
+  public static final String MESSAGE_TEMPLATE = "%s not found!";
 
   /**
    * Constructs a new {@code NotFoundException} with a formatted message.
@@ -13,6 +13,6 @@ public class NotFoundException extends RuntimeException {
    * @param objectName the name of the object that was not found
    */
   public NotFoundException(String objectName) {
-    super(String.format(messageTemplate, objectName));
+    super(String.format(MESSAGE_TEMPLATE, objectName));
   }
 }

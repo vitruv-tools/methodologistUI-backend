@@ -5,7 +5,7 @@ package tools.vitruv.methodologist.exception;
  * runtime exception indicates a duplicate user-role assignment attempt within a VSUM.
  */
 public class UserAlreadyExistInVsumWithSameRoleException extends RuntimeException {
-  public static final String messageTemplate = "%s is already in %s project with role %s!";
+  public static final String MESSAGE_TEMPLATE = "%s is already in %s project with role %s!";
 
   /**
    * Constructs a new exception with a formatted message using the provided details.
@@ -16,6 +16,6 @@ public class UserAlreadyExistInVsumWithSameRoleException extends RuntimeExceptio
    */
   public UserAlreadyExistInVsumWithSameRoleException(
       String userName, String vsumName, String vsumRoleName) {
-    super(String.format(messageTemplate, userName, vsumName, vsumRoleName));
+    super(String.format(MESSAGE_TEMPLATE, userName, vsumName, vsumRoleName));
   }
 }

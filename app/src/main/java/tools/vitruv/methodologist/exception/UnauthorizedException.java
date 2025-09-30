@@ -7,10 +7,10 @@ package tools.vitruv.methodologist.exception;
  * @extends RuntimeException
  */
 public class UnauthorizedException extends RuntimeException {
-  public static final String messageTemplate = "Unauthorized access";
+  public static final String MESSAGE_TEMPLATE = "Unauthorized access";
 
   /** Constructs a new UnauthorizedException with the default error message. */
   public UnauthorizedException() {
-    super(messageTemplate);
+    super(MESSAGE_TEMPLATE);
   }
 }
