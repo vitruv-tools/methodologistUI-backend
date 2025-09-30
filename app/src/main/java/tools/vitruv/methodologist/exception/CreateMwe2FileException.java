@@ -5,13 +5,13 @@ package tools.vitruv.methodologist.exception;
  * rejection in a formatted message.
  */
 public class CreateMwe2FileException extends RuntimeException {
-  public static final String messageTemplate = "Metamodel rejected: %s";
+  public static final String MESSAGE_TEMPLATE = "Metamodel rejected: %s";
 
   /**
    * Creates a new exception with the given failure reason. The reason is inserted into the
    * predefined message template.
    */
   public CreateMwe2FileException(String reason) {
-    super(String.format(messageTemplate, reason));
+    super(String.format(MESSAGE_TEMPLATE, reason));
   }
 }
