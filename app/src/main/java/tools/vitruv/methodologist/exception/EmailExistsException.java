@@ -7,7 +7,7 @@ package tools.vitruv.methodologist.exception;
  * <p>This exception indicates a conflict between the requested email and an existing user record.
  */
 public class EmailExistsException extends RuntimeException {
-  public static final String MESSAGE_TEMPLATE = "%s is already in use!";
+  public static final String MESSAGE_TEMPLATE = "%s already exists.";
 
   /**
    * Constructs a new {@code EmailExistsException} with a formatted message.

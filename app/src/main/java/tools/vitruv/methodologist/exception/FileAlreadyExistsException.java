@@ -5,7 +5,7 @@ package tools.vitruv.methodologist.exception;
  * This0 exception is used to prevent duplicate file storage for the same user.
  */
 public class FileAlreadyExistsException extends RuntimeException {
-  public static final String MESSAGE_TEMPLATE = "This file used before by user!";
+  public static final String MESSAGE_TEMPLATE = "This file already exists.";
 
   /** Constructs a new UserFileIsRepeatedException with no detail message. */
   public FileAlreadyExistsException() {
