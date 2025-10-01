@@ -175,7 +175,7 @@ public class VsumService {
       List<MetaModelRelation> deletions =
           toRemoveMetaModelRelation.stream().map(existingByPair::get).toList();
       metaModelRelationService.delete(deletions);
-      vsum.getMetaModelRelations().removeAll(deletions);
+      deletions.forEach(vsum.getMetaModelRelations()::remove);
     }
 
     List<Long> metaModelIds = vsumSyncChangesPutRequest.getMetaModelIds();
@@ -200,7 +200,7 @@ public class VsumService {
                           vsumMetaModel.getMetaModel().getSource().getId()))
               .toList();
       vsumMetaModelService.delete(vsum, toDeleteVsumMetaModel);
-      vsum.getVsumMetaModels().removeAll(toDeleteVsumMetaModel);
+      toDeleteVsumMetaModel.forEach(vsum.getVsumMetaModels()::remove);
     }
 
     Set<Long> toAddVsumMetaModelIds = new HashSet<>(desiredMetaModelIds);
@@ -310,6 +310,13 @@ public class VsumService {
    */
   @Transactional
   public List<VsumResponse> findAllByUser(String callerEmail) {
+    List<VsumUser> vsumsUser = vsumUserRepository.findAllByUser_Email(callerEmail);
+
+    return vsumsUser.stream().map(VsumUser::getVsum).map(vsumMapper::toVsumResponse).toList();
+  }
+
+  @Transactional
+  public List<VsumResponse> getAllTrashedByUser(String callerEmail) {
     List<VsumUser> vsumsUser = vsumUserRepository.findAllByUser_Email(callerEmail);
 
     return vsumsUser.stream().map(VsumUser::getVsum).map(vsumMapper::toVsumResponse).toList();

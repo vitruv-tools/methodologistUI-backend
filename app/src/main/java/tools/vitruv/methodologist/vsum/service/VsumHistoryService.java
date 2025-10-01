@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -47,5 +48,10 @@ public class VsumHistoryService {
     vsumHistoryRepository.save(vsumHistory);
 
     return vsumHistory;
+  }
+
+  public void findAllByUser(String callerEmail) {
+    List<VsumHistory> vsumHistories =
+        vsumHistoryRepository.findAllByVsum_user_emailAndVsum_removedAtIsNull(callerEmail);
   }
 }

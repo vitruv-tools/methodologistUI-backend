@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
+import java.util.List;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 import tools.vitruv.methodologist.vsum.model.VsumHistory;
@@ -14,4 +15,6 @@ import tools.vitruv.methodologist.vsum.model.VsumHistory;
  * @see CrudRepository
  */
 @Repository
-public interface VsumHistoryRepository extends CrudRepository<VsumHistory, Long> {}
+public interface VsumHistoryRepository extends CrudRepository<VsumHistory, Long> {
+  List<VsumHistory> findAllByVsum_user_emailAndVsum_removedAtIsNull(String callerEmail);
+}
