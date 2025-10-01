@@ -1,8 +1,9 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
-import java.util.List;
+import java.util.Optional;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
+import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumHistory;
 
 /**
@@ -16,5 +17,23 @@ import tools.vitruv.methodologist.vsum.model.VsumHistory;
  */
 @Repository
 public interface VsumHistoryRepository extends CrudRepository<VsumHistory, Long> {
-  List<VsumHistory> findAllByVsum_user_emailAndVsum_removedAtIsNull(String callerEmail);
+  /**
+   * Counts history records for the specified VSUM.
+   *
+   * @param vsum the VSUM whose history snapshots to count
+   * @return number of {@link VsumHistory} records for the VSUM
+   */
+  long countByVsum(Vsum vsum);
+
+  /**
+   * Finds the latest history record for the specified VSUM.
+   *
+   * <p>Returns the most recently created {@link VsumHistory} for the given VSUM, ordered by {@code
+   * createdAt} descending.
+   *
+   * @param vsum the VSUM whose latest history snapshot to retrieve
+   * @return an {@link java.util.Optional} containing the most recent {@link VsumHistory}, or empty
+   *     if none found
+   */
+  Optional<VsumHistory> findTopByVsumOrderByCreatedAtDesc(Vsum vsum);
 }

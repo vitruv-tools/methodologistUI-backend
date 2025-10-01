@@ -4,6 +4,7 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.user.model.User;
@@ -26,6 +27,9 @@ public class VsumHistoryService {
   VsumHistoryRepository vsumHistoryRepository;
   VsumHistoryMapper vsumHistoryMapper;
 
+  @Value("${vsum.history.limit}")
+  long historyLimit;
+
   /**
    * Creates and persists a history snapshot for the given VSUM.
    *
@@ -38,6 +42,13 @@ public class VsumHistoryService {
    */
   @Transactional
   public VsumHistory create(Vsum vsum, User creator) {
+    long countOfHistory = vsumHistoryRepository.countByVsum(vsum);
+
+    if (countOfHistory > historyLimit) {
+      vsumHistoryRepository
+          .findTopByVsumOrderByCreatedAtDesc(vsum)
+          .ifPresent(vsumHistoryRepository::delete);
+    }
 
     VsumHistory vsumHistory =
         VsumHistory.builder()
