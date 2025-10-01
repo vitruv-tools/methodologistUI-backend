@@ -256,7 +256,8 @@ class VsumServiceTest {
     VsumUser y = new VsumUser();
     y.setId(1L);
     y.setVsum(b);
-    when(vsumUserRepository.findAllByUser_Email(email)).thenReturn(List.of(x, y));
+    when(vsumUserRepository.findAllByUser_EmailAndVsum_removedAtIsNull(email))
+        .thenReturn(List.of(x, y));
 
     VsumResponse ra = new VsumResponse();
     ra.setId(1L);

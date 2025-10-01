@@ -28,7 +28,8 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
    * @param userEmail the user to find VSUMs for
    * @return list of VSUM user relationships
    */
-  List<VsumUser> findAllByUser_Email(String userEmail);
+  @SuppressWarnings("checkstyle:MethodName")
+  List<VsumUser> findAllByUser_EmailAndVsum_removedAtIsNull(String userEmail);
 
   /**
    * Finds all users with a specific role in a VSUM.

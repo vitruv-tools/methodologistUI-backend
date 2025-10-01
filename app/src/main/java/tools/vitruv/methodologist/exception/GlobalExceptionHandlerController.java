@@ -86,7 +86,7 @@ public class GlobalExceptionHandlerController {
   public ErrorResponse fileAlreadyExistsException(
       FileAlreadyExistsException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
-        .error(FileAlreadyExistsException.messageTemplate)
+        .error(FileAlreadyExistsException.MESSAGE_TEMPLATE)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
         .build();
@@ -109,7 +109,7 @@ public class GlobalExceptionHandlerController {
       HandlerMethod handlerMethod,
       ServletWebRequest request) {
     return ErrorResponse.builder()
-        .error(UserAlreadyExistInVsumWithSameRoleException.messageTemplate)
+        .error(UserAlreadyExistInVsumWithSameRoleException.MESSAGE_TEMPLATE)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
         .build();
@@ -153,7 +153,7 @@ public class GlobalExceptionHandlerController {
   public ErrorResponse createMwe2FileException(
       CreateMwe2FileException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
-        .error(CreateMwe2FileException.messageTemplate)
+        .error(CreateMwe2FileException.MESSAGE_TEMPLATE)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
         .build();
@@ -177,7 +177,7 @@ public class GlobalExceptionHandlerController {
   public ErrorResponse unauthorizedException(
       UnauthorizedException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
-        .error(UnauthorizedException.messageTemplate)
+        .error(UnauthorizedException.MESSAGE_TEMPLATE)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
         .build();
