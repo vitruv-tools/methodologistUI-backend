@@ -1,8 +1,5 @@
 package tools.vitruv.methodologist.vsum.service;
 
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -21,14 +18,26 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumHistoryRepository;
  */
 @Service
 @Slf4j
-@AllArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumHistoryService {
-  VsumHistoryRepository vsumHistoryRepository;
-  VsumHistoryMapper vsumHistoryMapper;
+  private final VsumHistoryRepository vsumHistoryRepository;
+  private final VsumHistoryMapper vsumHistoryMapper;
+  private final Long historyLimit;
 
-  @Value("${vsum.history.limit}")
-  long historyLimit;
+  /**
+   * Constructs a {@link VsumHistoryService} with required dependencies.
+   *
+   * @param vsumHistoryRepository repository for persisting history records
+   * @param vsumHistoryMapper mapper for converting VSUM entities to representations
+   * @param historyLimit maximum number of history snapshots to retain per VSUM
+   */
+  public VsumHistoryService(
+      VsumHistoryRepository vsumHistoryRepository,
+      VsumHistoryMapper vsumHistoryMapper,
+      @Value("${vsum.history.limit}") Long historyLimit) {
+    this.vsumHistoryRepository = vsumHistoryRepository;
+    this.vsumHistoryMapper = vsumHistoryMapper;
+    this.historyLimit = historyLimit;
+  }
 
   /**
    * Creates and persists a history snapshot for the given VSUM.
@@ -42,9 +51,9 @@ public class VsumHistoryService {
    */
   @Transactional
   public VsumHistory create(Vsum vsum, User creator) {
-    long countOfHistory = vsumHistoryRepository.countByVsum(vsum);
+    long existsHistoryCount = vsumHistoryRepository.countByVsum(vsum);
 
-    if (countOfHistory > historyLimit) {
+    if (existsHistoryCount > historyLimit) {
       vsumHistoryRepository
           .findTopByVsumOrderByCreatedAtDesc(vsum)
           .ifPresent(vsumHistoryRepository::delete);
