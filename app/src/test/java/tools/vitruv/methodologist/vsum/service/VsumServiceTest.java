@@ -99,7 +99,8 @@ class VsumServiceTest {
             metaModelRelationService,
             metaModelRelationMapper,
             vsumMetaModelRepository,
-            metaModelRelationRepository);
+            metaModelRelationRepository,
+            null);
   }
 
   @Test

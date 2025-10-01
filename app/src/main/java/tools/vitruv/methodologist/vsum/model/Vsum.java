@@ -15,8 +15,10 @@ import java.util.HashSet;
 import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -26,11 +28,14 @@ import tools.vitruv.methodologist.user.model.User;
  * Represents a Virtual Single Underlying Model (VSUM) entity. Provides basic information about a
  * VSUM including its name and timestamps.
  */
-@Data
-@Builder
 @Entity
+@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString
 public class Vsum {
 
   @Id

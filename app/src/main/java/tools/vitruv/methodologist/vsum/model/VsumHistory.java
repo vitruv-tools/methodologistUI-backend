@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.model;
 
+import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -16,8 +17,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
+import org.hibernate.annotations.Type;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.vsum.VsumRepresentation;
 
@@ -50,7 +50,7 @@ public class VsumHistory {
   @JoinColumn(name = "vsum_id")
   private Vsum vsum;
 
-  @Column(columnDefinition = "json")
-  @JdbcTypeCode(SqlTypes.JSON)
+  @Type(JsonType.class)
+  @Column(columnDefinition = "jsonb", nullable = false)
   private VsumRepresentation representation;
 }
