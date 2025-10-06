@@ -125,4 +125,13 @@ public class MetaModelRelationService {
   public void delete(List<MetaModelRelation> relations) {
     metaModelRelationRepository.deleteAll(relations);
   }
+
+  /**
+   * Deletes all {@link MetaModelRelation} associations linked to the specified {@link Vsum}.
+   *
+   * @param vsum the VSUM whose metamodel relations should be deleted
+   */
+  public void delete(Vsum vsum) {
+    metaModelRelationRepository.deleteMetaModelRelationByVsum(vsum);
+  }
 }

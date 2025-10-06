@@ -49,4 +49,11 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
    * @return true if a relationship exists with the given criteria, false otherwise
    */
   boolean existsByVsumAndUserAndRole(Vsum vsum, User user, VsumRole role);
+
+  /**
+   * Deletes all {@link VsumUser} relationships associated with the specified VSUM.
+   *
+   * @param vsum the VSUM whose user relationships should be deleted
+   */
+  void deleteVsumUserByVsum(Vsum vsum);
 }

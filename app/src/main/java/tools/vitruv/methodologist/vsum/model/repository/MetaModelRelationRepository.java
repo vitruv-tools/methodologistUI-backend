@@ -21,4 +21,11 @@ public interface MetaModelRelationRepository extends CrudRepository<MetaModelRel
    * @return a list of matching {@link MetaModelRelation} entities
    */
   List<MetaModelRelation> findAllByVsum(Vsum vsum);
+
+  /**
+   * Deletes all {@link MetaModelRelation} entities associated with the specified {@link Vsum}.
+   *
+   * @param vsum the VSUM whose metamodel relations should be deleted
+   */
+  void deleteMetaModelRelationByVsum(Vsum vsum);
 }

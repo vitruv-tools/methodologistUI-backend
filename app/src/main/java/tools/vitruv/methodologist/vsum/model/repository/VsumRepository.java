@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.repository.CrudRepository;
@@ -20,17 +21,16 @@ public interface VsumRepository extends CrudRepository<Vsum, Long> {
    * @param email the email of the owning user
    * @return an Optional containing the Vsum if found and not removed, otherwise empty
    */
+  @SuppressWarnings("checkstyle:MethodName")
   Optional<Vsum> findByIdAndUser_emailAndRemovedAtIsNull(Long id, String email);
 
   /**
-   * Retrieves all {@link Vsum} entities that belong to the user with the given email, provided the
-   * user has not been marked as removed.
+   * Finds all {@link Vsum} entities that have been marked as removed before the given cutoff
+   * timestamp.
    *
-   * <p>This query leverages Spring Data JPA's property path parsing to traverse the {@code user}
-   * association and check both the {@code email} and {@code removedAt} fields.
-   *
-   * @param callerEmail the email address of the user who owns the {@link Vsum}
-   * @return a list of {@link Vsum} entities associated with the given user and not removed
+   * @param cutoff the {@link Instant} representing the cutoff time; only VSUMs with {@code
+   *     removedAt} before this will be returned
+   * @return a list of {@link Vsum} entities removed before the specified cutoff
    */
-  List<Vsum> findAllByUser_emailAndUser_removedAtIsNull(String callerEmail);
+  List<Vsum> findAllByRemovedAtBefore(Instant cutoff);
 }
