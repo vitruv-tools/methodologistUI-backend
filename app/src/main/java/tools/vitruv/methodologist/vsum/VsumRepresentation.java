@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.Set;
 import lombok.AllArgsConstructor;
@@ -21,6 +22,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @Builder
 public class VsumRepresentation implements Serializable {
+  @Serial private static final long serialVersionUID = 1L;
   private Set<Long> metaModels;
   private Set<MetaModelRelation> metaModelsRealation;
   private Set<Long> vsumUsers;

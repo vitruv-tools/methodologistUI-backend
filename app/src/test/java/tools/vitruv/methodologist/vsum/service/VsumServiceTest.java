@@ -146,7 +146,9 @@ class VsumServiceTest {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> service.create(email, new VsumPostRequest()))
+    VsumPostRequest request = new VsumPostRequest();
+
+    assertThatThrownBy(() -> service.create(email, request))
         .isInstanceOf(UnauthorizedException.class);
 
     verify(vsumRepository, never()).save(any(Vsum.class));
@@ -356,7 +358,7 @@ class VsumServiceTest {
     Vsum result = service.update(email, 1L, put);
 
     verify(metaModelRelationService).delete(List.of(relCD));
-    verify(vsumHistoryService).create(eq(vsum), eq(owner));
+    verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
     assertThat(result.getMetaModelRelations()).isEmpty();
   }
@@ -383,7 +385,7 @@ class VsumServiceTest {
     service.update(email, 2L, put);
 
     verify(metaModelRelationService).create(vsum, List.of(req));
-    verify(vsumHistoryService).create(eq(vsum), eq(owner));
+    verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
   }
 
@@ -414,7 +416,7 @@ class VsumServiceTest {
     Vsum result = service.update(email, 3L, put);
 
     verify(vsumMetaModelService).delete(vsum, List.of(v20));
-    verify(vsumHistoryService).create(eq(vsum), eq(owner));
+    verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
     assertThat(result.getVsumMetaModels()).doesNotContain(v20);
   }
@@ -444,7 +446,7 @@ class VsumServiceTest {
     service.update(email, 4L, put);
 
     verify(vsumMetaModelService).create(vsum, Set.of(13L));
-    verify(vsumHistoryService).create(eq(vsum), eq(owner));
+    verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
   }
 
@@ -487,7 +489,7 @@ class VsumServiceTest {
     verify(vsumMetaModelService).create(vsum, Set.of(43L));
     verify(metaModelRelationService).delete(List.of(r30And40));
     verify(metaModelRelationService).create(vsum, List.of(addRelationReq));
-    verify(vsumHistoryService).create(eq(vsum), eq(owner));
+    verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
   }
 
@@ -560,7 +562,7 @@ class VsumServiceTest {
     verify(vsumMetaModelService)
         .delete(eq(vsum), argThat(list -> list.size() == 2 && list.containsAll(List.of(v10, v20))));
     verify(metaModelRelationService).delete(List.of(r));
-    verify(vsumHistoryService).create(eq(vsum), eq(owner));
+    verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
   }
 }
