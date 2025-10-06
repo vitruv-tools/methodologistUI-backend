@@ -33,7 +33,8 @@ public class VsumRepresentation implements Serializable {
   @NoArgsConstructor
   @AllArgsConstructor
   @Builder
-  public static class MetaModelRelation {
+  public static class MetaModelRelation implements Serializable {
+    @Serial private static final long serialVersionUID = 1L;
     private Long sourceId;
     private Long targetId;
     private Long relationFileStorage;

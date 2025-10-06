@@ -418,7 +418,7 @@ class VsumServiceTest {
     verify(vsumMetaModelService).delete(vsum, List.of(v20));
     verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
-    assertThat(result.getVsumMetaModels()).doesNotContain(v20);
+    assertThat(result.getVsumMetaModels()).isNotEmpty().doesNotContain(v20);
   }
 
   @Test
@@ -452,12 +452,12 @@ class VsumServiceTest {
 
   @Test
   void update_mixedChanges_relationsAndMetaModels_andWritesHistoryOnce() {
-    String email = "u@ex.com";
     Vsum vsum = new Vsum();
     vsum.setId(5L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());
     vsum.setVsumMetaModels(new java.util.HashSet<>());
     User owner = new User();
+    String email = "u@ex.com";
     owner.setEmail(email);
     when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(5L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
