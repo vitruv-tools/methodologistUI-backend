@@ -47,8 +47,7 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 @ExtendWith(MockitoExtension.class)
 class VsumServiceTest {
 
-  @InjectMocks
-  VsumService job;
+  @InjectMocks VsumService job;
   @Mock private VsumMapper vsumMapper;
   @Mock private VsumRepository vsumRepository;
   @Mock private MetaModelMapper metaModelMapper;
