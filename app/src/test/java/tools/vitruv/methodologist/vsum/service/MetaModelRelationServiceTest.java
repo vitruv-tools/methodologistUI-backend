@@ -75,7 +75,7 @@ class MetaModelRelationServiceTest {
 
     List<MetaModelRelation> saved = captor.getValue();
 
-    assertThat(saved.size()).isEqualTo(1);
+    assertThat(saved).hasSize(1);
     MetaModelRelation rel = saved.get(0);
     assertThat(sourceMM).isEqualTo(rel.getSource());
     assertThat(targetMM).isEqualTo(rel.getTarget());
