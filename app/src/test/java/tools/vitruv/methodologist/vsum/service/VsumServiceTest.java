@@ -3,7 +3,12 @@ package tools.vitruv.methodologist.vsum.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
@@ -205,11 +210,11 @@ class VsumServiceTest {
 
   @Test
   void findVsumWithDetails_handlesNullChildLists_metaModelsAndRelations() {
-    String email = "u@ex.com";
     Vsum vsum = new Vsum();
     vsum.setId(77L);
     vsum.setVsumMetaModels(null);
     vsum.setMetaModelRelations(null);
+    String email = "u@ex.com";
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(77L, email))
         .thenReturn(Optional.of(vsum));
 
@@ -225,7 +230,6 @@ class VsumServiceTest {
 
   @Test
   void findVsumWithDetails_mapsLists_whenPresent() {
-    String email = "u@ex.com";
     Vsum vsum = new Vsum();
     vsum.setId(78L);
 
@@ -237,6 +241,7 @@ class VsumServiceTest {
         metaModelRelation(vsum, clonedMetaModel(11L, 11L), clonedMetaModel(22L, 22L));
     vsum.setMetaModelRelations(Set.of(rel));
 
+    String email = "u@ex.com";
     when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(78L, email))
         .thenReturn(Optional.of(vsum));
 
@@ -268,7 +273,6 @@ class VsumServiceTest {
 
   @Test
   void findAllByUser_mapsList() {
-    String email = "u@ex.com";
     Vsum a = new Vsum();
     a.setId(1L);
 
@@ -282,6 +286,7 @@ class VsumServiceTest {
     VsumUser y = new VsumUser();
     y.setId(1L);
     y.setVsum(b);
+    String email = "u@ex.com";
     when(vsumUserRepository.findAllByUser_EmailAndVsum_removedAtIsNull(email))
         .thenReturn(List.of(x, y));
 
@@ -325,12 +330,12 @@ class VsumServiceTest {
 
   @Test
   void update_removesRelations_whenPairsMissingInDesired_andWritesHistory() {
-    String email = "u@ex.com";
     Vsum vsum = new Vsum();
     vsum.setId(1L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());
     vsum.setVsumMetaModels(new java.util.HashSet<>());
     User owner = new User();
+    String email = "u@ex.com";
     owner.setEmail(email);
     when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(1L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
@@ -358,12 +363,12 @@ class VsumServiceTest {
 
   @Test
   void update_createsRelations_whenNewPairsAppear_andWritesHistory() {
-    String email = "u@ex.com";
     Vsum vsum = new Vsum();
     vsum.setId(2L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());
     vsum.setVsumMetaModels(new java.util.HashSet<>());
     User owner = new User();
+    String email = "u@ex.com";
     owner.setEmail(email);
     when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(2L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
@@ -384,12 +389,12 @@ class VsumServiceTest {
 
   @Test
   void update_removesVsumMetaModels_notInDesiredList_andWritesHistory() {
-    String email = "u@ex.com";
     Vsum vsum = new Vsum();
     vsum.setId(3L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());
     vsum.setVsumMetaModels(new java.util.HashSet<>());
     User owner = new User();
+    String email = "u@ex.com";
     owner.setEmail(email);
     when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(3L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
@@ -416,12 +421,12 @@ class VsumServiceTest {
 
   @Test
   void update_addsVsumMetaModels_whenNewIdsAppear_andWritesHistory() {
-    String email = "u@ex.com";
     Vsum vsum = new Vsum();
     vsum.setId(4L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());
     vsum.setVsumMetaModels(new java.util.HashSet<>());
     User owner = new User();
+    String email = "u@ex.com";
     owner.setEmail(email);
     when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(4L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
@@ -488,12 +493,12 @@ class VsumServiceTest {
 
   @Test
   void update_noChanges_noSideEffects_exceptSave_andNoHistory() {
-    String email = "u@ex.com";
     Vsum vsum = new Vsum();
     vsum.setId(6L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());
     vsum.setVsumMetaModels(new java.util.HashSet<>());
     User owner = new User();
+    String email = "u@ex.com";
     owner.setEmail(email);
     when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(6L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
@@ -525,12 +530,12 @@ class VsumServiceTest {
 
   @Test
   void update_clearsAll_whenRequestListsAreNull_orEmpty_andWritesHistory() {
-    String email = "u@ex.com";
     Vsum vsum = new Vsum();
     vsum.setId(7L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());
     vsum.setVsumMetaModels(new java.util.HashSet<>());
     User owner = new User();
+    String email = "u@ex.com";
     owner.setEmail(email);
     when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(7L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
