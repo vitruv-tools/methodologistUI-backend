@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.vsum.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.user.model.User;
@@ -256,7 +258,7 @@ class VsumServiceTest {
     VsumUser y = new VsumUser();
     y.setId(1L);
     y.setVsum(b);
-    when(vsumUserRepository.findAllByUser_EmailAndVsum_removedAtIsNull(email))
+    when(vsumUserRepository.findAllByUser_EmailAndVsum_removedAtIsNull(eq(email), any()))
         .thenReturn(List.of(x, y));
 
     VsumResponse ra = new VsumResponse();
@@ -266,7 +268,7 @@ class VsumServiceTest {
     when(vsumMapper.toVsumResponse(a)).thenReturn(ra);
     when(vsumMapper.toVsumResponse(b)).thenReturn(rb);
 
-    List<VsumResponse> result = service.findAllByUser(email);
+    List<VsumResponse> result = service.findAllByUser(email, null, Pageable.ofSize(1));
 
     assertThat(result).extracting(VsumResponse::getId).containsExactly(1L, 2L);
   }

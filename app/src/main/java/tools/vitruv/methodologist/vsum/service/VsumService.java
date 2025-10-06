@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -14,6 +15,7 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -302,16 +304,30 @@ public class VsumService {
   }
 
   /**
-   * Retrieves all VSUMs associated with a given user's email. Returns a list of VSUMs where the
-   * user has any role or permission.
+   * Retrieves all active VSUMs associated with the specified user, optionally filtered by VSUM
+   * name, with pagination.
    *
-   * @param callerEmail the email address of the user whose VSUMs should be retrieved
-   * @return a list of VsumResponse DTOs containing the VSUM details
+   * <p>If {@code name} is provided and not blank, only VSUMs whose names contain the substring
+   * (case-insensitive) are returned. Otherwise, all active VSUMs for the user are fetched.
+   *
+   * @param callerEmail the email of the user whose VSUMs to retrieve
+   * @param name optional substring to filter VSUM names (case-insensitive)
+   * @param pageable pagination information
+   * @return list of {@link VsumResponse} DTOs representing the user's active VSUMs
    */
   @Transactional
-  public List<VsumResponse> findAllByUser(String callerEmail) {
-    List<VsumUser> vsumsUser =
-        vsumUserRepository.findAllByUser_EmailAndVsum_removedAtIsNull(callerEmail);
+  public List<VsumResponse> findAllByUser(String callerEmail, String name, Pageable pageable) {
+    List<VsumUser> vsumsUser = new ArrayList<>();
+
+    if (name != null && !name.isBlank()) {
+      vsumsUser =
+          vsumUserRepository
+              .findAllByUser_EmailAndVsum_NameContainingIgnoreCaseAndVsum_RemovedAtIsNull(
+                  callerEmail, name, pageable);
+    } else {
+      vsumsUser =
+          vsumUserRepository.findAllByUser_EmailAndVsum_removedAtIsNull(callerEmail, pageable);
+    }
 
     return vsumsUser.stream().map(VsumUser::getVsum).map(vsumMapper::toVsumResponse).toList();
   }

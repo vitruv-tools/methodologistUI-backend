@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
 import java.util.List;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 import tools.vitruv.methodologist.user.model.User;
@@ -15,21 +16,33 @@ import tools.vitruv.methodologist.vsum.model.VsumUser;
 @Repository
 public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
   /**
-   * Finds all user relationships for a specific VSUM.
+   * Finds all active VSUM user relationships for the specified user email, with pagination.
    *
-   * @param vsum the VSUM to find users for
-   * @return list of VSUM user relationships
-   */
-  List<VsumUser> findAllByVsum(Vsum vsum);
-
-  /**
-   * Finds all VSUM relationships for a specific user.
+   * <p>Criteria: - {@code user.email} equals {@code userEmail} - {@code vsum.removedAt} is {@code
+   * null}
    *
-   * @param userEmail the user to find VSUMs for
-   * @return list of VSUM user relationships
+   * @param userEmail the email of the user to filter by
+   * @param pageable pagination information
+   * @return paginated list of active {@link VsumUser} relationships
    */
   @SuppressWarnings("checkstyle:MethodName")
-  List<VsumUser> findAllByUser_EmailAndVsum_removedAtIsNull(String userEmail);
+  List<VsumUser> findAllByUser_EmailAndVsum_removedAtIsNull(String userEmail, Pageable pageable);
+
+  /**
+   * Finds all active VSUM user relationships for the specified user email and VSUM name substring,
+   * with pagination.
+   *
+   * <p>Criteria: - {@code user.email} equals {@code userEmail} - {@code vsum.name} contains {@code
+   * name} (case-insensitive) - {@code vsum.removedAt} is {@code null}
+   *
+   * @param userEmail the email of the user to filter by
+   * @param name the substring to search for in VSUM names (case-insensitive)
+   * @param pageable pagination information
+   * @return paginated list of matching active {@link VsumUser} relationships
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  List<VsumUser> findAllByUser_EmailAndVsum_NameContainingIgnoreCaseAndVsum_RemovedAtIsNull(
+      String userEmail, String name, Pageable pageable);
 
   /**
    * Finds all users with a specific role in a VSUM.

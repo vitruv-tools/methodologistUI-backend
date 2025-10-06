@@ -6,6 +6,9 @@ import static tools.vitruv.methodologist.messages.Message.VSUM_UPDATED_SUCCESSFU
 
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -15,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
@@ -147,10 +151,14 @@ public class VsumController {
   @GetMapping("/v1/vsums/find-all")
   @PreAuthorize("hasRole('user')")
   public ResponseTemplateDto<List<VsumResponse>> findAllByUser(
-      KeycloakAuthentication authentication) {
+      KeycloakAuthentication authentication,
+      @RequestParam(required = false) String name,
+      @RequestParam(defaultValue = "0") int pageNumber,
+      @RequestParam(defaultValue = "50") int pageSize) {
     String callerEmail = authentication.getParsedToken().getEmail();
+    Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by("id").descending());
     return ResponseTemplateDto.<List<VsumResponse>>builder()
-        .data(vsumService.findAllByUser(callerEmail))
+        .data(vsumService.findAllByUser(callerEmail, name, pageable))
         .build();
   }
 
