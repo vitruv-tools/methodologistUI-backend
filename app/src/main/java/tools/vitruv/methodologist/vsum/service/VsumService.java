@@ -3,7 +3,6 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -315,20 +314,20 @@ public class VsumService {
    * @param pageable pagination information
    * @return list of {@link VsumResponse} DTOs representing the user's active VSUMs
    */
-  @Transactional
+  @Transactional(readOnly = true)
   public List<VsumResponse> findAllByUser(String callerEmail, String name, Pageable pageable) {
-    List<VsumUser> vsumsUser = new ArrayList<>();
+    final boolean hasName = name != null && !name.isBlank();
 
-    if (name != null && !name.isBlank()) {
-      vsumsUser =
-          vsumUserRepository
-              .findAllByUser_EmailAndVsum_NameContainingIgnoreCaseAndVsum_RemovedAtIsNull(
-                  callerEmail, name, pageable);
-    } else {
-      vsumsUser =
-          vsumUserRepository.findAllByUser_EmailAndVsum_removedAtIsNull(callerEmail, pageable);
-    }
+    List<VsumUser> vsumUsers = hasName
+            ? vsumUserRepository
+            .findAllByUser_EmailAndVsum_NameContainingIgnoreCaseAndVsum_RemovedAtIsNull(
+                    callerEmail, name, pageable)
+            : vsumUserRepository
+            .findAllByUser_EmailAndVsum_removedAtIsNull(callerEmail, pageable);
 
-    return vsumsUser.stream().map(VsumUser::getVsum).map(vsumMapper::toVsumResponse).toList();
+    return vsumUsers.stream()
+            .map(VsumUser::getVsum)
+            .map(vsumMapper::toVsumResponse)
+            .toList();
   }
 }
