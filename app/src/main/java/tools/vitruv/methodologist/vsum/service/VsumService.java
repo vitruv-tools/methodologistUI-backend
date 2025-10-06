@@ -318,16 +318,13 @@ public class VsumService {
   public List<VsumResponse> findAllByUser(String callerEmail, String name, Pageable pageable) {
     final boolean hasName = name != null && !name.isBlank();
 
-    List<VsumUser> vsumUsers = hasName
+    List<VsumUser> vsumUsers =
+        hasName
             ? vsumUserRepository
-            .findAllByUser_EmailAndVsum_NameContainingIgnoreCaseAndVsum_RemovedAtIsNull(
+                .findAllByUser_EmailAndVsum_NameContainingIgnoreCaseAndVsum_RemovedAtIsNull(
                     callerEmail, name, pageable)
-            : vsumUserRepository
-            .findAllByUser_EmailAndVsum_removedAtIsNull(callerEmail, pageable);
+            : vsumUserRepository.findAllByUser_EmailAndVsum_removedAtIsNull(callerEmail, pageable);
 
-    return vsumUsers.stream()
-            .map(VsumUser::getVsum)
-            .map(vsumMapper::toVsumResponse)
-            .toList();
+    return vsumUsers.stream().map(VsumUser::getVsum).map(vsumMapper::toVsumResponse).toList();
   }
 }
