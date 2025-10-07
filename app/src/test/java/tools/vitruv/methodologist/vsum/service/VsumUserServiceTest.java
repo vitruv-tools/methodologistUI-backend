@@ -119,7 +119,6 @@ class VsumUserServiceTest {
 
     when(vsumUserRepository.findAllByVsum_id(vsum.getId()))
         .thenReturn(List.of(ownerMembership, memberMembership));
-    // mapper returns something simple; you can stub exact fields if needed
     when(vsumUserMapper.toVsumUserResponse(any()))
         .thenAnswer(
             inv -> {
