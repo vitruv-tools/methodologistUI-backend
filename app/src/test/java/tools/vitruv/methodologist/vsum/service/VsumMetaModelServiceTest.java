@@ -5,7 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,7 +41,7 @@ class VsumMetaModelServiceTest {
         new tools.vitruv.methodologist.user.model.User();
     user.setEmail(email);
     vsum.setUser(user);
-    vsum.setVsumMetaModels(new ArrayList<>());
+    vsum.setVsumMetaModels(new HashSet<>());
     return vsum;
   }
 
