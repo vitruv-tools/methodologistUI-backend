@@ -3,8 +3,8 @@ package tools.vitruv.methodologist.vsum.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -289,9 +289,8 @@ class VsumServiceTest {
     VsumUser y = new VsumUser();
     y.setId(1L);
     y.setVsum(b);
-    when(vsumUserRepository.findAllByUser_EmailAndVsum_removedAtIsNull(eq(email), any()))
     String email = "u@ex.com";
-    when(vsumUserRepository.findAllByUser_EmailAndVsum_removedAtIsNull(email))
+    when(vsumUserRepository.findAllByUser_EmailAndVsum_removedAtIsNull(email, Pageable.ofSize(1)))
         .thenReturn(List.of(x, y));
 
     VsumResponse ra = new VsumResponse();
