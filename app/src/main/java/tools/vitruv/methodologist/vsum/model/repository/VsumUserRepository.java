@@ -44,13 +44,13 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
   boolean existsByVsumAndUserAndRole(Vsum vsum, User user, VsumRole role);
 
   /**
-   * Finds an active {@link VsumUser} relationship for the specified VSUM, user email, and role.
+   * Finds an active {@link VsumUser} relationship for the given VSUM and user email, ensuring the
+   * user has not been marked as removed.
    *
-   * @param vsum the VSUM to match
-   * @param userId the ID of the user to match
-   * @param role the role to match
-   * @return an {@link java.util.Optional} containing the active VSUM user relationship if found;
-   *     empty otherwise
+   * @param vsum the VSUM entity to match
+   * @param userEmail the email of the user to match
+   * @return an {@link Optional} containing the VSUM user relationship if found and active; empty
+   *     otherwise
    */
   @SuppressWarnings("checkstyle:MethodName")
   Optional<VsumUser> findByVsumAndUser_EmailAndUser_RemovedAtIsNull(Vsum vsum, String userEmail);

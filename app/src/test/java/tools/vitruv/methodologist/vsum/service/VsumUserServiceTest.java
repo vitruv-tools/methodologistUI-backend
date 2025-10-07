@@ -102,20 +102,21 @@ class VsumUserServiceTest {
     owner.setFirstName("owner");
     owner.setLastName("dummy");
 
-    VsumUser ownerMembership =
-        VsumUser.builder().id(1L).vsum(vsum).user(owner).role(VsumRole.OWNER).build();
-
     User member = new User();
     member.setId(200L);
     member.setEmail("mem@x.test");
     member.setFirstName("mem");
     member.setLastName("dummy");
 
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(caller))
+        .thenReturn(Optional.of(owner));
+
     VsumUser memberMembership =
         VsumUser.builder().id(2L).vsum(vsum).user(member).role(VsumRole.MEMBER).build();
 
-    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(caller))
-        .thenReturn(Optional.of(owner));
+    VsumUser ownerMembership =
+        VsumUser.builder().id(1L).vsum(vsum).user(owner).role(VsumRole.OWNER).build();
+
     when(vsumUserRepository.findAllByVsum_id(vsum.getId()))
         .thenReturn(List.of(ownerMembership, memberMembership));
     // mapper returns something simple; you can stub exact fields if needed
@@ -176,15 +177,12 @@ class VsumUserServiceTest {
     owner.setId(100L);
     owner.setEmail(caller);
 
-    VsumUser callerMembership =
-        VsumUser.builder().id(1L).vsum(vsum).user(owner).role(VsumRole.OWNER).build();
-
     User candidate = new User();
     candidate.setId(10L);
     candidate.setEmail("c@x.test");
-    VsumUserPostRequest req =
-        VsumUserPostRequest.builder().vsumId(vsum.getId()).userId(candidate.getId()).build();
 
+    VsumUser callerMembership =
+        VsumUser.builder().id(1L).vsum(vsum).user(owner).role(VsumRole.OWNER).build();
     when(vsumRepository.findByIdAndRemovedAtIsNull(vsum.getId())).thenReturn(Optional.of(vsum));
     when(vsumUserRepository.findByVsumAndUser_EmailAndUser_RemovedAtIsNull(vsum, caller))
         .thenReturn(Optional.of(callerMembership));
@@ -196,6 +194,8 @@ class VsumUserServiceTest {
     when(vsumUserRepository.existsByVsumAndUserAndRole(vsum, candidate, VsumRole.MEMBER))
         .thenReturn(false);
 
+    VsumUserPostRequest req =
+        VsumUserPostRequest.builder().vsumId(vsum.getId()).userId(candidate.getId()).build();
     VsumUser created = service.addMember(caller, req);
 
     verify(vsumUserRepository).save(vsumUserCaptor.capture());
@@ -207,9 +207,9 @@ class VsumUserServiceTest {
   @Test
   void addMember_throwsNotFound_whenVsumMissing() {
     String caller = "owner@x.test";
-    VsumUserPostRequest req = VsumUserPostRequest.builder().vsumId(999L).userId(10L).build();
 
     when(vsumRepository.findByIdAndRemovedAtIsNull(999L)).thenReturn(Optional.empty());
+    VsumUserPostRequest req = VsumUserPostRequest.builder().vsumId(999L).userId(10L).build();
 
     assertThatThrownBy(() -> service.addMember(caller, req)).isInstanceOf(NotFoundException.class);
   }
@@ -217,12 +217,12 @@ class VsumUserServiceTest {
   @Test
   void addMember_throwsOwnerRequired_whenCallerNotMemberOrOwner() {
     String caller = "stranger@x.test";
-    VsumUserPostRequest req =
-        VsumUserPostRequest.builder().vsumId(vsum.getId()).userId(10L).build();
 
     when(vsumRepository.findByIdAndRemovedAtIsNull(vsum.getId())).thenReturn(Optional.of(vsum));
     when(vsumUserRepository.findByVsumAndUser_EmailAndUser_RemovedAtIsNull(vsum, caller))
         .thenReturn(Optional.empty());
+    VsumUserPostRequest req =
+        VsumUserPostRequest.builder().vsumId(vsum.getId()).userId(10L).build();
 
     assertThatThrownBy(() -> service.addMember(caller, req))
         .isInstanceOf(OwnerRequiredException.class);
@@ -234,16 +234,15 @@ class VsumUserServiceTest {
     User mem = new User();
     mem.setId(2L);
     mem.setEmail(caller);
+
     VsumUser callerMembership =
         VsumUser.builder().id(1L).vsum(vsum).user(mem).role(VsumRole.MEMBER).build();
-
-    VsumUserPostRequest req =
-        VsumUserPostRequest.builder().vsumId(vsum.getId()).userId(10L).build();
-
     when(vsumRepository.findByIdAndRemovedAtIsNull(vsum.getId())).thenReturn(Optional.of(vsum));
     when(vsumUserRepository.findByVsumAndUser_EmailAndUser_RemovedAtIsNull(vsum, caller))
         .thenReturn(Optional.of(callerMembership));
 
+    VsumUserPostRequest req =
+        VsumUserPostRequest.builder().vsumId(vsum.getId()).userId(10L).build();
     assertThatThrownBy(() -> service.addMember(caller, req))
         .isInstanceOf(OwnerRequiredException.class);
   }
@@ -254,16 +253,16 @@ class VsumUserServiceTest {
     User owner = new User();
     owner.setId(100L);
     owner.setEmail(caller);
+
     VsumUser callerMembership =
         VsumUser.builder().id(1L).vsum(vsum).user(owner).role(VsumRole.OWNER).build();
-
-    VsumUserPostRequest req =
-        VsumUserPostRequest.builder().vsumId(vsum.getId()).userId(10L).build();
 
     when(vsumRepository.findByIdAndRemovedAtIsNull(vsum.getId())).thenReturn(Optional.of(vsum));
     when(vsumUserRepository.findByVsumAndUser_EmailAndUser_RemovedAtIsNull(vsum, caller))
         .thenReturn(Optional.of(callerMembership));
     when(userRepository.findByIdAndRemovedAtIsNull(10L)).thenReturn(Optional.empty());
+    VsumUserPostRequest req =
+        VsumUserPostRequest.builder().vsumId(vsum.getId()).userId(10L).build();
 
     assertThatThrownBy(() -> service.addMember(caller, req)).isInstanceOf(NotFoundException.class);
   }
@@ -274,16 +273,15 @@ class VsumUserServiceTest {
     User owner = new User();
     owner.setId(100L);
     owner.setEmail(caller);
+
     VsumUser callerMembership =
         VsumUser.builder().id(1L).vsum(vsum).user(owner).role(VsumRole.OWNER).build();
-
-    VsumUserPostRequest req =
-        VsumUserPostRequest.builder().vsumId(vsum.getId()).userId(100L).build();
-
     when(vsumRepository.findByIdAndRemovedAtIsNull(vsum.getId())).thenReturn(Optional.of(vsum));
     when(vsumUserRepository.findByVsumAndUser_EmailAndUser_RemovedAtIsNull(vsum, caller))
         .thenReturn(Optional.of(callerMembership));
     when(userRepository.findByIdAndRemovedAtIsNull(100L)).thenReturn(Optional.of(owner));
+    VsumUserPostRequest req =
+        VsumUserPostRequest.builder().vsumId(vsum.getId()).userId(100L).build();
 
     assertThatThrownBy(() -> service.addMember(caller, req))
         .isInstanceOf(OwnerCannotAddSelfAsMemberException.class);
@@ -295,13 +293,11 @@ class VsumUserServiceTest {
     User owner = new User();
     owner.setId(1L);
     owner.setEmail(caller);
-    VsumUser callerMembership =
-        VsumUser.builder().id(99L).vsum(vsum).user(owner).role(VsumRole.OWNER).build();
     User candidate = new User();
     candidate.setId(10L);
 
-    VsumUserPostRequest req =
-        VsumUserPostRequest.builder().vsumId(vsum.getId()).userId(candidate.getId()).build();
+    VsumUser callerMembership =
+        VsumUser.builder().id(99L).vsum(vsum).user(owner).role(VsumRole.OWNER).build();
 
     when(vsumRepository.findByIdAndRemovedAtIsNull(vsum.getId())).thenReturn(Optional.of(vsum));
     when(vsumUserRepository.findByVsumAndUser_EmailAndUser_RemovedAtIsNull(vsum, caller))
@@ -311,6 +307,8 @@ class VsumUserServiceTest {
     when(vsumUserRepository.existsByVsumAndVsum_removedAtIsNullAndUserAndUser_RemovedAtIsNull(
             vsum, candidate))
         .thenReturn(true);
+    VsumUserPostRequest req =
+        VsumUserPostRequest.builder().vsumId(vsum.getId()).userId(candidate.getId()).build();
 
     assertThatThrownBy(() -> service.addMember(caller, req))
         .isInstanceOf(VsumUserAlreadyMemberException.class);
