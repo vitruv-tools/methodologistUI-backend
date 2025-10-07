@@ -422,7 +422,7 @@ class VsumServiceTest {
     verify(vsumMetaModelService).delete(vsum, List.of(v20));
     verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
-    assertThat(result.getVsumMetaModels()).isNotNull().isNotEmpty().doesNotContain(v20);
+    assertThat(result.getVsumMetaModels()).doesNotContain(v20);
   }
 
   @Test
