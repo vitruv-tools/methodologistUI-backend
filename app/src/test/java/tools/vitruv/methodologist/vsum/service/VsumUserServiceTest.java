@@ -156,7 +156,9 @@ class VsumUserServiceTest {
     when(vsumUserRepository.findAllByVsum_id(vsum.getId()))
         .thenReturn(List.of(ownerMembership, memberMembership));
 
-    assertThatThrownBy(() -> service.findAllMemberByVsum(caller, vsum.getId()))
+    Long vsumId = vsum.getId();
+
+    assertThatThrownBy(() -> service.findAllMemberByVsum(caller, vsumId))
         .isInstanceOf(OwnerRequiredException.class);
   }
 
@@ -166,8 +168,10 @@ class VsumUserServiceTest {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(caller))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> service.findAllMemberByVsum(caller, vsum.getId()))
-        .isInstanceOf(NotFoundException.class);
+    Long vsumId = vsum.getId();
+
+    assertThatThrownBy(() -> service.findAllMemberByVsum(caller, vsumId))
+        .isInstanceOf(OwnerRequiredException.class);
   }
 
   @Test

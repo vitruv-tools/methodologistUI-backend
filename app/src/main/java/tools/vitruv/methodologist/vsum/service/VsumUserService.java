@@ -54,7 +54,6 @@ public class VsumUserService {
    * @throws UserAlreadyExistInVsumWithSameRoleException if the user already exists with the same
    *     role in the VSUM
    */
-  @Transactional
   public VsumUser create(Vsum vsum, User user, VsumRole role) {
     if (vsumUserRepository.existsByVsumAndUserAndRole(vsum, user, role)) {
       throw new UserAlreadyExistInVsumWithSameRoleException(
