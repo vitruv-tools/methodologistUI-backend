@@ -18,12 +18,12 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import tools.vitruv.methodologist.exception.DuplicateVsumMembershipException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.OwnerCannotAddSelfAsMemberException;
 import tools.vitruv.methodologist.exception.OwnerRequiredException;
 import tools.vitruv.methodologist.exception.OwnerRoleRemovalException;
 import tools.vitruv.methodologist.exception.UserAlreadyExistInVsumWithSameRoleException;
-import tools.vitruv.methodologist.exception.VsumUserAlreadyMemberException;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
@@ -315,7 +315,7 @@ class VsumUserServiceTest {
         VsumUserPostRequest.builder().vsumId(vsum.getId()).userId(candidate.getId()).build();
 
     assertThatThrownBy(() -> service.addMember(caller, req))
-        .isInstanceOf(VsumUserAlreadyMemberException.class);
+        .isInstanceOf(DuplicateVsumMembershipException.class);
     verify(vsumUserRepository, never()).save(any(VsumUser.class));
   }
 

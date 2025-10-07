@@ -95,7 +95,7 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
-   * Handles {@link VsumUserAlreadyMemberException} thrown when attempting to add a user who is
+   * Handles {@link DuplicateVsumMembershipException} thrown when attempting to add a user who is
    * already a member of a VSUM. Returns an {@link ErrorResponse} with HTTP 400 (Bad Request)
    * status, including the error message and request path.
    *
@@ -104,11 +104,11 @@ public class GlobalExceptionHandlerController {
    * @param request the current {@code ServletWebRequest}
    * @return a standardized {@code ErrorResponse} describing the duplicate membership error
    */
-  @ExceptionHandler(value = VsumUserAlreadyMemberException.class)
+  @ExceptionHandler(value = DuplicateVsumMembershipException.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   @ResponseBody
-  public ErrorResponse vsumUserAlreadyMemberException(
-      VsumUserAlreadyMemberException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+  public ErrorResponse duplicateVsumMembershipException(
+      DuplicateVsumMembershipException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))

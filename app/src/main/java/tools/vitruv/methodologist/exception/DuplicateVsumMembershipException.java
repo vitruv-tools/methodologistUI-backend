@@ -5,11 +5,11 @@ package tools.vitruv.methodologist.exception;
  *
  * <p>Used to prevent duplicate user membership in a VSUM.
  */
-public class VsumUserAlreadyMemberException extends RuntimeException {
+public class DuplicateVsumMembershipException extends RuntimeException {
   public static final String MESSAGE_TEMPLATE = "The user is already a member of this Vsum.";
 
   /** Constructs a new VsumUserAlreadyMemberException with a default message. */
-  public VsumUserAlreadyMemberException() {
+  public DuplicateVsumMembershipException() {
     super(MESSAGE_TEMPLATE);
   }
 }

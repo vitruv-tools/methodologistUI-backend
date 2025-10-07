@@ -12,12 +12,12 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.exception.DuplicateVsumMembershipException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.OwnerCannotAddSelfAsMemberException;
 import tools.vitruv.methodologist.exception.OwnerRequiredException;
 import tools.vitruv.methodologist.exception.OwnerRoleRemovalException;
 import tools.vitruv.methodologist.exception.UserAlreadyExistInVsumWithSameRoleException;
-import tools.vitruv.methodologist.exception.VsumUserAlreadyMemberException;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
@@ -106,7 +106,8 @@ public class VsumUserService {
    * @throws NotFoundException if the VSUM or user is not found
    * @throws OwnerRequiredException if the caller is not the owner of the VSUM
    * @throws IllegalArgumentException if the owner tries to add themselves as a member
-   * @throws VsumUserAlreadyMemberException if the user is already a member of the VSUM
+   * @throws tools.vitruv.methodologist.exception.DuplicateVsumMembershipException if the user is
+   *     already a member of the VSUM
    */
   @Transactional
   public VsumUser addMember(String callerEmail, VsumUserPostRequest vsumUserPostRequest) {
@@ -134,7 +135,7 @@ public class VsumUserService {
 
     if (vsumUserRepository.existsByVsumAndVsum_removedAtIsNullAndUserAndUser_RemovedAtIsNull(
         vsum, candidate)) {
-      throw new VsumUserAlreadyMemberException();
+      throw new DuplicateVsumMembershipException();
     }
 
     return create(vsum, candidate, VsumRole.MEMBER);
