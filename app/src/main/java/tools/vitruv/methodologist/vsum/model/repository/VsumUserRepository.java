@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 import tools.vitruv.methodologist.user.model.User;
@@ -32,15 +33,6 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
   List<VsumUser> findAllByUser_EmailAndVsum_removedAtIsNull(String userEmail);
 
   /**
-   * Finds all users with a specific role in a VSUM.
-   *
-   * @param vsum the VSUM to search in
-   * @param role the role to filter by
-   * @return list of VSUM user relationships matching the criteria
-   */
-  List<VsumUser> findAllByVsumAndRole(Vsum vsum, VsumRole role);
-
-  /**
    * Checks if a user relationship exists with the specified VSUM, user, and role.
    *
    * @param vsum the VSUM to check
@@ -49,4 +41,14 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
    * @return true if a relationship exists with the given criteria, false otherwise
    */
   boolean existsByVsumAndUserAndRole(Vsum vsum, User user, VsumRole role);
+
+  /**
+   * Finds the active {@link VsumUser} by VSUM id and user email.
+   *
+   * @param id the VSUM id to match
+   * @param callerEmail the user's email to match
+   * @return an {@link java.util.Optional} containing the relation if found; empty otherwise
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  Optional<VsumUser> findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(Long id, String callerEmail);
 }
