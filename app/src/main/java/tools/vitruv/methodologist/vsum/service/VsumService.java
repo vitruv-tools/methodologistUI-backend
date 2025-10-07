@@ -132,7 +132,8 @@ public class VsumService {
       String callerEmail, Long id, VsumSyncChangesPutRequest vsumSyncChangesPutRequest) {
     VsumUser vsumUser =
         vsumUserRepository
-            .findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(id, callerEmail)
+            .findByVsum_idAndUser_emailAndUser_removedAtIsNullAndVsum_RemovedAtIsNull(
+                id, callerEmail)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
 
     List<MetaModelRelationRequest> desiredMetaModelRelation =
