@@ -69,4 +69,13 @@ public class VsumHistoryService {
 
     return vsumHistory;
   }
+
+  /**
+   * Deletes all {@link VsumHistory} records associated with the specified {@link Vsum}.
+   *
+   * @param vsum the VSUM whose history records should be deleted
+   */
+  public void delete(Vsum vsum) {
+    vsumHistoryRepository.deleteVsumHistoryByVsum(vsum);
+  }
 }

@@ -69,11 +69,15 @@ public class VsumMetaModelService {
   }
 
   /**
-   * Deletes all {@link VsumMetaModel} associations linked to the specified {@link Vsum}.
+   * Deletes all {@link VsumMetaModel} associations and their cloned {@link MetaModel} instances
+   * linked to the specified {@link Vsum}.
    *
-   * @param vsum the VSUM whose metamodel associations should be deleted
+   * @param vsum the VSUM whose metamodel associations and cloned metamodels should be deleted
    */
   public void delete(Vsum vsum) {
+    List<MetaModel> metaModels =
+        vsum.getVsumMetaModels().stream().map(VsumMetaModel::getMetaModel).toList();
     vsumMetaModelRepository.deleteVsumMetaModelByVsum(vsum);
+    metaModelService.deleteCloned(metaModels);
   }
 }

@@ -131,7 +131,7 @@ public class MetaModelRelationService {
    *
    * @param vsum the VSUM whose metamodel relations should be deleted
    */
-  public void delete(Vsum vsum) {
+  public void deleteByVsum(Vsum vsum) {
     metaModelRelationRepository.deleteMetaModelRelationByVsum(vsum);
   }
 }

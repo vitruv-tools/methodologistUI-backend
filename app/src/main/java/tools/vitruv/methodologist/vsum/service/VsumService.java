@@ -344,10 +344,10 @@ public class VsumService {
 
     oldVsums.forEach(
         vsum -> {
-          // todo: after merge change history, we should removed history of the vsums
+          vsumHistoryService.delete(vsum);
           vsumUserService.delete(vsum);
           vsumMetaModelService.delete(vsum);
-          metaModelRelationService.delete(vsum);
+          metaModelRelationService.deleteByVsum(vsum);
         });
   }
 }

@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -594,15 +594,27 @@ class VsumServiceTest {
     long days = ChronoUnit.DAYS.between(cutoff, Instant.now());
     assertThat(days).isBetween(29L, 31L);
 
-    verify(vsumUserService).delete(a);
-    verify(vsumMetaModelService).delete(a);
-    verify(metaModelRelationService).delete(a);
+    verify(vsumUserService, times(1))
+        .delete(argThat(v -> v != null && Long.valueOf(1L).equals(v.getId())));
+    verify(vsumUserService, times(1))
+        .delete(argThat(v -> v != null && Long.valueOf(2L).equals(v.getId())));
 
-    verify(vsumUserService).delete(b);
-    verify(vsumMetaModelService).delete(b);
-    verify(metaModelRelationService).delete(b);
+    verify(vsumMetaModelService, times(1))
+        .delete(argThat(v -> v != null && Long.valueOf(1L).equals(v.getId())));
+    verify(vsumMetaModelService, times(1))
+        .delete(argThat(v -> v != null && Long.valueOf(2L).equals(v.getId())));
 
-    verifyNoMoreInteractions(vsumUserService, vsumMetaModelService, metaModelRelationService);
+    verify(metaModelRelationService, times(1))
+        .deleteByVsum(argThat(v -> v != null && Long.valueOf(1L).equals(v.getId())));
+    verify(metaModelRelationService, times(1))
+        .deleteByVsum(argThat(v -> v != null && Long.valueOf(2L).equals(v.getId())));
+
+    verify(vsumHistoryService, times(1))
+        .delete(argThat(v -> v != null && Long.valueOf(1L).equals(v.getId())));
+    verify(vsumHistoryService, times(1))
+        .delete(argThat(v -> v != null && Long.valueOf(2L).equals(v.getId())));
+    verifyNoMoreInteractions(
+        vsumUserService, vsumMetaModelService, metaModelRelationService, vsumHistoryService);
   }
 
   @Test
