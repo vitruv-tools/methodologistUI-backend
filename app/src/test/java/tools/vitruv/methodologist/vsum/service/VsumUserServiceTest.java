@@ -168,10 +168,8 @@ class VsumUserServiceTest {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(caller))
         .thenReturn(Optional.empty());
 
-    Long vsumId = vsum.getId();
-
-    assertThatThrownBy(() -> service.findAllMemberByVsum(caller, vsumId))
-        .isInstanceOf(OwnerRequiredException.class);
+    assertThatThrownBy(() -> service.findAllMemberByVsum(caller, vsum.getId()))
+        .isInstanceOf(NotFoundException.class);
   }
 
   @Test
