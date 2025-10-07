@@ -73,7 +73,6 @@ public class VsumUserService {
    * if the caller is the owner of the VSUM.
    *
    * @param callerEmail the email of the requesting user
-   * @param vsum the VSUM entity to fetch members for
    * @return a list of {@link VsumUserResponse} DTOs representing VSUM members
    * @throws NotFoundException if the caller's email is not found
    * @throws OwnerRequiredException if the caller is the owner of the VSUM
