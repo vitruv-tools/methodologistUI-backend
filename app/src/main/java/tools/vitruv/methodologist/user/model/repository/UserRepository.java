@@ -61,6 +61,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
   List<User> findAllExcludingEmailOrderByName(
       @Param("callerEmail") String callerEmail, Pageable pageable);
 
+  /**
+   * Searches for users whose email, first name, or last name contains the specified query
+   * parameter, excluding the user with the given email address.
+   *
+   * <p>All comparisons are case-insensitive. Results are ordered by first name, last name, and
+   * email.
+   *
+   * @param callerEmail the email address to exclude from the results (case-insensitive)
+   * @param queryParam the search term to match against email, first name, or last name
+   *     (case-insensitive, partial match)
+   * @param pageable pagination and sorting information
+   * @return a list of users matching the search criteria, excluding the caller
+   */
   @Query(
       """
       SELECT u FROM User u
