@@ -4,10 +4,12 @@ import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERR
 import static tools.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.apihandler.KeycloakApiHandler;
@@ -174,5 +176,33 @@ public class UserService {
     user.setRemovedAt(Instant.now());
     userRepository.save(user);
     return user;
+  }
+
+  /**
+   * Searches for users by name or email, excluding the caller. Only active users are returned.
+   *
+   * <p>If {@code queryParam} is blank or null, all users except the caller are listed. Otherwise,
+   * users matching the query by name or email are returned, excluding the caller. Results are
+   * paginated.
+   *
+   * @param callerEmail the email address of the authenticated caller (excluded from results)
+   * @param queryParam the search query for name or email; if blank, returns all except caller
+   * @param pageable pagination and sorting information
+   * @return a list of user responses matching the search criteria
+   * @throws NotFoundException if the caller is not found or is marked as removed
+   */
+  @Transactional(readOnly = true)
+  public List<UserResponse> searchUserByNameAndEmail(
+      String callerEmail, String queryParam, Pageable pageable) {
+    userRepository
+        .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
+        .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
+    List<User> users =
+        (queryParam == null || queryParam.isBlank())
+            ? userRepository.findAllExcludingEmailOrderByName(callerEmail, pageable)
+            : userRepository.searchByNameOrEmailExcludingCaller(
+                callerEmail, queryParam.trim(), pageable);
+
+    return users.stream().map(userMapper::toUserResponse).toList();
   }
 }
