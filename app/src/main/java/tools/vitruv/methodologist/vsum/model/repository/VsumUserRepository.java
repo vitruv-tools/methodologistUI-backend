@@ -21,6 +21,7 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
    *
    * <p>Criteria: - {@code user.email} equals {@code userEmail} - {@code vsum.removedAt} is {@code
    * null}
+   *
    * @param vsumId the ID of the VSUM to retrieve user relationships for
    * @return a list of VSUM user relationships associated with the given VSUM ID
    */
