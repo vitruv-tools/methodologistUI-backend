@@ -319,7 +319,8 @@ class VsumServiceTest {
   @Test
   void update_throwsNotFound_whenNotOwnedOrMissing() {
     String email = "u@ex.com";
-    when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(7L, email))
+    when(vsumUserRepository
+            .findByVsum_idAndUser_emailAndUser_removedAtIsNullAndVsum_RemovedAtIsNull(7L, email))
         .thenReturn(Optional.empty());
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
@@ -345,7 +346,8 @@ class VsumServiceTest {
     User owner = new User();
     String email = "u@ex.com";
     owner.setEmail(email);
-    when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(1L, email))
+    when(vsumUserRepository
+            .findByVsum_idAndUser_emailAndUser_removedAtIsNullAndVsum_RemovedAtIsNull(1L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
 
     MetaModel a = clonedMetaModel(10L, 100L);
@@ -382,7 +384,8 @@ class VsumServiceTest {
     User owner = new User();
     String email = "u@ex.com";
     owner.setEmail(email);
-    when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(2L, email))
+    when(vsumUserRepository
+            .findByVsum_idAndUser_emailAndUser_removedAtIsNullAndVsum_RemovedAtIsNull(2L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
 
     when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
@@ -408,7 +411,8 @@ class VsumServiceTest {
     User owner = new User();
     String email = "u@ex.com";
     owner.setEmail(email);
-    when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(3L, email))
+    when(vsumUserRepository
+            .findByVsum_idAndUser_emailAndUser_removedAtIsNullAndVsum_RemovedAtIsNull(3L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
 
     MetaModel mm10 = clonedMetaModel(1000L, 10L);
@@ -440,7 +444,8 @@ class VsumServiceTest {
     User owner = new User();
     String email = "u@ex.com";
     owner.setEmail(email);
-    when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(4L, email))
+    when(vsumUserRepository
+            .findByVsum_idAndUser_emailAndUser_removedAtIsNullAndVsum_RemovedAtIsNull(4L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
 
     MetaModel mm11 = clonedMetaModel(1011L, 11L);
@@ -469,7 +474,8 @@ class VsumServiceTest {
     String email = "u@ex.com";
     User owner = new User();
     owner.setEmail(email);
-    when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(5L, email))
+    when(vsumUserRepository
+            .findByVsum_idAndUser_emailAndUser_removedAtIsNullAndVsum_RemovedAtIsNull(5L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
 
     MetaModel m41 = clonedMetaModel(1041L, 41L);
@@ -512,7 +518,8 @@ class VsumServiceTest {
     User owner = new User();
     String email = "u@ex.com";
     owner.setEmail(email);
-    when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(6L, email))
+    when(vsumUserRepository
+            .findByVsum_idAndUser_emailAndUser_removedAtIsNullAndVsum_RemovedAtIsNull(6L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
 
     MetaModel m1 = clonedMetaModel(101L, 1L);
@@ -549,7 +556,8 @@ class VsumServiceTest {
     User owner = new User();
     String email = "u@ex.com";
     owner.setEmail(email);
-    when(vsumUserRepository.findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(7L, email))
+    when(vsumUserRepository
+            .findByVsum_idAndUser_emailAndUser_removedAtIsNullAndVsum_RemovedAtIsNull(7L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
 
     MetaModel mm10 = clonedMetaModel(1000L, 10L);

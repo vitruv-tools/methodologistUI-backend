@@ -12,4 +12,8 @@ public class Message {
   public static final String VSUM_REMOVED_SUCCESSFULLY = "Vsum successfully removed";
   public static final String FILE_UPLOADED_SUCCESSFULLY = "File uploaded successfully";
   public static final String META_MODEL_REMOVED_SUCCESSFULLY = "Meta model successfully removed";
+  public static final String VSUM_USER_DELETED_SUCCESSFULLY =
+      "Member successfully removed from the Vsum";
+  public static final String VSUM_USER_CREATED_SUCCESSFULLY =
+      "Member successfully added into the Vsum.";
 }
