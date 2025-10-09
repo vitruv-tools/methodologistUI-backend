@@ -38,12 +38,10 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumUserService {
-  VsumUserRepository vsumRepository;
-  VsumUserRepository vsumUserRepository;
+  VsumRepository vsumRepository;
   VsumUserRepository vsumUserRepository;
   UserRepository userRepository;
   VsumUserMapper vsumUserMapper;
-  VsumRepository vsumRepository;
 
   /**
    * Creates a new VSUM user relationship with the specified parameters. Throws an exception if the

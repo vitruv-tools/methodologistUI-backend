@@ -63,24 +63,25 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
    * @return an {@link java.util.Optional} containing the relation if found; empty otherwise
    */
   @SuppressWarnings("checkstyle:MethodName")
-  Optional<VsumUser> findByVsum_idAndUser_emailAndUser_removedAtIsNullAndVsum_RemovedAtIsNull(Long vsumId, String callerEmail);
+  Optional<VsumUser> findByVsum_idAndUser_emailAndUser_removedAtIsNullAndVsum_RemovedAtIsNull(
+      Long vsumId, String callerEmail);
 
-    /**
-     * Checks if an active {@link VsumUser} relationship exists for the given VSUM and user, ensuring
-     * both the VSUM and user have not been marked as removed.
-     *
-     * @param vsum the VSUM to check
-     * @param candidate the user to check
-     * @return true if an active relationship exists; false otherwise
-     */
-    @SuppressWarnings("checkstyle:MethodName")
-    boolean existsByVsumAndVsum_removedAtIsNullAndUserAndUser_RemovedAtIsNull(
-            Vsum vsum, User candidate);
+  /**
+   * Checks if an active {@link VsumUser} relationship exists for the given VSUM and user, ensuring
+   * both the VSUM and user have not been marked as removed.
+   *
+   * @param vsum the VSUM to check
+   * @param candidate the user to check
+   * @return true if an active relationship exists; false otherwise
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  boolean existsByVsumAndVsum_removedAtIsNullAndUserAndUser_RemovedAtIsNull(
+      Vsum vsum, User candidate);
 
-    /**
-     * Deletes all {@link VsumUser} relationships associated with the specified VSUM.
-     *
-     * @param vsum the VSUM whose user relationships should be deleted
-     */
-    void deleteVsumUserByVsum(Vsum vsum);
+  /**
+   * Deletes all {@link VsumUser} relationships associated with the specified VSUM.
+   *
+   * @param vsum the VSUM whose user relationships should be deleted
+   */
+  void deleteVsumUserByVsum(Vsum vsum);
 }

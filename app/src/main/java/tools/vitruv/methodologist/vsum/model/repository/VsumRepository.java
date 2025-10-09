@@ -34,12 +34,11 @@ public interface VsumRepository extends CrudRepository<Vsum, Long> {
    */
   List<Vsum> findAllByRemovedAtBefore(Instant cutoff);
 
-    /**
-     * Retrieves a {@link Vsum} by its ID, ensuring that the entity has not been marked as removed.
-     *
-     * @param id the ID of the Vsum to retrieve
-     * @return an {@link Optional} containing the Vsum if found and not removed, otherwise empty
-     */
-    Optional<Vsum> findByIdAndRemovedAtIsNull(Long id);
-
+  /**
+   * Retrieves a {@link Vsum} by its ID, ensuring that the entity has not been marked as removed.
+   *
+   * @param id the ID of the Vsum to retrieve
+   * @return an {@link Optional} containing the Vsum if found and not removed, otherwise empty
+   */
+  Optional<Vsum> findByIdAndRemovedAtIsNull(Long id);
 }
