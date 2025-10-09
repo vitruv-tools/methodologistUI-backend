@@ -21,6 +21,14 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
    *
    * <p>Criteria: - {@code user.email} equals {@code userEmail} - {@code vsum.removedAt} is {@code
    * null}
+   * @param vsumId the ID of the VSUM to retrieve user relationships for
+   * @return a list of VSUM user relationships associated with the given VSUM ID
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  List<VsumUser> findAllByVsum_id(Long vsumId);
+
+  /**
+   * Finds all VSUM relationships for a specific user.
    *
    * @param userEmail the email of the user to filter by
    * @param pageable pagination information
@@ -56,12 +64,37 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
   boolean existsByVsumAndUserAndRole(Vsum vsum, User user, VsumRole role);
 
   /**
+   * Finds an active {@link VsumUser} relationship for the given VSUM and user email, ensuring the
+   * user has not been marked as removed.
+   *
+   * @param vsum the VSUM entity to match
+   * @param userEmail the email of the user to match
+   * @return an {@link Optional} containing the VSUM user relationship if found and active; empty
+   *     otherwise
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  Optional<VsumUser> findByVsumAndUser_EmailAndUser_RemovedAtIsNull(Vsum vsum, String userEmail);
+
+  /**
    * Finds the active {@link VsumUser} by VSUM id and user email.
    *
-   * @param id the VSUM id to match
+   * @param vsumId the VSUM id to match
    * @param callerEmail the user's email to match
    * @return an {@link java.util.Optional} containing the relation if found; empty otherwise
    */
   @SuppressWarnings("checkstyle:MethodName")
-  Optional<VsumUser> findByVsum_idAndUser_emailAndVsum_RemovedAtIsNull(Long id, String callerEmail);
+  Optional<VsumUser> findByVsum_idAndUser_emailAndUser_removedAtIsNullAndVsum_RemovedAtIsNull(
+      Long vsumId, String callerEmail);
+
+  /**
+   * Checks if an active {@link VsumUser} relationship exists for the given VSUM and user, ensuring
+   * both the VSUM and user have not been marked as removed.
+   *
+   * @param vsum the VSUM to check
+   * @param candidate the user to check
+   * @return true if an active relationship exists; false otherwise
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  boolean existsByVsumAndVsum_removedAtIsNullAndUserAndUser_RemovedAtIsNull(
+      Vsum vsum, User candidate);
 }
