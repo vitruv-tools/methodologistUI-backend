@@ -135,7 +135,7 @@ public class VsumService {
       String callerEmail, Long id, VsumSyncChangesPutRequest vsumSyncChangesPutRequest) {
     VsumUser vsumUser =
         vsumUserRepository
-            .findByVsum_idAndUser_emailAndUser_removedAtIsNullAndVsum_RemovedAtIsNull(
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
                 id, callerEmail)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
 
@@ -338,7 +338,7 @@ public class VsumService {
             ? vsumUserRepository
                 .findAllByUser_EmailAndVsum_NameContainingIgnoreCaseAndVsum_RemovedAtIsNull(
                     callerEmail, name, pageable)
-            : vsumUserRepository.findAllByUser_EmailAndVsum_removedAtIsNull(callerEmail, pageable);
+            : vsumUserRepository.findAllByUser_EmailAndVsum_RemovedAtIsNull(callerEmail, pageable);
 
     return vsumUsers.stream().map(VsumUser::getVsum).map(vsumMapper::toVsumResponse).toList();
   }

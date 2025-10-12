@@ -26,7 +26,7 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
    * @return a list of VSUM user relationships associated with the given VSUM ID
    */
   @SuppressWarnings("checkstyle:MethodName")
-  List<VsumUser> findAllByVsum_id(Long vsumId);
+  List<VsumUser> findAllByVsum_Id(Long vsumId);
 
   /**
    * Finds all VSUM relationships for a specific user.
@@ -36,7 +36,7 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
    * @return paginated list of active {@link VsumUser} relationships
    */
   @SuppressWarnings("checkstyle:MethodName")
-  List<VsumUser> findAllByUser_EmailAndVsum_removedAtIsNull(String userEmail, Pageable pageable);
+  List<VsumUser> findAllByUser_EmailAndVsum_RemovedAtIsNull(String userEmail, Pageable pageable);
 
   /**
    * Finds all active VSUM user relationships for the specified user email and VSUM name substring,
@@ -84,7 +84,7 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
    * @return an {@link java.util.Optional} containing the relation if found; empty otherwise
    */
   @SuppressWarnings("checkstyle:MethodName")
-  Optional<VsumUser> findByVsum_idAndUser_emailAndUser_removedAtIsNullAndVsum_RemovedAtIsNull(
+  Optional<VsumUser> findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
       Long vsumId, String callerEmail);
 
   /**
@@ -96,7 +96,7 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
    * @return true if an active relationship exists; false otherwise
    */
   @SuppressWarnings("checkstyle:MethodName")
-  boolean existsByVsumAndVsum_removedAtIsNullAndUserAndUser_RemovedAtIsNull(
+  boolean existsByVsumAndVsum_RemovedAtIsNullAndUserAndUser_RemovedAtIsNull(
       Vsum vsum, User candidate);
 
   /**

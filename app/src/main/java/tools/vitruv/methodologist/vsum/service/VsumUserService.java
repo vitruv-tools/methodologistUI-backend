@@ -92,7 +92,7 @@ public class VsumUserService {
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
             .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
-    var vsumUsers = vsumUserRepository.findAllByVsum_id(vsumId);
+    var vsumUsers = vsumUserRepository.findAllByVsum_Id(vsumId);
 
     if (!vsumUsers.stream()
         .filter(vsumUser -> vsumUser.getRole().equals(VsumRole.OWNER))
@@ -142,7 +142,7 @@ public class VsumUserService {
       throw new OwnerCannotAddSelfAsMemberException();
     }
 
-    if (vsumUserRepository.existsByVsumAndVsum_removedAtIsNullAndUserAndUser_RemovedAtIsNull(
+    if (vsumUserRepository.existsByVsumAndVsum_RemovedAtIsNullAndUserAndUser_RemovedAtIsNull(
         vsum, candidate)) {
       throw new DuplicateVsumMembershipException();
     }
