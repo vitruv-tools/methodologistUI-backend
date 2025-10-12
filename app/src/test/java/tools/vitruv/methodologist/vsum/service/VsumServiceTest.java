@@ -6,18 +6,23 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -48,6 +53,7 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 @ExtendWith(MockitoExtension.class)
 class VsumServiceTest {
 
+  @InjectMocks VsumService job;
   @Mock private VsumMapper vsumMapper;
   @Mock private VsumRepository vsumRepository;
   @Mock private MetaModelMapper metaModelMapper;
@@ -360,6 +366,10 @@ class VsumServiceTest {
     Vsum result = service.update(email, 1L, put);
 
     verify(metaModelRelationService).delete(List.of(relCD));
+    verify(metaModelRelationService)
+        .delete(
+            argThat((List<MetaModelRelation> list) -> list.size() == 1 && list.contains(relCD)));
+    assertThat(result.getMetaModelRelations()).isEmpty();
     verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
     assertThat(result.getMetaModelRelations()).isEmpty();
@@ -531,7 +541,7 @@ class VsumServiceTest {
 
     verify(vsumMetaModelService, never()).delete(any(), any());
     verify(vsumMetaModelService, never()).create(any(), any());
-    verify(metaModelRelationService, never()).delete(any());
+    verify(metaModelRelationService, never()).delete((List<MetaModelRelation>) any());
     verify(metaModelRelationService, never()).create(any(), any());
     verify(vsumHistoryService, never()).create(any(), any());
     verify(vsumRepository).save(vsum);
@@ -572,5 +582,56 @@ class VsumServiceTest {
     verify(metaModelRelationService).delete(List.of(r));
     verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
+  }
+
+  @Test
+  void delete_invokesSubservices_forEachOldVsum_andUses30DayCutoff() {
+    Vsum a = new Vsum();
+    a.setId(1L);
+    Vsum b = new Vsum();
+    b.setId(2L);
+
+    when(vsumRepository.findAllByRemovedAtBefore(any(Instant.class))).thenReturn(List.of(a, b));
+
+    job.delete();
+
+    ArgumentCaptor<Instant> cutoffCap = ArgumentCaptor.forClass(Instant.class);
+    verify(vsumRepository).findAllByRemovedAtBefore(cutoffCap.capture());
+
+    Instant cutoff = cutoffCap.getValue();
+    long days = ChronoUnit.DAYS.between(cutoff, Instant.now());
+    assertThat(days).isBetween(29L, 31L);
+
+    verify(vsumUserService, times(1))
+        .delete(argThat(v -> v != null && Long.valueOf(1L).equals(v.getId())));
+    verify(vsumUserService, times(1))
+        .delete(argThat(v -> v != null && Long.valueOf(2L).equals(v.getId())));
+
+    verify(vsumMetaModelService, times(1))
+        .delete(argThat(v -> v != null && Long.valueOf(1L).equals(v.getId())));
+    verify(vsumMetaModelService, times(1))
+        .delete(argThat(v -> v != null && Long.valueOf(2L).equals(v.getId())));
+
+    verify(metaModelRelationService, times(1))
+        .deleteByVsum(argThat(v -> v != null && Long.valueOf(1L).equals(v.getId())));
+    verify(metaModelRelationService, times(1))
+        .deleteByVsum(argThat(v -> v != null && Long.valueOf(2L).equals(v.getId())));
+
+    verify(vsumHistoryService, times(1))
+        .delete(argThat(v -> v != null && Long.valueOf(1L).equals(v.getId())));
+    verify(vsumHistoryService, times(1))
+        .delete(argThat(v -> v != null && Long.valueOf(2L).equals(v.getId())));
+    verifyNoMoreInteractions(
+        vsumUserService, vsumMetaModelService, metaModelRelationService, vsumHistoryService);
+  }
+
+  @Test
+  void delete_whenNoOldVsums_doesNothing() {
+    when(vsumRepository.findAllByRemovedAtBefore(any(Instant.class))).thenReturn(List.of());
+
+    job.delete();
+
+    verify(vsumRepository).findAllByRemovedAtBefore(any(Instant.class));
+    verifyNoInteractions(vsumUserService, vsumMetaModelService, metaModelRelationService);
   }
 }

@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.vsum.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.HashSet;
@@ -111,5 +112,28 @@ class VsumMetaModelServiceTest {
     verify(vsumMetaModelRepository).deleteAll(toDelete);
     verify(metaModelService).deleteCloned(List.of(cloned));
     assertThat(vsum.getVsumMetaModels()).doesNotContain(link);
+  }
+
+  @Test
+  void delete_shouldDeleteVsumAndMetaModels() {
+    MetaModel meta1 = MetaModel.builder().id(1L).name("m1").build();
+    MetaModel meta2 = MetaModel.builder().id(2L).name("m2").build();
+
+    Vsum vsum = new Vsum();
+    VsumMetaModel vmm1 = VsumMetaModel.builder().vsum(vsum).metaModel(meta1).build();
+    VsumMetaModel vmm2 = VsumMetaModel.builder().vsum(vsum).metaModel(meta2).build();
+
+    vsum.setVsumMetaModels(Set.of(vmm1, vmm2));
+
+    service.delete(vsum);
+
+    verify(vsumMetaModelRepository).deleteVsumMetaModelByVsum(vsum);
+
+    ArgumentCaptor<List<MetaModel>> captor = ArgumentCaptor.forClass(List.class);
+    verify(metaModelService).deleteCloned(captor.capture());
+
+    assertThat(captor.getValue()).extracting(MetaModel::getId).containsExactlyInAnyOrder(1L, 2L);
+
+    verifyNoMoreInteractions(vsumMetaModelRepository, metaModelService);
   }
 }

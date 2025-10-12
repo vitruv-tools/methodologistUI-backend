@@ -38,10 +38,10 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumUserService {
+  VsumRepository vsumRepository;
   VsumUserRepository vsumUserRepository;
   UserRepository userRepository;
   VsumUserMapper vsumUserMapper;
-  VsumRepository vsumRepository;
 
   /**
    * Creates a new VSUM user relationship with the specified parameters. Throws an exception if the
@@ -66,6 +66,15 @@ public class VsumUserService {
     vsumUserRepository.save(vsumUser);
 
     return vsumUser;
+  }
+
+  /**
+   * Deletes all VSUM user relationships associated with the specified VSUM.
+   *
+   * @param vsum the VSUM whose user relationships should be deleted
+   */
+  public void delete(Vsum vsum) {
+    vsumUserRepository.deleteVsumUserByVsum(vsum);
   }
 
   /**
