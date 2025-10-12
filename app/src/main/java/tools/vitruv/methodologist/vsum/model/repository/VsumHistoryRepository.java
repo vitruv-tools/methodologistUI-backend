@@ -36,4 +36,11 @@ public interface VsumHistoryRepository extends CrudRepository<VsumHistory, Long>
    *     if none found
    */
   Optional<VsumHistory> findTopByVsumOrderByCreatedAtDesc(Vsum vsum);
+
+  /**
+   * Deletes all {@link VsumHistory} entities associated with the specified {@link Vsum}.
+   *
+   * @param vsum the VSUM whose history records should be deleted
+   */
+  void deleteVsumHistoryByVsum(Vsum vsum);
 }
