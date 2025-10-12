@@ -1,5 +1,7 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
@@ -19,7 +21,18 @@ public interface VsumRepository extends CrudRepository<Vsum, Long> {
    * @param email the email of the owning user
    * @return an Optional containing the Vsum if found and not removed, otherwise empty
    */
+  @SuppressWarnings("checkstyle:MethodName")
   Optional<Vsum> findByIdAndUser_emailAndRemovedAtIsNull(Long id, String email);
+
+  /**
+   * Finds all {@link Vsum} entities that have been marked as removed before the given cutoff
+   * timestamp.
+   *
+   * @param cutoff the {@link Instant} representing the cutoff time; only VSUMs with {@code
+   *     removedAt} before this will be returned
+   * @return a list of {@link Vsum} entities removed before the specified cutoff
+   */
+  List<Vsum> findAllByRemovedAtBefore(Instant cutoff);
 
   /**
    * Retrieves a {@link Vsum} by its ID, ensuring that the entity has not been marked as removed.

@@ -98,4 +98,11 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
   @SuppressWarnings("checkstyle:MethodName")
   boolean existsByVsumAndVsum_removedAtIsNullAndUserAndUser_RemovedAtIsNull(
       Vsum vsum, User candidate);
+
+  /**
+   * Deletes all {@link VsumUser} relationships associated with the specified VSUM.
+   *
+   * @param vsum the VSUM whose user relationships should be deleted
+   */
+  void deleteVsumUserByVsum(Vsum vsum);
 }

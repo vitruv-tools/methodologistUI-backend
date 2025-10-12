@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -15,6 +16,7 @@ import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -339,5 +341,26 @@ public class VsumService {
             : vsumUserRepository.findAllByUser_EmailAndVsum_removedAtIsNull(callerEmail, pageable);
 
     return vsumUsers.stream().map(VsumUser::getVsum).map(vsumMapper::toVsumResponse).toList();
+  }
+
+  /**
+   * Scheduled task that deletes all {@link Vsum} entities marked as removed for over 30 days, along
+   * with their associated user relationships, metamodels, and metamodel relations.
+   *
+   * <p>Runs daily at midnight.
+   */
+  @Transactional
+  @Scheduled(cron = "0 0 0 * * ?")
+  public void delete() {
+    Instant cutoff = Instant.now().minus(30, ChronoUnit.DAYS);
+    List<Vsum> oldVsums = vsumRepository.findAllByRemovedAtBefore(cutoff);
+
+    oldVsums.forEach(
+        vsum -> {
+          vsumHistoryService.delete(vsum);
+          vsumUserService.delete(vsum);
+          vsumMetaModelService.delete(vsum);
+          metaModelRelationService.deleteByVsum(vsum);
+        });
   }
 }
