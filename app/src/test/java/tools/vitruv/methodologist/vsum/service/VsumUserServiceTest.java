@@ -117,7 +117,7 @@ class VsumUserServiceTest {
     VsumUser ownerMembership =
         VsumUser.builder().id(1L).vsum(vsum).user(owner).role(VsumRole.OWNER).build();
 
-    when(vsumUserRepository.findAllByVsum_id(vsum.getId()))
+    when(vsumUserRepository.findAllByVsum_Id(vsum.getId()))
         .thenReturn(List.of(ownerMembership, memberMembership));
     when(vsumUserMapper.toVsumUserResponse(any()))
         .thenAnswer(
@@ -152,7 +152,7 @@ class VsumUserServiceTest {
 
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(caller))
         .thenReturn(Optional.of(mem));
-    when(vsumUserRepository.findAllByVsum_id(vsum.getId()))
+    when(vsumUserRepository.findAllByVsum_Id(vsum.getId()))
         .thenReturn(List.of(ownerMembership, memberMembership));
 
     Long vsumId = vsum.getId();
@@ -191,7 +191,7 @@ class VsumUserServiceTest {
         .thenReturn(Optional.of(callerMembership));
     when(userRepository.findByIdAndRemovedAtIsNull(candidate.getId()))
         .thenReturn(Optional.of(candidate));
-    when(vsumUserRepository.existsByVsumAndVsum_removedAtIsNullAndUserAndUser_RemovedAtIsNull(
+    when(vsumUserRepository.existsByVsumAndVsum_RemovedAtIsNullAndUserAndUser_RemovedAtIsNull(
             vsum, candidate))
         .thenReturn(false);
     when(vsumUserRepository.existsByVsumAndUserAndRole(vsum, candidate, VsumRole.MEMBER))
@@ -307,7 +307,7 @@ class VsumUserServiceTest {
         .thenReturn(Optional.of(callerMembership));
     when(userRepository.findByIdAndRemovedAtIsNull(candidate.getId()))
         .thenReturn(Optional.of(candidate));
-    when(vsumUserRepository.existsByVsumAndVsum_removedAtIsNullAndUserAndUser_RemovedAtIsNull(
+    when(vsumUserRepository.existsByVsumAndVsum_RemovedAtIsNullAndUserAndUser_RemovedAtIsNull(
             vsum, candidate))
         .thenReturn(true);
     VsumUserPostRequest req =
