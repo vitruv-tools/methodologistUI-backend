@@ -125,14 +125,16 @@ public class UserController {
   }
 
   /**
-   * Searches for users by name and email, scoped to the authenticated caller.
+   * Searches for users by name or email, excluding the authenticated caller.
    *
-   * <p>Only users with the 'user' role can access this endpoint. Results are paginated.
+   * <p>Accessible only to users with the 'user' role. Results are paginated and can be filtered by
+   * a query parameter matching email, first name, or last name (case-insensitive, partial match).
    *
    * @param authentication the Keycloak authentication object containing caller details
+   * @param queryParam the search term to filter users by name or email (optional)
    * @param pageNumber the page number for pagination (default is 0)
    * @param pageSize the number of results per page (default is 50)
-   * @return a response template containing the paginated user search results
+   * @return a response template containing the paginated list of matching users
    */
   @GetMapping("/v1/users/search")
   @PreAuthorize("hasRole('user')")
