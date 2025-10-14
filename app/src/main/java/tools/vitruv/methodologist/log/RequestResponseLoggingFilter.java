@@ -36,7 +36,7 @@ import org.springframework.web.util.ContentCachingResponseWrapper;
 public class RequestResponseLoggingFilter extends OncePerRequestFilter {
   private static final String STATUS = "status";
 
-  /** Case-insensitive field names that must be masked in logs. */
+  /** Normalized sensitive base keys (lowercase, non-alnum removed). */
   private static final Set<String> SENSITIVE_KEYS =
       Set.of(
           "password",
@@ -50,12 +50,7 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
           "clientsecret",
           "authorization");
 
-  /** Paths we do not want to log bodies for (prefix match). */
-  private static final Set<String> SENSITIVE_PATH_PREFIXES =
-      Set.of(
-          // Add more as needed:
-          "/api/v1/users/sign-up");
-
+  private static final String MASK = "***";
   private final ObjectMapper mapper = new ObjectMapper();
 
   private static boolean isMultipart(String contentType) {
@@ -122,8 +117,6 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
       boolean skipBodyLogging =
           request.getRequestURI().contains("swagger")
               || request.getRequestURI().contains("actuator")
-              || SENSITIVE_PATH_PREFIXES.stream()
-                  .anyMatch(p -> request.getRequestURI().startsWith(p))
               || isMultipart(request.getContentType());
 
       if (!skipBodyLogging) {
@@ -140,29 +133,12 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
         String sanitizedRes =
             sanitizeBody(resBody, contentTypeOrEmpty(responseWrapper.getContentType()));
 
-        try {
-          if (isJson(request.getContentType())) {
-            logEntry.put("request", mapper.readTree(sanitizedReq));
-          } else {
-            logEntry.put("request", sanitizedReq);
-          }
-        } catch (Exception ignore) {
-          logEntry.put("request", sanitizedReq);
-        }
-
-        try {
-          if (isJson(responseWrapper.getContentType())) {
-            logEntry.put("response", mapper.readTree(sanitizedRes));
-          } else {
-            logEntry.put("response", sanitizedRes);
-          }
-        } catch (Exception ignore) {
-          logEntry.put("response", sanitizedRes);
-        }
+        logEntry.put("request", tryParseJson(sanitizedReq, isJson(request.getContentType())));
+        logEntry.put(
+            "response", tryParseJson(sanitizedRes, isJson(responseWrapper.getContentType())));
       }
 
       responseWrapper.copyBodyToResponse();
-
       long durationMs = System.currentTimeMillis() - startTime;
 
       if (responseWrapper.getStatus() == 200 || responseWrapper.getStatus() == 201) {
@@ -176,6 +152,24 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
       }
 
       MDC.clear();
+    }
+  }
+
+  /**
+   * Attempts to parse the body as JSON if indicated, otherwise returns the raw body.
+   *
+   * @param body the body string to parse
+   * @param shouldParse whether to attempt JSON parsing
+   * @return parsed JsonNode or raw string if parsing fails
+   */
+  private Object tryParseJson(String body, boolean shouldParse) {
+    if (!shouldParse) {
+      return body;
+    }
+    try {
+      return mapper.readTree(body);
+    } catch (Exception e) {
+      return body;
     }
   }
 
@@ -221,7 +215,7 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
               field -> {
                 JsonNode child = obj.get(field);
                 if (isSensitiveField(field)) {
-                  obj.put(field, "****");
+                  obj.put(field, MASK);
                 } else {
                   redactJson(child);
                 }
@@ -231,11 +225,22 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
     }
   }
 
+  /**
+   * Determines if a field name is considered sensitive and should be masked.
+   *
+   * @param field the field name to check
+   * @return true if the field is sensitive, false otherwise
+   */
   private boolean isSensitiveField(String field) {
     if (field == null) {
       return false;
     }
-    return SENSITIVE_KEYS.contains(field.toLowerCase());
+    String normalized = field.toLowerCase().replaceAll("[^a-z0-9]", "");
+    if (SENSITIVE_KEYS.contains(normalized)) {
+      return true;
+    }
+
+    return normalized.contains("token");
   }
 
   /**
@@ -245,13 +250,18 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
    * @return the masked body string
    */
   private String redactWithRegex(String raw) {
-    return raw.replaceAll("(?i)(\"password\"\\s*:\\s*\")[^\"]*(\")", "$1****$2")
+    return raw.replaceAll("(?i)(\"password\"\\s*:\\s*\")[^\"]*(\")", "$1" + MASK + "$2")
         .replaceAll(
-            "(?i)(\"(newPassword|oldPassword|confirmPassword)\"\\s*:\\s*\")[^\"]*(\")", "$1****$3")
+            "(?i)(\"(newPassword|oldPassword|confirmPassword)\"\\s*:\\s*\")[^\"]*(\")",
+            "$1" + MASK + "$3")
         .replaceAll(
-            "(?i)(\"(token|accessToken|refreshToken|clientSecret|secret)\"\\s*:\\s*\")[^\"]*(\")",
-            "$1****$3")
-        .replaceAll("(?i)(password=)[^&\\s]*", "$1****")
-        .replaceAll("(?i)(Authorization\\s*:\\s*Bearer\\s+)[A-Za-z0-9._-]+", "$1****");
+            "(?i)(\"(accessToken|refreshToken|token|access_token|refresh_token|id_token)\"\\s*:\\s*\")[^\"]*(\")",
+            "$1" + MASK + "$3")
+        .replaceAll("(?i)(password=)[^&\\s]*", "$1" + MASK)
+        .replaceAll("(?i)(accessToken=)[^&\\s]*", "$1" + MASK)
+        .replaceAll("(?i)(refreshToken=)[^&\\s]*", "$1" + MASK)
+        .replaceAll("(?i)(access_token=)[^&\\s]*", "$1" + MASK)
+        .replaceAll("(?i)(refresh_token=)[^&\\s]*", "$1" + MASK)
+        .replaceAll("(?i)(Authorization\\s*:\\s*Bearer\\s+)[A-Za-z0-9._-]+", "$1" + MASK);
   }
 }
