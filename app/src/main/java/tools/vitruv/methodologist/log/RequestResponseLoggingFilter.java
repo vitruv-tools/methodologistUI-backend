@@ -258,11 +258,8 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
             "(?i)(\"(accessToken|refreshToken|token|access_token|refresh_token|id_token)"
                 + "\"\\s*:\\s*\")[^\"]*(\")",
             "$1" + MASK + "$3")
-        .replaceAll("(?i)(password=)[^&\\s]*", "$1" + MASK)
-        .replaceAll("(?i)(accessToken=)[^&\\s]*", "$1" + MASK)
-        .replaceAll("(?i)(refreshToken=)[^&\\s]*", "$1" + MASK)
-        .replaceAll("(?i)(access_token=)[^&\\s]*", "$1" + MASK)
-        .replaceAll("(?i)(refresh_token=)[^&\\s]*", "$1" + MASK)
-        .replaceAll("(?i)(Authorization\\s*:\\s*Bearer\\s+)[A-Za-z0-9._-]+", "$1" + MASK);
+        .replaceAll(
+            "(?i)(password|accessToken|refreshToken|access_token|refresh_token)=\\S+", "$1=" + MASK)
+        .replaceAll("(?i)(Authorization\\s*:\\s*Bearer\\s+)[A-Za-z0-9._~-]+", "$1" + MASK);
   }
 }
