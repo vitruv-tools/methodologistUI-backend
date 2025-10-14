@@ -255,7 +255,8 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
             "(?i)(\"(newPassword|oldPassword|confirmPassword)\"\\s*:\\s*\")[^\"]*(\")",
             "$1" + MASK + "$3")
         .replaceAll(
-            "(?i)(\"(accessToken|refreshToken|token|access_token|refresh_token|id_token)\"\\s*:\\s*\")[^\"]*(\")",
+            "(?i)(\"(accessToken|refreshToken|token|access_token|refresh_token|id_token)"
+                + "\"\\s*:\\s*\")[^\"]*(\")",
             "$1" + MASK + "$3")
         .replaceAll("(?i)(password=)[^&\\s]*", "$1" + MASK)
         .replaceAll("(?i)(accessToken=)[^&\\s]*", "$1" + MASK)
