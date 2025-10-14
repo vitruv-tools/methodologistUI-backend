@@ -1,8 +1,10 @@
 package tools.vitruv.methodologist.user.controller.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -21,20 +23,41 @@ import tools.vitruv.methodologist.user.RoleType;
 @AllArgsConstructor
 @NoArgsConstructor
 public class UserPostRequest {
+
   @Email @NotNull private String email;
 
   @NotNull @Builder.Default private RoleType roleType = RoleType.USER;
 
   @NotNull
   @NotBlank
-  @Size(min = 4)
+  @Size(min = 4, message = "Username must be at least 4 characters long.")
   private String username;
 
   @NotNull @NotBlank private String firstName;
 
   @NotNull @NotBlank private String lastName;
 
-  // todo: consider using a more secure password policy And need to hide it and dont show it in the
-  //  logs
-  @NotNull @NotBlank private String password;
+  @NotNull
+  @NotBlank
+  @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+  @Pattern(
+      regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$",
+      message =
+          "Password must be at least 8 characters long, contain upper and lower case letters, a number, and a special character.")
+  private String password;
+
+  @Override
+  public String toString() {
+    return "UserPostRequest(email="
+        + email
+        + ", roleType="
+        + roleType
+        + ", username="
+        + username
+        + ", firstName="
+        + firstName
+        + ", lastName="
+        + lastName
+        + ", password=****)";
+  }
 }
