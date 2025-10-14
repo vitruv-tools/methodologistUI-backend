@@ -260,6 +260,6 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
             "$1" + MASK + "$3")
         .replaceAll(
             "(?i)(password|accessToken|refreshToken|access_token|refresh_token)=\\S+", "$1=" + MASK)
-        .replaceAll("(?i:(Authorization\\s*:\\s*Bearer\\s+))[A-Za-z0-9._~-]+", "$1" + MASK);
+        .replaceAll("(?i)(Authorization\\s*:\\s*Bearer\\s+)[A-Za-z0-9._~-]+", "$1" + MASK);
   }
 }
