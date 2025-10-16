@@ -267,8 +267,6 @@ class UserServiceTest {
   @Test
   void searchUserByNameAndEmail_returnsAllExcludingCaller_whenQueryBlank() {
     String callerEmail = "caller@example.com";
-    Pageable pageable = PageRequest.of(0, 10);
-
     User caller = new User();
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
         .thenReturn(Optional.of(caller));
@@ -277,6 +275,7 @@ class UserServiceTest {
     u1.setId(1L);
     User u2 = new User();
     u2.setId(2L);
+    Pageable pageable = PageRequest.of(0, 10);
     when(userRepository.findAllExcludingEmailOrderByName(callerEmail, pageable))
         .thenReturn(List.of(u1, u2));
 
@@ -296,14 +295,13 @@ class UserServiceTest {
   @Test
   void searchUserByNameAndEmail_searchesByNameOrEmail_whenQueryProvided() {
     String callerEmail = "caller@example.com";
-    String query = "ali";
-    Pageable pageable = PageRequest.of(1, 5);
-
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
         .thenReturn(Optional.of(new User()));
 
     User u1 = new User();
     u1.setId(10L);
+    String query = "ali";
+    Pageable pageable = PageRequest.of(1, 5);
     when(userRepository.searchByNameOrEmailExcludingCaller(callerEmail, query, pageable))
         .thenReturn(List.of(u1));
 
@@ -321,21 +319,20 @@ class UserServiceTest {
   @Test
   void searchUserByNameAndEmail_trimsQuery_beforeSearching() {
     String callerEmail = "caller@example.com";
-    String rawQuery = "  Alice@example.com  ";
-    String trimmed = "Alice@example.com";
-    Pageable pageable = PageRequest.of(0, 20);
-
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
         .thenReturn(Optional.of(new User()));
 
     User u = new User();
     u.setId(5L);
+    String trimmed = "Alice@example.com";
+    Pageable pageable = PageRequest.of(0, 20);
     when(userRepository.searchByNameOrEmailExcludingCaller(callerEmail, trimmed, pageable))
         .thenReturn(List.of(u));
 
     UserResponse r = UserResponse.builder().id(5L).build();
     when(userMapper.toUserResponse(u)).thenReturn(r);
 
+    String rawQuery = "  Alice@example.com  ";
     List<UserResponse> result =
         userService.searchUserByNameAndEmail(callerEmail, rawQuery, pageable);
 
@@ -346,11 +343,10 @@ class UserServiceTest {
   @Test
   void searchUserByNameAndEmail_throwsNotFound_whenCallerMissing() {
     String callerEmail = "missing@example.com";
-    Pageable pageable = PageRequest.of(0, 10);
-
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
         .thenReturn(Optional.empty());
 
+    Pageable pageable = PageRequest.of(0, 10);
     assertThatThrownBy(() -> userService.searchUserByNameAndEmail(callerEmail, "any", pageable))
         .isInstanceOf(NotFoundException.class);
 
