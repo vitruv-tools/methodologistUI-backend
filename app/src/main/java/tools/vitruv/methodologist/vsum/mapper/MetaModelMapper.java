@@ -34,6 +34,7 @@ public interface MetaModelMapper {
    */
   @Mapping(source = "ecoreFile.id", target = "ecoreFileId")
   @Mapping(source = "genModelFile.id", target = "genModelFileId")
+  @Mapping(source = "source.id", target = "sourceId")
   MetaModelResponse toMetaModelResponse(MetaModel metaModel);
 
   /**
