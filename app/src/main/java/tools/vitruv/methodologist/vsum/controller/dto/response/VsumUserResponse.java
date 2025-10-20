@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tools.vitruv.methodologist.vsum.VsumRole;
 
 /**
  * Data transfer object representing a user associated with a VSUM. Contains user identification,
@@ -23,5 +24,6 @@ public class VsumUserResponse {
   private String lastName;
   private String email;
   private String roleEn;
+  private VsumRole role;
   private Instant createdAt;
 }

@@ -1,17 +1,19 @@
-# ---- Build stage ----
-FROM maven:3.9.9-eclipse-temurin-21 AS build
-WORKDIR /workspace
-
-# Copy EVERYTHING
-COPY . .
-
-# Build the app module
-RUN chmod +x mvnw || true
-RUN ./mvnw -B -DskipTests -pl app -am clean package
-
-# ---- Runtime stage ----
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY --from=build /workspace/app/target/*.jar app.jar
+
+# Non-root user + writable logs
+RUN addgroup -S spring \
+    && adduser -S spring -G spring \
+    && mkdir -p /app/log \
+    && chown -R spring:spring /app
+USER spring:spring
+
+# Your prebuilt JAR (already copied to /opt/methodologist/backend/app.jar)
+COPY app.jar /app/app.jar
+
+# Helpful defaults
+ENV SERVER_PORT=8080 \
+    LOG_PATH=/app/log
+
 EXPOSE 8080
 ENTRYPOINT ["java","-jar","/app/app.jar"]
