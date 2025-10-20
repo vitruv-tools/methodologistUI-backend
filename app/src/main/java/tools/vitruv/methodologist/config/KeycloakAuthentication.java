@@ -2,9 +2,7 @@ package tools.vitruv.methodologist.config;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.time.Instant;
 import java.util.Collection;
@@ -50,10 +48,9 @@ public class KeycloakAuthentication extends JwtAuthenticationToken {
   @Setter
   @NoArgsConstructor
   @AllArgsConstructor
-  @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
   public static class ParsedToken {
     private String scope;
-    private String emailVerified;
+    private Boolean emailVerified;
     private String preferredUsername;
     private RoleType roleType;
     private String givenName;
@@ -62,7 +59,21 @@ public class KeycloakAuthentication extends JwtAuthenticationToken {
     private Instant exp;
     private RealmAccess realmAccess;
 
-    private static class RealmAccess {
+    /**
+     * Represents the Keycloak realm access claim, containing the list of roles assigned to the
+     * user.
+     *
+     * <p>Used to extract and manage user roles from the JWT token for authorization purposes.
+     *
+     * <ul>
+     *   <li>roles - the roles granted to the user within the Keycloak realm
+     * </ul>
+     */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RealmAccess {
       private List<String> roles;
     }
   }
