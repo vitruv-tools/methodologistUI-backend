@@ -5,8 +5,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Set;
-import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -27,42 +25,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * guaranteed to run only once per request.
  */
 public class KeycloakAuthenticationFilter extends OncePerRequestFilter {
-
-  private static final AntPathMatcher PATHS = new AntPathMatcher();
-
-  private static final Set<String> PUBLIC_POST =
-      Set.of(
-          "/api/v1/users/login", "v1/users/access-token/by-refresh-token", "api/v1/users/sign-up");
-
-  /**
-   * Returns {@code true} if the given request is considered public and may be handled without
-   * authentication.
-   *
-   * <p>Public requests are:
-   *
-   * <ul>
-   *   <li>HTTP OPTIONS requests
-   *   <li>HTTP POST requests whose request URI matches any pattern in {@code PUBLIC_POST}
-   * </ul>
-   *
-   * @param request the current {@link jakarta.servlet.http.HttpServletRequest}
-   * @return {@code true} when the request should be treated as public (no auth required)
-   */
-  private boolean isPublic(HttpServletRequest request) {
-    if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-      return true;
-    }
-
-    if ("POST".equalsIgnoreCase(request.getMethod())) {
-      for (String p : PUBLIC_POST) {
-        if (PATHS.match(p, request.getRequestURI())) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  }
 
   /**
    * Determines whether this filter should not be applied to the given request.
