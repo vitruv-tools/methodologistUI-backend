@@ -288,6 +288,7 @@ class VsumServiceTest {
     VsumUser x = new VsumUser();
     x.setId(1L);
     x.setVsum(a);
+    x.setRole(VsumRole.OWNER);
 
     Vsum b = new Vsum();
     b.setId(2L);
@@ -295,14 +296,19 @@ class VsumServiceTest {
     VsumUser y = new VsumUser();
     y.setId(1L);
     y.setVsum(b);
+    y.setRole(VsumRole.MEMBER);
+
     String email = "u@ex.com";
     when(vsumUserRepository.findAllByUser_EmailAndVsum_RemovedAtIsNull(email, Pageable.ofSize(1)))
         .thenReturn(List.of(x, y));
 
     VsumResponse ra = new VsumResponse();
     ra.setId(1L);
+    ra.setRole(VsumRole.OWNER);
     VsumResponse rb = new VsumResponse();
     rb.setId(2L);
+    rb.setRole(VsumRole.MEMBER);
+
     when(vsumMapper.toVsumResponse(any(Vsum.class)))
         .thenAnswer(
             inv -> {
@@ -315,6 +321,9 @@ class VsumServiceTest {
     List<VsumResponse> result = service.findAllByUser(email, null, Pageable.ofSize(1));
 
     assertThat(result).extracting(VsumResponse::getId).containsExactly(1L, 2L);
+    assertThat(result)
+        .extracting(VsumResponse::getRole)
+        .containsExactly(VsumRole.OWNER, VsumRole.MEMBER);
   }
 
   @Test
