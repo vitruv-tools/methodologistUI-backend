@@ -668,4 +668,35 @@ class VsumServiceTest {
         .findAllByUser_EmailAndVsum_RemovedAtIsNotNull(callerEmail, pageable);
     verify(vsumMapper, times(2)).toVsumResponse(any(Vsum.class));
   }
+
+  @Test
+  void recovery_clearsRemovedAtAndSaves_whenOwned() {
+    Vsum entity = new Vsum();
+    entity.setId(42L);
+    entity.setRemovedAt(Instant.now());
+    String email = "u@ex.com";
+    when(vsumRepository.findByIdAndUser_EmailAndUser_RemovedAtIsNullAndRemovedAtIsNotNull(
+            42L, email))
+        .thenReturn(Optional.of(entity));
+    when(vsumRepository.save(any(Vsum.class))).thenAnswer(inv -> inv.getArgument(0));
+
+    service.recovery(email, 42L);
+
+    assertThat(entity.getRemovedAt()).isNull();
+    verify(vsumRepository).save(entity);
+  }
+
+  @Test
+  void recovery_throwsNotFound_whenMissing() {
+    String email = "u@ex.com";
+    when(vsumRepository.findByIdAndUser_EmailAndUser_RemovedAtIsNullAndRemovedAtIsNotNull(
+            99L, email))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.recovery(email, 99L))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
+
+    verify(vsumRepository, never()).save(any(Vsum.class));
+  }
 }
