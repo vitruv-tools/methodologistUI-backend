@@ -39,6 +39,23 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
   List<VsumUser> findAllByUser_EmailAndVsum_RemovedAtIsNull(String userEmail, Pageable pageable);
 
   /**
+   * Finds VSUM relationships for the given user where the associated VSUM has been removed.
+   *
+   * <p>Criteria:
+   *
+   * <ul>
+   *   <li>{@code user.email} equals {@code userEmail}
+   *   <li>{@code vsum.removedAt} is not {@code null} (removed VSUMs)
+   * </ul>
+   *
+   * @param userEmail the email of the user to filter by
+   * @param pageable pagination information
+   * @return paginated list of {@link VsumUser} relationships for removed VSUMs
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  List<VsumUser> findAllByUser_EmailAndVsum_RemovedAtIsNotNull(String userEmail, Pageable pageable);
+
+  /**
    * Finds all active VSUM user relationships for the specified user email and VSUM name substring,
    * with pagination.
    *

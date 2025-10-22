@@ -163,6 +163,31 @@ public class VsumController {
   }
 
   /**
+   * Retrieves removed VSUMs owned by the authenticated user and returns them as a paginated list.
+   *
+   * <p>The caller's email is resolved from the provided {@link KeycloakAuthentication} token and
+   * used to fetch VSUMs whose {@code removedAt} timestamp is not {@code null}.
+   *
+   * @param authentication the Keycloak authentication containing the caller's identity
+   * @param pageNumber zero-based page index (default 0)
+   * @param pageSize the size of the page to be returned (default 50)
+   * @return a {@link ResponseTemplateDto} wrapping a {@code List<VsumResponse>} representing the
+   *     user's removed VSUMs
+   */
+  @GetMapping("/v1/vsums/find-all-removed")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<List<VsumResponse>> findAllRemoved(
+      KeycloakAuthentication authentication,
+      @RequestParam(defaultValue = "0") int pageNumber,
+      @RequestParam(defaultValue = "50") int pageSize) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by("id").descending());
+    return ResponseTemplateDto.<List<VsumResponse>>builder()
+        .data(vsumService.findAllRemoved(callerEmail, pageable))
+        .build();
+  }
+
+  /**
    * Retrieves detailed information about a specific {@link
    * tools.vitruv.methodologist.vsum.model.Vsum} owned by the authenticated user. Includes the VSUM
    * metadata and its associated metamodels.
