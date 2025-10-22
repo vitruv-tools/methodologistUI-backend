@@ -657,10 +657,7 @@ class VsumServiceTest {
             inv -> {
               Vsum v = inv.getArgument(0);
               VsumResponse resp = new VsumResponse();
-              try {
-                resp.setId(v.getId());
-              } catch (Exception ignored) {
-              }
+              resp.setId(v.getId());
               return resp;
             });
 
