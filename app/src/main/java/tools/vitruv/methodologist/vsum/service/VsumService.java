@@ -344,6 +344,25 @@ public class VsumService {
   }
 
   /**
+   * Retrieves removed VSUMs associated with the specified user and maps them to response DTOs.
+   *
+   * <p>Returns VSUMs where the related {@code Vsum.removedAt} is not {@code null}. Results are
+   * fetched via {@code vsumUserRepository.findAllByUser_EmailAndVsum_RemovedAtIsNotNull(...)} and
+   * mapped to {@link VsumResponse} instances using {@code vsumMapper}.
+   *
+   * @param callerEmail the email of the user whose removed VSUMs should be retrieved
+   * @param pageable pagination information
+   * @return a list of {@link VsumResponse} DTOs for the user's removed VSUMs
+   */
+  @Transactional(readOnly = true)
+  public List<VsumResponse> findAllRemoved(String callerEmail, Pageable pageable) {
+    List<VsumUser> vsumUsers =
+        vsumUserRepository.findAllByUser_EmailAndVsum_RemovedAtIsNotNull(callerEmail, pageable);
+
+    return vsumUsers.stream().map(VsumUser::getVsum).map(vsumMapper::toVsumResponse).toList();
+  }
+
+  /**
    * Scheduled task that deletes all {@link Vsum} entities marked as removed for over 30 days, along
    * with their associated user relationships, metamodels, and metamodel relations.
    *
