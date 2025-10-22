@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -340,7 +341,19 @@ public class VsumService {
                     callerEmail, name, pageable)
             : vsumUserRepository.findAllByUser_EmailAndVsum_RemovedAtIsNull(callerEmail, pageable);
 
-    return vsumUsers.stream().map(VsumUser::getVsum).map(vsumMapper::toVsumResponse).toList();
+    Map<Long, VsumUser> vsumUserMap =
+        vsumUsers.stream()
+            .collect(Collectors.toMap(vsumUser -> vsumUser.getVsum().getId(), Function.identity()));
+    Map<Long, VsumResponse> response =
+        vsumUsers.stream()
+            .map(VsumUser::getVsum)
+            .map(vsumMapper::toVsumResponse)
+            .collect(Collectors.toMap(VsumResponse::getId, Function.identity()));
+
+    vsumUserMap
+        .keySet()
+        .forEach(aLong -> response.get(aLong).setRole(vsumUserMap.get(aLong).getRole()));
+    return response.values().stream().toList();
   }
 
   /**

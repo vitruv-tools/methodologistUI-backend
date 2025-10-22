@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tools.vitruv.methodologist.vsum.VsumRole;
 
 /**
  * Data Transfer Object (DTO) for VSUM response data. Contains fields representing a VSUM's state
@@ -19,6 +20,7 @@ import lombok.Setter;
 public class VsumResponse {
   private Long id;
   private String name;
+  private VsumRole role;
   private Instant createdAt;
   private Instant updatedAt;
   private Instant removedAt;
