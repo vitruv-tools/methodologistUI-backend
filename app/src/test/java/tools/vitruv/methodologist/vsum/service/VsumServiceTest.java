@@ -25,7 +25,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.user.model.User;
@@ -634,5 +636,39 @@ class VsumServiceTest {
 
     verify(vsumRepository).findAllByRemovedAtBefore(any(Instant.class));
     verifyNoInteractions(vsumUserService, vsumMetaModelService, metaModelRelationService);
+  }
+
+  @Test
+  void findAllRemoved_returnsMappedResponses_forRemovedVsums() {
+    Pageable pageable = PageRequest.of(0, 50, Sort.by("id").descending());
+
+    Vsum vsum1 = Vsum.builder().id(1L).name("First").build();
+    Vsum vsum2 = Vsum.builder().id(2L).name("Second").build();
+
+    VsumUser u1 = VsumUser.builder().vsum(vsum1).build();
+    VsumUser u2 = VsumUser.builder().vsum(vsum2).build();
+
+    String callerEmail = "user@x.test";
+    when(vsumUserRepository.findAllByUser_EmailAndVsum_RemovedAtIsNotNull(callerEmail, pageable))
+        .thenReturn(List.of(u1, u2));
+
+    when(vsumMapper.toVsumResponse(any(Vsum.class)))
+        .thenAnswer(
+            inv -> {
+              Vsum v = inv.getArgument(0);
+              VsumResponse resp = new VsumResponse();
+              try {
+                resp.setId(v.getId());
+              } catch (Exception ignored) {
+              }
+              return resp;
+            });
+
+    List<VsumResponse> result = service.findAllRemoved(callerEmail, pageable);
+
+    assertThat(result).hasSize(2);
+    verify(vsumUserRepository, times(1))
+        .findAllByUser_EmailAndVsum_RemovedAtIsNotNull(callerEmail, pageable);
+    verify(vsumMapper, times(2)).toVsumResponse(any(Vsum.class));
   }
 }
