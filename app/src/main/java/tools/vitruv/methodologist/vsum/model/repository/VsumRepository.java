@@ -41,4 +41,17 @@ public interface VsumRepository extends CrudRepository<Vsum, Long> {
    * @return an {@link Optional} containing the Vsum if found and not removed, otherwise empty
    */
   Optional<Vsum> findByIdAndRemovedAtIsNull(Long id);
+
+  /**
+   * Retrieves a removed {@link Vsum} by id for an active (not-removed) user identified by the given
+   * email.
+   *
+   * @param id the id of the {@link Vsum} to retrieve
+   * @param callerEmail the email of the owning user
+   * @return an {@link Optional} containing the matching removed {@link Vsum} if present, otherwise
+   *     empty
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  Optional<Vsum> findByIdAndUser_EmailAndUser_RemovedAtIsNullAndRemovedAtIsNotNull(
+      Long id, String callerEmail);
 }

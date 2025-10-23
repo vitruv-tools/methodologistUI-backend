@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.vsum.controller;
 
 import static tools.vitruv.methodologist.messages.Message.VSUM_CREATED_SUCCESSFULLY;
+import static tools.vitruv.methodologist.messages.Message.VSUM_RECOVERY_WAS_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_REMOVED_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_UPDATED_SUCCESSFULLY;
 
@@ -207,5 +208,25 @@ public class VsumController {
     return ResponseTemplateDto.<VsumMetaModelResponse>builder()
         .data(vsumService.findVsumWithDetails(callerEmail, id))
         .build();
+  }
+
+  /**
+   * Restores a previously removed {@link tools.vitruv.methodologist.vsum.model.Vsum} owned by the
+   * authenticated user.
+   *
+   * @param authentication the Keycloak authentication containing the caller's identity
+   * @param id the identifier of the VSUM to recover
+   * @return a {@link tools.vitruv.methodologist.ResponseTemplateDto} with {@code Void} data and a
+   *     success message indicating recovery (see {@code VSUM_RECOVERY_WAS_SUCCESSFULLY})
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if no matching removed VSUM is
+   *     found
+   */
+  @PutMapping("/v1/vsums/{id}/recovery")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> recovery(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    vsumService.recovery(callerEmail, id);
+    return ResponseTemplateDto.<Void>builder().message(VSUM_RECOVERY_WAS_SUCCESSFULLY).build();
   }
 }

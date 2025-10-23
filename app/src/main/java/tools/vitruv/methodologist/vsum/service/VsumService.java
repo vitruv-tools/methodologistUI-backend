@@ -395,4 +395,24 @@ public class VsumService {
           metaModelRelationService.deleteByVsum(vsum);
         });
   }
+
+  /**
+   * Restores a previously removed {@link Vsum} owned by the active user by clearing its removal
+   * timestamp.
+   *
+   * @param callerEmail the email of the authenticated user requesting recovery
+   * @param id the identifier of the removed {@link Vsum} to recover
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if no matching removed VSUM is
+   *     found
+   */
+  @Transactional
+  public void recovery(String callerEmail, Long id) {
+    Vsum vsum =
+        vsumRepository
+            .findByIdAndUser_EmailAndUser_RemovedAtIsNullAndRemovedAtIsNotNull(id, callerEmail)
+            .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
+
+    vsum.setRemovedAt(null);
+    vsumRepository.save(vsum);
+  }
 }
