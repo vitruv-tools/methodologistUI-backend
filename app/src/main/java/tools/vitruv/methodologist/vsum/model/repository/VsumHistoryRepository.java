@@ -63,7 +63,8 @@ public interface VsumHistoryRepository extends CrudRepository<VsumHistory, Long>
   @Query(
       """
           select v from VsumHistory v
-          where v.vsum.id = ?1 and v.vsum.user.email = ?2 and v.vsum.user.removedAt is null and v.vsum.removedAt is null
+          where v.vsum.id = ?1 and v.vsum.user.email = ?2
+                     and v.vsum.user.removedAt is null and v.vsum.removedAt is null
           order by v.createdAt DESC""")
   List<VsumHistory> getVsumHistories(Long vsumId, String callerEmail);
 }
