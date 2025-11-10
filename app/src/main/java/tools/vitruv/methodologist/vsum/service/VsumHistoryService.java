@@ -1,10 +1,12 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.user.model.User;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumHistoryResponse;
 import tools.vitruv.methodologist.vsum.mapper.VsumHistoryMapper;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumHistory;
@@ -77,5 +79,21 @@ public class VsumHistoryService {
    */
   public void delete(Vsum vsum) {
     vsumHistoryRepository.deleteVsumHistoryByVsum(vsum);
+  }
+
+  /**
+   * Retrieves VSUM history snapshots for the specified VSUM id and caller email, filters out
+   * records for removed users or removed VSUMs, orders results by {@code createdAt} ascending, and
+   * maps each entity to a {@link VsumHistoryResponse} DTO.
+   *
+   * @param callerEmail the email address of the VSUM owner used to filter history records; must not
+   *     be {@code null}
+   * @param vsumId the VSUM id to filter history records by; must not be {@code null}
+   * @return a list of {@link VsumHistoryResponse} ordered by {@code createdAt} ascending; never
+   *     {@code null} (may be empty)
+   */
+  public List<VsumHistoryResponse> findAllByVsumId(String callerEmail, Long vsumId) {
+    List<VsumHistory> vsumHistories = vsumHistoryRepository.getVsumHistories(vsumId, callerEmail);
+    return vsumHistories.stream().map(vsumHistoryMapper::toVsumHistoryResponse).toList();
   }
 }

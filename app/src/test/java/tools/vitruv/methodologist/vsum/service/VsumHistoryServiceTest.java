@@ -6,6 +6,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.vsum.VsumRepresentation;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumHistoryResponse;
 import tools.vitruv.methodologist.vsum.mapper.VsumHistoryMapper;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumHistory;
@@ -135,5 +137,43 @@ class VsumHistoryServiceTest {
     verify(vsumHistoryRepository).delete(newest);
     verify(vsumHistoryRepository).save(any(VsumHistory.class));
     assertThat(saved.getRepresentation()).isEqualTo(vsumRepresentation);
+  }
+
+  @Test
+  void findAllByVsumId_returnsMappedList_whenHistoriesExist() {
+    String callerEmail = "user@example.com";
+    Long vsumId = 42L;
+    VsumHistory h1 = VsumHistory.builder().id(1L).build();
+    VsumHistory h2 = VsumHistory.builder().id(2L).build();
+
+    when(vsumHistoryRepository.getVsumHistories(vsumId, callerEmail)).thenReturn(List.of(h1, h2));
+
+    VsumHistoryResponse r1 = VsumHistoryResponse.builder().id(1L).build();
+    VsumHistoryResponse r2 = VsumHistoryResponse.builder().id(2L).build();
+
+    when(vsumHistoryMapper.toVsumHistoryResponse(h1)).thenReturn(r1);
+    when(vsumHistoryMapper.toVsumHistoryResponse(h2)).thenReturn(r2);
+
+    java.util.List<VsumHistoryResponse> result = service.findAllByVsumId(callerEmail, vsumId);
+
+    assertThat(result).containsExactly(r1, r2);
+    verify(vsumHistoryRepository).getVsumHistories(vsumId, callerEmail);
+    verify(vsumHistoryMapper).toVsumHistoryResponse(h1);
+    verify(vsumHistoryMapper).toVsumHistoryResponse(h2);
+  }
+
+  @Test
+  void findAllByVsumId_returnsEmptyList_whenNoHistoriesExist() {
+    Long vsumId = 777L;
+    String callerEmail = "user@example.com";
+
+    when(vsumHistoryRepository.getVsumHistories(vsumId, callerEmail))
+        .thenReturn(java.util.List.of());
+
+    java.util.List<VsumHistoryResponse> result = service.findAllByVsumId(callerEmail, vsumId);
+
+    assertThat(result).isEmpty();
+    verify(vsumHistoryRepository).getVsumHistories(vsumId, callerEmail);
+    verify(vsumHistoryMapper, never()).toVsumHistoryResponse(any(VsumHistory.class));
   }
 }

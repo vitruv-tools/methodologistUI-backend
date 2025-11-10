@@ -5,8 +5,10 @@ import java.util.stream.Collectors;
 import org.mapstruct.Mapper;
 import org.mapstruct.ReportingPolicy;
 import tools.vitruv.methodologist.vsum.VsumRepresentation;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumHistoryResponse;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
+import tools.vitruv.methodologist.vsum.model.VsumHistory;
 
 /**
  * MapStruct mapper that converts a domain {@link Vsum} aggregate into a serializable {@link
@@ -63,4 +65,17 @@ public interface VsumHistoryMapper {
                     .build())
         .collect(Collectors.toSet());
   }
+
+  /**
+   * Converts a {@link VsumHistory} domain entity into a {@link VsumHistoryResponse} DTO.
+   *
+   * <p>This mapping exposes the fields required by API clients (for example {@code id} and {@code
+   * createdAt}) and is intended to be used by MapStruct-generated implementations. Implementations
+   * should handle a {@code null} source by returning {@code null}.
+   *
+   * @param vsumHistory the source history entity to map; may be {@code null}
+   * @return a populated {@link VsumHistoryResponse} or {@code null} when {@code vsumHistory} is
+   *     {@code null}
+   */
+  VsumHistoryResponse toVsumHistoryResponse(VsumHistory vsumHistory);
 }
