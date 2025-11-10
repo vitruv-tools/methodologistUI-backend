@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
@@ -43,4 +44,21 @@ public interface VsumHistoryRepository extends CrudRepository<VsumHistory, Long>
    * @param vsum the VSUM whose history records should be deleted
    */
   void deleteVsumHistoryByVsum(Vsum vsum);
+
+  /**
+   * Finds all non-removed history records for the specified VSUM id that belong to the given user
+   * email, ordered by {@code createdAt} ascending.
+   *
+   * <p>Only returns {@link VsumHistory} entries when both the VSUM and its owning user are not
+   * marked as removed ({@code removedAt} is {@code null}). The returned list will be empty if no
+   * matching records exist.
+   *
+   * @param vsumId the VSUM id to filter history records by
+   * @param callerEmail the email address of the VSUM owner
+   * @return a list of {@link VsumHistory} matching the VSUM id and user email, only for non-removed
+   *     VSUMs and users, ordered by {@code createdAt} ascending; never {@code null}
+   */
+  List<VsumHistory>
+      findAllByVsum_IdAndVsum_User_EmailAndVsum_User_RemovedAtIsNullAndVsum_RemovedAtIsNullOrderByCreatedAtDesc(
+          Long vsumId, String callerEmail);
 }
