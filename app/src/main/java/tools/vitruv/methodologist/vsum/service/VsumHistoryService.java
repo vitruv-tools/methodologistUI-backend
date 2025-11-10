@@ -93,10 +93,7 @@ public class VsumHistoryService {
    *     {@code null} (may be empty)
    */
   public List<VsumHistoryResponse> findAllByVsumId(String callerEmail, Long vsumId) {
-    List<VsumHistory> vsumHistories =
-        vsumHistoryRepository
-            .findAllByVsum_IdAndVsum_User_EmailAndVsum_User_RemovedAtIsNullAndVsum_RemovedAtIsNullOrderByCreatedAtDesc(
-                vsumId, callerEmail);
+    List<VsumHistory> vsumHistories = vsumHistoryRepository.getVsumHistories(vsumId, callerEmail);
     return vsumHistories.stream().map(vsumHistoryMapper::toVsumHistoryResponse).toList();
   }
 }

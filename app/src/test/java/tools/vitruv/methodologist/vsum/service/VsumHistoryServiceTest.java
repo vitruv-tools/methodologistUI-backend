@@ -146,10 +146,7 @@ class VsumHistoryServiceTest {
     VsumHistory h1 = VsumHistory.builder().id(1L).build();
     VsumHistory h2 = VsumHistory.builder().id(2L).build();
 
-    when(vsumHistoryRepository
-            .findAllByVsum_IdAndVsum_User_EmailAndVsum_User_RemovedAtIsNullAndVsum_RemovedAtIsNullOrderByCreatedAtDesc(
-                vsumId, callerEmail))
-        .thenReturn(List.of(h1, h2));
+    when(vsumHistoryRepository.getVsumHistories(vsumId, callerEmail)).thenReturn(List.of(h1, h2));
 
     VsumHistoryResponse r1 = VsumHistoryResponse.builder().id(1L).build();
     VsumHistoryResponse r2 = VsumHistoryResponse.builder().id(2L).build();
@@ -160,9 +157,7 @@ class VsumHistoryServiceTest {
     java.util.List<VsumHistoryResponse> result = service.findAllByVsumId(callerEmail, vsumId);
 
     assertThat(result).containsExactly(r1, r2);
-    verify(vsumHistoryRepository)
-        .findAllByVsum_IdAndVsum_User_EmailAndVsum_User_RemovedAtIsNullAndVsum_RemovedAtIsNullOrderByCreatedAtDesc(
-            vsumId, callerEmail);
+    verify(vsumHistoryRepository).getVsumHistories(vsumId, callerEmail);
     verify(vsumHistoryMapper).toVsumHistoryResponse(h1);
     verify(vsumHistoryMapper).toVsumHistoryResponse(h2);
   }
@@ -172,17 +167,13 @@ class VsumHistoryServiceTest {
     Long vsumId = 777L;
     String callerEmail = "user@example.com";
 
-    when(vsumHistoryRepository
-            .findAllByVsum_IdAndVsum_User_EmailAndVsum_User_RemovedAtIsNullAndVsum_RemovedAtIsNullOrderByCreatedAtDesc(
-                vsumId, callerEmail))
+    when(vsumHistoryRepository.getVsumHistories(vsumId, callerEmail))
         .thenReturn(java.util.List.of());
 
     java.util.List<VsumHistoryResponse> result = service.findAllByVsumId(callerEmail, vsumId);
 
     assertThat(result).isEmpty();
-    verify(vsumHistoryRepository)
-        .findAllByVsum_IdAndVsum_User_EmailAndVsum_User_RemovedAtIsNullAndVsum_RemovedAtIsNullOrderByCreatedAtDesc(
-            vsumId, callerEmail);
+    verify(vsumHistoryRepository).getVsumHistories(vsumId, callerEmail);
     verify(vsumHistoryMapper, never()).toVsumHistoryResponse(any(VsumHistory.class));
   }
 }
