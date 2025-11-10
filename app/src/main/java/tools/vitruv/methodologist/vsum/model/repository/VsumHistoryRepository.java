@@ -58,6 +58,7 @@ public interface VsumHistoryRepository extends CrudRepository<VsumHistory, Long>
    * @return a list of {@link VsumHistory} matching the VSUM id and user email, only for non-removed
    *     VSUMs and users, ordered by {@code createdAt} ascending; never {@code null}
    */
+  @SuppressWarnings("checkstyle:MethodName")
   List<VsumHistory>
       findAllByVsum_IdAndVsum_User_EmailAndVsum_User_RemovedAtIsNullAndVsum_RemovedAtIsNullOrderByCreatedAtDesc(
           Long vsumId, String callerEmail);
