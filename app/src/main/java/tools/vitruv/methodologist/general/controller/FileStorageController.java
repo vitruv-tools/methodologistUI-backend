@@ -85,7 +85,6 @@ public class FileStorageController {
    * @param authentication the Keycloak authentication object containing user details
    * @param file the new multipart file whose content will overwrite the existing file
    * @param id the ID of the existing file to update
-   * @param type the logical type of the file being updated
    * @return ResponseTemplateDto containing the updated file's information
    * @throws Exception if file update fails
    */
