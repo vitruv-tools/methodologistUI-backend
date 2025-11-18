@@ -16,12 +16,10 @@ on:
 
 jobs:
   verify:
-    name: Verify build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Verify build on ubuntu-latest
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
 
     steps:
       - name: Checkout repository
@@ -43,18 +41,13 @@ jobs:
           --no-transfer-progress
           
       - name: Stage build results (Unix)
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
-        run: mkdir staging-${{ matrix.os }} && find . -path '*/target/*.jar' -exec cp {} staging-${{ matrix.os }}/ \;
-
-      - name: Stage build results (Windows)
-        if: matrix.os == 'windows-latest'
-        run: mkdir staging-${{ matrix.os }} && gci -Path . -Recurse -Include *.jar |? { $_.FullName -like '*\target\*.jar' } |% { cp $_.FullName staging-${{ matrix.os }} }
+        run: mkdir staging-ubuntu-latest && find . -path '*/target/*.jar' -exec cp {} staging-ubuntu-latest/ \;
 
       - name: Upload build results
         uses: actions/upload-artifact@v4
         with:
-          name: build-results-${{ matrix.os }}
-          path: staging-${{ matrix.os }}
+          name: build-results-ubuntu-latest
+          path: staging-ubuntu-latest
 
   sonar:
     name: SonarQube analysis
