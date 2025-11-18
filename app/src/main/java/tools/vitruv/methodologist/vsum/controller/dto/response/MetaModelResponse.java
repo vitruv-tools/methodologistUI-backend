@@ -25,6 +25,7 @@ public class MetaModelResponse {
   private String name;
   private String description;
   private String domain;
+  private Long sourceId;
   private List<String> keyword;
   private Instant createdAt;
   private Instant updatedAt;

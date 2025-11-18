@@ -40,7 +40,7 @@ public class MetaModelSpecifications {
     return (root, query, cb) -> {
       List<Predicate> predicates = new ArrayList<Predicate>();
       predicates.add(cb.equal(root.get("user").get("email"), callerEmail));
-      predicates.add(cb.equal(root.get("isClone"), false));
+      predicates.add(cb.isNull(root.get("source")));
 
       if (metaModelFilterRequest.getName() != null) {
         String name = "%" + metaModelFilterRequest.getName().trim().toLowerCase() + "%";

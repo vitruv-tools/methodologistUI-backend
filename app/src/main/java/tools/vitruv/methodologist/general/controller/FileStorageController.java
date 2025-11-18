@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.general.FileEnumType;
+import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.service.FileStorageService;
 
@@ -57,7 +58,7 @@ public class FileStorageController {
       consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
       produces = MediaType.APPLICATION_JSON_VALUE)
   @PreAuthorize("hasRole('user')")
-  public ResponseTemplateDto<String> upload(
+  public ResponseTemplateDto<FileStorageResponse> upload(
       KeycloakAuthentication authentication,
       @Parameter(
               description = "File to upload",
@@ -67,9 +68,50 @@ public class FileStorageController {
       @PathVariable FileEnumType type)
       throws Exception {
     String email = authentication.getParsedToken().getEmail();
-    fileStorageService.storeFile(email, file, type);
+    FileStorageResponse response = fileStorageService.storeFile(email, file, type);
 
-    return ResponseTemplateDto.<String>builder().message(FILE_UPLOADED_SUCCESSFULLY).build();
+    return ResponseTemplateDto.<FileStorageResponse>builder()
+        .data(response)
+        .message(FILE_UPLOADED_SUCCESSFULLY)
+        .build();
+  }
+
+  /**
+   * Updates an existing stored file by overwriting its contents with a newly uploaded file.
+   *
+   * <p>The file is identified by its database ID. The new file content replaces the old content,
+   * while still enforcing deduplication rules against other files of the same user.
+   *
+   * @param authentication the Keycloak authentication object containing user details
+   * @param file the new multipart file whose content will overwrite the existing file
+   * @param id the ID of the existing file to update
+   * @return ResponseTemplateDto containing the updated file's information
+   * @throws Exception if file update fails
+   */
+  @Operation(
+      summary = "Update an existing file",
+      description = "Overwrite an existing stored file with a new uploaded file")
+  @PostMapping(
+      value = "/upload/{id}/update-reaction",
+      consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+      produces = MediaType.APPLICATION_JSON_VALUE)
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<FileStorageResponse> update(
+      KeycloakAuthentication authentication,
+      @Parameter(
+              description = "New file content",
+              content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE))
+          @RequestParam("file")
+          MultipartFile file,
+      @PathVariable Long id)
+      throws Exception {
+    String email = authentication.getParsedToken().getEmail();
+    FileStorageResponse response = fileStorageService.updateFile(email, id, file);
+
+    return ResponseTemplateDto.<FileStorageResponse>builder()
+        .data(response)
+        .message(FILE_UPLOADED_SUCCESSFULLY)
+        .build();
   }
 
   /**
@@ -79,7 +121,7 @@ public class FileStorageController {
    * @return ResponseEntity containing the file as a ByteArrayResource
    */
   @SuppressWarnings("null")
-  @GetMapping(value = "/api/files/{id}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+  @GetMapping(value = "/files/{id}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
   @PreAuthorize("hasRole('user')")
   public ResponseEntity<ByteArrayResource> download(@PathVariable Long id) {
     FileStorage f = fileStorageService.getFile(id);

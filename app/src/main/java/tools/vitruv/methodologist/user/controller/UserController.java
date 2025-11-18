@@ -5,6 +5,9 @@ import static tools.vitruv.methodologist.messages.Message.USER_REMOVED_SUCCESSFU
 import static tools.vitruv.methodologist.messages.Message.USER_UPDATED_SUCCESSFULLY;
 
 import jakarta.validation.Valid;
+import java.util.List;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
@@ -78,16 +82,20 @@ public class UserController {
   }
 
   /**
-   * Retrieves a user by ID.
+   * Retrieves the authenticated user's information. This endpoint requires the user to have the
+   * 'user' role.
    *
-   * @param id the ID of the user to retrieve
-   * @return a response template containing the user data
+   * @param authentication the Keycloak authentication object containing user details
+   * @return ResponseTemplateDto containing the user's information
    */
-  @GetMapping("/v1/users/{id}")
+  @GetMapping("/v1/users")
   @PreAuthorize("hasRole('user')")
-  public ResponseTemplateDto<UserResponse> findById(
-      KeycloakAuthentication authentication, @PathVariable Long id) {
-    return ResponseTemplateDto.<UserResponse>builder().data(userService.findById(id)).build();
+  public ResponseTemplateDto<UserResponse> findByCallerEmail(
+      KeycloakAuthentication authentication) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    return ResponseTemplateDto.<UserResponse>builder()
+        .data(userService.findByEmail(callerEmail))
+        .build();
   }
 
   /**
@@ -114,5 +122,31 @@ public class UserController {
   public ResponseTemplateDto<Void> remove(@PathVariable Long id) {
     userService.remove(id);
     return ResponseTemplateDto.<Void>builder().message(USER_REMOVED_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Searches for users by name or email, excluding the authenticated caller.
+   *
+   * <p>Accessible only to users with the 'user' role. Results are paginated and can be filtered by
+   * a query parameter matching email, first name, or last name (case-insensitive, partial match).
+   *
+   * @param authentication the Keycloak authentication object containing caller details
+   * @param queryParam the search term to filter users by name or email (optional)
+   * @param pageNumber the page number for pagination (default is 0)
+   * @param pageSize the number of results per page (default is 50)
+   * @return a response template containing the paginated list of matching users
+   */
+  @GetMapping("/v1/users/search")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<List<UserResponse>> searchUserByNameAndEmail(
+      KeycloakAuthentication authentication,
+      @RequestParam(defaultValue = "") String queryParam,
+      @RequestParam(defaultValue = "0") int pageNumber,
+      @RequestParam(defaultValue = "50") int pageSize) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    Pageable pageable = PageRequest.of(pageNumber, pageSize);
+    return ResponseTemplateDto.<List<UserResponse>>builder()
+        .data(userService.searchUserByNameAndEmail(callerEmail, queryParam, pageable))
+        .build();
   }
 }

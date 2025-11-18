@@ -9,8 +9,10 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Data Transfer Object (DTO) for updating an existing VSUM. Contains validated fields required for
- * VSUM update requests.
+ * Request DTO for updating an existing VSUM.
+ *
+ * <p>Contains the mutable fields of a VSUM. Jakarta Bean Validation annotations are enforced during
+ * request binding. Lombok generates accessors, constructors, and a builder.
  */
 @Getter
 @Setter

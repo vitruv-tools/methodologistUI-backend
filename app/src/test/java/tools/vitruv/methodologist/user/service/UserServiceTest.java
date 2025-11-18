@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import tools.vitruv.methodologist.apihandler.KeycloakApiHandler;
 import tools.vitruv.methodologist.apihandler.dto.response.KeycloakWebToken;
 import tools.vitruv.methodologist.exception.EmailExistsException;
@@ -164,6 +167,27 @@ class UserServiceTest {
   }
 
   @Test
+  void create_throwsEmailExists_whenEmailAlreadyExistInKeycloak() {
+    UserPostRequest req =
+        UserPostRequest.builder()
+            .email("alice@example.com")
+            .username("alice")
+            .password("x")
+            .roleType(tools.vitruv.methodologist.user.RoleType.USER)
+            .build();
+
+    when(userRepository.findByEmailIgnoreCase("alice@example.com")).thenReturn(Optional.empty());
+
+    when(keycloakService.existUser("alice@example.com")).thenReturn(true);
+
+    assertThatThrownBy(() -> userService.create(req)).isInstanceOf(EmailExistsException.class);
+
+    verify(userMapper, never()).toUser(any());
+    verify(keycloakService, never()).createUser(any());
+    verify(userRepository, never()).save(any());
+  }
+
+  @Test
   void update_appliesChanges_andSaves_whenUserExists() {
     long id = 42L;
     User existing = new User();
@@ -191,25 +215,30 @@ class UserServiceTest {
   }
 
   @Test
-  void findById_returnsMappedResponse_whenUserExists() {
-    long id = 9L;
+  void findByEmail_returnsMappedResponse_whenUserExists() {
+    long id = 1L;
+    String callerEmail = "dummy@dummy.com";
     User user = new User();
     user.setId(id);
     UserResponse resp = UserResponse.builder().id(id).build();
 
-    when(userRepository.findByIdAndRemovedAtIsNull(id)).thenReturn(Optional.of(user));
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
+        .thenReturn(Optional.of(user));
     when(userMapper.toUserResponse(user)).thenReturn(resp);
 
-    UserResponse result = userService.findById(id);
+    UserResponse result = userService.findByEmail(callerEmail);
 
     assertThat(result).isEqualTo(resp);
   }
 
   @Test
-  void findById_throwsNotFound_whenUserMissing() {
-    when(userRepository.findByIdAndRemovedAtIsNull(123L)).thenReturn(Optional.empty());
+  void findByEmail_throwsNotFound_whenUserMissing() {
+    String callerEmail = "dummy@dummy.com";
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
+        .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> userService.findById(123L)).isInstanceOf(NotFoundException.class);
+    assertThatThrownBy(() -> userService.findByEmail(callerEmail))
+        .isInstanceOf(NotFoundException.class);
   }
 
   @Test
@@ -233,5 +262,95 @@ class UserServiceTest {
     when(userRepository.findByIdAndRemovedAtIsNull(77L)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> userService.remove(77L)).isInstanceOf(NotFoundException.class);
+  }
+
+  @Test
+  void searchUserByNameAndEmail_returnsAllExcludingCaller_whenQueryBlank() {
+    String callerEmail = "caller@example.com";
+    User caller = new User();
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
+        .thenReturn(Optional.of(caller));
+
+    User u1 = new User();
+    u1.setId(1L);
+    User u2 = new User();
+    u2.setId(2L);
+    Pageable pageable = PageRequest.of(0, 10);
+    when(userRepository.findAllExcludingEmailOrderByName(callerEmail, pageable))
+        .thenReturn(List.of(u1, u2));
+
+    UserResponse r1 = UserResponse.builder().id(1L).build();
+    UserResponse r2 = UserResponse.builder().id(2L).build();
+    when(userMapper.toUserResponse(u1)).thenReturn(r1);
+    when(userMapper.toUserResponse(u2)).thenReturn(r2);
+
+    List<UserResponse> result = userService.searchUserByNameAndEmail(callerEmail, "  ", pageable);
+
+    assertThat(result).containsExactly(r1, r2);
+    verify(userRepository).findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail);
+    verify(userRepository).findAllExcludingEmailOrderByName(callerEmail, pageable);
+    verify(userRepository, never()).searchByNameOrEmailExcludingCaller(any(), any(), any());
+  }
+
+  @Test
+  void searchUserByNameAndEmail_searchesByNameOrEmail_whenQueryProvided() {
+    String callerEmail = "caller@example.com";
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
+        .thenReturn(Optional.of(new User()));
+
+    User u1 = new User();
+    u1.setId(10L);
+    String query = "ali";
+    Pageable pageable = PageRequest.of(1, 5);
+    when(userRepository.searchByNameOrEmailExcludingCaller(callerEmail, query, pageable))
+        .thenReturn(List.of(u1));
+
+    UserResponse r1 = UserResponse.builder().id(10L).build();
+    when(userMapper.toUserResponse(u1)).thenReturn(r1);
+
+    List<UserResponse> result = userService.searchUserByNameAndEmail(callerEmail, query, pageable);
+
+    assertThat(result).containsExactly(r1);
+    verify(userRepository).findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail);
+    verify(userRepository).searchByNameOrEmailExcludingCaller(callerEmail, query, pageable);
+    verify(userRepository, never()).findAllExcludingEmailOrderByName(any(), any());
+  }
+
+  @Test
+  void searchUserByNameAndEmail_trimsQuery_beforeSearching() {
+    String callerEmail = "caller@example.com";
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
+        .thenReturn(Optional.of(new User()));
+
+    User u = new User();
+    u.setId(5L);
+    String trimmed = "Alice@example.com";
+    Pageable pageable = PageRequest.of(0, 20);
+    when(userRepository.searchByNameOrEmailExcludingCaller(callerEmail, trimmed, pageable))
+        .thenReturn(List.of(u));
+
+    UserResponse r = UserResponse.builder().id(5L).build();
+    when(userMapper.toUserResponse(u)).thenReturn(r);
+
+    String rawQuery = "  Alice@example.com  ";
+    List<UserResponse> result =
+        userService.searchUserByNameAndEmail(callerEmail, rawQuery, pageable);
+
+    assertThat(result).containsExactly(r);
+    verify(userRepository).searchByNameOrEmailExcludingCaller(callerEmail, trimmed, pageable);
+  }
+
+  @Test
+  void searchUserByNameAndEmail_throwsNotFound_whenCallerMissing() {
+    String callerEmail = "missing@example.com";
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
+        .thenReturn(Optional.empty());
+
+    Pageable pageable = PageRequest.of(0, 10);
+    assertThatThrownBy(() -> userService.searchUserByNameAndEmail(callerEmail, "any", pageable))
+        .isInstanceOf(NotFoundException.class);
+
+    verify(userRepository, never()).findAllExcludingEmailOrderByName(any(), any());
+    verify(userRepository, never()).searchByNameOrEmailExcludingCaller(any(), any(), any());
   }
 }

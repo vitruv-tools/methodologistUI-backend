@@ -51,6 +51,178 @@ public class GlobalExceptionHandlerController {
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
   /**
+   * Handles {@link OwnerCannotAddSelfAsMemberException} thrown when an owner attempts to add
+   * themselves as a member to a VSUM. Returns an {@link ErrorResponse} with HTTP 400 (Bad Request)
+   * status, including the error message and request path.
+   *
+   * @param ex the thrown {@code OwnerCannotAddSelfAsMemberException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the forbidden self-add operation
+   */
+  @ExceptionHandler(value = OwnerCannotAddSelfAsMemberException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse ownerCannotAddSelfAsMemberException(
+      OwnerCannotAddSelfAsMemberException ex,
+      HandlerMethod handlerMethod,
+      ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link OwnerRoleRemovalException} thrown when an attempt is made to remove the OWNER
+   * role from a VSUM. Returns an {@link ErrorResponse} with HTTP 400 (Bad Request) status,
+   * including the error message and request path.
+   *
+   * @param ex the thrown {@code OwnerRoleRemovalException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the forbidden owner role removal
+   */
+  @ExceptionHandler(value = OwnerRoleRemovalException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse ownerRoleRemovalException(
+      OwnerRoleRemovalException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link DuplicateVsumMembershipException} thrown when attempting to add a user who is
+   * already a member of a VSUM. Returns an {@link ErrorResponse} with HTTP 400 (Bad Request)
+   * status, including the error message and request path.
+   *
+   * @param ex the thrown {@code VsumUserAlreadyMemberException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the duplicate membership error
+   */
+  @ExceptionHandler(value = DuplicateVsumMembershipException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse duplicateVsumMembershipException(
+      DuplicateVsumMembershipException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link OwnerRequiredException} thrown when an operation requires ownership. Returns an
+   * {@link ErrorResponse} with HTTP 401 (Unauthorized) status, including the error message and
+   * request path.
+   *
+   * @param ex the thrown {@code OwnerRequiredException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the unauthorized access
+   */
+  @ExceptionHandler(value = OwnerRequiredException.class)
+  @ResponseStatus(HttpStatus.UNAUTHORIZED)
+  @ResponseBody
+  public ErrorResponse ownerRequiredException(
+      OwnerRequiredException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link FileHashingException} thrown when computing a file's SHA-256 fails. Returns an
+   * {@link ErrorResponse} with HTTP 500 (Internal Server Error), including the error code, message,
+   * and request path.
+   *
+   * @param ex the thrown {@code FileHashingException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the hashing failure
+   */
+  @ExceptionHandler(value = FileHashingException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse fileHashingException(
+      FileHashingException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles exceptions when attempting to upload a duplicate file. Returns a BAD_REQUEST (400)
+   * response with details about the duplicate file.
+   *
+   * @param ex the exception containing details about the duplicate file
+   * @param handlerMethod the handler method where the exception occurred
+   * @param request the current web request
+   * @return an ErrorResponse containing the error message and request path
+   */
+  @ExceptionHandler(value = FileAlreadyExistsException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse fileAlreadyExistsException(
+      FileAlreadyExistsException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(FileAlreadyExistsException.MESSAGE_TEMPLATE)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles exceptions when attempting to add a user to a VSUM with a role they already have.
+   * Returns a BAD_REQUEST (400) response with details about the duplicate user-role assignment.
+   *
+   * @param ex the exception containing details about the duplicate user-role assignment
+   * @param handlerMethod the handler method where the exception occurred
+   * @param request the current web request
+   * @return an ErrorResponse containing the error details and request path
+   */
+  @ExceptionHandler(value = UserAlreadyExistInVsumWithSameRoleException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse userAlreadyExistInVsumWithSameRoleException(
+      UserAlreadyExistInVsumWithSameRoleException ex,
+      HandlerMethod handlerMethod,
+      ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(UserAlreadyExistInVsumWithSameRoleException.MESSAGE_TEMPLATE)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link MetaModelUsedInVsumException} thrown when a metamodel is in use by a VSUM.
+   * Returns an {@link ErrorResponse} with HTTP 400 (Bad Request) status, including the error
+   * message and request path.
+   *
+   * @param ex the thrown {@code MetaModelUsingInVsumException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return an {@code ErrorResponse} describing the conflict
+   */
+  @ExceptionHandler(value = MetaModelUsedInVsumException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse metaModelUsedInVsumException(
+      MetaModelUsedInVsumException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles cases where building or validating an MWE2 file fails. When a {@link
    * CreateMwe2FileException} is thrown anywhere in the application, this handler captures it and
    * returns a structured {@link ErrorResponse}. The response includes: The response is sent with
@@ -65,9 +237,9 @@ public class GlobalExceptionHandlerController {
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   @ResponseBody
   public ErrorResponse createMwe2FileException(
-      UnauthorizedException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+      CreateMwe2FileException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
-        .error(UnauthorizedException.messageTemplate)
+        .error(CreateMwe2FileException.MESSAGE_TEMPLATE)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
         .build();
@@ -91,7 +263,7 @@ public class GlobalExceptionHandlerController {
   public ErrorResponse unauthorizedException(
       UnauthorizedException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
-        .error(UnauthorizedException.messageTemplate)
+        .error(UnauthorizedException.MESSAGE_TEMPLATE)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
         .build();
