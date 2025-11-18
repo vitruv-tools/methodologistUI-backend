@@ -130,6 +130,70 @@ public class FileStorageService {
   }
 
   /**
+   * Updates an existing file by overwriting its stored content with a new file, while enforcing
+   * deduplication against other files owned by the same user.
+   *
+   * <p>The existing file is identified by its ID. The caller must be the owner of the file. If a
+   * different file of the same user with identical content already exists, the update is rejected.
+   *
+   * @param callerUserEmail email of the user requesting the update
+   * @param fileId the ID of the existing file to update
+   * @param file the new MultipartFile whose content will replace the existing file content
+   * @return FileStorageResponse containing the updated file's ID
+   * @throws Exception if file hashing fails
+   * @throws NotFoundException if the user email is not found
+   * @throws IllegalArgumentException if the file is empty or the file ID is not found
+   * @throws FileAlreadyExistsException if another file with the same content already exists for the
+   *     same user
+   */
+  @Transactional
+  public FileStorageResponse updateFile(String callerUserEmail, Long fileId, MultipartFile file)
+      throws Exception {
+    User user =
+        userRepository
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
+            .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
+
+    FileStorage existing =
+        fileStorageRepository
+            .findByIdAndType(fileId, FileEnumType.REACTION)
+            .orElseThrow(() -> new NotFoundException("File not found"));
+
+    if (existing.getUser() == null
+        || existing.getUser().getId() == null
+        || !existing.getUser().getId().equals(user.getId())) {
+      throw new IllegalArgumentException("File does not belong to the requesting user");
+    }
+
+    if (file.isEmpty()) {
+      throw new IllegalArgumentException("File is empty");
+    }
+
+    byte[] data = file.getBytes();
+    String sha = sha256Hex(data);
+
+    boolean sameContentAsExisting =
+        sha.equals(existing.getSha256()) && data.length == existing.getSizeBytes();
+
+    if (!sameContentAsExisting
+        && fileStorageRepository.existsByUserAndSha256AndSizeBytes(user, sha, data.length)) {
+      throw new FileAlreadyExistsException();
+    }
+
+    existing.setFilename(file.getOriginalFilename());
+    existing.setType(FileEnumType.REACTION);
+    existing.setContentType(
+        file.getContentType() == null ? "application/octet-stream" : file.getContentType());
+    existing.setSizeBytes(data.length);
+    existing.setSha256(sha);
+    existing.setData(data);
+
+    fileStorageRepository.save(existing);
+
+    return FileStorageResponse.builder().id(existing.getId()).build();
+  }
+
+  /**
    * Deletes the given list of {@link FileStorage} entities from the repository.
    *
    * <p>This method removes all provided file storage records in a single transactional operation.

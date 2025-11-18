@@ -77,13 +77,51 @@ public class FileStorageController {
   }
 
   /**
+   * Updates an existing stored file by overwriting its contents with a newly uploaded file.
+   *
+   * <p>The file is identified by its database ID. The new file content replaces the old content,
+   * while still enforcing deduplication rules against other files of the same user.
+   *
+   * @param authentication the Keycloak authentication object containing user details
+   * @param file the new multipart file whose content will overwrite the existing file
+   * @param id the ID of the existing file to update
+   * @return ResponseTemplateDto containing the updated file's information
+   * @throws Exception if file update fails
+   */
+  @Operation(
+      summary = "Update an existing file",
+      description = "Overwrite an existing stored file with a new uploaded file")
+  @PostMapping(
+      value = "/upload/{id}/update-reaction",
+      consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+      produces = MediaType.APPLICATION_JSON_VALUE)
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<FileStorageResponse> update(
+      KeycloakAuthentication authentication,
+      @Parameter(
+              description = "New file content",
+              content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE))
+          @RequestParam("file")
+          MultipartFile file,
+      @PathVariable Long id)
+      throws Exception {
+    String email = authentication.getParsedToken().getEmail();
+    FileStorageResponse response = fileStorageService.updateFile(email, id, file);
+
+    return ResponseTemplateDto.<FileStorageResponse>builder()
+        .data(response)
+        .message(FILE_UPLOADED_SUCCESSFULLY)
+        .build();
+  }
+
+  /**
    * Downloads a file from the server.
    *
    * @param id the ID of the file to download
    * @return ResponseEntity containing the file as a ByteArrayResource
    */
   @SuppressWarnings("null")
-  @GetMapping(value = "/api/files/{id}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+  @GetMapping(value = "/files/{id}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
   @PreAuthorize("hasRole('user')")
   public ResponseEntity<ByteArrayResource> download(@PathVariable Long id) {
     FileStorage f = fileStorageService.getFile(id);
