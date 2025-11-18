@@ -139,7 +139,6 @@ public class FileStorageService {
    * @param callerUserEmail email of the user requesting the update
    * @param fileId the ID of the existing file to update
    * @param file the new MultipartFile whose content will replace the existing file content
-   * @param type the type of file being stored
    * @return FileStorageResponse containing the updated file's ID
    * @throws Exception if file hashing fails
    * @throws NotFoundException if the user email is not found
