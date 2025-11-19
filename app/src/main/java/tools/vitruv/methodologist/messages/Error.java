@@ -5,6 +5,7 @@ public class Error {
   public static final String CLIENT_NOT_FOUND_ERROR = "Client not found";
   public static final String USER_ID_NOT_FOUND_ERROR = "User id";
   public static final String VSUM_ID_NOT_FOUND_ERROR = "Vsum id";
+  public static final String USER_DOSE_NOT_HAVE_ACCESS = "You don't have access";
   public static final String ECORE_FILE_ID_NOT_FOUND_ERROR = "Ecore file id";
   public static final String GEN_MODEL_FILE_ID_NOT_FOUND_ERROR = "Gen model file id";
   public static final String USER_EMAIL_NOT_FOUND_ERROR = "Email";

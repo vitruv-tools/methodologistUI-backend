@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
@@ -221,13 +222,24 @@ class VsumServiceTest {
 
   @Test
   void findVsumWithDetails_handlesNullChildLists_metaModelsAndRelations() {
+    String email = "u@ex.com";
+
+    User user = new User();
+    user.setEmail(email);
+
     Vsum vsum = new Vsum();
     vsum.setId(77L);
     vsum.setVsumMetaModels(null);
     vsum.setMetaModelRelations(null);
-    String email = "u@ex.com";
-    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(77L, email))
-        .thenReturn(Optional.of(vsum));
+
+    VsumUser vsumUser = new VsumUser();
+    vsumUser.setUser(user);
+    vsumUser.setVsum(vsum);
+    vsum.setVsumUsers(Set.of(vsumUser));
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+    when(vsumRepository.findByIdAndRemovedAtIsNull(77L)).thenReturn(Optional.of(vsum));
 
     VsumMetaModelResponse base = new VsumMetaModelResponse();
     when(vsumMapper.toVsumMetaModelResponse(vsum)).thenReturn(base);
@@ -241,8 +253,18 @@ class VsumServiceTest {
 
   @Test
   void findVsumWithDetails_mapsLists_whenPresent() {
+    String email = "u@ex.com";
+
+    User user = new User();
+    user.setEmail(email);
+
     Vsum vsum = new Vsum();
     vsum.setId(78L);
+
+    VsumUser vsumUser = new VsumUser();
+    vsumUser.setUser(user);
+    vsumUser.setVsum(vsum);
+    vsum.setVsumUsers(Set.of(vsumUser));
 
     MetaModel mm = clonedMetaModel(101L, 1L);
     VsumMetaModel vmm = vsumMetaModel(vsum, mm);
@@ -252,9 +274,9 @@ class VsumServiceTest {
         metaModelRelation(vsum, clonedMetaModel(11L, 11L), clonedMetaModel(22L, 22L));
     vsum.setMetaModelRelations(Set.of(rel));
 
-    String email = "u@ex.com";
-    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(78L, email))
-        .thenReturn(Optional.of(vsum));
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+    when(vsumRepository.findByIdAndRemovedAtIsNull(78L)).thenReturn(Optional.of(vsum));
 
     VsumMetaModelResponse base = new VsumMetaModelResponse();
     when(vsumMapper.toVsumMetaModelResponse(vsum)).thenReturn(base);
@@ -274,12 +296,20 @@ class VsumServiceTest {
   @Test
   void findVsumWithDetails_throwsNotFound_whenMissing() {
     String email = "u@ex.com";
-    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(1L, email))
-        .thenReturn(Optional.empty());
+
+    User user = new User();
+    user.setEmail(email);
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+    when(vsumRepository.findByIdAndRemovedAtIsNull(1L)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> service.findVsumWithDetails(email, 1L))
         .isInstanceOf(NotFoundException.class)
-        .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
+        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+
+    verify(userRepository).findByEmailIgnoreCaseAndRemovedAtIsNull(email);
+    verify(vsumRepository).findByIdAndRemovedAtIsNull(1L);
   }
 
   @Test
