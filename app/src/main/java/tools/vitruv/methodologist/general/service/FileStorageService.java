@@ -69,6 +69,10 @@ public class FileStorageService {
    * @throws NotFoundException if the user email is not found
    * @throws IllegalArgumentException if the file is empty
    */
+  @SuppressWarnings({
+    "checkstyle:CommentsIndentation",
+    "checkstyle:VariableDeclarationUsageDistance"
+  })
   @Transactional
   public FileStorageResponse storeFile(
       String callerUserEmail, MultipartFile file, FileEnumType type) throws Exception {
@@ -83,9 +87,10 @@ public class FileStorageService {
     byte[] data = file.getBytes();
     String sha = sha256Hex(data);
 
-    if (fileStorageRepository.existsByUserAndSha256AndSizeBytes(user, sha, data.length)) {
-      throw new FileAlreadyExistsException();
-    }
+    // todo: we have to comment below condition for powerful reason before our demo day
+    //    if (fileStorageRepository.existsByUserAndSha256AndSizeBytes(user, sha, data.length)) {
+    //      throw new FileAlreadyExistsException();
+    //    }
 
     FileStorage fileStorage = new FileStorage();
     fileStorage.setFilename(file.getOriginalFilename());
@@ -171,14 +176,6 @@ public class FileStorageService {
 
     byte[] data = file.getBytes();
     String sha = sha256Hex(data);
-
-    boolean sameContentAsExisting =
-        sha.equals(existing.getSha256()) && data.length == existing.getSizeBytes();
-
-    if (!sameContentAsExisting
-        && fileStorageRepository.existsByUserAndSha256AndSizeBytes(user, sha, data.length)) {
-      throw new FileAlreadyExistsException();
-    }
 
     existing.setFilename(file.getOriginalFilename());
     existing.setType(FileEnumType.REACTION);

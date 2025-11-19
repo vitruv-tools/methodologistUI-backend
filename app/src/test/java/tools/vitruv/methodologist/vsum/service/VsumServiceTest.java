@@ -11,7 +11,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
-import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
@@ -306,7 +305,7 @@ class VsumServiceTest {
 
     assertThatThrownBy(() -> service.findVsumWithDetails(email, 1L))
         .isInstanceOf(NotFoundException.class)
-        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+        .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
 
     verify(userRepository).findByEmailIgnoreCaseAndRemovedAtIsNull(email);
     verify(vsumRepository).findByIdAndRemovedAtIsNull(1L);

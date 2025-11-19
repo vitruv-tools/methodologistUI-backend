@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.anyList;
-import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -68,8 +67,8 @@ class FileStorageServiceTest {
   void storeFile_newFile_success() throws Exception {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(anyString()))
         .thenReturn(Optional.of(testUser));
-    when(fileStorageRepository.existsByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
-        .thenReturn(false);
+//    when(fileStorageRepository.existsByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
+//        .thenReturn(false);
     when(fileStorageRepository.save(any(FileStorage.class))).thenReturn(testFileStorage);
 
     FileStorageResponse response =
