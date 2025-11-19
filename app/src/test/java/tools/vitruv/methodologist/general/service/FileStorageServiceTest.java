@@ -67,8 +67,8 @@ class FileStorageServiceTest {
   void storeFile_newFile_success() throws Exception {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(anyString()))
         .thenReturn(Optional.of(testUser));
-//    when(fileStorageRepository.existsByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
-//        .thenReturn(false);
+    //    when(fileStorageRepository.existsByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
+    //        .thenReturn(false);
     when(fileStorageRepository.save(any(FileStorage.class))).thenReturn(testFileStorage);
 
     FileStorageResponse response =
