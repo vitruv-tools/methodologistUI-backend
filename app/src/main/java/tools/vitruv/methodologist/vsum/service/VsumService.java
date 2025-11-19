@@ -1,6 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
-import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
@@ -294,14 +294,20 @@ public class VsumService {
    */
   @Transactional(readOnly = true)
   public VsumMetaModelResponse findVsumWithDetails(String callerEmail, Long id) {
-    userRepository
-        .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
-        .orElseThrow(() -> new AccessDeniedException(USER_EMAIL_NOT_FOUND_ERROR));
+    User user =
+        userRepository
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
+            .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
 
     Vsum vsum =
         vsumRepository
             .findByIdAndRemovedAtIsNull(id)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
+
+    vsum.getVsumUsers().stream()
+        .filter(vsumUser -> vsumUser.getUser().equals(user))
+        .findFirst()
+        .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
 
     VsumMetaModelResponse response = vsumMapper.toVsumMetaModelResponse(vsum);
 
