@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
@@ -18,6 +19,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -292,9 +294,13 @@ public class VsumService {
    */
   @Transactional(readOnly = true)
   public VsumMetaModelResponse findVsumWithDetails(String callerEmail, Long id) {
+    userRepository
+        .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
+        .orElseThrow(() -> new AccessDeniedException(USER_EMAIL_NOT_FOUND_ERROR));
+
     Vsum vsum =
         vsumRepository
-            .findByIdAndUser_emailAndRemovedAtIsNull(id, callerEmail)
+            .findByIdAndRemovedAtIsNull(id)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
 
     VsumMetaModelResponse response = vsumMapper.toVsumMetaModelResponse(vsum);
