@@ -1,9 +1,13 @@
 package tools.vitruv.methodologist.exception;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
 /**
  * Exception thrown when a requested object is not found. Used to indicate resource absence in
  * service or repository layers.
  */
+@ResponseStatus(HttpStatus.NOT_FOUND)
 public class NotFoundException extends RuntimeException {
   public static final String MESSAGE_TEMPLATE = "%s not found!";
 
