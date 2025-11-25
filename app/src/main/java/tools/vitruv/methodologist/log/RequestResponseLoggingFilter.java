@@ -50,6 +50,9 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
           "clientsecret",
           "authorization");
 
+  private static final Set<String> FILE_BODYLESS_PATH_PREFIXES =
+      Set.of("/api/files", "/api/upload");
+
   private static final String MASK = "***";
   private final ObjectMapper mapper = new ObjectMapper();
 
@@ -82,6 +85,11 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
       return "";
     }
     return new String(bytes, charset);
+  }
+
+  private boolean isFileEndpoint(HttpServletRequest request) {
+    String uri = request.getRequestURI();
+    return FILE_BODYLESS_PATH_PREFIXES.stream().anyMatch(uri::startsWith);
   }
 
   /**
@@ -117,7 +125,8 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
       boolean skipBodyLogging =
           request.getRequestURI().contains("swagger")
               || request.getRequestURI().contains("actuator")
-              || isMultipart(request.getContentType());
+              || isMultipart(request.getContentType())
+              || isFileEndpoint(request);
 
       if (!skipBodyLogging) {
         String reqBody =

@@ -121,7 +121,7 @@ class FileStorageServiceTest {
   void getFile_nonExistingFile_throwsException() {
     when(fileStorageRepository.findById(1L)).thenReturn(Optional.empty());
 
-    assertThrows(IllegalArgumentException.class, () -> fileStorageService.getFile(1L));
+    assertThrows(NotFoundException.class, () -> fileStorageService.getFile(1L));
   }
 
   @Test

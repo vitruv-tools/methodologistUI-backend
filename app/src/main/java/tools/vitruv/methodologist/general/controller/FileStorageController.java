@@ -120,7 +120,6 @@ public class FileStorageController {
    * @param id the ID of the file to download
    * @return ResponseEntity containing the file as a ByteArrayResource
    */
-  @SuppressWarnings("null")
   @GetMapping(value = "/files/{id}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
   @PreAuthorize("hasRole('user')")
   public ResponseEntity<ByteArrayResource> download(@PathVariable Long id) {

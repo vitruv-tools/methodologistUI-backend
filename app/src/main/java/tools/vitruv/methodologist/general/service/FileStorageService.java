@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.general.service;
 
 import static tools.vitruv.methodologist.messages.Error.FILE_HASHING_EXCEPTION;
+import static tools.vitruv.methodologist.messages.Error.FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
 import java.security.MessageDigest;
@@ -111,13 +112,13 @@ public class FileStorageService {
    *
    * @param id the ID of the file to retrieve
    * @return the FileStorage entity
-   * @throws IllegalArgumentException if the file is not found
+   * @throws NotFoundException if the file is not found
    */
   @Transactional(readOnly = true)
   public FileStorage getFile(Long id) {
     return fileStorageRepository
         .findById(id)
-        .orElseThrow(() -> new IllegalArgumentException("File not found"));
+        .orElseThrow(() -> new NotFoundException(FILE_ID_NOT_FOUND_ERROR));
   }
 
   /**
