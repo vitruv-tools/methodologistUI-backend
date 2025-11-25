@@ -61,5 +61,6 @@ public interface FileStorageRepository extends CrudRepository<FileStorage, Long>
    *     tools.vitruv.methodologist.general.model.FileStorage} if present and the user is not
    *     removed; otherwise an empty {@link java.util.Optional}
    */
+  @SuppressWarnings("checkstyle:MethodName")
   Optional<FileStorage> findByIdAndUser_EmailAndUser_RemovedAtIsNull(Long id, String callerEmail);
 }
