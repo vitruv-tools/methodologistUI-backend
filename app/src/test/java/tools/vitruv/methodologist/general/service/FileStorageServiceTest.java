@@ -264,4 +264,29 @@ class FileStorageServiceTest {
     assertThrows(
         IllegalArgumentException.class, () -> fileStorageService.updateFile(email, 1L, emptyFile));
   }
+
+  @Test
+  void remove_existingFile_deletesFile() {
+    String email = "test@example.com";
+    Long id = 1L;
+
+    when(fileStorageRepository.findByIdAndUser_EmailAndUser_RemovedAtIsNull(id, email))
+        .thenReturn(Optional.of(testFileStorage));
+
+    fileStorageService.remove(email, id);
+
+    verify(fileStorageRepository).findByIdAndUser_EmailAndUser_RemovedAtIsNull(id, email);
+    verify(fileStorageRepository).delete(testFileStorage);
+  }
+
+  @Test
+  void remove_nonExistingFile_throwsNotFoundException() {
+    String email = "test@example.com";
+    Long id = 99L;
+
+    when(fileStorageRepository.findByIdAndUser_EmailAndUser_RemovedAtIsNull(id, email))
+        .thenReturn(Optional.empty());
+
+    assertThrows(NotFoundException.class, () -> fileStorageService.remove(email, id));
+  }
 }

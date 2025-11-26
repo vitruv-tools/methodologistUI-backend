@@ -48,4 +48,19 @@ public interface FileStorageRepository extends CrudRepository<FileStorage, Long>
    * @return a list of matching {@link FileStorage} entities; empty if none found
    */
   List<FileStorage> findAllByIdInAndType(Set<Long> fileIds, FileEnumType type);
+
+  /**
+   * Finds a {@link tools.vitruv.methodologist.general.model.FileStorage} by its id when the owning
+   * user's email matches the supplied callerEmail and the user has not been removed (i.e. {@code
+   * user.removedAt} is {@code null}).
+   *
+   * @param id the identifier of the file storage entry (must not be {@code null})
+   * @param callerEmail the email address of the caller / owning user to match (must not be {@code
+   *     null})
+   * @return an {@link java.util.Optional} containing the matching {@link
+   *     tools.vitruv.methodologist.general.model.FileStorage} if present and the user is not
+   *     removed; otherwise an empty {@link java.util.Optional}
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  Optional<FileStorage> findByIdAndUser_EmailAndUser_RemovedAtIsNull(Long id, String callerEmail);
 }

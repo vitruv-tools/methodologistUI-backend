@@ -10,6 +10,7 @@ public class Message {
   public static final String META_MODEL_CREATED_SUCCESSFULLY = "Meta model successfully created";
   public static final String VSUM_UPDATED_SUCCESSFULLY = "Vsum successfully updated";
   public static final String VSUM_REMOVED_SUCCESSFULLY = "Vsum successfully removed";
+  public static final String FILE_REMOVED_SUCCESSFULLY = "File successfully removed";
   public static final String FILE_UPLOADED_SUCCESSFULLY = "File uploaded successfully";
   public static final String META_MODEL_REMOVED_SUCCESSFULLY = "Meta model successfully removed";
   public static final String VSUM_RECOVERY_WAS_SUCCESSFULLY = "Recovery was successful";
