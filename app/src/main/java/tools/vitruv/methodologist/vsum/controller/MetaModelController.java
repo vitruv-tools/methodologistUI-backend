@@ -76,7 +76,7 @@ public class MetaModelController {
    */
   @PostMapping("/v1/meta-models/find-all")
   @PreAuthorize("hasRole('user')")
-  public ResponseTemplateDto<List<MetaModelResponse>> findAllByUser(
+  public ResponseTemplateDto<List<MetaModelResponse>> findAll(
       KeycloakAuthentication authentication,
       @Valid @RequestBody MetaModelFilterRequest metaModelFilterRequest,
       @RequestParam(defaultValue = "0") int pageNumber,
@@ -84,7 +84,7 @@ public class MetaModelController {
     String callerEmail = authentication.getParsedToken().getEmail();
     Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by("id").descending());
     return ResponseTemplateDto.<List<MetaModelResponse>>builder()
-        .data(metaModelService.findAllByUser(callerEmail, metaModelFilterRequest, pageable))
+        .data(metaModelService.findAll(callerEmail, metaModelFilterRequest, pageable))
         .build();
   }
 
@@ -97,7 +97,7 @@ public class MetaModelController {
    */
   @DeleteMapping("/v1/meta-models/{id}")
   @PreAuthorize("hasRole('user')")
-  public ResponseTemplateDto<Void> findAllByUser(
+  public ResponseTemplateDto<Void> delete(
       KeycloakAuthentication authentication, @PathVariable Long id) {
     String callerEmail = authentication.getParsedToken().getEmail();
     metaModelService.delete(callerEmail, id);
