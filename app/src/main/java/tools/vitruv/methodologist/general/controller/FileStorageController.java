@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.general.controller;
 
+import static tools.vitruv.methodologist.messages.Message.FILE_REMOVED_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.FILE_UPLOADED_SUCCESSFULLY;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -120,7 +122,6 @@ public class FileStorageController {
    * @param id the ID of the file to download
    * @return ResponseEntity containing the file as a ByteArrayResource
    */
-  @SuppressWarnings("null")
   @GetMapping(value = "/files/{id}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
   @PreAuthorize("hasRole('user')")
   public ResponseEntity<ByteArrayResource> download(@PathVariable Long id) {
@@ -133,5 +134,21 @@ public class FileStorageController {
         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + f.getFilename() + "\"")
         .contentLength(bytes == null ? 0 : bytes.length)
         .body(new ByteArrayResource(bytes));
+  }
+
+  /**
+   * Removes a file resource.
+   *
+   * @param authentication the Keycloak authentication object for the current user
+   * @param id the ID of the File to remove
+   * @return response indicating successful File removal
+   */
+  @DeleteMapping("/v1/files/{id}")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> remove(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    fileStorageService.remove(callerEmail, id);
+    return ResponseTemplateDto.<Void>builder().message(FILE_REMOVED_SUCCESSFULLY).build();
   }
 }

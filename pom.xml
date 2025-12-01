@@ -22,9 +22,13 @@
     <properties>
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.organization>vitruv-tools</sonar.organization>
         <sonar.projectKey>vitruv-tools_methodologistUI-backend</sonar.projectKey>
+
+        <jacoco.version>0.8.11</jacoco.version>
+        <sonar.maven.plugin.version>5.3.0.6276</sonar.maven.plugin.version>
     </properties>
 
     <modules>
@@ -66,7 +70,46 @@
                     <artifactId>spotless-maven-plugin</artifactId>
                     <version>2.43.0</version>
                 </plugin>
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>${jacoco.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.sonarsource.scanner.maven</groupId>
+                    <artifactId>sonar-maven-plugin</artifactId>
+                    <version>${sonar.maven.plugin.version}</version>
+                </plugin>
             </plugins>
         </pluginManagement>
     </build>
+    <profiles>
+        <profile>
+            <id>coverage</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>${jacoco.version}</version>
+                        <executions>
+                            <execution>
+                                <id>prepare-agent</id>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>report</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>report</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

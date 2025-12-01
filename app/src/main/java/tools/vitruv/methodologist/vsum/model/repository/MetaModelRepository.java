@@ -39,11 +39,10 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
    * specified {@link User}, filtering out any that have a non-null {@code source}.
    *
    * @param metaModelIds the set of metamodel identifiers to search for
-   * @param user the owner of the metamodels
    * @return a list of {@link MetaModel} entities that match the given IDs, belong to the user, and
    *     have {@code source} set to null
    */
-  List<MetaModel> findAllByIdInAndUserAndSourceIsNull(Set<Long> metaModelIds, User user);
+  List<MetaModel> findAllByIdInAndSourceIsNull(Set<Long> metaModelIds);
 
   /**
    * Finds a metamodel by its ID and the associated user's email address.

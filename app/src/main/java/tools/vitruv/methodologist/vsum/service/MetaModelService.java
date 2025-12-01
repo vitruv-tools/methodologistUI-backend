@@ -130,7 +130,7 @@ public class MetaModelService {
    * @return a paginated list of metamodel responses matching the user and filters
    */
   @Transactional
-  public List<MetaModelResponse> findAllByUser(
+  public List<MetaModelResponse> findAll(
       String callerEmail, MetaModelFilterRequest metaModelFilterRequest, Pageable pageable) {
     Specification<MetaModel> spec =
         Specification.where(

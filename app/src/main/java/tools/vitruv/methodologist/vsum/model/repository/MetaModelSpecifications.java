@@ -15,44 +15,62 @@ import tools.vitruv.methodologist.vsum.model.MetaModel;
 public class MetaModelSpecifications {
 
   /**
-   * Builds a JPA {@link Specification} for filtering {@link MetaModel} entities based on the
-   * provided user email and filter request.
+   * Builds a JPA {@link Specification} for filtering {@link MetaModel} entities according to the
+   * provided caller context and filter request.
    *
-   * <p>The generated specification always restricts results to metamodels owned by the specified
-   * user (by email) and excludes cloned models. Additional conditions are applied if present in the
-   * {@link MetaModelFilterRequest}:
+   * <p>The resulting specification always excludes metamodels that are marked removed ({@code
+   * removedAt != null}), excludes metamodels created from another source ({@code source != null}),
+   * and excludes metamodels whose owning user is removed ({@code user.removedAt != null}).
+   *
+   * <p>Filtering behavior:
    *
    * <ul>
-   *   <li><b>Name</b> — case-insensitive substring match on the metamodel name.
-   *   <li><b>Description</b> — case-insensitive substring match on the metamodel description.
-   *   <li><b>CreatedFrom</b> — include only models created at or after the given timestamp.
-   *   <li><b>CreatedTo</b> — include only models created at or before the given timestamp.
+   *   <li>\`ownedByUser\` — when {@code metaModelFilterRequest.getOwnedByUser()} is {@code null} or
+   *       {@code true} the specification restricts results to metamodels whose owner's email equals
+   *       the supplied {@code callerEmail}. When {@code false} no owner-email restriction is
+   *       applied.
+   *   <li>\`name\` — if provided, performs a case-insensitive substring match against the metamodel
+   *       name (the value is trimmed and wrapped with {\@code %} for LIKE).
+   *   <li>\`description\` — if provided, performs a case-insensitive substring match against the
+   *       metamodel description (trimmed and wrapped with {\@code %}).
+   *   <li>\`createdFrom\` — if provided, includes metamodels with {@code createdAt >= createdFrom}.
+   *   <li>\`createdTo\` — if provided, includes metamodels with {@code createdAt <= createdTo}.
    * </ul>
    *
-   * @param callerEmail the email of the user whose metamodels should be retrieved
-   * @param metaModelFilterRequest object containing optional filter values for name, description,
-   *     and creation date ranges
-   * @return a {@link Specification} combining all applicable filter predicates
+   * @param callerEmail the email of the calling user used to restrict ownership when applicable
+   * @param metaModelFilterRequest filter values (may contain {@code null} fields to skip criteria)
+   * @return a {@link Specification} combining all applicable predicates
    */
   public static Specification<MetaModel> buildSpecification(
       String callerEmail, MetaModelFilterRequest metaModelFilterRequest) {
 
     return (root, query, cb) -> {
-      List<Predicate> predicates = new ArrayList<Predicate>();
-      predicates.add(cb.equal(root.get("user").get("email"), callerEmail));
+      List<Predicate> predicates = new ArrayList<>();
+
+      predicates.add(cb.isNull(root.get("removedAt")));
+
+      // ** We should don't return meta-models that created by deleted user **//
+      predicates.add(cb.isNull(root.get("user").get("removedAt")));
+
+      // ** Don,t return cloned meta-models **//
       predicates.add(cb.isNull(root.get("source")));
+
+      if (metaModelFilterRequest.getOwnedByUser() == null
+          || metaModelFilterRequest.getOwnedByUser()) {
+        predicates.add(cb.equal(root.get("user").get("email"), callerEmail));
+      }
 
       if (metaModelFilterRequest.getName() != null) {
         String name = "%" + metaModelFilterRequest.getName().trim().toLowerCase() + "%";
         Predicate nameLike = cb.like(cb.lower(root.get("name")), name);
-        predicates.add(cb.or(nameLike));
+        predicates.add(nameLike);
       }
 
       if (metaModelFilterRequest.getDescription() != null) {
         String description =
             "%" + metaModelFilterRequest.getDescription().trim().toLowerCase() + "%";
         Predicate descLike = cb.like(cb.lower(root.get("description")), description);
-        predicates.add(cb.or(descLike));
+        predicates.add(descLike);
       }
 
       if (metaModelFilterRequest.getCreatedFrom() != null) {
