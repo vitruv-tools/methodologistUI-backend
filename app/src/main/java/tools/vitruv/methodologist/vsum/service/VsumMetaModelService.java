@@ -39,8 +39,7 @@ public class VsumMetaModelService {
    * @param metaModelIds IDs of metamodels to associate
    */
   public void create(Vsum vsum, Set<Long> metaModelIds) {
-    List<MetaModel> metaModels =
-        metaModelRepository.findAllByIdInAndUserAndSourceIsNull(metaModelIds, vsum.getUser());
+    List<MetaModel> metaModels = metaModelRepository.findAllByIdInAndSourceIsNull(metaModelIds);
 
     List<VsumMetaModel> links = new ArrayList<>();
     for (MetaModel metaModel : metaModels) {
