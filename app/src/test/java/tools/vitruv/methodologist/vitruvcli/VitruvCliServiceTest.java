@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
+import tools.vitruv.methodologist.exception.CLIExecuteException;
 
 class VitruvCliServiceTest {
 
@@ -192,9 +193,8 @@ class VitruvCliServiceTest {
       List<VitruvCliService.MetamodelInput> metamodels = List.of(mm);
 
       assertThatThrownBy(() -> service.run(folder, metamodels, reaction))
-          .isInstanceOf(RuntimeException.class)
-          .hasMessageContaining("Failed to execute Vitruv-CLI")
-          .hasCauseInstanceOf(IOException.class);
+          .isInstanceOf(CLIExecuteException.class)
+          .hasMessageContaining("Failed to execute Vitruv-CLI");
     }
   }
 
@@ -226,8 +226,7 @@ class VitruvCliServiceTest {
 
       assertThatThrownBy(() -> service.run(folder, metamodels, reaction))
           .isInstanceOf(RuntimeException.class)
-          .hasMessageContaining("Failed to execute Vitruv-CLI")
-          .hasCauseInstanceOf(InterruptedException.class);
+          .hasMessageContaining("Failed to execute Vitruv-CLI");
     }
   }
 }
