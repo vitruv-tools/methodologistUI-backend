@@ -88,7 +88,6 @@ public class KeycloakService {
    * @param temporary whether the password is temporary (forces update on next login)
    * @return a populated {@link CredentialRepresentation}
    */
-  @Transactional
   public CredentialRepresentation preparePasswordRepresentation(
       String password, Boolean temporary) {
     CredentialRepresentation credentialRepresentation = new CredentialRepresentation();
