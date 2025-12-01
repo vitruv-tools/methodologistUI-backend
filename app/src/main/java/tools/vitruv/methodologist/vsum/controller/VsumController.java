@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.controller;
 
+import static tools.vitruv.methodologist.messages.Message.VSUM_BUILD_WAS_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_CREATED_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_RECOVERY_WAS_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_REMOVED_SUCCESSFULLY;
@@ -228,5 +229,29 @@ public class VsumController {
     String callerEmail = authentication.getParsedToken().getEmail();
     vsumService.recovery(callerEmail, id);
     return ResponseTemplateDto.<Void>builder().message(VSUM_RECOVERY_WAS_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Initiates a build for the specified VSUM belonging to the authenticated user.
+   *
+   * <p>The caller's email is resolved from the provided {@link KeycloakAuthentication} token and
+   * forwarded to {@link tools.vitruv.methodologist.vsum.service.VsumService#buildOrThrow(String,
+   * Long)} which performs the build or throws an exception if the VSUM is not found or not
+   * accessible.
+   *
+   * @param authentication the Keycloak authentication containing the caller's email
+   * @param id the identifier of the VSUM to build
+   * @return a {@link tools.vitruv.methodologist.ResponseTemplateDto} with {@code Void} data and a
+   *     success message when the build completes successfully
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if no matching VSUM is found or
+   *     it does not belong to the caller
+   */
+  @GetMapping("/v1/vsums/{id}/build")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> buildOrThrow(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    vsumService.buildOrThrow(callerEmail, id);
+    return ResponseTemplateDto.<Void>builder().message(VSUM_BUILD_WAS_SUCCESSFULLY).build();
   }
 }

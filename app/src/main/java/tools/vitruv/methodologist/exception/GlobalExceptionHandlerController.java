@@ -51,6 +51,28 @@ public class GlobalExceptionHandlerController {
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
   /**
+   * Handles {@link VsumBuildingException} thrown during a VSUM build operation.
+   *
+   * <p>Responds with HTTP 400 (Bad Request) and a standardized {@link ErrorResponse} containing the
+   * exception message and the request path.
+   *
+   * @param ex the {@code VsumBuildingException} that was thrown
+   * @param handlerMethod the controller method where the exception originated
+   * @param request the current {@link ServletWebRequest} providing request context
+   * @return an {@link ErrorResponse} with the failure message and request path
+   */
+  @ExceptionHandler(value = VsumBuildingException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse vsumBuildingException(
+      VsumBuildingException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles {@link OwnerCannotAddSelfAsMemberException} thrown when an owner attempts to add
    * themselves as a member to a VSUM. Returns an {@link ErrorResponse} with HTTP 400 (Bad Request)
    * status, including the error message and request path.

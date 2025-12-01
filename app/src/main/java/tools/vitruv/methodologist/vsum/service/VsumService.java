@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
@@ -73,6 +74,7 @@ public class VsumService {
   VsumMetaModelRepository vsumMetaModelRepository;
   MetaModelRelationRepository metaModelRelationRepository;
   VsumHistoryService vsumHistoryService;
+  MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -426,5 +428,39 @@ public class VsumService {
 
     vsum.setRemovedAt(null);
     vsumRepository.save(vsum);
+  }
+
+  /**
+   * Builds/synchronizes a VSUM via Vitruv-CLI.
+   *
+   * @param callerEmail authenticated user's email (must be member of the VSUM)
+   * @param id VSUM identifier
+   * @throws AccessDeniedException if caller is not a member of the VSUM
+   * @throws NotFoundException if VSUM or its relations/files are not properly defined
+   */
+  public void buildOrThrow(String callerEmail, Long id) {
+    VsumUser vsumUser =
+        vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                id, callerEmail)
+            .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+
+    Vsum vsum = vsumUser.getVsum();
+
+    if (vsum.getMetaModelRelations() == null || vsum.getMetaModelRelations().isEmpty()) {
+      throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
+    }
+
+    for (MetaModelRelation relation : vsum.getMetaModelRelations()) {
+      if (relation == null) {
+        continue;
+      }
+      metaModelVitruvIntegrationService.runVitruvForMetaModels(
+          relation.getSource().getEcoreFile(),
+          relation.getSource().getGenModelFile(),
+          relation.getTarget().getEcoreFile(),
+          relation.getTarget().getGenModelFile(),
+          relation.getReactionFileStorage());
+    }
   }
 }
