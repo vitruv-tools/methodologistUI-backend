@@ -71,7 +71,7 @@ class VsumMetaModelServiceTest {
     MetaModel originalA = newOriginalMetaModel(10L);
     MetaModel originalB = newOriginalMetaModel(20L);
 
-    when(metaModelRepository.findAllByIdInAndUserAndSourceIsNull(Set.of(10L, 20L), vsum.getUser()))
+    when(metaModelRepository.findAllByIdInAndSourceIsNull(Set.of(10L, 20L)))
         .thenReturn(List.of(originalA, originalB));
 
     MetaModel clonedA = newClonedMetaModel(101L, originalA);
