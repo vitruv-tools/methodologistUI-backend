@@ -746,9 +746,6 @@ class VsumServiceTest {
 
   @Test
   void buildOrThrow_runsVitruvForAllRelations_whenUserHasAccess() {
-    String email = "user@test.com";
-    Long vsumId = 1L;
-
     FileStorage srcEcore = new FileStorage();
     srcEcore.setFilename("src.ecore");
     FileStorage srcGen = new FileStorage();
@@ -773,6 +770,8 @@ class VsumServiceTest {
     rel.setTarget(target);
     rel.setReactionFileStorage(reaction);
 
+    Long vsumId = 1L;
+
     Vsum vsum = new Vsum();
     vsum.setId(vsumId);
     vsum.setMetaModelRelations(Set.of(rel));
@@ -780,6 +779,7 @@ class VsumServiceTest {
     VsumUser vsumUser = new VsumUser();
     vsumUser.setVsum(vsum);
 
+    String email = "user@test.com";
     when(vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
                 vsumId, email))
@@ -810,7 +810,6 @@ class VsumServiceTest {
 
   @Test
   void buildOrThrow_throwsNotFound_whenNoRelationsExist() {
-    String email = "user@test.com";
     Long vsumId = 3L;
 
     Vsum vsum = new Vsum();
@@ -819,6 +818,8 @@ class VsumServiceTest {
 
     VsumUser vsumUser = new VsumUser();
     vsumUser.setVsum(vsum);
+
+    String email = "user@test.com";
 
     when(vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
@@ -834,9 +835,6 @@ class VsumServiceTest {
 
   @Test
   void buildOrThrow_skipsNullRelations_andProcessesOthers() {
-    String email = "user@test.com";
-    Long vsumId = 4L;
-
     FileStorage srcEcore = new FileStorage();
     srcEcore.setFilename("s.ecore");
     FileStorage srcGen = new FileStorage();
@@ -861,12 +859,15 @@ class VsumServiceTest {
     validRel.setTarget(target);
     validRel.setReactionFileStorage(reaction);
 
+    Long vsumId = 4L;
+
     Vsum vsum = new Vsum();
     vsum.setId(vsumId);
     vsum.setMetaModelRelations(Set.of(validRel));
 
     VsumUser vsumUser = new VsumUser();
     vsumUser.setVsum(vsum);
+    String email = "user@test.com";
 
     when(vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
