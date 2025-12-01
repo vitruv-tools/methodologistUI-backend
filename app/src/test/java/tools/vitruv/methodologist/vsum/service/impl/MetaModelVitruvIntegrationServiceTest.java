@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.service.impl;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -63,22 +64,13 @@ class MetaModelVitruvIntegrationServiceTest {
     List<VitruvCliService.MetamodelInput> metamodels = metamodelsCap.getValue();
     Path reactionPath = reactionCap.getValue();
 
-    org.assertj.core.api.Assertions.assertThat(metamodels).hasSize(2);
-    org.assertj.core.api.Assertions.assertThat(
-            metamodels.get(0).getEcorePath().getFileName().toString())
-        .isEqualTo("first.ecore");
-    org.assertj.core.api.Assertions.assertThat(
-            metamodels.get(0).getGenmodelPath().getFileName().toString())
-        .isEqualTo("first.genmodel");
-    org.assertj.core.api.Assertions.assertThat(
-            metamodels.get(1).getEcorePath().getFileName().toString())
-        .isEqualTo("second.ecore");
-    org.assertj.core.api.Assertions.assertThat(
-            metamodels.get(1).getGenmodelPath().getFileName().toString())
-        .isEqualTo("second.genmodel");
+    assertThat(metamodels).hasSize(2);
+    assertThat(metamodels.get(0).getEcorePath().getFileName()).hasToString("first.ecore");
+    assertThat(metamodels.get(0).getGenmodelPath().getFileName()).hasToString("first.genmodel");
+    assertThat(metamodels.get(1).getEcorePath().getFileName()).hasToString("second.ecore");
+    assertThat(metamodels.get(1).getGenmodelPath().getFileName()).hasToString("second.genmodel");
 
-    org.assertj.core.api.Assertions.assertThat(reactionPath.getFileName().toString())
-        .isEqualTo("reactions.reactions");
+    assertThat(reactionPath.getFileName()).hasToString("reactions.reactions");
   }
 
   @Test

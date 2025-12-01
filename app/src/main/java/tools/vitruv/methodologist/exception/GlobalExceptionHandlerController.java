@@ -51,6 +51,28 @@ public class GlobalExceptionHandlerController {
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
   /**
+   * Handles {@link CLIExecuteException} thrown when execution of the external Vitruv-CLI fails.
+   *
+   * <p>Responds with HTTP 400 (Bad Request) and returns a standardized {@link ErrorResponse}
+   * containing the exception message and the request path.
+   *
+   * @param ex the {@code CLIExecuteException} that was thrown
+   * @param handlerMethod the controller method where the exception originated
+   * @param request the current {@link ServletWebRequest} providing request context
+   * @return an {@link ErrorResponse} with the failure message and request path
+   */
+  @ExceptionHandler(value = CLIExecuteException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse cliExecuteException(
+      CLIExecuteException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles {@link VsumBuildingException} thrown during a VSUM build operation.
    *
    * <p>Responds with HTTP 400 (Bad Request) and a standardized {@link ErrorResponse} containing the

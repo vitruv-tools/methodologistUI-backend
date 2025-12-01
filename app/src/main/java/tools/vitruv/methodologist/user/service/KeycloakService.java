@@ -113,8 +113,7 @@ public class KeycloakService {
    *     and role
    * @return a populated {@link UserRepresentation} ready for creation via the Keycloak Admin API
    */
-  @Transactional
-  public UserRepresentation prepareUserRepresentation(KeycloakUser keycloakUser) {
+  private UserRepresentation prepareUserRepresentation(KeycloakUser keycloakUser) {
     UserRepresentation userRepresentation = new UserRepresentation();
 
     CredentialRepresentation credentialRepresentation =

@@ -14,6 +14,7 @@ import lombok.Value;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import tools.vitruv.methodologist.exception.CLIExecuteException;
 
 /** Service for invoking Vitruv-CLI as an external process. */
 @Slf4j
@@ -90,7 +91,7 @@ public class VitruvCliService {
       return VitruvCliResult.builder().exitCode(exitCode).stdout(stdout).stderr(stderr).build();
     } catch (IOException | InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new RuntimeException("Failed to execute Vitruv-CLI", e);
+      throw new CLIExecuteException(e.getMessage());
     }
   }
 

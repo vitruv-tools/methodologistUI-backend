@@ -49,13 +49,15 @@ class VitruvCliServiceTest {
     Path folder = Path.of("/tmp/project");
     Path reaction = Path.of("/tmp/reaction.reactions");
 
-    assertThatThrownBy(() -> service.run(folder, List.of(), reaction))
+    List<VitruvCliService.MetamodelInput> emptyList = List.of();
+
+    assertThatThrownBy(() -> service.run(folder, emptyList, reaction))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("At least one metamodel must be provided");
   }
 
   @Test
-  void run_returnsSuccessResult_whenProcessExitsZero_andNoStderr() throws Exception {
+  void run_returnsSuccessResult_whenProcessExitsZero_andNoStderr() {
     Path folder = Path.of("/tmp/project");
     Path reaction = Path.of("/tmp/reaction.reactions");
     VitruvCliService.MetamodelInput mm =
@@ -86,7 +88,7 @@ class VitruvCliServiceTest {
 
       VitruvCliService.VitruvCliResult result = service.run(folder, List.of(mm), reaction);
 
-      assertThat(result.getExitCode()).isEqualTo(0);
+      assertThat(result.getExitCode()).isZero();
       assertThat(result.getStdout()).contains("OK STDOUT");
       assertThat(result.getStderr()).isEmpty();
       assertThat(result.isSuccess()).isTrue();
@@ -95,7 +97,7 @@ class VitruvCliServiceTest {
   }
 
   @Test
-  void run_returnsFailureResult_whenExitCodeNonZero_orStderrNotBlank() throws Exception {
+  void run_returnsFailureResult_whenExitCodeNonZero_orStderrNotBlank() {
     Path folder = Path.of("/tmp/project");
     Path reaction = Path.of("/tmp/reaction.reactions");
     VitruvCliService.MetamodelInput mm =
@@ -136,7 +138,7 @@ class VitruvCliServiceTest {
   }
 
   @Test
-  void run_throwsIllegalState_whenProcessTimesOut() throws Exception {
+  void run_throwsIllegalState_whenProcessTimesOut() {
     Path folder = Path.of("/tmp/project");
     Path reaction = Path.of("/tmp/reaction.reactions");
     VitruvCliService.MetamodelInput mm =
@@ -159,14 +161,16 @@ class VitruvCliServiceTest {
                   .thenReturn(false); // timeout
             })) {
 
-      assertThatThrownBy(() -> service.run(folder, List.of(mm), reaction))
+      List<VitruvCliService.MetamodelInput> metamodels = List.of(mm);
+
+      assertThatThrownBy(() -> service.run(folder, metamodels, reaction))
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("timed out");
     }
   }
 
   @Test
-  void run_wrapsIOException_inRuntimeException() throws Exception {
+  void run_wrapsIOException_inRuntimeException() {
     Path folder = Path.of("/tmp/project");
     Path reaction = Path.of("/tmp/reaction.reactions");
     VitruvCliService.MetamodelInput mm =
@@ -185,7 +189,9 @@ class VitruvCliServiceTest {
               when(pbMock.start()).thenThrow(new IOException("cannot start process"));
             })) {
 
-      assertThatThrownBy(() -> service.run(folder, List.of(mm), reaction))
+      List<VitruvCliService.MetamodelInput> metamodels = List.of(mm);
+
+      assertThatThrownBy(() -> service.run(folder, metamodels, reaction))
           .isInstanceOf(RuntimeException.class)
           .hasMessageContaining("Failed to execute Vitruv-CLI")
           .hasCauseInstanceOf(IOException.class);
@@ -193,7 +199,7 @@ class VitruvCliServiceTest {
   }
 
   @Test
-  void run_wrapsInterruptedException_inRuntimeException_andKeepsMessage() throws Exception {
+  void run_wrapsInterruptedException_inRuntimeException_andKeepsMessage() {
     Path folder = Path.of("/tmp/project");
     Path reaction = Path.of("/tmp/reaction.reactions");
     VitruvCliService.MetamodelInput mm =
@@ -216,7 +222,9 @@ class VitruvCliServiceTest {
                   .thenThrow(new InterruptedException("interrupted"));
             })) {
 
-      assertThatThrownBy(() -> service.run(folder, List.of(mm), reaction))
+      List<VitruvCliService.MetamodelInput> metamodels = List.of(mm);
+
+      assertThatThrownBy(() -> service.run(folder, metamodels, reaction))
           .isInstanceOf(RuntimeException.class)
           .hasMessageContaining("Failed to execute Vitruv-CLI")
           .hasCauseInstanceOf(InterruptedException.class);
