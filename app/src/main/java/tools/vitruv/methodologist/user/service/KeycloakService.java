@@ -65,18 +65,14 @@ public class KeycloakService {
     this.clientId = clientId;
     this.keycloakAdmin =
         KeycloakBuilder.builder()
-            .serverUrl(authServerUrl) // Replace with your Keycloak server URL
-            .realm("master") // Replace with your realm name
-            .clientId("admin-cli") // Replace with your client ID
-            .clientSecret(secret) // Replace with your client secret
-            .username(adminUsername) // Replace with a Keycloak admin user
+            .serverUrl(authServerUrl)
+            .realm("master")
+            .clientId("admin-cli")
+            .clientSecret(secret)
+            .username(adminUsername)
             .password(adminPassword)
-            .grantType(
-                OAuth2Constants
-                    .PASSWORD) // Use client credentials grant// Replace with the admin password
+            .grantType(OAuth2Constants.PASSWORD)
             .build();
-    //        this.keycloakAdmin = Keycloak.getInstance(authServerUrl, realm, adminUsername,
-    // adminPassword, clientId, secret);
   }
 
   /**
@@ -121,12 +117,8 @@ public class KeycloakService {
   public UserRepresentation prepareUserRepresentation(KeycloakUser keycloakUser) {
     UserRepresentation userRepresentation = new UserRepresentation();
 
-    // todo, we disable password change for all the manager users, even registrar! Change it in the
-    // future flow!
-    //        boolean forceChangePasswordOnFirstLogin = !keycloakUser.getRole().equals(USER_ROLE);
     CredentialRepresentation credentialRepresentation =
-        preparePasswordRepresentation(
-            keycloakUser.getPassword(), false /*forceChangePasswordOnFirstLogin*/);
+        preparePasswordRepresentation(keycloakUser.getPassword(), false);
 
     userRepresentation.setUsername(keycloakUser.getUsername());
     userRepresentation.setEmail(keycloakUser.getEmail());
