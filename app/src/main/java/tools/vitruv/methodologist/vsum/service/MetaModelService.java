@@ -65,7 +65,6 @@ public class MetaModelService {
    * the MetaModel and returns it together with the raw file data. Throws NotFoundException if the
    * user or files cannot be found.
    */
-  @Transactional
   protected PairAndModel savePendingAndLoad(String callerEmail, MetaModelPostRequest req) {
     User user =
         userRepository
