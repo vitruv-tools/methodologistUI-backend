@@ -63,7 +63,6 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
     }
   }
 
-  /**/
   private Path createJobDirectory(MetamodelBuildInput input) throws IOException {
     return Files.createTempDirectory("mm-" + input.getMetaModelId() + "-");
   }
