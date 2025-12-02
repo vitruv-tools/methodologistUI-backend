@@ -135,7 +135,6 @@ public class KeycloakService {
    * @param username the username of the user
    * @param role the role to assign
    */
-  @Transactional
   public void assignUserRole(String username, String role) {
     UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
 
@@ -183,7 +182,6 @@ public class KeycloakService {
    *
    * @param username the username of the user to remove
    */
-  @Transactional
   public void removeUser(String username) {
     UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
     keycloakAdmin.realm(realm).users().get(userRepresentation.getId()).remove();
@@ -258,8 +256,7 @@ public class KeycloakService {
    * @return UserRepresentation of the found user
    * @throws tools.vitruv.methodologist.exception.NotFoundException if the user doesn't exist
    */
-  @Transactional
-  public UserRepresentation getUserRepresentationOrThrow(String username) {
+  private UserRepresentation getUserRepresentationOrThrow(String username) {
     return keycloakAdmin.realm(realm).users().search(username).stream()
         .findFirst()
         .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));

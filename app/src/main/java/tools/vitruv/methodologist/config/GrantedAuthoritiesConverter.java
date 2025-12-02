@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.lang.Nullable;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -26,6 +27,7 @@ public class GrantedAuthoritiesConverter implements Converter<Jwt, Collection<Gr
    * @return a collection of granted authorities based on realm roles
    */
   @Override
+  @Nullable
   public Collection<GrantedAuthority> convert(Jwt source) {
     Map<String, Object> realmAccess = source.getClaimAsMap("realm_access");
 
