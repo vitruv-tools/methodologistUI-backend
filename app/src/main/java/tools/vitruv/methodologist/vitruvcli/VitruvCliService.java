@@ -64,11 +64,11 @@ public class VitruvCliService {
       Path workDir = Path.of(properties.getWorkingDir());
       Files.createDirectories(workDir);
 
-      ProcessBuilder pb = new ProcessBuilder(command);
-      pb.directory(workDir.toFile());
-      pb.redirectErrorStream(false);
+      ProcessBuilder processBuilder = new ProcessBuilder(command);
+      processBuilder.directory(workDir.toFile());
+      processBuilder.redirectErrorStream(false);
 
-      Process process = pb.start();
+      Process process = processBuilder.start();
 
       boolean finished = process.waitFor(properties.getTimeoutSeconds(), TimeUnit.SECONDS);
 
