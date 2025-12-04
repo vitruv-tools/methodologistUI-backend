@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.anyList;
-import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -122,7 +122,7 @@ class FileStorageServiceTest {
   void getFile_nonExistingFile_throwsException() {
     when(fileStorageRepository.findById(1L)).thenReturn(Optional.empty());
 
-    assertThrows(IllegalArgumentException.class, () -> fileStorageService.getFile(1L));
+    assertThrows(NotFoundException.class, () -> fileStorageService.getFile(1L));
   }
 
   @Test
@@ -160,5 +160,133 @@ class FileStorageServiceTest {
     fileStorageService.deleteFiles(Arrays.asList(file1, file2));
 
     verify(fileStorageRepository).deleteAll(Arrays.asList(file1, file2));
+  }
+
+  @Test
+  void updateFile_validRequest_updatesAndReturnsId() throws Exception {
+    String email = "test@example.com";
+    Long fileId = 10L;
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(testUser));
+
+    FileStorage existing = new FileStorage();
+    existing.setId(fileId);
+    existing.setUser(testUser);
+    existing.setType(FileEnumType.REACTION);
+
+    when(fileStorageRepository.findByIdAndType(fileId, FileEnumType.REACTION))
+        .thenReturn(Optional.of(existing));
+
+    MockMultipartFile newFile =
+        new MockMultipartFile("file", "new.txt", "text/plain", "new-content".getBytes());
+
+    when(fileStorageRepository.save(any(FileStorage.class))).thenAnswer(inv -> inv.getArgument(0));
+
+    FileStorageResponse response = fileStorageService.updateFile(email, fileId, newFile);
+
+    assertNotNull(response);
+    assertEquals(fileId, response.getId());
+
+    verify(fileStorageRepository)
+        .save(
+            argThat(
+                fs ->
+                    fs.getId().equals(fileId)
+                        && "new.txt".equals(fs.getFilename())
+                        && "text/plain".equals(fs.getContentType())
+                        && fs.getType() == FileEnumType.REACTION
+                        && Arrays.equals(fs.getData(), "new-content".getBytes())));
+  }
+
+  @Test
+  void updateFile_userNotFound_throwsNotFoundException() {
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(anyString()))
+        .thenReturn(Optional.empty());
+
+    assertThrows(
+        NotFoundException.class,
+        () -> fileStorageService.updateFile("missing@example.com", 1L, testFile));
+  }
+
+  @Test
+  void updateFile_fileNotFound_throwsNotFoundException() {
+    String email = "test@example.com";
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(testUser));
+    when(fileStorageRepository.findByIdAndType(1L, FileEnumType.REACTION))
+        .thenReturn(Optional.empty());
+
+    assertThrows(NotFoundException.class, () -> fileStorageService.updateFile(email, 1L, testFile));
+  }
+
+  @Test
+  void updateFile_fileBelongsToAnotherUser_throwsIllegalArgumentException() {
+    String email = "test@example.com";
+
+    User otherUser = new User();
+    otherUser.setId(99L);
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(testUser));
+
+    FileStorage existing = new FileStorage();
+    existing.setId(1L);
+    existing.setUser(otherUser);
+    existing.setType(FileEnumType.REACTION);
+
+    when(fileStorageRepository.findByIdAndType(1L, FileEnumType.REACTION))
+        .thenReturn(Optional.of(existing));
+
+    assertThrows(
+        IllegalArgumentException.class, () -> fileStorageService.updateFile(email, 1L, testFile));
+  }
+
+  @Test
+  void updateFile_emptyFile_throwsIllegalArgumentException() {
+    String email = "test@example.com";
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(testUser));
+
+    FileStorage existing = new FileStorage();
+    existing.setId(1L);
+    existing.setUser(testUser);
+    existing.setType(FileEnumType.REACTION);
+
+    when(fileStorageRepository.findByIdAndType(1L, FileEnumType.REACTION))
+        .thenReturn(Optional.of(existing));
+
+    MockMultipartFile emptyFile =
+        new MockMultipartFile("file", "empty.txt", "text/plain", new byte[0]);
+
+    assertThrows(
+        IllegalArgumentException.class, () -> fileStorageService.updateFile(email, 1L, emptyFile));
+  }
+
+  @Test
+  void remove_existingFile_deletesFile() {
+    String email = "test@example.com";
+    Long id = 1L;
+
+    when(fileStorageRepository.findByIdAndUser_EmailAndUser_RemovedAtIsNull(id, email))
+        .thenReturn(Optional.of(testFileStorage));
+
+    fileStorageService.remove(email, id);
+
+    verify(fileStorageRepository).findByIdAndUser_EmailAndUser_RemovedAtIsNull(id, email);
+    verify(fileStorageRepository).delete(testFileStorage);
+  }
+
+  @Test
+  void remove_nonExistingFile_throwsNotFoundException() {
+    String email = "test@example.com";
+    Long id = 99L;
+
+    when(fileStorageRepository.findByIdAndUser_EmailAndUser_RemovedAtIsNull(id, email))
+        .thenReturn(Optional.empty());
+
+    assertThrows(NotFoundException.class, () -> fileStorageService.remove(email, id));
   }
 }

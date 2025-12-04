@@ -11,6 +11,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
@@ -28,8 +30,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
+import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
@@ -69,6 +73,7 @@ class VsumServiceTest {
   @Mock private VsumMetaModelRepository vsumMetaModelRepository;
   @Mock private MetaModelRelationRepository metaModelRelationRepository;
   @Mock private VsumHistoryService vsumHistoryService;
+  @Mock private MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
 
   private VsumService service;
 
@@ -122,7 +127,8 @@ class VsumServiceTest {
             metaModelRelationMapper,
             vsumMetaModelRepository,
             metaModelRelationRepository,
-            vsumHistoryService);
+            vsumHistoryService,
+            metaModelVitruvIntegrationService);
   }
 
   @Test
@@ -221,13 +227,24 @@ class VsumServiceTest {
 
   @Test
   void findVsumWithDetails_handlesNullChildLists_metaModelsAndRelations() {
+    String email = "u@ex.com";
+
+    User user = new User();
+    user.setEmail(email);
+
     Vsum vsum = new Vsum();
     vsum.setId(77L);
     vsum.setVsumMetaModels(null);
     vsum.setMetaModelRelations(null);
-    String email = "u@ex.com";
-    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(77L, email))
-        .thenReturn(Optional.of(vsum));
+
+    VsumUser vsumUser = new VsumUser();
+    vsumUser.setUser(user);
+    vsumUser.setVsum(vsum);
+    vsum.setVsumUsers(Set.of(vsumUser));
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+    when(vsumRepository.findByIdAndRemovedAtIsNull(77L)).thenReturn(Optional.of(vsum));
 
     VsumMetaModelResponse base = new VsumMetaModelResponse();
     when(vsumMapper.toVsumMetaModelResponse(vsum)).thenReturn(base);
@@ -241,8 +258,18 @@ class VsumServiceTest {
 
   @Test
   void findVsumWithDetails_mapsLists_whenPresent() {
+    String email = "u@ex.com";
+
+    User user = new User();
+    user.setEmail(email);
+
     Vsum vsum = new Vsum();
     vsum.setId(78L);
+
+    VsumUser vsumUser = new VsumUser();
+    vsumUser.setUser(user);
+    vsumUser.setVsum(vsum);
+    vsum.setVsumUsers(Set.of(vsumUser));
 
     MetaModel mm = clonedMetaModel(101L, 1L);
     VsumMetaModel vmm = vsumMetaModel(vsum, mm);
@@ -252,9 +279,9 @@ class VsumServiceTest {
         metaModelRelation(vsum, clonedMetaModel(11L, 11L), clonedMetaModel(22L, 22L));
     vsum.setMetaModelRelations(Set.of(rel));
 
-    String email = "u@ex.com";
-    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(78L, email))
-        .thenReturn(Optional.of(vsum));
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+    when(vsumRepository.findByIdAndRemovedAtIsNull(78L)).thenReturn(Optional.of(vsum));
 
     VsumMetaModelResponse base = new VsumMetaModelResponse();
     when(vsumMapper.toVsumMetaModelResponse(vsum)).thenReturn(base);
@@ -274,12 +301,20 @@ class VsumServiceTest {
   @Test
   void findVsumWithDetails_throwsNotFound_whenMissing() {
     String email = "u@ex.com";
-    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(1L, email))
-        .thenReturn(Optional.empty());
+
+    User user = new User();
+    user.setEmail(email);
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+    when(vsumRepository.findByIdAndRemovedAtIsNull(1L)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> service.findVsumWithDetails(email, 1L))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
+
+    verify(userRepository).findByEmailIgnoreCaseAndRemovedAtIsNull(email);
+    verify(vsumRepository).findByIdAndRemovedAtIsNull(1L);
   }
 
   @Test
@@ -370,7 +405,7 @@ class VsumServiceTest {
     MetaModelRelation relAB = metaModelRelation(vsum, a, b);
     MetaModelRelation relCD = metaModelRelation(vsum, c, d);
     when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(relAB, relCD));
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of()); // none
+    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelRelationRequests(List.of(new MetaModelRelationRequest(100L, 200L, 999L)));
@@ -707,5 +742,141 @@ class VsumServiceTest {
         .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
 
     verify(vsumRepository, never()).save(any(Vsum.class));
+  }
+
+  @Test
+  void buildOrThrow_runsVitruvForAllRelations_whenUserHasAccess() {
+    FileStorage srcEcore = new FileStorage();
+    srcEcore.setFilename("src.ecore");
+    FileStorage srcGen = new FileStorage();
+    srcGen.setFilename("src.genmodel");
+    FileStorage tgtEcore = new FileStorage();
+    tgtEcore.setFilename("tgt.ecore");
+    FileStorage tgtGen = new FileStorage();
+    tgtGen.setFilename("tgt.genmodel");
+    FileStorage reaction = new FileStorage();
+    reaction.setFilename("r.reactions");
+
+    MetaModel source = new MetaModel();
+    source.setEcoreFile(srcEcore);
+    source.setGenModelFile(srcGen);
+
+    MetaModel target = new MetaModel();
+    target.setEcoreFile(tgtEcore);
+    target.setGenModelFile(tgtGen);
+
+    MetaModelRelation rel = new MetaModelRelation();
+    rel.setSource(source);
+    rel.setTarget(target);
+    rel.setReactionFileStorage(reaction);
+
+    Long vsumId = 1L;
+
+    Vsum vsum = new Vsum();
+    vsum.setId(vsumId);
+    vsum.setMetaModelRelations(Set.of(rel));
+
+    VsumUser vsumUser = new VsumUser();
+    vsumUser.setVsum(vsum);
+
+    String email = "user@test.com";
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                vsumId, email))
+        .thenReturn(Optional.of(vsumUser));
+
+    service.buildOrThrow(email, vsumId);
+
+    verify(metaModelVitruvIntegrationService, times(1))
+        .runVitruvForMetaModels(srcEcore, srcGen, tgtEcore, tgtGen, reaction);
+  }
+
+  @Test
+  void buildOrThrow_throwsAccessDenied_whenUserNotMember() {
+    String email = "bad@test.com";
+    Long vsumId = 2L;
+
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                vsumId, email))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.buildOrThrow(email, vsumId))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+
+    verifyNoInteractions(metaModelVitruvIntegrationService);
+  }
+
+  @Test
+  void buildOrThrow_throwsNotFound_whenNoRelationsExist() {
+    Long vsumId = 3L;
+
+    Vsum vsum = new Vsum();
+    vsum.setId(vsumId);
+    vsum.setMetaModelRelations(Set.of());
+
+    VsumUser vsumUser = new VsumUser();
+    vsumUser.setVsum(vsum);
+
+    String email = "user@test.com";
+
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                vsumId, email))
+        .thenReturn(Optional.of(vsumUser));
+
+    assertThatThrownBy(() -> service.buildOrThrow(email, vsumId))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
+
+    verifyNoInteractions(metaModelVitruvIntegrationService);
+  }
+
+  @Test
+  void buildOrThrow_skipsNullRelations_andProcessesOthers() {
+    FileStorage srcEcore = new FileStorage();
+    srcEcore.setFilename("s.ecore");
+    FileStorage srcGen = new FileStorage();
+    srcGen.setFilename("s.genmodel");
+    FileStorage tgtEcore = new FileStorage();
+    tgtEcore.setFilename("t.ecore");
+    FileStorage tgtGen = new FileStorage();
+    tgtGen.setFilename("t.genmodel");
+    FileStorage reaction = new FileStorage();
+    reaction.setFilename("r.reactions");
+
+    MetaModel source = new MetaModel();
+    source.setEcoreFile(srcEcore);
+    source.setGenModelFile(srcGen);
+
+    MetaModel target = new MetaModel();
+    target.setEcoreFile(tgtEcore);
+    target.setGenModelFile(tgtGen);
+
+    MetaModelRelation validRel = new MetaModelRelation();
+    validRel.setSource(source);
+    validRel.setTarget(target);
+    validRel.setReactionFileStorage(reaction);
+
+    Long vsumId = 4L;
+
+    Vsum vsum = new Vsum();
+    vsum.setId(vsumId);
+    vsum.setMetaModelRelations(Set.of(validRel));
+
+    VsumUser vsumUser = new VsumUser();
+    vsumUser.setVsum(vsum);
+    String email = "user@test.com";
+
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                vsumId, email))
+        .thenReturn(Optional.of(vsumUser));
+
+    service.buildOrThrow(email, vsumId);
+
+    verify(metaModelVitruvIntegrationService, times(1))
+        .runVitruvForMetaModels(srcEcore, srcGen, tgtEcore, tgtGen, reaction);
   }
 }

@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.general.service;
 
 import static tools.vitruv.methodologist.messages.Error.FILE_HASHING_EXCEPTION;
+import static tools.vitruv.methodologist.messages.Error.FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
 import java.security.MessageDigest;
@@ -106,13 +107,13 @@ public class FileStorageService {
    *
    * @param id the ID of the file to retrieve
    * @return the FileStorage entity
-   * @throws IllegalArgumentException if the file is not found
+   * @throws NotFoundException if the file is not found
    */
   @Transactional(readOnly = true)
   public FileStorage getFile(Long id) {
     return fileStorageRepository
         .findById(id)
-        .orElseThrow(() -> new IllegalArgumentException("File not found"));
+        .orElseThrow(() -> new NotFoundException(FILE_ID_NOT_FOUND_ERROR));
   }
 
   /**
@@ -172,14 +173,6 @@ public class FileStorageService {
     byte[] data = file.getBytes();
     String sha = sha256Hex(data);
 
-    boolean sameContentAsExisting =
-        sha.equals(existing.getSha256()) && data.length == existing.getSizeBytes();
-
-    if (!sameContentAsExisting
-        && fileStorageRepository.existsByUserAndSha256AndSizeBytes(user, sha, data.length)) {
-      throw new FileAlreadyExistsException();
-    }
-
     existing.setFilename(file.getOriginalFilename());
     existing.setType(FileEnumType.REACTION);
     existing.setContentType(
@@ -203,5 +196,28 @@ public class FileStorageService {
   @Transactional
   public void deleteFiles(List<FileStorage> fileStorages) {
     fileStorageRepository.deleteAll(fileStorages);
+  }
+
+  /**
+   * Removes a {@link tools.vitruv.methodologist.general.model.FileStorage} identified by {@code id}
+   * if it belongs to the user with the given {@code callerEmail} and the user is not marked as
+   * removed (i.e. {@code user.removedAt} is {@code null}).
+   *
+   * <p>The operation is performed inside a transaction. If no matching file is found, a {@link
+   * tools.vitruv.methodologist.exception.NotFoundException} is thrown.
+   *
+   * @param callerEmail the email of the caller / owner of the file (must not be {@code null})
+   * @param id the identifier of the file to remove (must not be {@code null})
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if the file with the given id
+   *     and owner email is not found or the owning user is removed
+   */
+  @Transactional
+  public void remove(String callerEmail, Long id) {
+    FileStorage fileStorage =
+        fileStorageRepository
+            .findByIdAndUser_EmailAndUser_RemovedAtIsNull(id, callerEmail)
+            .orElseThrow(() -> new NotFoundException(FILE_ID_NOT_FOUND_ERROR));
+
+    fileStorageRepository.delete(fileStorage);
   }
 }

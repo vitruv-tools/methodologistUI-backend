@@ -24,6 +24,8 @@ public class MetaModelFilterRequest {
   private List<String> keyword;
   private Long ecoreFileId;
   private Long genModelFileId;
+
+  @Builder.Default private Boolean ownedByUser = false;
   private Instant createdFrom;
   private Instant createdTo;
 }

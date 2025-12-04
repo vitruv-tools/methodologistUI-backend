@@ -19,6 +19,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
@@ -29,6 +30,7 @@ import tools.vitruv.methodologist.general.model.repository.FileStorageRepository
 import tools.vitruv.methodologist.general.service.FileStorageService;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
+import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelFilterRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
@@ -228,32 +230,6 @@ class MetaModelServiceTest {
   }
 
   @Test
-  void findAllByUser_mapsToResponses() {
-    final String email = "u@ex.com";
-
-    final MetaModel m1 = metaModel(1L, null, null);
-    final MetaModel m2 = metaModel(2L, null, null);
-    when(metaModelRepository.findAll(any(), any())).thenReturn(List.of(m1, m2));
-
-    final MetaModelResponse r1 = new MetaModelResponse();
-    r1.setId(1L);
-    r1.setName("mm1");
-
-    final MetaModelResponse r2 = new MetaModelResponse();
-    r2.setId(2L);
-    r2.setName("mm2");
-
-    when(metaModelMapper.toMetaModelResponse(m1)).thenReturn(r1);
-    when(metaModelMapper.toMetaModelResponse(m2)).thenReturn(r2);
-
-    final List<MetaModelResponse> list =
-        metaModelService.findAllByUser(email, null, Pageable.ofSize(1));
-
-    assertThat(list).extracting(MetaModelResponse::getId).containsExactly(1L, 2L);
-    assertThat(list).extracting(MetaModelResponse::getName).containsExactly("mm1", "mm2");
-  }
-
-  @Test
   void clone_copiesFiles_setsSource_andSaves() {
     FileStorage sourceEcore = new FileStorage();
     sourceEcore.setId(10L);
@@ -411,5 +387,46 @@ class MetaModelServiceTest {
     assertThatThrownBy(() -> metaModelService.delete(email, id))
         .isInstanceOf(MetaModelUsedInVsumException.class)
         .hasMessageContaining("VSUM1");
+  }
+
+  @Test
+  void findAll_returnsMappedResponses_whenRepositoryReturnsResults() {
+
+    MetaModel mm1 = new MetaModel();
+    mm1.setId(1L);
+    MetaModel mm2 = new MetaModel();
+    mm2.setId(2L);
+
+    MetaModelResponse resp1 = new MetaModelResponse();
+    MetaModelResponse resp2 = new MetaModelResponse();
+
+    when(metaModelRepository.findAll(any(), any(Pageable.class))).thenReturn(List.of(mm1, mm2));
+    when(metaModelMapper.toMetaModelResponse(mm1)).thenReturn(resp1);
+    when(metaModelMapper.toMetaModelResponse(mm2)).thenReturn(resp2);
+
+    String email = "u@ex.com";
+    Pageable pageable = PageRequest.of(0, 10);
+    MetaModelFilterRequest filter = new MetaModelFilterRequest();
+    List<MetaModelResponse> result = metaModelService.findAll(email, filter, pageable);
+
+    assertThat(result).containsExactly(resp1, resp2);
+
+    verify(metaModelRepository).findAll(any(), any(Pageable.class));
+    verify(metaModelMapper, times(1)).toMetaModelResponse(mm1);
+    verify(metaModelMapper, times(1)).toMetaModelResponse(mm2);
+  }
+
+  @Test
+  void findAll_returnsEmptyList_whenRepositoryReturnsNoResults() {
+    when(metaModelRepository.findAll(any(), any(Pageable.class))).thenReturn(List.of());
+
+    String email = "u@ex.com";
+    MetaModelFilterRequest filter = new MetaModelFilterRequest();
+    Pageable pageable = PageRequest.of(0, 10);
+    List<MetaModelResponse> result = metaModelService.findAll(email, filter, pageable);
+
+    assertThat(result).isNotNull().isEmpty();
+    verify(metaModelRepository).findAll(any(), any(Pageable.class));
+    verify(metaModelMapper, never()).toMetaModelResponse(any());
   }
 }

@@ -65,7 +65,6 @@ public class MetaModelService {
    * the MetaModel and returns it together with the raw file data. Throws NotFoundException if the
    * user or files cannot be found.
    */
-  @Transactional
   protected PairAndModel savePendingAndLoad(String callerEmail, MetaModelPostRequest req) {
     User user =
         userRepository
@@ -130,7 +129,7 @@ public class MetaModelService {
    * @return a paginated list of metamodel responses matching the user and filters
    */
   @Transactional
-  public List<MetaModelResponse> findAllByUser(
+  public List<MetaModelResponse> findAll(
       String callerEmail, MetaModelFilterRequest metaModelFilterRequest, Pageable pageable) {
     Specification<MetaModel> spec =
         Specification.where(

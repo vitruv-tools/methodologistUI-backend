@@ -1,5 +1,7 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
@@ -18,6 +20,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -71,6 +74,7 @@ public class VsumService {
   VsumMetaModelRepository vsumMetaModelRepository;
   MetaModelRelationRepository metaModelRelationRepository;
   VsumHistoryService vsumHistoryService;
+  MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -292,10 +296,20 @@ public class VsumService {
    */
   @Transactional(readOnly = true)
   public VsumMetaModelResponse findVsumWithDetails(String callerEmail, Long id) {
+    User user =
+        userRepository
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
+            .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+
     Vsum vsum =
         vsumRepository
-            .findByIdAndUser_emailAndRemovedAtIsNull(id, callerEmail)
+            .findByIdAndRemovedAtIsNull(id)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
+
+    vsum.getVsumUsers().stream()
+        .filter(vsumUser -> vsumUser.getUser().equals(user))
+        .findFirst()
+        .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
 
     VsumMetaModelResponse response = vsumMapper.toVsumMetaModelResponse(vsum);
 
@@ -414,5 +428,39 @@ public class VsumService {
 
     vsum.setRemovedAt(null);
     vsumRepository.save(vsum);
+  }
+
+  /**
+   * Builds/synchronizes a VSUM via Vitruv-CLI.
+   *
+   * @param callerEmail authenticated user's email (must be member of the VSUM)
+   * @param id VSUM identifier
+   * @throws AccessDeniedException if caller is not a member of the VSUM
+   * @throws NotFoundException if VSUM or its relations/files are not properly defined
+   */
+  public void buildOrThrow(String callerEmail, Long id) {
+    VsumUser vsumUser =
+        vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                id, callerEmail)
+            .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+
+    Vsum vsum = vsumUser.getVsum();
+
+    if (vsum.getMetaModelRelations() == null || vsum.getMetaModelRelations().isEmpty()) {
+      throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
+    }
+
+    for (MetaModelRelation relation : vsum.getMetaModelRelations()) {
+      if (relation == null) {
+        continue;
+      }
+      metaModelVitruvIntegrationService.runVitruvForMetaModels(
+          relation.getSource().getEcoreFile(),
+          relation.getSource().getGenModelFile(),
+          relation.getTarget().getEcoreFile(),
+          relation.getTarget().getGenModelFile(),
+          relation.getReactionFileStorage());
+    }
   }
 }

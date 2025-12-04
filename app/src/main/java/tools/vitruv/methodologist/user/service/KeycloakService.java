@@ -65,18 +65,14 @@ public class KeycloakService {
     this.clientId = clientId;
     this.keycloakAdmin =
         KeycloakBuilder.builder()
-            .serverUrl(authServerUrl) // Replace with your Keycloak server URL
-            .realm("master") // Replace with your realm name
-            .clientId("admin-cli") // Replace with your client ID
-            .clientSecret(secret) // Replace with your client secret
-            .username(adminUsername) // Replace with a Keycloak admin user
+            .serverUrl(authServerUrl)
+            .realm("master")
+            .clientId("admin-cli")
+            .clientSecret(secret)
+            .username(adminUsername)
             .password(adminPassword)
-            .grantType(
-                OAuth2Constants
-                    .PASSWORD) // Use client credentials grant// Replace with the admin password
+            .grantType(OAuth2Constants.PASSWORD)
             .build();
-    //        this.keycloakAdmin = Keycloak.getInstance(authServerUrl, realm, adminUsername,
-    // adminPassword, clientId, secret);
   }
 
   /**
@@ -92,7 +88,6 @@ public class KeycloakService {
    * @param temporary whether the password is temporary (forces update on next login)
    * @return a populated {@link CredentialRepresentation}
    */
-  @Transactional
   public CredentialRepresentation preparePasswordRepresentation(
       String password, Boolean temporary) {
     CredentialRepresentation credentialRepresentation = new CredentialRepresentation();
@@ -117,16 +112,11 @@ public class KeycloakService {
    *     and role
    * @return a populated {@link UserRepresentation} ready for creation via the Keycloak Admin API
    */
-  @Transactional
-  public UserRepresentation prepareUserRepresentation(KeycloakUser keycloakUser) {
+  private UserRepresentation prepareUserRepresentation(KeycloakUser keycloakUser) {
     UserRepresentation userRepresentation = new UserRepresentation();
 
-    // todo, we disable password change for all the manager users, even registrar! Change it in the
-    // future flow!
-    //        boolean forceChangePasswordOnFirstLogin = !keycloakUser.getRole().equals(USER_ROLE);
     CredentialRepresentation credentialRepresentation =
-        preparePasswordRepresentation(
-            keycloakUser.getPassword(), false /*forceChangePasswordOnFirstLogin*/);
+        preparePasswordRepresentation(keycloakUser.getPassword(), false);
 
     userRepresentation.setUsername(keycloakUser.getUsername());
     userRepresentation.setEmail(keycloakUser.getEmail());
@@ -145,7 +135,6 @@ public class KeycloakService {
    * @param username the username of the user
    * @param role the role to assign
    */
-  @Transactional
   public void assignUserRole(String username, String role) {
     UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
 
@@ -193,7 +182,6 @@ public class KeycloakService {
    *
    * @param username the username of the user to remove
    */
-  @Transactional
   public void removeUser(String username) {
     UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
     keycloakAdmin.realm(realm).users().get(userRepresentation.getId()).remove();
@@ -268,8 +256,7 @@ public class KeycloakService {
    * @return UserRepresentation of the found user
    * @throws tools.vitruv.methodologist.exception.NotFoundException if the user doesn't exist
    */
-  @Transactional
-  public UserRepresentation getUserRepresentationOrThrow(String username) {
+  private UserRepresentation getUserRepresentationOrThrow(String username) {
     return keycloakAdmin.realm(realm).users().search(username).stream()
         .findFirst()
         .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));

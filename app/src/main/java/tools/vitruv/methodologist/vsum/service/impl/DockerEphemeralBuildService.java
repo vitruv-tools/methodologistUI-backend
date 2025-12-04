@@ -47,101 +47,147 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
   public BuildResult buildAndValidate(MetamodelBuildInput input) {
     Path job = null;
     try {
-      job = Files.createTempDirectory("mm-" + input.getMetaModelId() + "-");
-      Path inDir = Files.createDirectories(job.resolve("input"));
-      Path outDir = Files.createDirectories(job.resolve("output"));
-
+      job = createJobDirectory(input);
+      Path inDir = createInputDirectory(job);
+      Path outDir = createOutputDirectory(job);
       Path ecore = inDir.resolve("model.ecore");
       Path gen = inDir.resolve("model.genmodel");
-      Files.write(ecore, input.getEcoreBytes());
-      Files.write(gen, input.getGenModelBytes());
-
-      List<String> cmd =
-          List.of(
-              "java",
-              "-jar",
-              jarPath,
-              "--ecore",
-              ecore.toAbsolutePath().toString(),
-              "--genmodel",
-              gen.toAbsolutePath().toString(),
-              "--out",
-              outDir.toAbsolutePath().toString());
-      Process p = startProcess(cmd);
-
-      boolean finished = p.waitFor(timeoutSeconds, TimeUnit.SECONDS);
-      if (!finished) {
-        p.destroyForcibly();
-        return BuildResult.builder()
-            .success(false)
-            .errors(1)
-            .warnings(0)
-            .report("Timeout after " + timeoutSeconds + "s")
-            .discoveredNsUris(null)
-            .build();
-      }
-      String console = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-
-      Path resultJson = outDir.resolve("result.json");
-      if (Files.exists(resultJson)) {
-        JsonNode dto = OM.readTree(resultJson.toFile());
-        boolean ok = dto.path("success").asBoolean(false);
-        int errors = dto.path("errors").asInt(0);
-        int warnings = dto.path("warnings").asInt(0);
-        String report = dto.path("report").asText(console);
-
-        List<String> nsList = null;
-        if (dto.has("nsUris") && dto.get("nsUris").isArray()) {
-          nsList =
-              OM.convertValue(
-                  dto.get("nsUris"),
-                  OM.getTypeFactory().constructCollectionType(List.class, String.class));
-        }
-        String ns = (nsList == null || nsList.isEmpty()) ? null : String.join(", ", nsList);
-
-        return BuildResult.builder()
-            .success(ok)
-            .errors(errors)
-            .warnings(warnings)
-            .report(report)
-            .discoveredNsUris(ns)
-            .build();
-      }
-
-      int exit = p.exitValue();
-      return BuildResult.builder()
-          .success(exit == 0)
-          .errors(exit == 0 ? 0 : 1)
-          .warnings(0)
-          .report(console.isBlank() ? ("Process exit " + exit) : console)
-          .discoveredNsUris(null)
-          .build();
-
+      writeInputFiles(ecore, gen, input);
+      List<String> cmd = buildCommand(ecore, gen, outDir);
+      Process process = startProcess(cmd);
+      return evaluateProcessResult(process, outDir);
     } catch (Exception e) {
-      return BuildResult.builder()
-          .success(false)
-          .errors(1)
-          .warnings(0)
-          .report("Crash: " + e.getMessage())
-          .discoveredNsUris(null)
-          .build();
+      return buildCrashResult(e);
     } finally {
-      if (job != null) {
-        try {
-          Files.walk(job)
-              .sorted(Comparator.reverseOrder())
-              .forEach(
-                  p -> {
-                    try {
-                      Files.deleteIfExists(p);
-                    } catch (IOException e) {
-                      log.error(e.getMessage(), e);
-                    }
-                  });
-        } catch (IOException e) {
-          log.error(e.getMessage(), e);
-        }
-      }
+      cleanupJobDirectory(job);
+    }
+  }
+
+  private Path createJobDirectory(MetamodelBuildInput input) throws IOException {
+    return Files.createTempDirectory("mm-" + input.getMetaModelId() + "-");
+  }
+
+  private Path createInputDirectory(Path job) throws IOException {
+    return Files.createDirectories(job.resolve("input"));
+  }
+
+  private Path createOutputDirectory(Path job) throws IOException {
+    return Files.createDirectories(job.resolve("output"));
+  }
+
+  private void writeInputFiles(Path ecore, Path gen, MetamodelBuildInput input) throws IOException {
+    Files.write(ecore, input.getEcoreBytes());
+    Files.write(gen, input.getGenModelBytes());
+  }
+
+  private List<String> buildCommand(Path ecore, Path gen, Path outDir) {
+    return List.of(
+        "java",
+        "-jar",
+        jarPath,
+        "--ecore",
+        ecore.toAbsolutePath().toString(),
+        "--genmodel",
+        gen.toAbsolutePath().toString(),
+        "--out",
+        outDir.toAbsolutePath().toString());
+  }
+
+  private BuildResult evaluateProcessResult(Process process, Path outDir)
+      throws IOException, InterruptedException {
+    boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+    if (!finished) {
+      return handleTimeout(process);
+    }
+    String console = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    Path resultJson = outDir.resolve("result.json");
+    if (Files.exists(resultJson)) {
+      return buildResultFromJson(resultJson, console);
+    }
+    return buildResultFromExitCode(process.exitValue(), console);
+  }
+
+  private BuildResult handleTimeout(Process process) {
+    process.destroyForcibly();
+    return BuildResult.builder()
+        .success(false)
+        .errors(1)
+        .warnings(0)
+        .report("Timeout after " + timeoutSeconds + "s")
+        .discoveredNsUris(null)
+        .build();
+  }
+
+  private BuildResult buildResultFromJson(Path resultJson, String console) throws IOException {
+    JsonNode dto = OM.readTree(resultJson.toFile());
+    boolean ok = dto.path("success").asBoolean(false);
+    int errors = dto.path("errors").asInt(0);
+    int warnings = dto.path("warnings").asInt(0);
+    String report = dto.path("report").asText(console);
+    String ns = extractNsUris(dto);
+    return BuildResult.builder()
+        .success(ok)
+        .errors(errors)
+        .warnings(warnings)
+        .report(report)
+        .discoveredNsUris(ns)
+        .build();
+  }
+
+  private String extractNsUris(JsonNode dto) {
+    JsonNode nsNode = dto.get("nsUris");
+    if (nsNode == null || !nsNode.isArray() || nsNode.isEmpty()) {
+      return null;
+    }
+    List<String> nsList =
+        OM.convertValue(
+            nsNode, OM.getTypeFactory().constructCollectionType(List.class, String.class));
+    if (nsList == null || nsList.isEmpty()) {
+      return null;
+    }
+    return String.join(", ", nsList);
+  }
+
+  private BuildResult buildResultFromExitCode(int exitCode, String console) {
+    boolean success = exitCode == 0;
+    int errors = success ? 0 : 1;
+    String report = console.isBlank() ? "Process exit " + exitCode : console;
+    return BuildResult.builder()
+        .success(success)
+        .errors(errors)
+        .warnings(0)
+        .report(report)
+        .discoveredNsUris(null)
+        .build();
+  }
+
+  private BuildResult buildCrashResult(Exception e) {
+    return BuildResult.builder()
+        .success(false)
+        .errors(1)
+        .warnings(0)
+        .report("Crash: " + e.getMessage())
+        .discoveredNsUris(null)
+        .build();
+  }
+
+  private void cleanupJobDirectory(Path job) {
+    if (job == null) {
+      return;
+    }
+    try {
+      Files.walk(job)
+          .sorted(Comparator.reverseOrder())
+          .forEach(
+              p -> {
+                try {
+                  Files.deleteIfExists(p);
+                } catch (IOException e) {
+                  log.error(e.getMessage(), e);
+                }
+              });
+    } catch (IOException e) {
+      log.error(e.getMessage(), e);
     }
   }
 
