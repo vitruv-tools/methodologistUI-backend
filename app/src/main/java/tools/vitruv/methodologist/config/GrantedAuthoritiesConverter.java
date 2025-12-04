@@ -33,9 +33,9 @@ public class GrantedAuthoritiesConverter implements Converter<Jwt, Collection<Gr
 
       if (rolesObj instanceof List<?> roles) {
         return roles.stream()
-                .filter(String.class::isInstance)
-                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-                .collect(Collectors.toList());
+            .filter(String.class::isInstance)
+            .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+            .collect(Collectors.toList());
       }
     }
 
