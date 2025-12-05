@@ -1,13 +1,11 @@
 package tools.vitruv.methodologist.config;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import org.springframework.core.convert.converter.Converter;
-import org.springframework.lang.Nullable;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -24,22 +22,23 @@ public class GrantedAuthoritiesConverter implements Converter<Jwt, Collection<Gr
    * org.springframework.security.core.GrantedAuthority}.
    *
    * @param source the JWT token containing claims
-   * @return a collection of granted authorities based on realm roles
+   * @return a non-null collection of granted authorities
    */
   @Override
-  @Nullable
   public Collection<GrantedAuthority> convert(Jwt source) {
     Map<String, Object> realmAccess = source.getClaimAsMap("realm_access");
 
-    if (Objects.nonNull(realmAccess)) {
-      List<String> roles = (List<String>) realmAccess.get("roles");
+    if (realmAccess != null) {
+      Object rolesObj = realmAccess.get("roles");
 
-      if (Objects.nonNull(roles)) {
+      if (rolesObj instanceof List<?> roles) {
         return roles.stream()
-            .map(rn -> new SimpleGrantedAuthority("ROLE_" + rn))
+            .filter(String.class::isInstance)
+            .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
             .collect(Collectors.toList());
       }
     }
-    return new ArrayList<>();
+
+    return Collections.emptyList();
   }
 }
