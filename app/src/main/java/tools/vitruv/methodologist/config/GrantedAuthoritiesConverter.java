@@ -26,19 +26,23 @@ public class GrantedAuthoritiesConverter implements Converter<Jwt, Collection<Gr
    */
   @Override
   public Collection<GrantedAuthority> convert(Jwt source) {
-    Map<String, Object> realmAccess = source.getClaimAsMap("realm_access");
-
-    if (realmAccess != null) {
-      Object rolesObj = realmAccess.get("roles");
-
-      if (rolesObj instanceof List<?> roles) {
-        return roles.stream()
-            .filter(String.class::isInstance)
-            .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-            .collect(Collectors.toList());
-      }
+    if (source == null) {
+      return Collections.emptyList();
     }
 
-    return Collections.emptyList();
+    Map<String, Object> realmAccess = source.getClaimAsMap("realm_access");
+    if (realmAccess == null) {
+      return Collections.emptyList();
+    }
+
+    Object rolesObj = realmAccess.get("roles");
+    if (!(rolesObj instanceof List<?> roles)) {
+      return Collections.emptyList();
+    }
+
+    return roles.stream()
+        .filter(String.class::isInstance)
+        .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+        .collect(Collectors.toList());
   }
 }

@@ -25,6 +25,13 @@ public final class SimpleValidators {
    * Throws IllegalArgumentException if any validation check fails.
    */
   public static void assertValidEcore(Resource res, String label) {
+    validateResourceBasics(res, label);
+    EPackage ep = extractRootPackage(res, label);
+    validatePackageBasics(ep, label);
+    validateClassifiers(ep, label);
+  }
+
+  private static void validateResourceBasics(Resource res, String label) {
     if (res == null) {
       throw new IllegalArgumentException(label + " resource is null");
     }
@@ -34,39 +41,62 @@ public final class SimpleValidators {
     if (res.getContents().isEmpty()) {
       throw new IllegalArgumentException(label + " has no contents");
     }
+  }
 
+  private static EPackage extractRootPackage(Resource res, String label) {
     EObject root = res.getContents().get(0);
     if (!(root instanceof EPackage ep)) {
       throw new IllegalArgumentException(label + " root is not an EPackage");
     }
+    return ep;
+  }
 
+  private static void validatePackageBasics(EPackage ep, String label) {
     if (isBlank(ep.getName())) {
       throw new IllegalArgumentException(label + " package has no name");
     }
     if (isBlank(ep.getNsURI())) {
       throw new IllegalArgumentException(label + " package has no nsURI");
     }
+  }
 
-    for (EClassifier c : ep.getEClassifiers()) {
-      if (isBlank(c.getName())) {
-        throw new IllegalArgumentException(label + " has classifier without name");
+  private static void validateClassifiers(EPackage ep, String label) {
+    for (EClassifier classifier : ep.getEClassifiers()) {
+      validateClassifierName(classifier, label);
+      if (classifier instanceof EClass cls) {
+        validateClassFeatures(cls, label);
       }
-      if (c instanceof EClass cls) {
-        for (EStructuralFeature f : cls.getEStructuralFeatures()) {
-          if (isBlank(f.getName())) {
-            throw new IllegalArgumentException(
-                label + " class " + cls.getName() + " has feature without name");
-          }
-          if (f instanceof EReference ref && ref.getEType() == null) {
-            throw new IllegalArgumentException(
-                label + " reference " + cls.getName() + "." + f.getName() + " has no type");
-          }
-          if (f instanceof EAttribute att && att.getEAttributeType() == null) {
-            throw new IllegalArgumentException(
-                label + " attribute " + cls.getName() + "." + f.getName() + " has no datatype");
-          }
-        }
-      }
+    }
+  }
+
+  private static void validateClassifierName(EClassifier classifier, String label) {
+    if (isBlank(classifier.getName())) {
+      throw new IllegalArgumentException(label + " has classifier without name");
+    }
+  }
+
+  private static void validateClassFeatures(EClass cls, String label) {
+    for (EStructuralFeature feature : cls.getEStructuralFeatures()) {
+      validateFeatureBasics(cls, feature, label);
+      validateFeatureType(cls, feature, label);
+    }
+  }
+
+  private static void validateFeatureBasics(EClass cls, EStructuralFeature feature, String label) {
+    if (isBlank(feature.getName())) {
+      throw new IllegalArgumentException(
+          label + " class " + cls.getName() + " has feature without name");
+    }
+  }
+
+  private static void validateFeatureType(EClass cls, EStructuralFeature feature, String label) {
+    if (feature instanceof EReference ref && ref.getEType() == null) {
+      throw new IllegalArgumentException(
+          label + " reference " + cls.getName() + "." + feature.getName() + " has no type");
+    }
+    if (feature instanceof EAttribute att && att.getEAttributeType() == null) {
+      throw new IllegalArgumentException(
+          label + " attribute " + cls.getName() + "." + feature.getName() + " has no datatype");
     }
   }
 
