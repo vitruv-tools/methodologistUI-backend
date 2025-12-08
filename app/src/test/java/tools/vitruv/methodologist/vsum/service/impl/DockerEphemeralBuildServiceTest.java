@@ -241,7 +241,7 @@ class DockerEphemeralBuildServiceTest {
       return code;
     }
 
-    @Override
+    /* For test*/
     public void destroy() {}
 
     @Override
