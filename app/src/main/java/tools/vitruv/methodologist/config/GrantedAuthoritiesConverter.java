@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.lang.Nullable;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -21,24 +22,28 @@ public class GrantedAuthoritiesConverter implements Converter<Jwt, Collection<Gr
    * Converts the "realm_access" claim from the JWT into a collection of {@link
    * org.springframework.security.core.GrantedAuthority}.
    *
-   * @param source the JWT token containing claims
+   * @param source the JWT token containing claims (may be {@code null})
    * @return a non-null collection of granted authorities
    */
   @Override
-  public Collection<GrantedAuthority> convert(Jwt source) {
-    Map<String, Object> realmAccess = source.getClaimAsMap("realm_access");
-
-    if (realmAccess != null) {
-      Object rolesObj = realmAccess.get("roles");
-
-      if (rolesObj instanceof List<?> roles) {
-        return roles.stream()
-            .filter(String.class::isInstance)
-            .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-            .collect(Collectors.toList());
-      }
+  public Collection<GrantedAuthority> convert(@Nullable Jwt source) {
+    if (source == null) {
+      return Collections.emptyList();
     }
 
-    return Collections.emptyList();
+    Map<String, Object> realmAccess = source.getClaimAsMap("realm_access");
+    if (realmAccess == null) {
+      return Collections.emptyList();
+    }
+
+    Object rolesObj = realmAccess.get("roles");
+    if (!(rolesObj instanceof List<?> roles)) {
+      return Collections.emptyList();
+    }
+
+    return roles.stream()
+        .filter(String.class::isInstance)
+        .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+        .collect(Collectors.toList());
   }
 }
