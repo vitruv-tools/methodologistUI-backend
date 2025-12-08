@@ -241,8 +241,12 @@ class DockerEphemeralBuildServiceTest {
       return code;
     }
 
-    /* For test*/
-    public void destroy() {}
+    /* For test */
+    @Override
+    public void destroy() {
+      // Intentionally left blank: FakeProcess is only used in tests and does not
+      // manage any real OS resources, so there is nothing to destroy.
+    }
 
     @Override
     public Process destroyForcibly() {
