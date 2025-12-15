@@ -22,18 +22,18 @@ import tools.vitruv.methodologist.exception.CLIExecuteException;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VitruvCliService {
+
   VitruvCliProperties properties;
 
   /**
-   * Executes Vitruv-CLI for the given project folder, metamodels and reaction file.
+   * Executes Vitruv-CLI for the given job directory, metamodels and reaction file.
    *
-   * @param projectFolder the folder passed to {@code -f/--folder}
-   * @param metamodels a list of metamodel inputs (ecore + genmodel pairs)
-   * @param reactionFile the reaction file passed to {@code -r/--reation}
+   * @param jobDir directory that will be used as the CLI working directory
+   * @param metamodels list of metamodel pairs (ecore + genmodel) located directly in {@code jobDir}
+   * @param reactionFile reaction file located in {@code jobDir}
    * @return the result of the CLI execution
    */
-  public VitruvCliResult run(
-      Path projectFolder, List<MetamodelInput> metamodels, Path reactionFile) {
+  public VitruvCliResult run(Path jobDir, List<MetamodelInput> metamodels, Path reactionFile) {
 
     if (metamodels == null || metamodels.isEmpty()) {
       throw new IllegalArgumentException("At least one metamodel must be provided");
@@ -41,7 +41,11 @@ public class VitruvCliService {
 
     String metamodelArg =
         metamodels.stream()
-            .map(mm -> mm.getEcorePath() + "," + mm.getGenmodelPath())
+            .map(
+                mm ->
+                    mm.getEcorePath().getFileName().toString()
+                        + ","
+                        + mm.getGenmodelPath().getFileName().toString())
             .collect(Collectors.joining(";"));
 
     List<String> command =
@@ -49,27 +53,25 @@ public class VitruvCliService {
             properties.getBinary(),
             "-jar",
             properties.getJar(),
-            "--folder",
-            projectFolder.toString(),
-            "--metamodel",
+            "-f",
+            ".",
+            "-m",
             metamodelArg,
-            "--reaction",
-            reactionFile.toString(),
-            "--userinteractor",
+            "-r",
+            reactionFile.getFileName().toString(),
+            "-u",
             "default");
 
     log.info("Running Vitruv-CLI with command: {}", String.join(" ", command));
 
     try {
-      Path workDir = Path.of(properties.getWorkingDir());
-      Files.createDirectories(workDir);
+      Files.createDirectories(jobDir);
 
       ProcessBuilder processBuilder = new ProcessBuilder(command);
-      processBuilder.directory(workDir.toFile());
+      processBuilder.directory(jobDir.toFile());
       processBuilder.redirectErrorStream(false);
 
       Process process = processBuilder.start();
-
       boolean finished = process.waitFor(properties.getTimeoutSeconds(), TimeUnit.SECONDS);
 
       if (!finished) {
@@ -89,6 +91,7 @@ public class VitruvCliService {
           truncate(stderr));
 
       return VitruvCliResult.builder().exitCode(exitCode).stdout(stdout).stderr(stderr).build();
+
     } catch (IOException | InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new CLIExecuteException(e.getMessage());
@@ -129,7 +132,7 @@ public class VitruvCliService {
     String stderr;
 
     public boolean isSuccess() {
-      return exitCode == 0 && (stderr == null || stderr.isBlank());
+      return exitCode == 0;
     }
   }
 }
