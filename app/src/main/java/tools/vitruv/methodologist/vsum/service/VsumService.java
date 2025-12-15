@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
+import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
@@ -451,16 +452,39 @@ public class VsumService {
       throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
     }
 
+    List<FileStorage> ecoreFiles = new java.util.ArrayList<>();
+    List<FileStorage> genModelFiles = new java.util.ArrayList<>();
+    List<FileStorage> reactionFiles = new java.util.ArrayList<>();
+
     for (MetaModelRelation relation : vsum.getMetaModelRelations()) {
       if (relation == null) {
         continue;
       }
-      metaModelVitruvIntegrationService.runVitruvForMetaModels(
-          relation.getSource().getEcoreFile(),
-          relation.getSource().getGenModelFile(),
-          relation.getTarget().getEcoreFile(),
-          relation.getTarget().getGenModelFile(),
-          relation.getReactionFileStorage());
+
+      var source = relation.getSource();
+      var target = relation.getTarget();
+      var reaction = relation.getReactionFileStorage();
+
+      if (reaction != null) {
+        reactionFiles.add(reaction);
+      }
+
+      if (source != null && source.getEcoreFile() != null && source.getGenModelFile() != null) {
+        ecoreFiles.add(source.getEcoreFile());
+        genModelFiles.add(source.getGenModelFile());
+      }
+
+      if (target != null && target.getEcoreFile() != null && target.getGenModelFile() != null) {
+        ecoreFiles.add(target.getEcoreFile());
+        genModelFiles.add(target.getGenModelFile());
+      }
     }
+
+    if (ecoreFiles.isEmpty() || genModelFiles.isEmpty() || reactionFiles.isEmpty()) {
+      throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
+    }
+
+    metaModelVitruvIntegrationService.runVitruvForMetaModels(
+        ecoreFiles, genModelFiles, reactionFiles);
   }
 }
