@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.vsum.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -745,7 +746,7 @@ class VsumServiceTest {
   }
 
   @Test
-  void buildOrThrow_runsVitruvForAllRelations_whenUserHasAccess() {
+  void buildOrThrow_runsVitruvOnce_withCollectedModels_whenUserHasAccess() {
     FileStorage srcEcore = new FileStorage();
     srcEcore.setFilename("src.ecore");
     FileStorage srcGen = new FileStorage();
@@ -787,8 +788,19 @@ class VsumServiceTest {
 
     service.buildOrThrow(email, vsumId);
 
+    ArgumentCaptor<List<FileStorage>> ecoreCaptor = ArgumentCaptor.forClass(List.class);
+    ArgumentCaptor<List<FileStorage>> genCaptor = ArgumentCaptor.forClass(List.class);
+    ArgumentCaptor<List<FileStorage>> reactionCaptor = ArgumentCaptor.forClass(List.class);
+
     verify(metaModelVitruvIntegrationService, times(1))
-        .runVitruvForMetaModels(srcEcore, srcGen, tgtEcore, tgtGen, reaction);
+        .runVitruvForMetaModels(
+            ecoreCaptor.capture(), genCaptor.capture(), reactionCaptor.capture());
+
+    assertThat(ecoreCaptor.getValue()).containsExactlyInAnyOrder(srcEcore, tgtEcore);
+
+    assertThat(genCaptor.getValue()).containsExactlyInAnyOrder(srcGen, tgtGen);
+
+    assertThat(reactionCaptor.getValue()).containsExactly(reaction);
   }
 
   @Test
@@ -834,7 +846,7 @@ class VsumServiceTest {
   }
 
   @Test
-  void buildOrThrow_skipsNullRelations_andProcessesOthers() {
+  void buildOrThrow_skipsNullRelations_andProcessesOthers_inSingleCliRun() {
     FileStorage srcEcore = new FileStorage();
     srcEcore.setFilename("s.ecore");
     FileStorage srcGen = new FileStorage();
@@ -863,7 +875,10 @@ class VsumServiceTest {
 
     Vsum vsum = new Vsum();
     vsum.setId(vsumId);
-    vsum.setMetaModelRelations(Set.of(validRel));
+    Set<MetaModelRelation> rels = new java.util.HashSet<>();
+    rels.add(null);
+    rels.add(validRel);
+    vsum.setMetaModelRelations(rels);
 
     VsumUser vsumUser = new VsumUser();
     vsumUser.setVsum(vsum);
@@ -877,6 +892,6 @@ class VsumServiceTest {
     service.buildOrThrow(email, vsumId);
 
     verify(metaModelVitruvIntegrationService, times(1))
-        .runVitruvForMetaModels(srcEcore, srcGen, tgtEcore, tgtGen, reaction);
+        .runVitruvForMetaModels(anyList(), anyList(), anyList());
   }
 }

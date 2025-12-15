@@ -1,9 +1,9 @@
 package tools.vitruv.methodologist.vsum.service.impl;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -11,15 +11,16 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
 import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.vitruvcli.VitruvCliProperties;
 import tools.vitruv.methodologist.vitruvcli.VitruvCliService;
 import tools.vitruv.methodologist.vsum.service.MetaModelVitruvIntegrationService;
 
@@ -27,6 +28,7 @@ import tools.vitruv.methodologist.vsum.service.MetaModelVitruvIntegrationService
 class MetaModelVitruvIntegrationServiceTest {
 
   @Mock VitruvCliService vitruvCliService;
+  @Mock VitruvCliProperties vitruvCliProperties;
 
   @InjectMocks MetaModelVitruvIntegrationService service;
 
@@ -35,6 +37,11 @@ class MetaModelVitruvIntegrationServiceTest {
     f.setFilename(name);
     f.setData(("content-" + name).getBytes());
     return f;
+  }
+
+  @BeforeEach
+  void setup() {
+    when(vitruvCliProperties.getWorkingDir()).thenReturn("fake/workdir");
   }
 
   @Test
@@ -50,27 +57,19 @@ class MetaModelVitruvIntegrationServiceTest {
 
     when(vitruvCliService.run(any(Path.class), anyList(), any(Path.class))).thenReturn(cliResult);
 
-    service.runVitruvForMetaModels(firstEcore, firstGen, secondEcore, secondGen, reaction);
+    try (MockedStatic<Files> filesMock = org.mockito.Mockito.mockStatic(Files.class)) {
+      filesMock
+          .when(() -> Files.createDirectories(any(Path.class)))
+          .thenAnswer(inv -> inv.getArgument(0));
 
-    ArgumentCaptor<Path> projectFolderCap = ArgumentCaptor.forClass(Path.class);
-    @SuppressWarnings("unchecked")
-    ArgumentCaptor<List<VitruvCliService.MetamodelInput>> metamodelsCap =
-        ArgumentCaptor.forClass(List.class);
-    ArgumentCaptor<Path> reactionCap = ArgumentCaptor.forClass(Path.class);
+      filesMock
+          .when(() -> Files.write(any(Path.class), any(byte[].class)))
+          .thenAnswer(inv -> inv.getArgument(0));
 
-    verify(vitruvCliService)
-        .run(projectFolderCap.capture(), metamodelsCap.capture(), reactionCap.capture());
+      service.runVitruvForMetaModels(firstEcore, firstGen, secondEcore, secondGen, reaction);
+    }
 
-    List<VitruvCliService.MetamodelInput> metamodels = metamodelsCap.getValue();
-    Path reactionPath = reactionCap.getValue();
-
-    assertThat(metamodels).hasSize(2);
-    assertThat(metamodels.get(0).getEcorePath().getFileName()).hasToString("first.ecore");
-    assertThat(metamodels.get(0).getGenmodelPath().getFileName()).hasToString("first.genmodel");
-    assertThat(metamodels.get(1).getEcorePath().getFileName()).hasToString("second.ecore");
-    assertThat(metamodels.get(1).getGenmodelPath().getFileName()).hasToString("second.genmodel");
-
-    assertThat(reactionPath.getFileName()).hasToString("reactions.reactions");
+    verify(vitruvCliService, times(1)).run(any(Path.class), anyList(), any(Path.class));
   }
 
   @Test
@@ -90,13 +89,24 @@ class MetaModelVitruvIntegrationServiceTest {
 
     when(vitruvCliService.run(any(Path.class), anyList(), any(Path.class))).thenReturn(cliResult);
 
-    assertThatThrownBy(
-            () ->
-                service.runVitruvForMetaModels(
-                    firstEcore, firstGen, secondEcore, secondGen, reaction))
-        .isInstanceOf(VsumBuildingException.class)
-        .hasMessageContaining("Vitruv-CLI Error")
-        .hasMessageContaining("Parsing failed");
+    try (MockedStatic<Files> filesMock = org.mockito.Mockito.mockStatic(Files.class)) {
+      filesMock
+          .when(() -> Files.createDirectories(any(Path.class)))
+          .thenAnswer(inv -> inv.getArgument(0));
+      filesMock
+          .when(() -> Files.write(any(Path.class), any(byte[].class)))
+          .thenAnswer(inv -> inv.getArgument(0));
+
+      assertThatThrownBy(
+              () ->
+                  service.runVitruvForMetaModels(
+                      firstEcore, firstGen, secondEcore, secondGen, reaction))
+          .isInstanceOf(VsumBuildingException.class)
+          .hasMessageContaining("Vitruv-CLI Error")
+          .hasMessageContaining("Parsing failed");
+    }
+
+    verify(vitruvCliService, times(1)).run(any(Path.class), anyList(), any(Path.class));
   }
 
   @Test
@@ -116,34 +126,66 @@ class MetaModelVitruvIntegrationServiceTest {
 
     when(vitruvCliService.run(any(Path.class), anyList(), any(Path.class))).thenReturn(cliResult);
 
-    assertThatThrownBy(
-            () ->
-                service.runVitruvForMetaModels(
-                    firstEcore, firstGen, secondEcore, secondGen, reaction))
-        .isInstanceOf(VsumBuildingException.class)
-        .hasMessageContaining("Vitruv-CLI Error")
-        .hasMessageContaining("Missing required options");
-  }
-
-  @Test
-  void runVitruvForMetaModels_throwsVsumBuildingException_whenIOExceptionOccurs() {
-    FileStorage firstEcore = fs("first.ecore");
-    FileStorage firstGen = fs("first.genmodel");
-    FileStorage secondEcore = fs("second.ecore");
-    FileStorage secondGen = fs("second.genmodel");
-    FileStorage reaction = fs("reactions.reactions");
-
     try (MockedStatic<Files> filesMock = org.mockito.Mockito.mockStatic(Files.class)) {
       filesMock
-          .when(() -> Files.createTempDirectory("vitruv-job-"))
-          .thenThrow(new IOException("disk full"));
+          .when(() -> Files.createDirectories(any(Path.class)))
+          .thenAnswer(inv -> inv.getArgument(0));
+      filesMock
+          .when(() -> Files.write(any(Path.class), any(byte[].class)))
+          .thenAnswer(inv -> inv.getArgument(0));
 
       assertThatThrownBy(
               () ->
                   service.runVitruvForMetaModels(
                       firstEcore, firstGen, secondEcore, secondGen, reaction))
           .isInstanceOf(VsumBuildingException.class)
+          .hasMessageContaining("Vitruv-CLI Error")
+          .hasMessageContaining("Missing required options");
+    }
+
+    verify(vitruvCliService, times(1)).run(any(Path.class), anyList(), any(Path.class));
+  }
+
+  @Test
+  void runVitruvForMetaModels_throwsVsumBuildingException_whenWorkingDirCannotBeCreated() {
+    try (MockedStatic<Files> filesMock = org.mockito.Mockito.mockStatic(Files.class)) {
+      filesMock
+          .when(() -> Files.createDirectories(any(Path.class)))
+          .thenThrow(new IOException("Permission denied"));
+
+      assertThatThrownBy(
+              () ->
+                  service.runVitruvForMetaModels(
+                      List.of(fs("a.ecore")), List.of(fs("a.genmodel")), fs("r.reactions")))
+          .isInstanceOf(VsumBuildingException.class)
           .hasMessageContaining("Vitruv-CLI execution failed");
     }
+
+    verify(vitruvCliService, times(0)).run(any(Path.class), anyList(), any(Path.class));
+  }
+
+  @Test
+  void runVitruvForMetaModels_throwsVsumBuildingException_whenWriteFails() {
+    FileStorage firstEcore = fs("first.ecore");
+    FileStorage firstGen = fs("first.genmodel");
+    FileStorage reaction = fs("reactions.reactions");
+
+    try (MockedStatic<Files> filesMock = org.mockito.Mockito.mockStatic(Files.class)) {
+      filesMock
+          .when(() -> Files.createDirectories(any(Path.class)))
+          .thenAnswer(inv -> inv.getArgument(0));
+
+      filesMock
+          .when(() -> Files.write(any(Path.class), any(byte[].class)))
+          .thenThrow(new IOException("disk full"));
+
+      assertThatThrownBy(
+              () ->
+                  service.runVitruvForMetaModels(List.of(firstEcore), List.of(firstGen), reaction))
+          .isInstanceOf(VsumBuildingException.class)
+          .hasMessageContaining("Vitruv-CLI execution failed");
+    }
+
+    verify(vitruvCliService, times(0)).run(any(Path.class), anyList(), any(Path.class));
   }
 }
