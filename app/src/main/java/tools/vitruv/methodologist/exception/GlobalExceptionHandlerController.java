@@ -373,9 +373,16 @@ public class GlobalExceptionHandlerController {
         handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
         ex.getMessage());
     log.debug(STACKTRACE_LOG, ex.toString());
+    var fieldError = Objects.requireNonNull(ex.getBindingResult().getFieldError());
+
+    String clientMessage =
+        fieldError.getField()
+            + ": "
+            + Objects.requireNonNullElse(fieldError.getDefaultMessage(), "Invalid value");
+
     return ErrorResponse.builder()
         .error(FORMAT_ERROR)
-        .message(Objects.requireNonNull(ex.getFieldError()).getField())
+        .message(clientMessage)
         .path(getPath(request))
         .build();
   }
