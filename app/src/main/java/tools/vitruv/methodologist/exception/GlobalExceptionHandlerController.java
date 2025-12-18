@@ -373,12 +373,17 @@ public class GlobalExceptionHandlerController {
         handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
         ex.getMessage());
     log.debug(STACKTRACE_LOG, ex.toString());
-    var fieldError = Objects.requireNonNull(ex.getBindingResult().getFieldError());
+    var fieldError = ex.getBindingResult().getFieldError();
 
-    String clientMessage =
-        fieldError.getField()
-            + ": "
-            + Objects.requireNonNullElse(fieldError.getDefaultMessage(), "Invalid value");
+    String clientMessage;
+    if (fieldError != null) {
+      String fieldName = Objects.requireNonNullElse(fieldError.getField(), "field");
+      String defaultMessage =
+          Objects.requireNonNullElse(fieldError.getDefaultMessage(), "Invalid value");
+      clientMessage = fieldName + ": " + defaultMessage;
+    } else {
+      clientMessage = Objects.requireNonNullElse(ex.getMessage(), "Validation failed");
+    }
 
     return ErrorResponse.builder()
         .error(FORMAT_ERROR)
