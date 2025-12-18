@@ -11,6 +11,10 @@ import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -232,26 +236,61 @@ public class VsumController {
   }
 
   /**
-   * Initiates a build for the specified VSUM belonging to the authenticated user.
+   * Triggers the VSUM build process for the given VSUM.
    *
-   * <p>The caller's email is resolved from the provided {@link KeycloakAuthentication} token and
-   * forwarded to {@link tools.vitruv.methodologist.vsum.service.VsumService#buildOrThrow(String,
-   * Long)} which performs the build or throws an exception if the VSUM is not found or not
-   * accessible.
+   * <p>This endpoint validates the caller's access to the VSUM and starts the Vitruv build
+   * pipeline. The build is executed synchronously and will fail fast if the configuration or CLI
+   * execution is invalid.
    *
-   * @param authentication the Keycloak authentication containing the caller's email
+   * <p>No build artifact is returned by this endpoint. Use {@code GET
+   * /v1/vsums/{id}/build/artifact} to download the generated build output.
+   *
+   * @param authentication the authenticated Keycloak principal
    * @param id the identifier of the VSUM to build
-   * @return a {@link tools.vitruv.methodologist.ResponseTemplateDto} with {@code Void} data and a
-   *     success message when the build completes successfully
-   * @throws tools.vitruv.methodologist.exception.NotFoundException if no matching VSUM is found or
-   *     it does not belong to the caller
+   * @return a response indicating that the build completed successfully
+   * @throws AccessDeniedException if the caller has no access to the VSUM
+   * @throws VsumBuildingException if the build fails
    */
-  @GetMapping("/v1/vsums/{id}/build")
+  @GetMapping("/v1/vsums/{id}/build/check")
   @PreAuthorize("hasRole('user')")
   public ResponseTemplateDto<Void> buildOrThrow(
       KeycloakAuthentication authentication, @PathVariable Long id) {
     String callerEmail = authentication.getParsedToken().getEmail();
-    vsumService.buildOrThrow(callerEmail, id);
+    vsumService.getJarfat(callerEmail, id);
     return ResponseTemplateDto.<Void>builder().message(VSUM_BUILD_WAS_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Builds the VSUM and returns the generated build artifact as a downloadable ZIP file.
+   *
+   * <p>The returned ZIP contains:
+   *
+   * <ul>
+   *   <li>The VSUM fat JAR (with dependencies)
+   *   <li>A Dockerfile for containerizing the VSUM
+   * </ul>
+   *
+   * <p>If the VSUM was already built and no relevant inputs have changed, the existing artifact may
+   * be reused.
+   *
+   * @param authentication the authenticated Keycloak principal
+   * @param id the identifier of the VSUM to build
+   * @return a ZIP archive containing the VSUM build artifact
+   * @throws AccessDeniedException if the caller has no access to the VSUM
+   * @throws VsumBuildingException if the build or artifact packaging fails
+   */
+  @GetMapping("/v1/vsums/{id}/build/artifact")
+  public ResponseEntity<byte[]> buildAndDownload(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+
+    byte[] zip = vsumService.getJarfat(callerEmail, id);
+
+    HttpHeaders headers = new HttpHeaders();
+    headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+    headers.setContentDisposition(
+        ContentDisposition.attachment().filename("vsum-artifact.zip").build());
+
+    return ResponseEntity.ok().headers(headers).body(zip);
   }
 }

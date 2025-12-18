@@ -35,10 +35,6 @@ public class VitruvCliService {
    */
   public VitruvCliResult run(Path jobDir, List<MetamodelInput> metamodels, Path reactionFile) {
 
-    if (metamodels == null || metamodels.isEmpty()) {
-      throw new IllegalArgumentException("At least one metamodel must be provided");
-    }
-
     String metamodelArg =
         metamodels.stream()
             .map(
