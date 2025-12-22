@@ -114,7 +114,7 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
     if (uri == null) {
       return false;
     }
-    return uri.matches(".*/api/v1/vsums/\\d+/build/(artifact|check).*");
+    return uri.matches("^/api/v1/vsums/\\d+/build/(artifact|check)$");
   }
 
   private boolean isBinaryEndpoint(HttpServletRequest request) {
