@@ -36,31 +36,9 @@ class VitruvCliServiceTest {
   }
 
   @Test
-  void run_throwsIllegalArgument_whenMetamodelsNull() {
-    Path folder = Path.of("/tmp/project");
-    Path reaction = Path.of("/tmp/reaction.reactions");
-
-    assertThatThrownBy(() -> service.run(folder, null, reaction))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("At least one metamodel must be provided");
-  }
-
-  @Test
-  void run_throwsIllegalArgument_whenMetamodelsEmpty() {
-    Path folder = Path.of("/tmp/project");
-    Path reaction = Path.of("/tmp/reaction.reactions");
-
-    List<VitruvCliService.MetamodelInput> emptyList = List.of();
-
-    assertThatThrownBy(() -> service.run(folder, emptyList, reaction))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("At least one metamodel must be provided");
-  }
-
-  @Test
   void run_returnsSuccessResult_whenProcessExitsZero_andNoStderr() {
     Path folder = Path.of("/tmp/project");
-    Path reaction = Path.of("/tmp/reaction.reactions");
+    Path reactionsDir = Path.of("/tmp/reactions");
     VitruvCliService.MetamodelInput mm =
         VitruvCliService.MetamodelInput.builder()
             .ecorePath(Path.of("/tmp/model.ecore"))
@@ -71,6 +49,9 @@ class VitruvCliServiceTest {
         mockConstruction(
             ProcessBuilder.class,
             (pbMock, context) -> {
+              List<String> cmd = context.arguments().stream().map(Object::toString).toList();
+              assertThat(cmd.toString()).contains("-rs").contains("reactions");
+
               when(pbMock.directory(any(File.class))).thenReturn(pbMock);
               when(pbMock.redirectErrorStream(false)).thenReturn(pbMock);
 
@@ -83,11 +64,10 @@ class VitruvCliServiceTest {
               when(process.getInputStream())
                   .thenReturn(
                       new ByteArrayInputStream("OK STDOUT".getBytes(StandardCharsets.UTF_8)));
-              when(process.getErrorStream())
-                  .thenReturn(new ByteArrayInputStream("".getBytes(StandardCharsets.UTF_8)));
+              when(process.getErrorStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
             })) {
 
-      VitruvCliService.VitruvCliResult result = service.run(folder, List.of(mm), reaction);
+      VitruvCliService.VitruvCliResult result = service.run(folder, List.of(mm), reactionsDir);
 
       assertThat(result.getExitCode()).isZero();
       assertThat(result.getStdout()).contains("OK STDOUT");
@@ -98,9 +78,9 @@ class VitruvCliServiceTest {
   }
 
   @Test
-  void run_returnsFailureResult_whenExitCodeNonZero_orStderrNotBlank() {
+  void run_returnsFailureResult_whenExitCodeNonZero() {
     Path folder = Path.of("/tmp/project");
-    Path reaction = Path.of("/tmp/reaction.reactions");
+    Path reactionsDir = Path.of("/tmp/reactions");
     VitruvCliService.MetamodelInput mm =
         VitruvCliService.MetamodelInput.builder()
             .ecorePath(Path.of("/tmp/model.ecore"))
@@ -128,7 +108,7 @@ class VitruvCliServiceTest {
                       new ByteArrayInputStream("Parsing failed".getBytes(StandardCharsets.UTF_8)));
             })) {
 
-      VitruvCliService.VitruvCliResult result = service.run(folder, List.of(mm), reaction);
+      VitruvCliService.VitruvCliResult result = service.run(folder, List.of(mm), reactionsDir);
 
       assertThat(result.getExitCode()).isEqualTo(1);
       assertThat(result.getStdout()).contains("some stdout");
@@ -141,7 +121,7 @@ class VitruvCliServiceTest {
   @Test
   void run_throwsIllegalState_whenProcessTimesOut() {
     Path folder = Path.of("/tmp/project");
-    Path reaction = Path.of("/tmp/reaction.reactions");
+    Path reactionsDir = Path.of("/tmp/reactions");
     VitruvCliService.MetamodelInput mm =
         VitruvCliService.MetamodelInput.builder()
             .ecorePath(Path.of("/tmp/model.ecore"))
@@ -159,21 +139,19 @@ class VitruvCliServiceTest {
               when(pbMock.start()).thenReturn(process);
 
               when(process.waitFor(properties.getTimeoutSeconds(), TimeUnit.SECONDS))
-                  .thenReturn(false); // timeout
+                  .thenReturn(false);
             })) {
 
-      List<VitruvCliService.MetamodelInput> metamodels = List.of(mm);
-
-      assertThatThrownBy(() -> service.run(folder, metamodels, reaction))
+      assertThatThrownBy(() -> service.run(folder, List.of(mm), reactionsDir))
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("timed out");
     }
   }
 
   @Test
-  void run_wrapsIOException_inRuntimeException() {
+  void run_wrapsIOException_inCLIExecuteException() {
     Path folder = Path.of("/tmp/project");
-    Path reaction = Path.of("/tmp/reaction.reactions");
+    Path reactionsDir = Path.of("/tmp/reactions");
     VitruvCliService.MetamodelInput mm =
         VitruvCliService.MetamodelInput.builder()
             .ecorePath(Path.of("/tmp/model.ecore"))
@@ -190,18 +168,16 @@ class VitruvCliServiceTest {
               when(pbMock.start()).thenThrow(new IOException("cannot start process"));
             })) {
 
-      List<VitruvCliService.MetamodelInput> metamodels = List.of(mm);
-
-      assertThatThrownBy(() -> service.run(folder, metamodels, reaction))
+      assertThatThrownBy(() -> service.run(folder, List.of(mm), reactionsDir))
           .isInstanceOf(CLIExecuteException.class)
-          .hasMessageContaining("Failed to execute Vitruv-CLI");
+          .hasMessageContaining("cannot start process");
     }
   }
 
   @Test
-  void run_wrapsInterruptedException_inRuntimeException_andKeepsMessage() {
+  void run_wrapsInterruptedException_inCLIExecuteException_andInterruptsThread() {
     Path folder = Path.of("/tmp/project");
-    Path reaction = Path.of("/tmp/reaction.reactions");
+    Path reactionsDir = Path.of("/tmp/reactions");
     VitruvCliService.MetamodelInput mm =
         VitruvCliService.MetamodelInput.builder()
             .ecorePath(Path.of("/tmp/model.ecore"))
@@ -222,11 +198,9 @@ class VitruvCliServiceTest {
                   .thenThrow(new InterruptedException("interrupted"));
             })) {
 
-      List<VitruvCliService.MetamodelInput> metamodels = List.of(mm);
-
-      assertThatThrownBy(() -> service.run(folder, metamodels, reaction))
-          .isInstanceOf(RuntimeException.class)
-          .hasMessageContaining("Failed to execute Vitruv-CLI");
+      assertThatThrownBy(() -> service.run(folder, List.of(mm), reactionsDir))
+          .isInstanceOf(CLIExecuteException.class)
+          .hasMessageContaining("interrupted");
     }
   }
 }
