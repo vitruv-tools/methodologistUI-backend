@@ -35,7 +35,8 @@ import tools.vitruv.methodologist.vitruvcli.VitruvCliService;
 public class MetaModelVitruvIntegrationService {
 
   private static final String FAT_JAR_RELATIVE_PATH =
-      "vsum/target/tools.vitruv.methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar";
+      "vsum/target/"
+          + "tools.vitruv.methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar";
   private final VitruvCliService vitruvCliService;
   private final VitruvCliProperties vitruvCliProperties;
 

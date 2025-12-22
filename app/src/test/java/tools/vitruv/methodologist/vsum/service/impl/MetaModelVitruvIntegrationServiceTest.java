@@ -82,7 +82,8 @@ class MetaModelVitruvIntegrationServiceTest {
                 Path p = inv.getArgument(0);
                 return p.toString()
                     .contains(
-                        "vsum/target/tools.vitruv.methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar");
+                        "vsum/target"
+                            + "/tools.vitruv.methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar");
               });
 
       filesMock.when(() -> Files.readAllBytes(any(Path.class))).thenReturn(jarBytes);
@@ -300,7 +301,8 @@ class MetaModelVitruvIntegrationServiceTest {
                 Path p = inv.getArgument(0);
                 return p.toString()
                     .contains(
-                        "vsum/target/tools.vitruv.methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar");
+                        "vsum/target/"
+                            + "tools.vitruv.methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar");
               });
 
       filesMock
