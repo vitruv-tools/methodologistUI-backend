@@ -8,7 +8,6 @@ import static tools.vitruv.methodologist.messages.Error.VITRUV_CLI_ERROR;
 import static tools.vitruv.methodologist.messages.Error.VITRUV_CLI_EXECUTION_FAILED_ERROR;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -97,11 +96,12 @@ public class MetaModelVitruvIntegrationService {
       List<VitruvCliService.MetamodelInput> metamodels =
           writeMetamodels(jobDir, ecoreFiles, genModelFiles);
 
-      List<Path> reactionPaths = writeReactionFiles(jobDir, reactionFiles);
-      Path combinedReactionPath = writeCombinedReactionsFile(jobDir, reactionPaths);
+      Path reactionsDir = jobDir.resolve("reactions");
+      Files.createDirectories(reactionsDir);
+      writeReactionFiles(reactionsDir, reactionFiles);
 
       VitruvCliService.VitruvCliResult result =
-          vitruvCliService.run(jobDir, metamodels, combinedReactionPath);
+          vitruvCliService.run(jobDir, metamodels, reactionsDir);
 
       if (!result.isSuccess()) {
         String msg =
@@ -238,14 +238,21 @@ public class MetaModelVitruvIntegrationService {
   }
 
   /**
-   * Writes reaction files into the job directory and returns their paths.
+   * Writes the provided reaction files into the given directory.
    *
-   * @param jobDir the directory where reaction files will be written
-   * @param reactionFiles the reaction file storage entries
-   * @return list of paths to written reaction files
-   * @throws IOException when file IO fails
+   * <p>Each entry from {@code reactionFiles} is written to {@code reactionsDir} using a
+   * filesystem-safe name (the implementation falls back to {@code "reactions-<i>.reactions"} when a
+   * filename is missing). Null file data is treated as an empty byte array.
+   *
+   * <p>IO errors encountered while writing are propagated as an unchecked {@link RuntimeException}.
+   *
+   * @param reactionsDir the directory where reaction files will be written; must not be {@code
+   *     null}
+   * @param reactionFiles the list of reaction {@code FileStorage} objects to write; must not be
+   *     {@code null}
+   * @throws RuntimeException if an I/O error occurs while writing any reaction file
    */
-  private List<Path> writeReactionFiles(Path jobDir, List<FileStorage> reactionFiles)
+  private void writeReactionFiles(Path reactionsDir, List<FileStorage> reactionFiles)
       throws IOException {
 
     List<Path> paths = new ArrayList<>(reactionFiles.size());
@@ -253,34 +260,9 @@ public class MetaModelVitruvIntegrationService {
     for (int i = 0; i < reactionFiles.size(); i++) {
       FileStorage rf = reactionFiles.get(i);
       String name = safeName(rf.getFilename(), "reactions-" + i + ".reactions");
-      Path p = jobDir.resolve(name);
+      Path p = reactionsDir.resolve(name);
       Files.write(p, nonNullBytes(rf.getData()));
       paths.add(p);
     }
-
-    return paths;
-  }
-
-  /**
-   * Concatenates multiple reaction files into a single combined reactions file.
-   *
-   * @param jobDir the directory where the combined file will be written
-   * @param reactionPaths the paths of the reaction files to concatenate
-   * @return path to the combined reactions file
-   * @throws IOException when file IO fails
-   */
-  private Path writeCombinedReactionsFile(Path jobDir, List<Path> reactionPaths)
-      throws IOException {
-
-    Path combined = jobDir.resolve("all.reactions");
-
-    StringBuilder sb = new StringBuilder();
-    for (Path p : reactionPaths) {
-      sb.append(Files.readString(p, StandardCharsets.UTF_8));
-      sb.append("\n\n");
-    }
-
-    Files.writeString(combined, sb.toString(), StandardCharsets.UTF_8);
-    return combined;
   }
 }
