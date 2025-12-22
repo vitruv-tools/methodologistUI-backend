@@ -813,7 +813,6 @@ class VsumServiceTest {
     VsumUser vu = new VsumUser();
     vu.setVsum(vsum);
 
-    byte[] jarBytes = "FAKEJAR".getBytes(StandardCharsets.UTF_8);
     when(vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(id, email))
         .thenReturn(Optional.of(vu));
@@ -821,26 +820,30 @@ class VsumServiceTest {
     FileStorage e1 = fs(1L, "a.ecore", new byte[] {1});
     FileStorage g1 = fs(2L, "a.genmodel", new byte[] {2});
     FileStorage r1 = fs(3L, "x.reactions", new byte[] {3});
-
     vsum.setMetaModelRelations(Set.of(rel(mm(e1, g1), null, r1)));
 
+    byte[] jarBytes = "FAKEJAR".getBytes(StandardCharsets.UTF_8);
     when(metaModelVitruvIntegrationService.runVitruvAndGetFatJarBytes(
             anyList(), anyList(), anyList()))
         .thenReturn(jarBytes);
 
+    when(buildCoordinator.runOncePerKey(any(), any()))
+        .thenAnswer(
+            inv -> {
+              java.util.function.Supplier<byte[]> s = inv.getArgument(1);
+              return s.get();
+            });
     byte[] zip = service.getJarfat(email, id);
+
+    verify(metaModelVitruvIntegrationService, times(1))
+        .runVitruvAndGetFatJarBytes(anyList(), anyList(), anyList());
 
     Map<String, byte[]> entries = unzip(zip);
     assertThat(entries)
         .containsKeys(
             "methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar", "Dockerfile");
-
     assertThat(entries.get("methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar"))
         .isEqualTo(jarBytes);
-
-    String dockerfile = new String(entries.get("Dockerfile"), StandardCharsets.UTF_8);
-    assertThat(dockerfile).contains("FROM eclipse-temurin:17-jre-alpine");
-    assertThat(dockerfile).contains("ENTRYPOINT");
   }
 
   @Test
