@@ -39,6 +39,8 @@ import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
 import tools.vitruv.methodologist.vsum.build.BuildCoordinator;
+import tools.vitruv.methodologist.vsum.build.BuildKey;
+import tools.vitruv.methodologist.vsum.build.InputsFingerprint;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
@@ -465,8 +467,12 @@ public class VsumService {
                 id, callerEmail)
             .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
 
-    byte[] jarfat = buildOrThrow(vsumUser.getVsum());
-    return zipJarAndDockerfile(jarfat);
+    Vsum vsum = vsumUser.getVsum();
+    BuildKey key = buildKey(callerEmail, id, vsum);
+
+    byte[] jarBytes = buildCoordinator.runOncePerKey(key, () -> buildOrThrow(vsum));
+
+    return zipJarAndDockerfile(jarBytes);
   }
 
   /**
@@ -639,5 +645,83 @@ public class VsumService {
       return "id:" + fs.getId();
     }
     return "name:" + (fs.getFilename() == null ? "" : fs.getFilename());
+  }
+
+  /**
+   * Builds a {@link BuildKey} that uniquely identifies a build request for the given VSUM.
+   *
+   * <p>The method collects a deterministic set of Ecore/GenModel pairs and the first reaction file
+   * referenced by the provided {@code vsum} and computes an inputs fingerprint using {@link
+   * InputsFingerprint#fingerprint(List, List, FileStorage)}. The returned {@link BuildKey} encodes
+   * the requesting user's email, the VSUM id and the computed fingerprint so concurrent or repeated
+   * requests with identical inputs can be deduplicated.
+   *
+   * <p>Important details:
+   *
+   * <ul>
+   *   <li>Pairs are deduplicated using stable keys (insertion order is preserved via {@link
+   *       java.util.LinkedHashMap} to make fingerprinting deterministic).
+   *   <li>The fingerprint is computed from the list of Ecore files, the list of GenModel files, and
+   *       the first reaction file found in the VSUM relations.
+   *   <li>The method performs validation and will throw {@link
+   *       tools.vitruv.methodologist.exception.NotFoundException} when required input data is
+   *       missing or relations are malformed.
+   * </ul>
+   *
+   * @param callerEmail the email of the caller that will be associated with the build key; may be
+   *     used to scope keys per-user
+   * @param vsumId the identifier of the VSUM for which the build is requested
+   * @param vsum the VSUM aggregate containing meta-model relations and reaction file references;
+   *     must not be {@code null} and must contain at least one valid meta-model pair and one
+   *     reaction file reference
+   * @return a new {@link BuildKey} composed of the caller email, VSUM id and an inputs fingerprint
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if {@code
+   *     vsum.getMetaModelRelations()} is {@code null} or empty, or if any relation is {@code null},
+   *     or if no valid Ecore/GenModel pairs or reaction files are available
+   */
+  private BuildKey buildKey(String callerEmail, Long vsumId, Vsum vsum) {
+    Map<String, FileStorage> ecores = new LinkedHashMap<>();
+    Map<String, FileStorage> genmodels = new LinkedHashMap<>();
+    List<FileStorage> reactions = new ArrayList<>();
+
+    if (vsum.getMetaModelRelations() == null || vsum.getMetaModelRelations().isEmpty()) {
+      throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
+    }
+
+    for (MetaModelRelation relation : vsum.getMetaModelRelations()) {
+      if (relation == null) {
+        throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
+      }
+
+      MetaModel source = relation.getSource();
+      MetaModel target = relation.getTarget();
+
+      if (source != null) {
+        putPair(ecores, genmodels, source.getEcoreFile(), source.getGenModelFile());
+      }
+      if (target != null) {
+        putPair(ecores, genmodels, target.getEcoreFile(), target.getGenModelFile());
+      }
+
+      FileStorage reaction = relation.getReactionFileStorage();
+      if (reaction != null) {
+        reactions.add(reaction);
+      }
+    }
+
+    if (ecores.isEmpty() || genmodels.isEmpty()) {
+      throw new NotFoundException(METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR);
+    }
+    if (reactions.isEmpty()) {
+      throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
+    }
+
+    String fingerprint =
+        InputsFingerprint.fingerprint(
+            new ArrayList<>(ecores.values()),
+            new ArrayList<>(genmodels.values()),
+            reactions.get(0));
+
+    return new BuildKey(callerEmail, vsumId, fingerprint);
   }
 }
