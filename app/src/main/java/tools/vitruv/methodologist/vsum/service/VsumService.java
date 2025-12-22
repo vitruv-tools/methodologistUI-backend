@@ -62,7 +62,15 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 
-/** */
+/**
+ * Service class for managing VSUM (Virtual Single Underlying Model) operations. Handles the
+ * business logic for VSUM creation, updates, retrieval, and removal while ensuring proper
+ * validation and persistence.
+ *
+ * @see tools.vitruv.methodologist.vsum.model.Vsum
+ * @see tools.vitruv.methodologist.vsum.model.repository.VsumRepository
+ * @see tools.vitruv.methodologist.vsum.mapper.VsumMapper
+ */
 @Service
 @Slf4j
 @AllArgsConstructor
