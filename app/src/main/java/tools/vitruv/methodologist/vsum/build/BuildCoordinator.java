@@ -72,7 +72,22 @@ public class BuildCoordinator {
                 }));
   }
 
-  /** Blocking join (used by /artifact). */
+  /**
+   * Blocking variant that starts the build if absent, or waits for an in-flight build and returns
+   * its result.
+   *
+   * <p>This method delegates to {@link #startOrGet(BuildKey, java.util.function.Supplier)} and
+   * invokes {@code CompletableFuture.join()} to block the calling thread until the build completes.
+   *
+   * @param key the build key; must not be {@code null}
+   * @param buildSupplier a supplier that performs the build when this caller registers the new
+   *     future; must not be {@code null}
+   * @return the build artifact bytes produced by the supplier
+   * @throws NullPointerException if {@code key} or {@code buildSupplier} is {@code null}
+   * @throws java.util.concurrent.CompletionException if the build completed exceptionally (the
+   *     cause will be the original exception thrown by the supplier)
+   * @throws java.util.concurrent.CancellationException if the build was cancelled
+   */
   public byte[] runOncePerKey(BuildKey key, Supplier<byte[]> buildSupplier) {
     return startOrGet(key, buildSupplier).join();
   }

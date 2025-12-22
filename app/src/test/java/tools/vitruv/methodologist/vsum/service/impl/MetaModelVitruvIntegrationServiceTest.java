@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +29,7 @@ import tools.vitruv.methodologist.vitruvcli.VitruvCliProperties;
 import tools.vitruv.methodologist.vitruvcli.VitruvCliService;
 import tools.vitruv.methodologist.vsum.service.MetaModelVitruvIntegrationService;
 
+@Slf4j
 @ExtendWith(MockitoExtension.class)
 class MetaModelVitruvIntegrationServiceTest {
 
@@ -336,9 +338,7 @@ class MetaModelVitruvIntegrationServiceTest {
       filesMock
           .when(() -> Files.write(any(Path.class), any(byte[].class)))
           .thenAnswer(inv -> inv.getArgument(0));
-      // ensure the job dir is considered present so cleanup code runs
       filesMock.when(() -> Files.exists(any(Path.class))).thenReturn(true);
-      // stub all common walk overloads
       filesMock.when(() -> Files.walk(any(Path.class))).thenReturn(Stream.empty());
       filesMock
           .when(
@@ -352,12 +352,12 @@ class MetaModelVitruvIntegrationServiceTest {
       assertThatThrownBy(() -> service.runVitruvAndGetFatJarBytes(ecores, gens, reactions))
           .isInstanceOf(VsumBuildingException.class);
 
-      // verify at least one walk overload invoked (robust against chosen overload)
       boolean walkInvoked = false;
       try {
         filesMock.verify(() -> Files.walk(any(Path.class)));
         walkInvoked = true;
       } catch (AssertionError ignored) {
+        log.warn("Expected Files.walk to be invoked once");
       }
       try {
         filesMock.verify(
@@ -365,12 +365,14 @@ class MetaModelVitruvIntegrationServiceTest {
                 Files.walk(any(Path.class), anyInt(), any(java.nio.file.FileVisitOption[].class)));
         walkInvoked = true;
       } catch (AssertionError ignored) {
+        log.warn("Expected Files.walk to be invoked once");
       }
       try {
         filesMock.verify(
             () -> Files.walk(any(Path.class), any(java.nio.file.FileVisitOption[].class)));
         walkInvoked = true;
       } catch (AssertionError ignored) {
+        log.warn("Expected Files.walk to be invoked once");
       }
       assertThat(walkInvoked).isTrue();
     }
