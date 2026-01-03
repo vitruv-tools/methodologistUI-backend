@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.controller;
 
 import static tools.vitruv.methodologist.messages.Message.META_MODEL_CREATED_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.META_MODEL_REMOVED_SUCCESSFULLY;
+import static tools.vitruv.methodologist.messages.Message.META_MODEL_UPDATED_SUCCESSFULLY;
 
 import jakarta.validation.Valid;
 import java.util.List;
@@ -135,6 +136,6 @@ public class MetaModelController {
       @Valid @RequestBody MetaModelPutRequest metaModelPutRequest) {
     String callerEmail = authentication.getParsedToken().getEmail();
     metaModelService.update(callerEmail, id, metaModelPutRequest);
-    return ResponseTemplateDto.<Void>builder().message(META_MODEL_REMOVED_SUCCESSFULLY).build();
+    return ResponseTemplateDto.<Void>builder().message(META_MODEL_UPDATED_SUCCESSFULLY).build();
   }
 }
