@@ -576,7 +576,6 @@ class MetaModelServiceTest {
     derived.setId(200L);
     derived.setSource(source);
 
-
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.of(caller));
     when(metaModelRepository.findById(200L)).thenReturn(Optional.of(derived));
