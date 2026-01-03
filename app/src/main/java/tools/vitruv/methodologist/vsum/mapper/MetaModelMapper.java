@@ -2,8 +2,10 @@ package tools.vitruv.methodologist.vsum.mapper;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
 import org.mapstruct.ReportingPolicy;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 
@@ -48,4 +50,18 @@ public interface MetaModelMapper {
   @Mapping(ignore = true, target = "createdAt")
   @Mapping(ignore = true, target = "updatedAt")
   MetaModel clone(MetaModel metaModel);
+
+  /**
+   * Update the given {@link MetaModel} instance with values from the provided {@link
+   * MetaModelPutRequest}.
+   *
+   * <p>The method is intended to be used as a MapStruct {@code @MappingTarget} update: it copies
+   * mutable business fields from the request to the existing entity while leaving system-managed
+   * properties untouched.
+   *
+   * @param metaModelPutRequest the DTO containing updated values; must not be null
+   * @param metaModel the target entity to update (MapStruct {@code @MappingTarget})
+   */
+  void updateByMetaModelPutRequest(
+      MetaModelPutRequest metaModelPutRequest, @MappingTarget MetaModel metaModel);
 }

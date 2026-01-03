@@ -3,8 +3,10 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.ECORE_FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.GEN_MODEL_FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.META_MODEL_ID_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
+import jakarta.validation.Valid;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -14,6 +16,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
@@ -27,6 +30,7 @@ import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelFilterRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
@@ -208,6 +212,74 @@ public class MetaModelService {
 
     metaModelRepository.delete(metaModel);
     fileStorageService.deleteFiles(List.of(metaModel.getEcoreFile(), metaModel.getGenModelFile()));
+  }
+
+  /**
+   * Updates a MetaModel for the active user.
+   *
+   * <p>If the caller is not allowed to update this MetaModel, an {@link AccessDeniedException} is
+   * thrown.
+   *
+   * @param callerEmail authenticated user's email
+   * @param id MetaModel identifier
+   * @param metaModelPutRequest requested changes (validated)
+   * @throws AccessDeniedException if the caller cannot update the specified MetaModel
+   * @throws NotFoundException if the user or MetaModel cannot be found
+   */
+  @Transactional
+  public void update(String callerEmail, Long id, @Valid MetaModelPutRequest metaModelPutRequest) {
+
+    User user =
+        userRepository
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
+            .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+
+    MetaModel metaModel =
+        metaModelRepository
+            .findById(id)
+            .orElseThrow(() -> new NotFoundException(META_MODEL_ID_NOT_FOUND_ERROR));
+
+    if (metaModel.getSource() == null) {
+      if (!isOwnedBy(metaModel, user)) {
+        throw new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS);
+      }
+
+      metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, metaModel);
+      metaModelRepository.save(metaModel);
+      return;
+    }
+
+    MetaModel source = metaModel.getSource();
+
+    if (isOwnedBy(source, user)) {
+      metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, source);
+      metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, metaModel);
+
+      metaModelRepository.saveAll(List.of(source, metaModel));
+      return;
+    }
+
+    MetaModel newSource = clone(source);
+    newSource.setUser(user);
+    newSource.setSource(null);
+
+    metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, newSource);
+    metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, metaModel);
+
+    metaModelRepository.save(newSource);
+
+    metaModel.setSource(newSource);
+    metaModelRepository.save(metaModel);
+  }
+
+  boolean isOwnedBy(MetaModel metaModel, User user) {
+    if (metaModel == null || metaModel.getUser() == null || user == null) {
+      return false;
+    }
+    if (metaModel.getUser().getId() != null && user.getId() != null) {
+      return metaModel.getUser().getId().equals(user.getId());
+    }
+    return metaModel.getUser().equals(user);
   }
 
   /** Holds a MetaModel and its associated file pair. */

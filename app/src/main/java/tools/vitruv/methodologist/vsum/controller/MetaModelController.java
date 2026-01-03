@@ -13,6 +13,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,6 +22,7 @@ import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelFilterRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.service.MetaModelService;
 
@@ -101,6 +103,38 @@ public class MetaModelController {
       KeycloakAuthentication authentication, @PathVariable Long id) {
     String callerEmail = authentication.getParsedToken().getEmail();
     metaModelService.delete(callerEmail, id);
+    return ResponseTemplateDto.<Void>builder().message(META_MODEL_REMOVED_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Updates an existing MetaModel owned by the authenticated user.
+   *
+   * <p>The caller must have the {@code user} role and must be authorized to modify the specified
+   * MetaModel. Authorization rules are enforced at the service layer and may involve ownership
+   * checks or controlled cloning of shared MetaModels.
+   *
+   * <p>The request body is validated using {@link jakarta.validation.Valid}. If validation fails, a
+   * {@code 400 Bad Request} response is returned automatically by Spring.
+   *
+   * <p>On successful update, this endpoint returns a standard response wrapper with a success
+   * message and no payload.
+   *
+   * @param authentication the Keycloak authentication containing the caller's identity
+   * @param id the identifier of the MetaModel to update
+   * @param metaModelPutRequest the validated request containing the MetaModel updates
+   * @return a {@link ResponseTemplateDto} with a success message and no data
+   * @throws org.springframework.security.access.AccessDeniedException if the caller is not
+   *     authorized to update the specified MetaModel
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if the MetaModel does not exist
+   */
+  @PutMapping("/v1/meta-models/{id}")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> update(
+      KeycloakAuthentication authentication,
+      @PathVariable Long id,
+      @Valid @RequestBody MetaModelPutRequest metaModelPutRequest) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    metaModelService.update(callerEmail, id, metaModelPutRequest);
     return ResponseTemplateDto.<Void>builder().message(META_MODEL_REMOVED_SUCCESSFULLY).build();
   }
 }

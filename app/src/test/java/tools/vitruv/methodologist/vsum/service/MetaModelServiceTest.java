@@ -3,6 +3,8 @@ package tools.vitruv.methodologist.vsum.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -11,6 +13,7 @@ import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.ECORE_FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.GEN_MODEL_FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.META_MODEL_ID_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
 import java.util.ArrayList;
@@ -32,6 +35,7 @@ import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelFilterRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
@@ -428,5 +432,245 @@ class MetaModelServiceTest {
     assertThat(result).isNotNull().isEmpty();
     verify(metaModelRepository).findAll(any(), any(Pageable.class));
     verify(metaModelMapper, never()).toMetaModelResponse(any());
+  }
+
+  @Test
+  void update_throwsAccessDenied_whenUserMissing() {
+    String email = "missing@ex.com";
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> metaModelService.update(email, 1L, new MetaModelPutRequest()))
+        .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+
+    verify(metaModelRepository, never()).findById(any());
+    verify(metaModelRepository, never()).save(any());
+    verify(metaModelRepository, never()).saveAll(any());
+    verify(metaModelMapper, never()).updateByMetaModelPutRequest(any(), any());
+  }
+
+  @Test
+  void update_throwsNotFound_whenMetaModelMissing() {
+    String email = "u@ex.com";
+    User user = new User();
+    user.setId(1L);
+    user.setEmail(email);
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+    when(metaModelRepository.findById(99L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> metaModelService.update(email, 99L, new MetaModelPutRequest()))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(META_MODEL_ID_NOT_FOUND_ERROR);
+
+    verify(metaModelRepository, never()).save(any());
+    verify(metaModelRepository, never()).saveAll(any());
+    verify(metaModelMapper, never()).updateByMetaModelPutRequest(any(), any());
+  }
+
+  @Test
+  void update_throwsAccessDenied_whenOriginalMetaModelNotOwned() {
+    String email = "u@ex.com";
+    User caller = new User();
+    caller.setId(1L);
+    caller.setEmail(email);
+
+    User other = new User();
+    other.setId(2L);
+
+    MetaModel metaModel = new MetaModel();
+    metaModel.setId(10L);
+    metaModel.setSource(null);
+    metaModel.setUser(other);
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(caller));
+    when(metaModelRepository.findById(10L)).thenReturn(Optional.of(metaModel));
+
+    assertThatThrownBy(() -> metaModelService.update(email, 10L, new MetaModelPutRequest()))
+        .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+
+    verify(metaModelMapper, never()).updateByMetaModelPutRequest(any(), any());
+    verify(metaModelRepository, never()).save(any());
+    verify(metaModelRepository, never()).saveAll(any());
+  }
+
+  @Test
+  void update_updatesAndSaves_whenOriginalMetaModelOwned() {
+    String email = "u@ex.com";
+    User caller = new User();
+    caller.setId(1L);
+    caller.setEmail(email);
+
+    MetaModel metaModel = new MetaModel();
+    metaModel.setId(10L);
+    metaModel.setSource(null);
+    metaModel.setUser(caller);
+
+    MetaModelPutRequest req = new MetaModelPutRequest();
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(caller));
+    when(metaModelRepository.findById(10L)).thenReturn(Optional.of(metaModel));
+
+    metaModelService.update(email, 10L, req);
+
+    verify(metaModelMapper, times(1)).updateByMetaModelPutRequest(req, metaModel);
+    verify(metaModelRepository, times(1)).save(metaModel);
+    verify(metaModelRepository, never()).saveAll(any());
+  }
+
+  @Test
+  void update_updatesBothAndSaveAll_whenDerivedAndSourceOwned() {
+    String email = "u@ex.com";
+    User caller = new User();
+    caller.setId(1L);
+    caller.setEmail(email);
+
+    MetaModel source = new MetaModel();
+    source.setId(1L);
+    source.setUser(caller);
+
+    MetaModel derived = new MetaModel();
+    derived.setId(2L);
+    derived.setUser(new User());
+    derived.setSource(source);
+
+    MetaModelPutRequest req = new MetaModelPutRequest();
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(caller));
+    when(metaModelRepository.findById(2L)).thenReturn(Optional.of(derived));
+
+    metaModelService.update(email, 2L, req);
+
+    verify(metaModelMapper).updateByMetaModelPutRequest(req, source);
+    verify(metaModelMapper).updateByMetaModelPutRequest(req, derived);
+
+    ArgumentCaptor<List<MetaModel>> captor = ArgumentCaptor.forClass(List.class);
+    verify(metaModelRepository, times(1)).saveAll(captor.capture());
+    assertThat(captor.getValue()).containsExactlyInAnyOrder(source, derived);
+
+    verify(metaModelRepository, never()).save(source);
+    verify(metaModelRepository, never()).save(derived);
+  }
+
+  @Test
+  void update_clonesSourceAndRewires_whenDerivedAndSourceNotOwned() {
+    String email = "u@ex.com";
+    User caller = new User();
+    caller.setId(1L);
+    caller.setEmail(email);
+
+    User other = new User();
+    other.setId(2L);
+
+    MetaModel source = new MetaModel();
+    source.setId(100L);
+    source.setUser(other);
+
+    MetaModel derived = new MetaModel();
+    derived.setId(200L);
+    derived.setSource(source);
+
+    MetaModelPutRequest req = new MetaModelPutRequest();
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(caller));
+    when(metaModelRepository.findById(200L)).thenReturn(Optional.of(derived));
+
+    MetaModelService spyService = org.mockito.Mockito.spy(metaModelService);
+
+    MetaModel clonedSource = new MetaModel();
+    clonedSource.setId(999L);
+    doReturn(clonedSource).when(spyService).clone(source);
+
+    spyService.update(email, 200L, req);
+
+    assertThat(clonedSource.getUser()).isSameAs(caller);
+    assertThat(clonedSource.getSource()).isNull();
+
+    verify(metaModelMapper).updateByMetaModelPutRequest(req, clonedSource);
+    verify(metaModelMapper).updateByMetaModelPutRequest(req, derived);
+
+    verify(metaModelRepository).save(clonedSource);
+    verify(metaModelRepository).save(derived);
+    verify(metaModelRepository, never()).saveAll(any());
+
+    assertThat(derived.getSource()).isSameAs(clonedSource);
+  }
+
+  @Test
+  void update_propagates_whenCloneFails_andDoesNotSaveAnything() {
+    String email = "u@ex.com";
+    User caller = new User();
+    caller.setId(1L);
+    caller.setEmail(email);
+
+    User other = new User();
+    other.setId(2L);
+
+    MetaModel source = new MetaModel();
+    source.setId(100L);
+    source.setUser(other);
+
+    MetaModel derived = new MetaModel();
+    derived.setId(200L);
+    derived.setSource(source);
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(caller));
+    when(metaModelRepository.findById(200L)).thenReturn(Optional.of(derived));
+
+    MetaModelService spyService = org.mockito.Mockito.spy(metaModelService);
+    doThrow(new RuntimeException("clone failed")).when(spyService).clone(source);
+
+    assertThatThrownBy(() -> spyService.update(email, 200L, new MetaModelPutRequest()))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("clone failed");
+
+    verify(metaModelRepository, never()).save(any());
+    verify(metaModelRepository, never()).saveAll(any());
+    verify(metaModelMapper, never()).updateByMetaModelPutRequest(any(), any());
+  }
+
+  @Test
+  void isOwnedBy_returnsFalse_whenMetaModelOrUserNull() {
+    assertThat(metaModelService.isOwnedBy(null, new User())).isFalse();
+    assertThat(metaModelService.isOwnedBy(new MetaModel(), null)).isFalse();
+
+    MetaModel m = new MetaModel();
+    m.setUser(null);
+    assertThat(metaModelService.isOwnedBy(m, new User())).isFalse();
+  }
+
+  @Test
+  void isOwnedBy_comparesById_whenBothIdsPresent() {
+    User a = new User();
+    a.setId(1L);
+    User bSameId = new User();
+    bSameId.setId(1L);
+    User cOtherId = new User();
+    cOtherId.setId(2L);
+
+    MetaModel m = new MetaModel();
+    m.setUser(a);
+
+    assertThat(metaModelService.isOwnedBy(m, bSameId)).isTrue();
+    assertThat(metaModelService.isOwnedBy(m, cOtherId)).isFalse();
+  }
+
+  @Test
+  void isOwnedBy_fallsBackToEquals_whenIdsMissing() {
+    User owner = new User();
+    owner.setEmail("x@x.com");
+
+    MetaModel m = new MetaModel();
+    m.setUser(owner);
+
+    assertThat(metaModelService.isOwnedBy(m, owner)).isTrue();
   }
 }
