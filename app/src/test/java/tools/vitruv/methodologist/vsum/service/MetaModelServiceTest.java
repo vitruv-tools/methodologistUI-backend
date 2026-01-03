@@ -576,7 +576,6 @@ class MetaModelServiceTest {
     derived.setId(200L);
     derived.setSource(source);
 
-    MetaModelPutRequest req = new MetaModelPutRequest();
 
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.of(caller));
@@ -587,6 +586,7 @@ class MetaModelServiceTest {
     MetaModel clonedSource = new MetaModel();
     clonedSource.setId(999L);
     doReturn(clonedSource).when(spyService).clone(source);
+    MetaModelPutRequest req = new MetaModelPutRequest();
 
     spyService.update(email, 200L, req);
 
