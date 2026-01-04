@@ -149,7 +149,6 @@ public class MetaModelService {
    * @param metaModel the MetaModel instance to clone
    * @return the cloned MetaModel instance
    */
-  @Transactional
   public MetaModel clone(MetaModel metaModel) {
     MetaModel clonedMetaModel = metaModelMapper.clone(metaModel);
     FileStorage ecoreFile = fileStorageService.clone(metaModel.getEcoreFile());
