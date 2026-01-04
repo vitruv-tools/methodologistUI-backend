@@ -175,7 +175,7 @@ If a `docker-compose.yaml` is present at the project root and contains a `keyclo
 docker compose up -d keycloak
 ```
 
-After the container is running, open the Admin Console (typically `http://localhost:8080/`) and log in with the admin
+After the container is running, open the Admin Console (`http://localhost:7668/admin`) and log in with the admin
 credentials defined in the compose file.
 
 #### Import the `methodologist` realm via the Admin Console
@@ -189,7 +189,7 @@ credentials defined in the compose file.
 Run Keycloak in development mode (example using Keycloak 20+ `start-dev` image):
 
 ```bash
-docker run --rm -p 8080:8080 \
+docker run --rm -p 7668:8080 \
   -e KEYCLOAK_ADMIN=admin \
   -e KEYCLOAK_ADMIN_PASSWORD=admin \
   quay.io/keycloak/keycloak:latest \
@@ -205,7 +205,7 @@ supported by your Keycloak image) to import the realm on first start. This behav
 and version. Example (pseudo):
 
 ```bash
-docker run --rm -p 8080:8080 \
+docker run --rm -p 7668:8080 \
   -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin \
   -v $(pwd)/docker/keycloak/realm-template.json:/opt/keycloak/data/import/realm-template.json \
   -e KC_IMPORT=/opt/keycloak/data/import/realm-template.json \
