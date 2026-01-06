@@ -1,11 +1,14 @@
 package tools.vitruv.methodologist.vitruvcli;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -44,32 +47,39 @@ public class VitruvCliService {
             .map(mm -> mm.getEcorePath() + "," + mm.getGenmodelPath())
             .collect(Collectors.joining(";"));
 
-    List<String> command =
-        List.of(
-            properties.getBinary(),
-            "-jar",
-            properties.getJar(),
-            "--folder",
-            projectFolder.toString(),
-            "--metamodel",
-            metamodelArg,
-            "--reaction",
-            reactionFile.toString(),
-            "--userinteractor",
-            "default");
-
-    log.info("Running Vitruv-CLI with command: {}", String.join(" ", command));
-
     try {
       Path workDir = Path.of(properties.getWorkingDir());
+      if (!workDir.isAbsolute() && properties.isSystemTempDir()) {
+        workDir = Path.of(System.getProperty("java.io.tmpdir"), workDir.toString());
+      }
       Files.createDirectories(workDir);
+
+      // Relative jar paths should be relative to this program rather than the temp working dir of the subprocess
+      String jar = Path.of(properties.getJar()).toAbsolutePath().toString();
+
+      List<String> command =
+              List.of(
+                      properties.getBinary(),
+                      "-jar",
+                      jar,
+                      "--folder",
+                      projectFolder.toString(),
+                      "--metamodel",
+                      metamodelArg,
+                      "--reaction",
+                      reactionFile.toString(),
+                      "--userinteractor",
+                      "default");
+
+      log.info("Running Vitruv-CLI with command: {}", String.join(" ", command));
 
       ProcessBuilder processBuilder = new ProcessBuilder(command);
       processBuilder.directory(workDir.toFile());
-      processBuilder.redirectErrorStream(false);
 
       Process process = processBuilder.start();
-
+      ExecutorService exec = Executors.newFixedThreadPool(2);
+      Future<String> out = exec.submit(() -> readStream(process.getInputStream()));
+      Future<String> err = exec.submit(() -> readStream(process.getErrorStream()));
       boolean finished = process.waitFor(properties.getTimeoutSeconds(), TimeUnit.SECONDS);
 
       if (!finished) {
@@ -79,8 +89,8 @@ public class VitruvCliService {
       }
 
       int exitCode = process.exitValue();
-      String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-      String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+      String stdout = out.get();
+      String stderr = err.get();
 
       log.info(
           "Vitruv-CLI finished with exitCode={}, stdout={}, stderr={}",
@@ -89,10 +99,21 @@ public class VitruvCliService {
           truncate(stderr));
 
       return VitruvCliResult.builder().exitCode(exitCode).stdout(stdout).stderr(stderr).build();
-    } catch (IOException | InterruptedException e) {
+    } catch (IOException | InterruptedException | ExecutionException e) {
       Thread.currentThread().interrupt();
       throw new CLIExecuteException(e.getMessage());
     }
+  }
+
+  private static String readStream(InputStream stream) throws IOException {
+    StringBuilder sb = new StringBuilder();
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+      String line;
+      while ((line = reader.readLine()) != null) {
+        sb.append(line).append(System.lineSeparator());
+      }
+    }
+    return sb.toString();
   }
 
   private String truncate(String s) {

@@ -21,5 +21,6 @@ public class VitruvCliProperties {
   private String binary;
   private String jar;
   private String workingDir;
+  private boolean systemTempDir = false;
   private long timeoutSeconds;
 }
