@@ -23,6 +23,7 @@ using Docker Compose and the included realm template.
 - Build
 - Run (development)
 - Configuration
+- Dependency setup (REQUIRED)
 - Keycloak setup (REQUIRED)
     - Start Keycloak with Docker Compose
     - Import the provided realm (methodologist)
@@ -67,7 +68,8 @@ Run tests:
 ./mvnw test
 ```
 
-The runnable JAR will be created under `target/` (for example: `target/methodologist.jar`).
+Two runnable JARs will be created under `target/`.
+The `methodologist-build-jar-with-dependencies.jar` contains all dependencies.
 
 ---
 
@@ -76,7 +78,7 @@ The runnable JAR will be created under `target/` (for example: `target/methodolo
 Run the packaged JAR with a custom configuration directory:
 
 ```bash
-java -jar target/methodologist.jar --spring.config.location=file:/absolute/path/to/config/
+java -jar target/methodologist-build-jar-with-dependencies.jar --spring.config.location=file:/absolute/path/to/config/
 ```
 
 The directory provided to `spring.config.location` must contain `application.properties` or `application.yml`. Use
@@ -153,6 +155,14 @@ A simplified view of the repository layout (important folders only):
 ```
 
 Adjust the structure above to match any additional modules in your clone.
+
+---
+
+## Dependency setup (REQUIRED)
+
+The backend requires multiple jar files to be placed at specific configurable locations manually.
+- The `methodologist-build-jar-with-dependencies.jar` generated during build must be renamed to `methodologist-build.jar` and must be placed at the property path `builder.jarPath` manually.
+- The project requires a [vitruv-cli.jar](https://github.com/vitruv-tools/Vitruv-CLI), which must be built separately and placed at the property path `vitruv.cli.jar` manually.
 
 ---
 
