@@ -4,6 +4,10 @@ services:
   methodologist:
     build: target
     image: "Methodologist:${DOCKER_TAG:-latest}"
+    # IntelliJ Docker Plugin falsely flags this as unknown
+    # noinspection ComposeUnknownKeys
+    profiles:
+      - all
     ports:
       - '8787:8787'
       - '5027:5027'
@@ -19,6 +23,10 @@ services:
 
   methodologist-flyway:
     image: flyway/flyway
+    # noinspection ComposeUnknownKeys
+    profiles:
+      - all
+      - migrate
     command: -url=jdbc:postgresql://methodologist-postgresdb/methodologist -schemas=public -user=methodologist -password=methodologist -connectRetries=60 migrate
     volumes:
       - ${PWD}/src/main/resources/db/migration:/flyway/sql
@@ -27,6 +35,10 @@ services:
 
   methodologist-postgresdb:
     image: postgres:17.2-alpine
+    # noinspection ComposeUnknownKeys
+    profiles:
+      - all
+      - local
     ports:
       - '3454:5432'
     environment:
@@ -36,6 +48,10 @@ services:
 
   mock-server:
     image: mockserver/mockserver:5.14.0
+    # noinspection ComposeUnknownKeys
+    profiles:
+      - all
+      - mock
     command: -logLevel DEBUG -serverPort 1080
     ports:
       - '1080:1080'
@@ -47,6 +63,10 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.1.0
+    # noinspection ComposeUnknownKeys
+    profiles:
+      - all
+      - local
     environment:
       JAVA_OPTS: >-
         -server -Xms64m -Xmx512m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m
@@ -79,6 +99,10 @@ services:
 
   keycloak-db:
     image: postgres:17.2-alpine
+    # noinspection ComposeUnknownKeys
+    profiles:
+      - all
+      - local
     ports:
       - '5637:5432'
     environment:
