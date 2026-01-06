@@ -84,8 +84,9 @@ public class FileStorageService {
     byte[] data = file.getBytes();
     String sha = sha256Hex(data);
 
-    if (fileStorageRepository.existsByUserAndSha256AndSizeBytes(user, sha, data.length)) {
-      throw new FileAlreadyExistsException();
+    var optional = fileStorageRepository.findByUserAndSha256AndSizeBytes(user, sha, data.length);
+    if (optional.isPresent()) {
+      return FileStorageResponse.builder().id(optional.get().getId()).build();
     }
 
     FileStorage fileStorage = new FileStorage();
