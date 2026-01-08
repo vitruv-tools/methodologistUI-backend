@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import lombok.AllArgsConstructor;
@@ -16,6 +17,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Type;
 import tools.vitruv.methodologist.user.model.User;
@@ -49,6 +51,11 @@ public class VsumHistory {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "vsum_id")
   private Vsum vsum;
+
+  @ToString.Exclude
+  @OneToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "revert_from_id")
+  private VsumHistory revertFrom;
 
   @Type(JsonType.class)
   @Column(columnDefinition = "jsonb", nullable = false)

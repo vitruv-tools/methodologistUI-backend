@@ -32,7 +32,8 @@ class VsumHistoryServiceTest {
 
   @BeforeEach
   void setUp() {
-    service = new VsumHistoryService(vsumHistoryRepository, vsumHistoryMapper, 5L);
+    service =
+        new VsumHistoryService(vsumHistoryRepository, vsumHistoryMapper, 5L, null, null, null);
   }
 
   @Test
@@ -117,7 +118,8 @@ class VsumHistoryServiceTest {
 
   @Test
   void create_withZeroLimit_deletesNewestWhenAnyExists_thenSaves() {
-    service = new VsumHistoryService(vsumHistoryRepository, vsumHistoryMapper, 0L);
+    service =
+        new VsumHistoryService(vsumHistoryRepository, vsumHistoryMapper, 0L, null, null, null);
 
     Vsum vsum = new Vsum();
     vsum.setId(4L);
