@@ -51,6 +51,28 @@ public class GlobalExceptionHandlerController {
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
   /**
+   * Handles {@link BuildArtifactCreationException} thrown when creating the build artifact fails.
+   *
+   * <p>Responds with HTTP 500 (Internal Server Error) and returns a standardized {@link
+   * ErrorResponse} containing the exception message and the request path.
+   *
+   * @param ex the thrown {@link BuildArtifactCreationException}
+   * @param handlerMethod the controller method where the exception originated
+   * @param request the current {@link ServletWebRequest} providing request context
+   * @return an {@link ErrorResponse} with the failure message and request path
+   */
+  @ExceptionHandler(value = BuildArtifactCreationException.class)
+  @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+  @ResponseBody
+  public ErrorResponse buildArtifactCreationException(
+      BuildArtifactCreationException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles {@link CLIExecuteException} thrown when execution of the external Vitruv-CLI fails.
    *
    * <p>Responds with HTTP 400 (Bad Request) and returns a standardized {@link ErrorResponse}
