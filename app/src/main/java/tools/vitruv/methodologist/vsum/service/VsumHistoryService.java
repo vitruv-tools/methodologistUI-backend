@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,7 +53,7 @@ public class VsumHistoryService {
       @Value("${vsum.history.limit}") Long historyLimit,
       UserRepository userRepository,
       VsumUserRepository vsumUserRepository,
-      VsumService vsumService) {
+      @Lazy VsumService vsumService) {
     this.vsumHistoryRepository = vsumHistoryRepository;
     this.vsumHistoryMapper = vsumHistoryMapper;
     this.historyLimit = historyLimit;
@@ -123,19 +124,19 @@ public class VsumHistoryService {
    *
    * <ol>
    *   <li>Verifies the caller exists and is active.
-   *   <li>Loads the {@link VsumHistory} identified by {@code historyId}.
+   *   <li>Loads the {@link VsumHistory} identified by {@code id}.
    *   <li>Verifies that the caller has access to the VSUM referenced by the history entry.
    *   <li>Creates a new history snapshot for the current VSUM state (audit before revert).
    *   <li>Applies the recorded sync changes to the VSUM using {@link VsumService#applySyncChanges}.
    * </ol>
    *
    * @param callerEmail email of the user requesting the revert; used to validate access
-   * @param historyId identifier of the history entry to revert to
+   * @param id identifier of the history entry to revert to
    * @throws AccessDeniedException if the caller is not found or does not have access to the VSUM
-   * @throws NotFoundException if the history entry with {@code historyId} does not exist
+   * @throws NotFoundException if the history entry with {@code id} does not exist
    */
   @Transactional
-  public void revert(String callerEmail, Long historyId) {
+  public void revert(String callerEmail, Long id) {
     User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
@@ -143,7 +144,7 @@ public class VsumHistoryService {
 
     VsumHistory history =
         vsumHistoryRepository
-            .findById(historyId)
+            .findById(id)
             .orElseThrow(() -> new NotFoundException(VSUM_HISTORY_ID_NOT_FOUND_ERROR));
 
     Vsum vsum = history.getVsum();
