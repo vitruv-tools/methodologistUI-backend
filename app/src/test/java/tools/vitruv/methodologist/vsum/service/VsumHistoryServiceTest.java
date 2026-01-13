@@ -221,13 +221,13 @@ class VsumHistoryServiceTest {
   @Test
   void revert_throwsNotFound_whenHistoryEntryDoesNotExist() {
     String callerEmail = "u@ex.com";
-    Long historyId = 11L;
 
     User user = new User();
     user.setEmail(callerEmail);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
         .thenReturn(Optional.of(user));
 
+    Long historyId = 11L;
     when(vsumHistoryRepository.findById(historyId)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> service.revert(callerEmail, historyId))
@@ -242,7 +242,6 @@ class VsumHistoryServiceTest {
   @Test
   void revert_throwsAccessDenied_whenCallerHasNoAccessToVsumOfHistory() {
     String callerEmail = "u@ex.com";
-    Long historyId = 12L;
 
     User user = new User();
     user.setEmail(callerEmail);
@@ -252,6 +251,7 @@ class VsumHistoryServiceTest {
     Vsum vsum = new Vsum();
     vsum.setId(100L);
 
+    Long historyId = 12L;
     VsumHistory history = VsumHistory.builder().id(historyId).vsum(vsum).build();
     when(vsumHistoryRepository.findById(historyId)).thenReturn(Optional.of(history));
 
@@ -270,7 +270,6 @@ class VsumHistoryServiceTest {
   @Test
   void revert_createsAuditSnapshot_thenAppliesRecordedChanges_withoutCreatingHistoryAgain() {
     String callerEmail = "u@ex.com";
-    Long historyId = 13L;
 
     User user = new User();
     user.setEmail(callerEmail);
@@ -293,6 +292,7 @@ class VsumHistoryServiceTest {
             .metaModelsRealation(Set.of(rel))
             .build();
 
+    Long historyId = 13L;
     VsumHistory history =
         VsumHistory.builder().id(historyId).vsum(vsum).representation(rep).build();
     when(vsumHistoryRepository.findById(historyId)).thenReturn(Optional.of(history));
@@ -324,7 +324,6 @@ class VsumHistoryServiceTest {
   @Test
   void revert_mapsNullCollectionsToEmptyLists() {
     String callerEmail = "u@ex.com";
-    Long historyId = 14L;
 
     User user = new User();
     user.setEmail(callerEmail);
@@ -337,6 +336,7 @@ class VsumHistoryServiceTest {
     VsumRepresentation rep =
         VsumRepresentation.builder().metaModels(null).metaModelsRealation(null).build();
 
+    Long historyId = 14L;
     VsumHistory history =
         VsumHistory.builder().id(historyId).vsum(vsum).representation(rep).build();
     when(vsumHistoryRepository.findById(historyId)).thenReturn(Optional.of(history));
@@ -360,7 +360,6 @@ class VsumHistoryServiceTest {
   @Test
   void revert_filtersNullRelationsWhileMapping() {
     String callerEmail = "u@ex.com";
-    Long historyId = 15L;
 
     User user = new User();
     user.setEmail(callerEmail);
@@ -383,6 +382,7 @@ class VsumHistoryServiceTest {
             .metaModelsRealation(new HashSet<>(java.util.Arrays.asList(null, r1)))
             .build();
 
+    Long historyId = 15L;
     VsumHistory history =
         VsumHistory.builder().id(historyId).vsum(vsum).representation(rep).build();
     when(vsumHistoryRepository.findById(historyId)).thenReturn(Optional.of(history));
