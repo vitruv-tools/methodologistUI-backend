@@ -1,5 +1,7 @@
 package tools.vitruv.methodologist.vsum.controller;
 
+import static tools.vitruv.methodologist.messages.Message.VSUM_HISTORY_REVERT_WAS_SUCCESSFULLY;
+
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -8,6 +10,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import tools.vitruv.methodologist.ResponseTemplateDto;
@@ -45,13 +48,37 @@ public class VsumHistoryController {
    *     tools.vitruv.methodologist.vsum.controller.dto.response.VsumHistoryResponse}; never {@code
    *     null}
    */
-  @GetMapping("/v1/vsums/find-all/vsumId={vsumId}")
+  @GetMapping("/v1/vsum-histories/find-all/vsumId={vsumId}")
   @PreAuthorize("hasRole('user')")
   public ResponseTemplateDto<List<VsumHistoryResponse>> findAllByUser(
       KeycloakAuthentication authentication, @PathVariable Long vsumId) {
     String callerEmail = authentication.getParsedToken().getEmail();
     return ResponseTemplateDto.<List<VsumHistoryResponse>>builder()
         .data(vsumHistoryService.findAllByVsumId(callerEmail, vsumId))
+        .build();
+  }
+
+  /**
+   * Revert the VSUM to the state captured by the specified history entry.
+   *
+   * <p>Requires the caller to have role `user`. The caller's email is extracted from the provided
+   * {@code KeycloakAuthentication} and used to authorize the revert operation. The work is
+   * delegated to {@link VsumHistoryService#revert(String, Long)} which may throw runtime exceptions
+   * (for example when the history entry or permission is not found).
+   *
+   * @param authentication the caller's Keycloak authentication token; used to obtain the caller
+   *     email
+   * @param id the identifier of the VSUM history entry to revert to
+   * @return a {@link ResponseTemplateDto} containing a success message when the revert completes
+   */
+  @PutMapping("/v1/vsum-histories/{id}/revert")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<List<VsumHistoryResponse>> revert(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    vsumHistoryService.revert(callerEmail, id);
+    return ResponseTemplateDto.<List<VsumHistoryResponse>>builder()
+        .message(VSUM_HISTORY_REVERT_WAS_SUCCESSFULLY)
         .build();
   }
 }

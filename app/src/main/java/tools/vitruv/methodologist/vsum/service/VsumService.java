@@ -136,19 +136,20 @@ public class VsumService {
   }
 
   /**
-   * Updates a VSUM owned by the caller and synchronizes its meta-models and meta-model relations
-   * with the provided request.
+   * Update a VSUM owned by the caller and synchronize its meta-models and relations to match the
+   * provided {@link VsumSyncChangesPutRequest}.
    *
-   * <p>Associations not present in the request are removed; missing associations are created. If
-   * collections in the request are null or empty, the corresponding associations are cleared. The
-   * operation is transactional.
+   * <p>The method verifies the caller's membership and throws a {@link NotFoundException} when the
+   * VSUM or membership is not found. Actual synchronization and persistence are delegated to {@link
+   * #applySyncChanges(Vsum, User, VsumSyncChangesPutRequest, boolean)}; when changes occur a
+   * history entry may be created.
    *
-   * @param callerEmail the authenticated user's email; must own the VSUM
-   * @param id the VSUM identifier to update
-   * @param vsumSyncChangesPutRequest the desired state (meta-model IDs and relation definitions)
+   * @param callerEmail the authenticated user's email; must be a member of the VSUM
+   * @param id the identifier of the VSUM to update
+   * @param vsumSyncChangesPutRequest DTO describing desired meta-model ids and relation
+   *     definitions; may be {@code null}
    * @return the persisted, updated {@link Vsum}
-   * @throws tools.vitruv.methodologist.exception.NotFoundException if the VSUM does not exist, is
-   *     removed, or does not belong to the caller
+   * @throws NotFoundException if the VSUM or the caller's membership is not found
    */
   @Transactional
   public Vsum update(
@@ -159,108 +160,8 @@ public class VsumService {
                 id, callerEmail)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
 
-    List<MetaModelRelationRequest> desiredMetaModelRelation =
-        vsumSyncChangesPutRequest.getMetaModelRelationRequests() == null
-            ? List.of()
-            : vsumSyncChangesPutRequest.getMetaModelRelationRequests().stream()
-                .filter(
-                    metaModelRelationRequest ->
-                        metaModelRelationRequest != null
-                            && metaModelRelationRequest.getSourceId() != null
-                            && metaModelRelationRequest.getTargetId() != null)
-                .toList();
-
-    List<MetaModelRelation> existingMetaModelRelation =
-        metaModelRelationRepository.findAllByVsum(vsumUser.getVsum());
-
-    Set<String> desiredMetaModelRelationPairs =
-        desiredMetaModelRelation.stream()
-            .map(
-                metaModelRelationRequest ->
-                    metaModelRelationRequest.getSourceId()
-                        + ":"
-                        + metaModelRelationRequest.getTargetId())
-            .collect(Collectors.toSet());
-
-    Map<String, MetaModelRelation> existingByPair = new HashMap<>();
-    for (MetaModelRelation metaModelRelation : existingMetaModelRelation) {
-      String metaModelRelationPairKey =
-          metaModelRelation.getSource().getSource().getId()
-              + ":"
-              + metaModelRelation.getTarget().getSource().getId();
-      existingByPair.put(metaModelRelationPairKey, metaModelRelation);
-    }
-
-    Set<String> existingMetaModelRelationPairs = new HashSet<>(existingByPair.keySet());
-
-    Set<String> toRemoveMetaModelRelation = new HashSet<>(existingMetaModelRelationPairs);
-    toRemoveMetaModelRelation.removeAll(desiredMetaModelRelationPairs);
-
-    List<Long> metaModelIds = vsumSyncChangesPutRequest.getMetaModelIds();
-    List<VsumMetaModel> existingVsumMetaModel =
-        vsumMetaModelRepository.findAllByVsum(vsumUser.getVsum());
-
-    Set<Long> existingVsumMetaModelIds =
-        existingVsumMetaModel.stream()
-            .map(vsumMetaModel -> vsumMetaModel.getMetaModel().getSource().getId())
-            .collect(Collectors.toSet());
-    Set<Long> desiredMetaModelIds =
-        metaModelIds == null
-            ? Set.of()
-            : metaModelIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
-    Set<Long> toRemoveVsumMetaModelIds = new HashSet<>(existingVsumMetaModelIds);
-    toRemoveVsumMetaModelIds.removeAll(desiredMetaModelIds);
-
-    Set<Long> toAddVsumMetaModelIds = new HashSet<>(desiredMetaModelIds);
-    toAddVsumMetaModelIds.removeAll(existingVsumMetaModelIds);
-
-    Set<String> toAddMetaModelRelation = new HashSet<>(desiredMetaModelRelationPairs);
-    toAddMetaModelRelation.removeAll(existingMetaModelRelationPairs);
-
-    if (!toRemoveMetaModelRelation.isEmpty()
-        || !toRemoveVsumMetaModelIds.isEmpty()
-        || !toAddVsumMetaModelIds.isEmpty()
-        || !toAddMetaModelRelation.isEmpty()) {
-      vsumHistoryService.create(vsumUser.getVsum(), vsumUser.getUser());
-    }
-
-    if (!toRemoveMetaModelRelation.isEmpty()) {
-      List<MetaModelRelation> deletions =
-          toRemoveMetaModelRelation.stream().map(existingByPair::get).toList();
-      metaModelRelationService.delete(deletions);
-      deletions.forEach(vsumUser.getVsum().getMetaModelRelations()::remove);
-    }
-
-    if (!toRemoveVsumMetaModelIds.isEmpty()) {
-      List<VsumMetaModel> toDeleteVsumMetaModel =
-          existingVsumMetaModel.stream()
-              .filter(
-                  vsumMetaModel ->
-                      toRemoveVsumMetaModelIds.contains(
-                          vsumMetaModel.getMetaModel().getSource().getId()))
-              .toList();
-      vsumMetaModelService.delete(vsumUser.getVsum(), toDeleteVsumMetaModel);
-      toDeleteVsumMetaModel.forEach(vsumUser.getVsum().getVsumMetaModels()::remove);
-    }
-
-    if (!toAddVsumMetaModelIds.isEmpty()) {
-      vsumMetaModelService.create(vsumUser.getVsum(), toAddVsumMetaModelIds);
-    }
-
-    if (!toAddMetaModelRelation.isEmpty()) {
-      List<MetaModelRelationRequest> creations =
-          desiredMetaModelRelation.stream()
-              .filter(
-                  metaModelRelationRequest ->
-                      toAddMetaModelRelation.contains(
-                          metaModelRelationRequest.getSourceId()
-                              + ":"
-                              + metaModelRelationRequest.getTargetId()))
-              .toList();
-      metaModelRelationService.create(vsumUser.getVsum(), creations);
-    }
-    vsumRepository.save(vsumUser.getVsum());
-    return vsumUser.getVsum();
+    return applySyncChanges(
+        vsumUser.getVsum(), vsumUser.getUser(), vsumSyncChangesPutRequest, true);
   }
 
   /**
@@ -731,5 +632,145 @@ public class VsumService {
             reactions.get(0));
 
     return new BuildKey(callerEmail, vsumId, fingerprint);
+  }
+
+  /**
+   * Synchronize the given {@link Vsum} to match the desired state described by the {@link
+   * VsumSyncChangesPutRequest}.
+   *
+   * <p>The method will:
+   *
+   * <p>Change persistence and creation/deletion work is delegated to domain services. If {@code
+   * createHistory} is {@code true} and any change is detected, a history entry for the provided
+   * {@code user} is created. The updated {@link Vsum} is saved before being returned.
+   *
+   * <p>Runtime exceptions from delegated services (for example {@link
+   * tools.vitruv.methodologist.exception.NotFoundException} or {@link
+   * org.springframework.security.access.AccessDeniedException}) may be propagated.
+   *
+   * @param vsum the target {@link Vsum} to update; must not be {@code null}
+   * @param user the acting {@link User} used for history creation when changes occur
+   * @param vsumSyncChangesPutRequest DTO describing desired meta-model ids and relation requests;
+   *     may be {@code null} and will be treated as empty
+   * @param createHistory when {@code true}, create a history record if any modifications are made
+   * @return the persisted, updated {@link Vsum}
+   */
+  public Vsum applySyncChanges(
+      Vsum vsum,
+      User user,
+      VsumSyncChangesPutRequest vsumSyncChangesPutRequest,
+      boolean createHistory) {
+
+    List<MetaModelRelationRequest> desiredMetaModelRelation =
+        vsumSyncChangesPutRequest.getMetaModelRelationRequests() == null
+            ? List.of()
+            : vsumSyncChangesPutRequest.getMetaModelRelationRequests().stream()
+                .filter(
+                    metaModelRelationRequest ->
+                        metaModelRelationRequest != null
+                            && metaModelRelationRequest.getSourceId() != null
+                            && metaModelRelationRequest.getTargetId() != null)
+                .toList();
+
+    List<MetaModelRelation> existingMetaModelRelation =
+        metaModelRelationRepository.findAllByVsum(vsum);
+
+    Set<String> desiredMetaModelRelationPairs =
+        desiredMetaModelRelation.stream()
+            .map(
+                metaModelRelationRequest ->
+                    metaModelRelationRequest.getSourceId()
+                        + ":"
+                        + metaModelRelationRequest.getTargetId())
+            .collect(Collectors.toSet());
+
+    Map<String, MetaModelRelation> existingByPair = new HashMap<>();
+    for (MetaModelRelation metaModelRelation : existingMetaModelRelation) {
+      String metaModelRelationPairKey =
+          metaModelRelation.getSource().getSource().getId()
+              + ":"
+              + metaModelRelation.getTarget().getSource().getId();
+      existingByPair.put(metaModelRelationPairKey, metaModelRelation);
+    }
+
+    Set<String> existingMetaModelRelationPairs = new HashSet<>(existingByPair.keySet());
+
+    Set<String> toRemoveMetaModelRelation = new HashSet<>(existingMetaModelRelationPairs);
+    toRemoveMetaModelRelation.removeAll(desiredMetaModelRelationPairs);
+
+    List<Long> metaModelIds = vsumSyncChangesPutRequest.getMetaModelIds();
+    List<VsumMetaModel> existingVsumMetaModel = vsumMetaModelRepository.findAllByVsum(vsum);
+
+    Set<Long> existingVsumMetaModelIds =
+        existingVsumMetaModel.stream()
+            .map(vsumMetaModel -> vsumMetaModel.getMetaModel().getSource().getId())
+            .collect(Collectors.toSet());
+
+    Set<Long> desiredMetaModelIds =
+        metaModelIds == null
+            ? Set.of()
+            : metaModelIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+
+    Set<Long> toRemoveVsumMetaModelIds = new HashSet<>(existingVsumMetaModelIds);
+    toRemoveVsumMetaModelIds.removeAll(desiredMetaModelIds);
+
+    Set<Long> toAddVsumMetaModelIds = new HashSet<>(desiredMetaModelIds);
+    toAddVsumMetaModelIds.removeAll(existingVsumMetaModelIds);
+
+    Set<String> toAddMetaModelRelation = new HashSet<>(desiredMetaModelRelationPairs);
+    toAddMetaModelRelation.removeAll(existingMetaModelRelationPairs);
+
+    boolean hasAnyChanges =
+        !toRemoveMetaModelRelation.isEmpty()
+            || !toRemoveVsumMetaModelIds.isEmpty()
+            || !toAddVsumMetaModelIds.isEmpty()
+            || !toAddMetaModelRelation.isEmpty();
+
+    if (createHistory && hasAnyChanges) {
+      vsumHistoryService.create(vsum, user);
+    }
+
+    if (!toRemoveMetaModelRelation.isEmpty()) {
+      List<MetaModelRelation> deletions =
+          toRemoveMetaModelRelation.stream().map(existingByPair::get).toList();
+      metaModelRelationService.delete(deletions);
+      if (vsum.getMetaModelRelations() != null) {
+        deletions.forEach(vsum.getMetaModelRelations()::remove);
+      }
+    }
+
+    if (!toRemoveVsumMetaModelIds.isEmpty()) {
+      List<VsumMetaModel> toDeleteVsumMetaModel =
+          existingVsumMetaModel.stream()
+              .filter(
+                  vsumMetaModel ->
+                      toRemoveVsumMetaModelIds.contains(
+                          vsumMetaModel.getMetaModel().getSource().getId()))
+              .toList();
+      vsumMetaModelService.delete(vsum, toDeleteVsumMetaModel);
+      if (vsum.getVsumMetaModels() != null) {
+        toDeleteVsumMetaModel.forEach(vsum.getVsumMetaModels()::remove);
+      }
+    }
+
+    if (!toAddVsumMetaModelIds.isEmpty()) {
+      vsumMetaModelService.create(vsum, toAddVsumMetaModelIds);
+    }
+
+    if (!toAddMetaModelRelation.isEmpty()) {
+      List<MetaModelRelationRequest> creations =
+          desiredMetaModelRelation.stream()
+              .filter(
+                  metaModelRelationRequest ->
+                      toAddMetaModelRelation.contains(
+                          metaModelRelationRequest.getSourceId()
+                              + ":"
+                              + metaModelRelationRequest.getTargetId()))
+              .toList();
+      metaModelRelationService.create(vsum, creations);
+    }
+
+    vsumRepository.save(vsum);
+    return vsum;
   }
 }
