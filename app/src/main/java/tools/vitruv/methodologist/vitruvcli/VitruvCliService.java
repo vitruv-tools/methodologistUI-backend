@@ -26,19 +26,21 @@ public class VitruvCliService {
   VitruvCliProperties properties;
 
   /**
-   * Executes Vitruv-CLI for the given job directory, metamodels and reaction file.
+   * Invoke the external Vitruv-CLI process to build models.
    *
-   * @param jobDir directory that will be used as the CLI working directory
-   * @param metamodels list of metamodel pairs (ecore + genmodel) located directly in {@code jobDir}
-   * @param reactionFile reaction file located in {@code jobDir}
-   * @return the result of the CLI execution
+   * <p>Constructs the command line for Vitruv-CLI using the provided properties and the list of
+   * metamodel inputs. The {@code -m} argument is a semicolon-separated list of {@code
+   * ecore,genmodel} filename pairs. The {@code -r} argument is set from the provided {@code
+   * reactionsDir} path's filename (the CLI is executed with {@code jobDir} as working directory).
+   *
+   * @param jobDir the working directory for the CLI invocation; created if missing
+   * @param metamodels list of metamodel input pairs (ecore + genmodel); must not be {@code null}
+   * @param reactionsDir path referencing the reactions file or directory (its filename is passed to
+   *     the CLI)
+   * @return a {@link VitruvCliResult} containing the process exit code and captured stdout/stderr
+   * @throws CLIExecuteException on I/O or interruption errors while executing the CLI
    */
-  public VitruvCliResult run(Path jobDir, List<MetamodelInput> metamodels, Path reactionFile) {
-
-    if (metamodels == null || metamodels.isEmpty()) {
-      throw new IllegalArgumentException("At least one metamodel must be provided");
-    }
-
+  public VitruvCliResult run(Path jobDir, List<MetamodelInput> metamodels, Path reactionsDir) {
     String metamodelArg =
         metamodels.stream()
             .map(
@@ -57,8 +59,8 @@ public class VitruvCliService {
             ".",
             "-m",
             metamodelArg,
-            "-r",
-            reactionFile.getFileName().toString(),
+            "-rs",
+            reactionsDir.getFileName().toString(),
             "-u",
             "default");
 
