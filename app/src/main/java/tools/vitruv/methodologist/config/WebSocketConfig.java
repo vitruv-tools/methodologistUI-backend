@@ -19,6 +19,6 @@ public class WebSocketConfig implements WebSocketConfigurer {
   public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
     registry
         .addHandler(lspWebSocketHandler, "/lsp")
-        .setAllowedOrigins("*"); // TODO: In Production auf deine Frontend-URL beschränken
+        .setAllowedOrigins("*");
   }
 }
