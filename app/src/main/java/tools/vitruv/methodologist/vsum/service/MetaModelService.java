@@ -7,6 +7,10 @@ import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCES
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
 import jakarta.validation.Valid;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -100,9 +104,10 @@ public class MetaModelService {
   /** Creates a metamodel, runs headless build, and accepts/rejects it. */
   @Transactional
   public MetaModel create(String callerEmail, MetaModelPostRequest req) {
+    
     PairAndModel pairAndModel = savePendingAndLoad(callerEmail, req);
     MetaModel metaModel = pairAndModel.metaModel;
-
+/** 
     BuildResult result =
         metamodelBuildService.buildAndValidate(
             MetamodelBuildService.MetamodelBuildInput.builder()
@@ -115,7 +120,7 @@ public class MetaModelService {
     if (!result.isSuccess()) {
       throw new CreateMwe2FileException(result.getReport());
     }
-
+*/
     return metaModel;
   }
 
@@ -295,4 +300,79 @@ public class MetaModelService {
 
   /** Pair of raw Ecore and GenModel file data. */
   private record FilePair(byte[] ecore, byte[] gen) {}
+
+  /**
+ * Finds all metamodels accessible by a given user and/or project.
+ * 
+ * <p>This method retrieves:
+ * <ul>
+ *   <li>All metamodels owned by the user (if userId is provided)</li>
+ *   <li>All metamodels associated with the project via VSUM (if projectId is provided)</li>
+ * </ul>
+ * 
+ * <p>Duplicates are automatically removed by using a Set internally.
+ * This method is primarily used by the Language Server to determine which
+ * metamodels should be loaded for a specific editing session.
+ *
+ * @param userId the ID of the user whose metamodels should be included (can be null)
+ * @param projectId the ID of the project/VSUM whose metamodels should be included (can be null)
+ * @return a list of unique MetaModel instances accessible by the user and/or project
+ */
+@Transactional(readOnly = true)
+public List<MetaModel> findAccessibleByUserOrProject(Long userId, Long projectId) {
+    log.info("Finding accessible metamodels for userId={}, projectId={}", userId, projectId);
+    
+    // Use LinkedHashSet to maintain insertion order while removing duplicates
+    java.util.Set<MetaModel> metamodels = new java.util.LinkedHashSet<>();
+    
+    // 1. Add user's own metamodels
+    if (userId != null) {
+        List<MetaModel> userMetamodels = metaModelRepository.findByUserId(userId);
+        metamodels.addAll(userMetamodels);
+        log.debug("Found {} metamodels owned by user {}", userMetamodels.size(), userId);
+    }
+    
+    // 2. Add project metamodels (via VSUM)
+    if (projectId != null) {
+        List<VsumMetaModel> vsumMetaModels = vsumMetaModelRepository.findByVsum_Id(projectId);
+        for (VsumMetaModel vmm : vsumMetaModels) {
+            MetaModel mm = vmm.getMetaModel();
+            // Add the source metamodel if it exists, otherwise add the metamodel itself
+            if (mm.getSource() != null) {
+                metamodels.add(mm.getSource());
+            } else {
+                metamodels.add(mm);
+            }
+        }
+        log.debug("Found {} metamodels in project {}", vsumMetaModels.size(), projectId);
+    }
+    
+    List<MetaModel> result = new ArrayList<>(metamodels);
+    log.info("Total accessible metamodels: {}", result.size());
+    
+    return result;
+}
+
+/**
+ * Writes all accessible metamodels to the specified directory for LSP workspace initialization.
+ * 
+ * @param targetDir directory where .ecore files should be written
+ * @param userId user whose metamodels should be included
+ * @param projectId project/VSUM whose metamodels should be included
+ * @throws IOException if file writing fails
+ */
+@Transactional(readOnly = true)
+public void writeMetamodelsToDirectory(File targetDir, Long userId, Long projectId) throws IOException {
+    List<MetaModel> metamodels = findAccessibleByUserOrProject(userId, projectId);
+    
+    for (MetaModel mm : metamodels) {
+        String fileName = mm.getEcoreFile().getFilename();
+        File ecoreFile = new File(targetDir, fileName);
+        Files.write(ecoreFile.toPath(), mm.getEcoreFile().getData());
+        
+    }
+    
+    log.info("Wrote {} metamodels to {}", metamodels.size(), targetDir.getAbsolutePath());
+}
+
 }

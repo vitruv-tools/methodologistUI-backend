@@ -9,6 +9,7 @@ import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
+import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 
 /**
  * Repository interface for performing CRUD operations and complex queries on {@link MetaModel}
@@ -54,4 +55,9 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
    */
   @SuppressWarnings("checkstyle:MethodName")
   Optional<MetaModel> findByIdAndUser_Email(Long id, String callerEmail);
+
+
+  List<MetaModel> findByUserId(Long userId);
+
+  List<MetaModel> findByUserIdAndRemovedAtIsNull(Long userId);
 }
