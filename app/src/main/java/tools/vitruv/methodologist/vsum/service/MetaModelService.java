@@ -107,7 +107,7 @@ public class MetaModelService {
     
     PairAndModel pairAndModel = savePendingAndLoad(callerEmail, req);
     MetaModel metaModel = pairAndModel.metaModel;
-/** 
+    
     BuildResult result =
         metamodelBuildService.buildAndValidate(
             MetamodelBuildService.MetamodelBuildInput.builder()
@@ -120,7 +120,7 @@ public class MetaModelService {
     if (!result.isSuccess()) {
       throw new CreateMwe2FileException(result.getReport());
     }
-*/
+
     return metaModel;
   }
 
