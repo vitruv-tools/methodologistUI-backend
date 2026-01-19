@@ -1,28 +1,27 @@
 package tools.vitruv.methodologist.config;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Comparator;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.service.MetaModelService;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 @Component
 public class LspWebSocketHandler extends TextWebSocketHandler {
@@ -215,8 +214,8 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
             if (principal != null) {
                 logger.debug("Principal type: {}", principal.getClass().getName());
 
-                if (principal instanceof JwtAuthenticationToken) {
-                    JwtAuthenticationToken jwt = (JwtAuthenticationToken) principal;
+                if (principal instanceof org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken) {
+                    org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken jwt = (org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken) principal;
 
                     String sub = jwt.getToken().getClaim("sub");
                     if (sub != null) {
