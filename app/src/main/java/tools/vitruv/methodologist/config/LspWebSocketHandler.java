@@ -1,6 +1,11 @@
 package tools.vitruv.methodologist.config;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.concurrent.ConcurrentHashMap;
@@ -11,17 +16,12 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
-
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.service.MetaModelService;
-
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
-
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 @Component
 public class LspWebSocketHandler extends TextWebSocketHandler {
@@ -46,8 +46,8 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         Path userProject = sessionDir.resolve("UserProject");
         Path modelDir = userProject.resolve("model");
         Files.createDirectories(modelDir);
-
-        List<MetaModel> metamodels = metaModelService.findAccessibleByUserOrProject(userId, projectId);
+        List<MetaModel> metamodels = metaModelService
+                .findAccessibleByUserOrProject(userId, projectId);
 
         for (MetaModel mm : metamodels) {
             byte[] ecoreData = mm.getEcoreFile().getData();
