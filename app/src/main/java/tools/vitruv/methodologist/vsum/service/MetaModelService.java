@@ -334,7 +334,7 @@ public class MetaModelService {
 
     // 2. Add project metamodels (via VSUM)
     if (projectId != null) {
-      List<VsumMetaModel> vsumMetaModels = vsumMetaModelRepository.findByVsum_Id(projectId);
+      List<VsumMetaModel> vsumMetaModels = vsumMetaModelRepository.findByVsumId(projectId);
       for (VsumMetaModel vmm : vsumMetaModels) {
         MetaModel mm = vmm.getMetaModel();
         // Add the source metamodel if it exists, otherwise add the metamodel itself

@@ -58,7 +58,7 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
   /**
    * Finds all metamodels associated with a specific user ID.
    *
-   * @param userId
+   * @param userId id of the user
    * @return
    */
   List<MetaModel> findByUserId(Long userId);
@@ -66,7 +66,7 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
   /**
    * Finds all metamodels associated with a specific user ID that have not been removed.
    *
-   * @param userId
+   * @param userId id of the user
    * @return
    */
   List<MetaModel> findByUserIdAndRemovedAtIsNull(Long userId);

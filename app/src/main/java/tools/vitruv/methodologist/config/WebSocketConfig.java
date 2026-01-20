@@ -10,12 +10,13 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
 
+  /** Handler for LSP WebSocket connections */
   private final LspWebSocketHandler lspWebSocketHandler;
 
   /**
    * Constructor for WebSocketConfig
    *
-   * @param lspWebSocketHandler
+   * @param lspWebSocketHandler the handler for LSP WebSocket connections
    */
   public WebSocketConfig(LspWebSocketHandler lspWebSocketHandler) {
     this.lspWebSocketHandler = lspWebSocketHandler;
