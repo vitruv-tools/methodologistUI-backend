@@ -5,12 +5,12 @@ import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
-/** Configuration class for WebSocket support. */
+/** Configuration class for setting up WebSocket endpoints. */
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
 
-  /** Handler for LSP WebSocket connections */
+  /** The WebSocket handler for LSP connections. */
   private final LspWebSocketHandler lspWebSocketHandler;
 
   /**
