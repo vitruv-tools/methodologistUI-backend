@@ -65,10 +65,10 @@ public interface VsumMetaModelRepository extends CrudRepository<VsumMetaModel, L
   void deleteVsumMetaModelByVsum(Vsum vsum);
 
   /**
-     * Finds all VsumMetaModel associations for a given VSUM ID.
-     * 
-     * @param vsumid the ID of the VSUM
-     * @return list of VsumMetaModel associations for that VSUM
-     */
-    List<VsumMetaModel> findByVsum_Id(Long vsumid);
+   * Finds all VsumMetaModel associations for a given VSUM ID.
+   *
+   * @param vsumid the ID of the VSUM
+   * @return list of VsumMetaModel associations for that VSUM
+   */
+  List<VsumMetaModel> findByVsum_Id(Long vsumid);
 }
