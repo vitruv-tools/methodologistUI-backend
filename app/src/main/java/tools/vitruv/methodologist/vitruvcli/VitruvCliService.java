@@ -1,7 +1,6 @@
 package tools.vitruv.methodologist.vitruvcli;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -44,10 +43,10 @@ public class VitruvCliService {
     String metamodelArg =
         metamodels.stream()
             .map(
-                mm ->
-                    mm.getEcorePath().getFileName().toString()
+                metamodelInput ->
+                    metamodelInput.getEcorePath().getFileName()
                         + ","
-                        + mm.getGenmodelPath().getFileName().toString())
+                        + metamodelInput.getGenmodelPath().getFileName())
             .collect(Collectors.joining(";"));
 
     List<String> command =
@@ -74,8 +73,15 @@ public class VitruvCliService {
       processBuilder.redirectErrorStream(false);
 
       Process process = processBuilder.start();
-      boolean finished = process.waitFor(properties.getTimeoutSeconds(), TimeUnit.SECONDS);
 
+      var outFuture =
+          java.util.concurrent.CompletableFuture.supplyAsync(
+              () -> readStream(process.getInputStream()));
+      var errFuture =
+          java.util.concurrent.CompletableFuture.supplyAsync(
+              () -> readStream(process.getErrorStream()));
+
+      boolean finished = process.waitFor(properties.getTimeoutSeconds(), TimeUnit.SECONDS);
       if (!finished) {
         process.destroyForcibly();
         throw new IllegalStateException(
@@ -83,8 +89,8 @@ public class VitruvCliService {
       }
 
       int exitCode = process.exitValue();
-      String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-      String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+      String stdout = outFuture.join();
+      String stderr = errFuture.join();
 
       log.info(
           "Vitruv-CLI finished with exitCode={}, stdout={}, stderr={}",
@@ -97,6 +103,14 @@ public class VitruvCliService {
     } catch (IOException | InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new CLIExecuteException(e.getMessage());
+    }
+  }
+
+  private String readStream(java.io.InputStream in) {
+    try {
+      return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+    } catch (IOException e) {
+      return "FAILED_TO_READ_STREAM: " + e.getMessage();
     }
   }
 
