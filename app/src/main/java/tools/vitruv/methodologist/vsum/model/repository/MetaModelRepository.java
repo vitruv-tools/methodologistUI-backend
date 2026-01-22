@@ -59,7 +59,7 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
    * Finds all metamodels associated with a specific user ID.
    *
    * @param userId id of the user
-   * @return
+   * @return list of metamodels belonging to the user
    */
   List<MetaModel> findByUserId(Long userId);
 
