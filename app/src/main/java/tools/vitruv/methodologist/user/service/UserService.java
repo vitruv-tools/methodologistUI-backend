@@ -28,6 +28,7 @@ import tools.vitruv.methodologist.apihandler.KeycloakApiHandler;
 import tools.vitruv.methodologist.apihandler.dto.response.KeycloakWebToken;
 import tools.vitruv.methodologist.exception.EmailExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
+import tools.vitruv.methodologist.exception.StartupException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.exception.ValidationCodeExpiredException;
 import tools.vitruv.methodologist.exception.ValidationCodeNotExpiredYetException;
@@ -99,7 +100,7 @@ public class UserService {
       reader = new InputStreamReader(sendOtpMailTemplateResource.getInputStream(), UTF_8);
       sendOtpMailTemplate = FileCopyUtils.copyToString(reader);
     } catch (IOException e) {
-      throw new RuntimeException(e);
+      throw new StartupException(e.getMessage());
     }
   }
 

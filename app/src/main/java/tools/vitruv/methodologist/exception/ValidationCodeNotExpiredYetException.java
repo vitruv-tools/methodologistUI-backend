@@ -9,10 +9,10 @@ package tools.vitruv.methodologist.exception;
  * response (e.g. HTTP 400 with an explanatory message).
  */
 public class ValidationCodeNotExpiredYetException extends RuntimeException {
-  public static final String messageTemplate = "The previous code is still valid!";
+  public static final String MESSAGE_TEMPLATE = "The previous code is still valid!";
 
   /** Constructs a new {@code ValidationCodeNotExpiredYetException} with the standard message. */
   public ValidationCodeNotExpiredYetException() {
-    super(messageTemplate);
+    super(MESSAGE_TEMPLATE);
   }
 }

@@ -8,7 +8,7 @@ package tools.vitruv.methodologist.exception;
  * longer valid due to expiry.
  */
 public class ValidationCodeExpiredException extends RuntimeException {
-  public static final String messageTemplate = "The validation code is expired!";
+  public static final String MESSAGE_TEMPLATE = "The validation code is expired!";
 
   /**
    * Constructs a new ValidationCodeExpiredException with the default message.
@@ -16,6 +16,6 @@ public class ValidationCodeExpiredException extends RuntimeException {
    * <p>The default detail message is provided by {@link #messageTemplate}.
    */
   public ValidationCodeExpiredException() {
-    super(messageTemplate);
+    super(MESSAGE_TEMPLATE);
   }
 }
