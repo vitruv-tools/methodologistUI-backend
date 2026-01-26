@@ -44,6 +44,18 @@ public interface UserRepository extends JpaRepository<User, Long> {
   Optional<User> findByEmailIgnoreCaseAndRemovedAtIsNull(String email);
 
   /**
+   * Finds a user by email (case-insensitive) who is not deleted and is not yet verified.
+   *
+   * <p>Intended for email verification flows: the user must be unverified (verified = false) and
+   * not soft-deleted (removedAt is null) to match.
+   *
+   * @param email the email to search for (case-insensitive)
+   * @return an {@link java.util.Optional} containing the user if found and matching the criteria,
+   *     otherwise empty
+   */
+  Optional<User> findByEmailIgnoreCaseAndRemovedAtIsNullAndVerifiedIsFalse(String email);
+
+  /**
    * Retrieves a paginated list of users, excluding the user with the specified email.
    *
    * <p>Results are ordered by first name, last name, and email (all case-insensitive).

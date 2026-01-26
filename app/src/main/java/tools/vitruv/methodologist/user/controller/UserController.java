@@ -1,8 +1,10 @@
 package tools.vitruv.methodologist.user.controller;
 
+import static tools.vitruv.methodologist.messages.Message.RESEND_OTP_WAS_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.SIGNUP_USER_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.USER_REMOVED_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.USER_UPDATED_SUCCESSFULLY;
+import static tools.vitruv.methodologist.messages.Message.VERIFIED_USER_SUCCESSFULLY;
 
 import jakarta.validation.Valid;
 import java.util.List;
@@ -25,6 +27,7 @@ import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenByR
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
+import tools.vitruv.methodologist.user.controller.dto.request.UserPutVerifyRequest;
 import tools.vitruv.methodologist.user.controller.dto.response.UserResponse;
 import tools.vitruv.methodologist.user.controller.dto.response.UserWebToken;
 import tools.vitruv.methodologist.user.service.UserService;
@@ -79,6 +82,45 @@ public class UserController {
   public ResponseTemplateDto<Void> create(@Valid @RequestBody UserPostRequest userPostRequest) {
     userService.create(userPostRequest);
     return ResponseTemplateDto.<Void>builder().message(SIGNUP_USER_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Verifies a one-time password (OTP) for the authenticated caller.
+   *
+   * <p>Endpoint requires the caller to have the `user` role. On success it returns a {@link
+   * ResponseTemplateDto} with no data and a success message ({@code VERIFIED_USER_SUCCESSFULLY}).
+   *
+   * @param authentication the {@link KeycloakAuthentication} containing the caller's parsed token
+   *     and email
+   * @param userPutVerifyRequest the request payload containing OTP/verification data
+   * @return a {@link ResponseTemplateDto} with a success message and no payload
+   */
+  @PutMapping("/v1/users/verify-otp")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> verifyOtp(
+      KeycloakAuthentication authentication,
+      @Valid @RequestBody UserPutVerifyRequest userPutVerifyRequest) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    userService.verifyOtp(callerEmail, userPutVerifyRequest);
+    return ResponseTemplateDto.<Void>builder().message(VERIFIED_USER_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Sends a new one-time password (OTP) to the authenticated caller's email.
+   *
+   * <p>Accessible only to callers with the user role. On success returns a {@link
+   * ResponseTemplateDto} with no data and a success message ({@code RESEND_OTP_WAS_SUCCESSFULLY}).
+   *
+   * @param authentication the {@link KeycloakAuthentication} containing the caller's parsed token
+   *     and email
+   * @return a {@link ResponseTemplateDto} with no payload and a success message
+   */
+  @GetMapping("/v1/users/resend-otp")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> resendOtp(KeycloakAuthentication authentication) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    userService.resendOtp(callerEmail);
+    return ResponseTemplateDto.<Void>builder().message(RESEND_OTP_WAS_SUCCESSFULLY).build();
   }
 
   /**

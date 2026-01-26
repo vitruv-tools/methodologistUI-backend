@@ -4,6 +4,8 @@ package tools.vitruv.methodologist.messages;
 public class Message {
   public static final String LOGIN_USER_SUCCESSFULLY = "User successfully logged in";
   public static final String SIGNUP_USER_SUCCESSFULLY = "User successfully signed up";
+  public static final String VERIFIED_USER_SUCCESSFULLY = "User successfully verified.";
+  public static final String RESEND_OTP_WAS_SUCCESSFULLY = "New otp code sent to your email.";
   public static final String USER_UPDATED_SUCCESSFULLY = "User successfully updated";
   public static final String USER_REMOVED_SUCCESSFULLY = "User successfully removed";
   public static final String VSUM_CREATED_SUCCESSFULLY = "Vsum successfully created";
