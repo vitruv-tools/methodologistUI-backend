@@ -688,7 +688,6 @@ class MetaModelServiceTest {
    */
   @Test
   void findAccessibleByProject_returnsSourceMetaModels() {
-    Long vsumId = 10L;
 
     MetaModel source1 = new MetaModel();
     source1.setId(1L);
@@ -701,7 +700,7 @@ class MetaModelServiceTest {
     MetaModel original2 = new MetaModel();
     original2.setId(3L);
     original2.setName("OriginalMM2");
-
+    Long vsumId = 10L;
     Vsum vsum = new Vsum();
     vsum.setId(vsumId);
 
@@ -745,7 +744,6 @@ class MetaModelServiceTest {
    */
   @Test
   void writeMetamodelsToDirectory_createsEcoreFiles() throws IOException {
-    Long vsumId = 10L;
     File targetDir = tempDir.toFile();
 
     MetaModel mm1 = new MetaModel();
@@ -759,7 +757,7 @@ class MetaModelServiceTest {
     Vsum vsum = new Vsum();
     VsumMetaModel vmm1 = VsumMetaModel.builder().vsum(vsum).metaModel(mm1).build();
     VsumMetaModel vmm2 = VsumMetaModel.builder().vsum(vsum).metaModel(mm2).build();
-
+    Long vsumId = 10L;
     when(vsumMetaModelRepository.findByVsumId(vsumId)).thenReturn(List.of(vmm1, vmm2));
 
     metaModelService.writeMetamodelsToDirectory(targetDir, vsumId);
