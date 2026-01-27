@@ -314,7 +314,6 @@ public class MetaModelService {
    * used by the Language Server to determine which metamodels should be loaded for a specific
    * editing session.
    *
-   * @param userId the ID of the user whose metamodels should be included (can be null)
    * @param vsumId the ID of the project/VSUM whose metamodels should be included (can be null)
    * @return a list of unique MetaModel instances accessible by the user and/or project
    */
