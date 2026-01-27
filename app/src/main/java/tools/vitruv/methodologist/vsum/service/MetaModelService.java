@@ -24,6 +24,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
@@ -43,6 +44,7 @@ import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelSpecifications;
 import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
+import tools.vitruv.methodologist.vsum.service.MetamodelBuildService.BuildResult;
 
 /**
  * Service class for managing metamodel operations including creation and retrieval. Handles the
@@ -101,20 +103,25 @@ public class MetaModelService {
   }
 
   /** Creates a metamodel, runs headless build, and accepts/rejects it. */
+  /** Creates a metamodel, runs headless build, and accepts/rejects it. */
   @Transactional
   public MetaModel create(String callerEmail, MetaModelPostRequest req) {
-
     PairAndModel pairAndModel = savePendingAndLoad(callerEmail, req);
     MetaModel metaModel = pairAndModel.metaModel;
 
-    /**
-     * BuildResult result = metamodelBuildService.buildAndValidate(
-     * MetamodelBuildService.MetamodelBuildInput.builder() .metaModelId(metaModel.getId())
-     * .ecoreBytes(metaModel.getEcoreFile().getData())
-     * .genModelBytes(metaModel.getGenModelFile().getData()) .runMwe2(true) .build());
-     *
-     * <p>if (!result.isSuccess()) { throw new CreateMwe2FileException(result.getReport()); }
-     */
+    BuildResult result =
+        metamodelBuildService.buildAndValidate(
+            MetamodelBuildService.MetamodelBuildInput.builder()
+                .metaModelId(metaModel.getId())
+                .ecoreBytes(metaModel.getEcoreFile().getData())
+                .genModelBytes(metaModel.getGenModelFile().getData())
+                .runMwe2(true)
+                .build());
+
+    if (!result.isSuccess()) {
+      throw new CreateMwe2FileException(result.getReport());
+    }
+
     return metaModel;
   }
 
