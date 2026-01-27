@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,8 +35,32 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
 
   @Override
   public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+    logger.info("=== WebSocket Connection Established ===");
+    logger.info("Session ID: {}", session.getId());
+
+    // URI und Query-Parameter
+    URI uri = session.getUri();
+    logger.info("URI: {}", uri);
+    logger.info("Query String: {}", uri.getQuery());
+    logger.info("Path: {}", uri.getPath());
+
+    // Session Attributes
+    logger.info("Session Attributes:");
+    session.getAttributes().forEach((key, value) -> logger.info("  {} = {}", key, value));
+
+    // Handshake Headers
+    logger.info("Handshake Headers:");
+    session.getHandshakeHeaders().forEach((key, values) -> logger.info("  {} = {}", key, values));
+
+    // Principal (User info)
+    logger.info("Principal: {}", session.getPrincipal());
+
+    // Extrahierte Werte
     Long userId = extractUserId(session);
-    Long projectId = extractProjectId(session);
+    Long vsumId = extractProjectId(session);
+    logger.info("Extracted userId: {}", userId);
+    logger.info("Extracted projectId: {}", vsumId);
+    logger.info("=== End WebSocket Info ===");
 
     if (userId == null) {
       session.close(CloseStatus.POLICY_VIOLATION.withReason("userId required"));
@@ -46,7 +71,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
     Path userProject = sessionDir.resolve("UserProject");
     Path modelDir = userProject.resolve("model");
     Files.createDirectories(modelDir);
-    List<MetaModel> metamodels = metaModelService.findAccessibleByUserOrProject(userId, projectId);
+    List<MetaModel> metamodels = metaModelService.findAccessibleByProject(vsumId);
 
     for (MetaModel mm : metamodels) {
       byte[] ecoreData = mm.getEcoreFile().getData();
@@ -87,7 +112,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
                         userProject.toUri().toString());
                 session.sendMessage(new TextMessage(rootUriMessage));
               } catch (Exception e) {
-                System.err.println("💥 Failed to send workspaceReady: " + e.getMessage());
+                logger.error("💥 Failed to send workspaceReady: " + e.getMessage());
                 e.printStackTrace();
               }
             })
@@ -164,21 +189,39 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         String line;
         while ((line = reader.readLine()) != null) {
           if (line.startsWith("Content-Length:")) {
-            int contentLength = Integer.parseInt(line.split(":")[1].trim());
+            try {
+              int contentLength = Integer.parseInt(line.split(":")[1].trim());
 
-            reader.readLine();
+              reader.readLine(); // Skip empty line
 
-            char[] content = new char[contentLength];
-            int read = reader.read(content, 0, contentLength);
+              char[] content = new char[contentLength];
+              int read = reader.read(content, 0, contentLength);
 
-            String message = new String(content);
+              if (read != contentLength) {
+                logger.warn(
+                    "Expected {} bytes but read {} bytes from LSP for session: {}",
+                    contentLength,
+                    read,
+                    session.getId());
+              }
 
-            session.sendMessage(new TextMessage(message));
+              String message = new String(content, 0, read);
+              session.sendMessage(new TextMessage(message));
+
+            } catch (NumberFormatException e) {
+              logger.error(
+                  "Invalid Content-Length header from LSP for session: {}", session.getId(), e);
+            } catch (IOException e) {
+              logger.error(
+                  "Failed to send LSP message to WebSocket session: {}", session.getId(), e);
+              break; // WebSocket is broken, no point in continuing
+            }
           }
         }
       } catch (IOException e) {
-        System.err.println("💥 LSP reader error: " + e.getMessage());
-        e.printStackTrace();
+        logger.error("LSP process stream closed for session: {}", session.getId(), e);
+      } finally {
+        logger.debug("LSP reader thread terminated for session: {}", session.getId());
       }
     }
 
@@ -277,27 +320,27 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
   private Long extractProjectId(WebSocketSession session) {
     try {
       String query = session.getUri().getQuery();
-      if (query != null && query.contains("projectId=")) {
-        String projectIdStr = extractQueryParam(query, "projectId");
+      if (query != null && query.contains("vsumId=")) {
+        String projectIdStr = extractQueryParam(query, "vsumId");
         if (projectIdStr != null) {
           Long projectId = Long.parseLong(projectIdStr);
-          logger.debug("Extracted projectId from query parameter: {}", projectId);
+          logger.debug("Extracted vsumId from query parameter: {}", projectId);
           return projectId;
         }
       }
 
-      Object projectIdAttr = session.getAttributes().get("projectId");
+      Object projectIdAttr = session.getAttributes().get("vsumId");
       if (projectIdAttr != null) {
         Long projectId = Long.parseLong(projectIdAttr.toString());
-        logger.debug("Extracted projectId from session attributes: {}", projectId);
+        logger.debug("Extracted vsumId from session attributes: {}", projectId);
         return projectId;
       }
 
-      logger.debug("No projectId found in WebSocket session (this is optional)");
+      logger.debug("No vsumId found in WebSocket session (this is optional)");
       return null;
 
     } catch (Exception e) {
-      logger.error("Error extracting projectId from WebSocket session", e);
+      logger.error("Error extracting vsumId from WebSocket session", e);
       return null;
     }
   }
