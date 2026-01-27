@@ -103,7 +103,6 @@ public class MetaModelService {
   }
 
   /** Creates a metamodel, runs headless build, and accepts/rejects it. */
-  /** Creates a metamodel, runs headless build, and accepts/rejects it. */
   @Transactional
   public MetaModel create(String callerEmail, MetaModelPostRequest req) {
     PairAndModel pairAndModel = savePendingAndLoad(callerEmail, req);
