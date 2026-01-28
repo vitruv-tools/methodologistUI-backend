@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,7 +86,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         new LspServerProcess(session, process, writer, reader, sessionDir, userProject);
     sessions.put(session.getId(), lspProcess);
 
-    new Thread(() -> lspProcess.readFromLsp()).start();
+    new Thread(lspProcess::readFromLsp).start();
 
     new Thread(
             () -> {
@@ -97,8 +98,13 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
                         "{\"type\":\"workspaceReady\",\"rootUri\":\"%s\"}",
                         userProject.toUri().toString());
                 session.sendMessage(new TextMessage(rootUriMessage));
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.error(
+                    "💥 Thread interrupted while sending workspaceReady: {}", e.getMessage());
               } catch (Exception e) {
-                logger.error("💥 Failed to send workspaceReady: " + e.getMessage());
+                logger.error(
+                    "💥 Thread interrupted while sending workspaceReady: {}", e.getMessage());
                 e.printStackTrace();
               }
             })
@@ -124,16 +130,20 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
       serverProcess.destroy();
 
       if (serverProcess.tempDir != null && Files.exists(serverProcess.tempDir)) {
-        Files.walk(serverProcess.tempDir)
-            .sorted(Comparator.reverseOrder())
-            .forEach(
-                path -> {
-                  try {
-                    Files.delete(path);
-                  } catch (IOException e) {
-                    logger.warn("Cleanup failed: {}", path);
-                  }
-                });
+        try (Stream<Path> paths = Files.walk(serverProcess.tempDir)) {
+          paths
+              .sorted(Comparator.reverseOrder())
+              .forEach(
+                  path -> {
+                    try {
+                      Files.delete(path);
+                    } catch (IOException e) {
+                      logger.warn("Cleanup failed: {}", path);
+                    }
+                  });
+        } catch (IOException e) {
+          logger.warn("Failed to walk directory: {}", serverProcess.tempDir, e);
+        }
       }
     }
   }

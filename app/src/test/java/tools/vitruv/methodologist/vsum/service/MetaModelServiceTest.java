@@ -711,9 +711,7 @@ class MetaModelServiceTest {
 
     List<MetaModel> result = metaModelService.findAccessibleByProject(vsumId);
 
-    assertThat(result).hasSize(2);
-    assertThat(result).contains(source1, original2);
-    assertThat(result).doesNotContain(clone1);
+    assertThat(result).hasSize(2).contains(source1, original2).doesNotContain(clone1);
   }
 
   /**
