@@ -6,7 +6,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,12 +37,6 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
     logger.info("=== WebSocket Connection Established ===");
     logger.info("Session ID: {}", session.getId());
 
-    // URI und Query-Parameter
-    URI uri = session.getUri();
-    logger.info("URI: {}", uri);
-    logger.info("Query String: {}", uri.getQuery());
-    logger.info("Path: {}", uri.getPath());
-
     // Session Attributes
     logger.info("Session Attributes:");
     session.getAttributes().forEach((key, value) -> logger.info("  {} = {}", key, value));
@@ -56,16 +49,9 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
     logger.info("Principal: {}", session.getPrincipal());
 
     // Extrahierte Werte
-    Long userId = extractUserId(session);
     Long vsumId = extractProjectId(session);
-    logger.info("Extracted userId: {}", userId);
     logger.info("Extracted projectId: {}", vsumId);
     logger.info("=== End WebSocket Info ===");
-
-    if (userId == null) {
-      session.close(CloseStatus.POLICY_VIOLATION.withReason("userId required"));
-      return;
-    }
 
     Path sessionDir = Files.createTempDirectory("lsp-session-" + session.getId());
     Path userProject = sessionDir.resolve("UserProject");
@@ -167,7 +153,6 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
     final BufferedWriter writer;
     final BufferedReader reader;
     private final Path tempDir;
-    private final Path userProject;
 
     LspServerProcess(
         WebSocketSession session,
@@ -181,7 +166,46 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
       this.writer = writer;
       this.reader = reader;
       this.tempDir = tempDir;
-      this.userProject = userProject;
+    }
+
+    private int parseContentLength(String line) {
+      return Integer.parseInt(line.split(":")[1].trim());
+    }
+
+    private boolean handleContentLengthLine(String line) {
+      try {
+        int contentLength = parseContentLength(line);
+
+        String separatorLine = reader.readLine(); // Skip empty line
+        if (separatorLine == null || !separatorLine.isEmpty()) {
+          logger.warn(
+              "Expected empty line after Content-Length header for session: {}, but got: '{}'",
+              session.getId(),
+              separatorLine);
+        }
+
+        char[] content = new char[contentLength];
+        int read = reader.read(content, 0, contentLength);
+
+        if (read != contentLength) {
+          logger.warn(
+              "Expected {} bytes but read {} bytes from LSP for session: {}",
+              contentLength,
+              read,
+              session.getId());
+        }
+
+        String message = new String(content, 0, read);
+        session.sendMessage(new TextMessage(message));
+
+        return true;
+      } catch (NumberFormatException e) {
+        logger.error("Invalid Content-Length header from LSP for session: {}", session.getId(), e);
+        return true; // malformed message, but keep reading
+      } catch (IOException e) {
+        logger.error("Failed to send LSP message to WebSocket session: {}", session.getId(), e);
+        return false; // WebSocket is broken → caller should stop
+      }
     }
 
     void readFromLsp() {
@@ -189,32 +213,8 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         String line;
         while ((line = reader.readLine()) != null) {
           if (line.startsWith("Content-Length:")) {
-            try {
-              int contentLength = Integer.parseInt(line.split(":")[1].trim());
-
-              reader.readLine(); // Skip empty line
-
-              char[] content = new char[contentLength];
-              int read = reader.read(content, 0, contentLength);
-
-              if (read != contentLength) {
-                logger.warn(
-                    "Expected {} bytes but read {} bytes from LSP for session: {}",
-                    contentLength,
-                    read,
-                    session.getId());
-              }
-
-              String message = new String(content, 0, read);
-              session.sendMessage(new TextMessage(message));
-
-            } catch (NumberFormatException e) {
-              logger.error(
-                  "Invalid Content-Length header from LSP for session: {}", session.getId(), e);
-            } catch (IOException e) {
-              logger.error(
-                  "Failed to send LSP message to WebSocket session: {}", session.getId(), e);
-              break; // WebSocket is broken, no point in continuing
+            if (!handleContentLengthLine(line)) {
+              break; // stop reading if the WebSocket is broken
             }
           }
         }
@@ -242,78 +242,6 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         logger.error("Error closing LSP writer", e);
       }
       process.destroy();
-    }
-  }
-
-  private Long extractUserId(WebSocketSession session) {
-    try {
-      String query = session.getUri().getQuery();
-      if (query != null && query.contains("userId=")) {
-        String userIdStr = extractQueryParam(query, "userId");
-        if (userIdStr != null) {
-          Long userId = Long.parseLong(userIdStr);
-          logger.debug("Extracted userId from query parameter: {}", userId);
-          return userId;
-        }
-      }
-
-      Object principal = session.getPrincipal();
-      if (principal != null) {
-        logger.debug("Principal type: {}", principal.getClass().getName());
-
-        if (principal
-            instanceof
-            org.springframework.security.oauth2.server.resource.authentication
-                .JwtAuthenticationToken) {
-          org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
-              jwt =
-                  (org.springframework.security.oauth2.server.resource.authentication
-                          .JwtAuthenticationToken)
-                      principal;
-
-          String sub = jwt.getToken().getClaim("sub");
-          if (sub != null) {
-            try {
-              Long userId = Long.parseLong(sub);
-              logger.debug("Extracted userId from JWT 'sub' claim: {}", userId);
-              return userId;
-            } catch (NumberFormatException e) {
-              logger.warn("JWT 'sub' claim is not a number: {}", sub);
-            }
-          }
-
-          Object userIdClaim = jwt.getToken().getClaim("userId");
-          if (userIdClaim != null) {
-            Long userId = Long.parseLong(userIdClaim.toString());
-            logger.debug("Extracted userId from JWT 'userId' claim: {}", userId);
-            return userId;
-          }
-
-          String email = jwt.getToken().getClaim("preferred_username");
-          if (email == null) {
-            email = jwt.getToken().getClaim("email");
-          }
-          if (email != null) {
-            logger.debug("Found email in JWT: {}, need to lookup userId", email);
-          }
-        }
-
-        logger.debug("Principal toString: {}", principal);
-      }
-
-      Object userIdAttr = session.getAttributes().get("userId");
-      if (userIdAttr != null) {
-        Long userId = Long.parseLong(userIdAttr.toString());
-        logger.debug("Extracted userId from session attributes: {}", userId);
-        return userId;
-      }
-
-      logger.warn("Could not extract userId from WebSocket session. URI: {}", session.getUri());
-      return null;
-
-    } catch (Exception e) {
-      logger.error("Error extracting userId from WebSocket session", e);
-      return null;
     }
   }
 

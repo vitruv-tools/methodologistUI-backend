@@ -1,6 +1,5 @@
 package tools.vitruv.methodologist.vsum.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -14,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -72,27 +70,6 @@ class LspWebSocketHandlerTest {
 
     verify(metaModelService).findAccessibleByProject(1L);
     verify(session, never()).close(any(CloseStatus.class));
-  }
-
-  /**
-   * Verifies that a WebSocket connection without userId parameter is rejected.
-   *
-   * <p>Expects the handler to close the session with POLICY_VIOLATION status and reason "userId
-   * required".
-   */
-  @Test
-  void afterConnectionEstablished_withoutUserId_closesSession() throws Exception {
-    URI uri = new URI("ws://localhost/lsp");
-    when(session.getUri()).thenReturn(uri);
-
-    handler.afterConnectionEstablished(session);
-
-    ArgumentCaptor<CloseStatus> statusCaptor = ArgumentCaptor.forClass(CloseStatus.class);
-    verify(session).close(statusCaptor.capture());
-
-    CloseStatus capturedStatus = statusCaptor.getValue();
-    assertThat(capturedStatus.getCode()).isEqualTo(CloseStatus.POLICY_VIOLATION.getCode());
-    assertThat(capturedStatus.getReason()).contains("userId required");
   }
 
   /**
