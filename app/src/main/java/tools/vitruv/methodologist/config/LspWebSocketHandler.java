@@ -15,7 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -28,10 +27,13 @@ import tools.vitruv.methodologist.vsum.service.MetaModelService;
 @Component
 public class LspWebSocketHandler extends TextWebSocketHandler {
 
-  @Autowired private MetaModelService metaModelService;
-
   private static final Logger logger = LoggerFactory.getLogger(LspWebSocketHandler.class);
   private final ConcurrentHashMap<String, LspServerProcess> sessions = new ConcurrentHashMap<>();
+  private final MetaModelService metaModelService;
+
+  public LspWebSocketHandler(MetaModelService metaModelService) {
+    this.metaModelService = metaModelService;
+  }
 
   @Override
   public void afterConnectionEstablished(WebSocketSession session) throws Exception {

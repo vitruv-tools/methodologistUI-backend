@@ -16,10 +16,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -60,11 +58,10 @@ import tools.vitruv.methodologist.vsum.service.MetamodelBuildService.BuildResult
  */
 @Service
 @Slf4j
-@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class MetaModelService {
 
-  @Autowired @Lazy private MetaModelService self;
+  MetaModelService self;
   MetaModelMapper metaModelMapper;
   MetaModelRepository metaModelRepository;
   FileStorageRepository fileStorageRepository;
@@ -72,6 +69,25 @@ public class MetaModelService {
   MetamodelBuildService metamodelBuildService;
   FileStorageService fileStorageService;
   VsumMetaModelRepository vsumMetaModelRepository;
+
+  public MetaModelService(
+      @Lazy MetaModelService self,
+      MetaModelMapper metaModelMapper,
+      MetaModelRepository metaModelRepository,
+      FileStorageRepository fileStorageRepository,
+      UserRepository userRepository,
+      MetamodelBuildService metamodelBuildService,
+      FileStorageService fileStorageService,
+      VsumMetaModelRepository vsumMetaModelRepository) {
+    this.self = self;
+    this.metaModelMapper = metaModelMapper;
+    this.metaModelRepository = metaModelRepository;
+    this.fileStorageRepository = fileStorageRepository;
+    this.userRepository = userRepository;
+    this.metamodelBuildService = metamodelBuildService;
+    this.fileStorageService = fileStorageService;
+    this.vsumMetaModelRepository = vsumMetaModelRepository;
+  }
 
   /**
    * Saves a new MetaModel linked to the given user and the uploaded Ecore/GenModel files. Persists

@@ -14,7 +14,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
@@ -32,15 +31,21 @@ import tools.vitruv.methodologist.vitruvcli.VitruvCliService;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class MetaModelVitruvIntegrationService {
 
   private static final String FAT_JAR_RELATIVE_PATH =
       "vsum/target/"
           + "tools.vitruv.methodologisttemplate."
           + "vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar";
+
   private final VitruvCliService vitruvCliService;
   private final VitruvCliProperties vitruvCliProperties;
+
+  public MetaModelVitruvIntegrationService(
+      VitruvCliService vitruvCliService, VitruvCliProperties vitruvCliProperties) {
+    this.vitruvCliService = vitruvCliService;
+    this.vitruvCliProperties = vitruvCliProperties;
+  }
 
   /**
    * Returns the given byte array or an empty byte array if {@code data} is null.

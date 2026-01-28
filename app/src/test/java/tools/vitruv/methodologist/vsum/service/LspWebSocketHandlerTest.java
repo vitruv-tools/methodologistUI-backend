@@ -43,7 +43,7 @@ class LspWebSocketHandlerTest {
   @BeforeEach
   void setUp() {
     metaModelService = mock(MetaModelService.class);
-    handler = new LspWebSocketHandler();
+    handler = new LspWebSocketHandler(metaModelService);
     setField(handler, "metaModelService", metaModelService);
 
     session = mock(WebSocketSession.class);
