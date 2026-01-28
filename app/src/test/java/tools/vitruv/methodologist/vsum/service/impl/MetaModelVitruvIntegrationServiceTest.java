@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -236,15 +237,15 @@ class MetaModelVitruvIntegrationServiceTest {
 
   @Test
   void runVitruvAndGetFatJarBytes_validationFails_whenMetamodelListsMissing() {
-    assertThatThrownBy(
-            () -> service.runVitruvAndGetFatJarBytes(null, null, List.of(fs("a.reactions"))))
-        .isInstanceOf(VsumBuildingException.class);
+    ThrowingCallable callable =
+        () -> service.runVitruvAndGetFatJarBytes(null, null, List.of(fs("a.reactions")));
 
-    assertThatThrownBy(
-            () ->
-                service.runVitruvAndGetFatJarBytes(
-                    List.of(), List.of(), List.of(fs("a.reactions"))))
-        .isInstanceOf(VsumBuildingException.class);
+    assertThatThrownBy(callable).isInstanceOf(VsumBuildingException.class);
+
+    ThrowingCallable nextCallable =
+        () -> service.runVitruvAndGetFatJarBytes(List.of(), List.of(), List.of(fs("a.reactions")));
+
+    assertThatThrownBy(nextCallable).isInstanceOf(VsumBuildingException.class);
 
     verify(vitruvCliService, times(0)).run(any(Path.class), anyList(), any(Path.class));
   }
@@ -269,8 +270,9 @@ class MetaModelVitruvIntegrationServiceTest {
     assertThatThrownBy(() -> service.runVitruvAndGetFatJarBytes(ecores, gens, null))
         .isInstanceOf(VsumBuildingException.class);
 
-    assertThatThrownBy(() -> service.runVitruvAndGetFatJarBytes(ecores, gens, List.of()))
-        .isInstanceOf(VsumBuildingException.class);
+    ThrowingCallable callable = () -> service.runVitruvAndGetFatJarBytes(ecores, gens, List.of());
+
+    assertThatThrownBy(callable).isInstanceOf(VsumBuildingException.class);
 
     verify(vitruvCliService, times(0)).run(any(Path.class), anyList(), any(Path.class));
   }

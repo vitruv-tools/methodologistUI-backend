@@ -19,6 +19,8 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
@@ -61,6 +63,8 @@ import tools.vitruv.methodologist.vsum.service.MetamodelBuildService.BuildResult
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class MetaModelService {
+
+  @Autowired @Lazy private MetaModelService self;
   MetaModelMapper metaModelMapper;
   MetaModelRepository metaModelRepository;
   FileStorageRepository fileStorageRepository;
@@ -359,7 +363,7 @@ public class MetaModelService {
    */
   @Transactional(readOnly = true)
   public void writeMetamodelsToDirectory(File targetDir, Long vsumId) throws IOException {
-    List<MetaModel> metamodels = findAccessibleByProject(vsumId);
+    List<MetaModel> metamodels = self.findAccessibleByProject(vsumId);
 
     for (MetaModel mm : metamodels) {
       String fileName = mm.getEcoreFile().getFilename();

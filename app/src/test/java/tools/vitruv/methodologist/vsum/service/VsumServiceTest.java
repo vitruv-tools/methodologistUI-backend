@@ -841,8 +841,7 @@ class VsumServiceTest {
     Map<String, byte[]> entries = unzip(zip);
     assertThat(entries)
         .containsKeys(
-            "methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar", "Dockerfile");
-    assertThat(entries)
+            "methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar", "Dockerfile")
         .containsEntry(
             "methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar", jarBytes);
   }

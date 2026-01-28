@@ -24,12 +24,14 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -100,6 +102,7 @@ class MetaModelServiceTest {
 
     metaModelService =
         new MetaModelService(
+            metaModelService,
             metaModelMapper,
             metaModelRepository,
             fileStorageRepository,
@@ -468,7 +471,10 @@ class MetaModelServiceTest {
         .thenReturn(Optional.of(user));
     when(metaModelRepository.findById(99L)).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> metaModelService.update(email, 99L, new MetaModelPutRequest()))
+    ThrowingCallable callable =
+        () -> metaModelService.update(email, 99L, new MetaModelPutRequest());
+
+    assertThatThrownBy(callable)
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(META_MODEL_ID_NOT_FOUND_ERROR);
 
@@ -634,7 +640,9 @@ class MetaModelServiceTest {
     MetaModelService spyService = org.mockito.Mockito.spy(metaModelService);
     doThrow(new RuntimeException("clone failed")).when(spyService).clone(source);
 
-    assertThatThrownBy(() -> spyService.update(email, 200L, new MetaModelPutRequest()))
+    ThrowingCallable callable = () -> spyService.update(email, 200L, new MetaModelPutRequest());
+
+    assertThatThrownBy(callable)
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining("clone failed");
 
@@ -742,7 +750,7 @@ class MetaModelServiceTest {
    */
   @Test
   void writeMetamodelsToDirectory_createsEcoreFiles() throws IOException {
-
+    // Setup
     MetaModel mm1 = new MetaModel();
     mm1.setId(1L);
     mm1.setEcoreFile(createFileStorage(10L, "model1.ecore", "ecore content 1".getBytes()));
@@ -755,10 +763,16 @@ class MetaModelServiceTest {
     VsumMetaModel vmm1 = VsumMetaModel.builder().vsum(vsum).metaModel(mm1).build();
     VsumMetaModel vmm2 = VsumMetaModel.builder().vsum(vsum).metaModel(mm2).build();
     Long vsumId = 10L;
+
     when(vsumMetaModelRepository.findByVsumId(vsumId)).thenReturn(List.of(vmm1, vmm2));
+
+    // Inject self reference manually
+    ReflectionTestUtils.setField(metaModelService, "self", metaModelService);
+
     File targetDir = tempDir.toFile();
     metaModelService.writeMetamodelsToDirectory(targetDir, vsumId);
 
+    // Verify
     File file1 = new File(targetDir, "model1.ecore");
     File file2 = new File(targetDir, "model2.ecore");
 

@@ -255,14 +255,11 @@ public class MetaModelVitruvIntegrationService {
   private void writeReactionFiles(Path reactionsDir, List<FileStorage> reactionFiles)
       throws IOException {
 
-    List<Path> paths = new ArrayList<>(reactionFiles.size());
-
     for (int i = 0; i < reactionFiles.size(); i++) {
       FileStorage rf = reactionFiles.get(i);
       String name = safeName(rf.getFilename(), "reactions-" + i + ".reactions");
       Path p = reactionsDir.resolve(name);
       Files.write(p, nonNullBytes(rf.getData()));
-      paths.add(p);
     }
   }
 }
