@@ -303,10 +303,9 @@ class MetaModelVitruvIntegrationServiceTest {
               inv -> {
                 Path p = inv.getArgument(0);
                 String pathStr = p.toString().replace("\\", "/");
-                return p.toString()
-                    .contains(
-                        "vsum/target/"
-                            + "tools.vitruv.methodologisttemplate.vsum-0.1.0-SNAPSHOT-"
+                return pathStr.contains("vsum/target")
+                    && pathStr.contains(
+                        "tools.vitruv.methodologisttemplate.vsum-0.1.0-SNAPSHOT-"
                             + "jar-with-dependencies.jar");
               });
 
