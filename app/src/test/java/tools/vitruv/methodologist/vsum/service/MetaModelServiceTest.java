@@ -744,7 +744,6 @@ class MetaModelServiceTest {
    */
   @Test
   void writeMetamodelsToDirectory_createsEcoreFiles() throws IOException {
-    File targetDir = tempDir.toFile();
 
     MetaModel mm1 = new MetaModel();
     mm1.setId(1L);
@@ -759,7 +758,7 @@ class MetaModelServiceTest {
     VsumMetaModel vmm2 = VsumMetaModel.builder().vsum(vsum).metaModel(mm2).build();
     Long vsumId = 10L;
     when(vsumMetaModelRepository.findByVsumId(vsumId)).thenReturn(List.of(vmm1, vmm2));
-
+    File targetDir = tempDir.toFile();
     metaModelService.writeMetamodelsToDirectory(targetDir, vsumId);
 
     File file1 = new File(targetDir, "model1.ecore");
