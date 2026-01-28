@@ -9,8 +9,11 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -62,6 +65,13 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
     logger.info("=== End WebSocket Info ===");
 
     Path sessionDir = Files.createTempDirectory("lsp-session-" + session.getId());
+    try {
+      Set<PosixFilePermission> perms = PosixFilePermissions.fromString("rwx------");
+      Files.setPosixFilePermissions(sessionDir, perms);
+    } catch (UnsupportedOperationException e) {
+      // Windows doesn't support POSIX permissions, rely on temp directory security
+      logger.debug("POSIX permissions not supported on this system");
+    }
 
     Path userProject = sessionDir.resolve("UserProject");
     Path modelDir = userProject.resolve("model");
