@@ -8,6 +8,7 @@ import static tools.vitruv.methodologist.messages.Error.VITRUV_CLI_ERROR;
 import static tools.vitruv.methodologist.messages.Error.VITRUV_CLI_EXECUTION_FAILED_ERROR;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -190,14 +191,11 @@ public class MetaModelVitruvIntegrationService {
                 try {
                   Files.deleteIfExists(path);
                 } catch (IOException e) {
-                  throw new RuntimeException(e);
+                  throw new UncheckedIOException(e);
                 }
               });
-    } catch (RuntimeException re) {
-      if (re.getCause() instanceof IOException ioe) {
-        throw ioe;
-      }
-      throw re;
+    } catch (UncheckedIOException uio) {
+      throw uio.getCause();
     }
   }
 

@@ -55,13 +55,6 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
     logger.info("=== End WebSocket Info ===");
 
     Path sessionDir = Files.createTempDirectory("lsp-session-" + session.getId());
-    File dir = sessionDir.toFile();
-    dir.setReadable(false, false);
-    dir.setWritable(false, false);
-    dir.setExecutable(false, false);
-    dir.setReadable(true, true);
-    dir.setWritable(true, true);
-    dir.setExecutable(true, true);
 
     Path userProject = sessionDir.resolve("UserProject");
     Path modelDir = userProject.resolve("model");
@@ -93,7 +86,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
 
     LspServerProcess lspProcess =
-        new LspServerProcess(session, process, writer, reader, sessionDir, userProject);
+        new LspServerProcess(session, process, writer, reader, sessionDir);
     sessions.put(session.getId(), lspProcess);
 
     new Thread(lspProcess::readFromLsp).start();
@@ -178,8 +171,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         Process process,
         BufferedWriter writer,
         BufferedReader reader,
-        Path tempDir,
-        Path userProject) {
+        Path tempDir) {
       this.session = session;
       this.process = process;
       this.writer = writer;
@@ -231,10 +223,8 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
       try {
         String line;
         while ((line = reader.readLine()) != null) {
-          if (line.startsWith("Content-Length:")) {
-            if (!handleContentLengthLine(line)) {
-              break; // stop reading if the WebSocket is broken
-            }
+          if (line.startsWith("Content-Length:") && !handleContentLengthLine(line)) {
+            break; // stop reading if the WebSocket is broken
           }
         }
       } catch (IOException e) {
