@@ -55,6 +55,14 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
     logger.info("=== End WebSocket Info ===");
 
     Path sessionDir = Files.createTempDirectory("lsp-session-" + session.getId());
+    File dir = sessionDir.toFile();
+    dir.setReadable(false, false);
+    dir.setWritable(false, false);
+    dir.setExecutable(false, false);
+    dir.setReadable(true, true);
+    dir.setWritable(true, true);
+    dir.setExecutable(true, true);
+
     Path userProject = sessionDir.resolve("UserProject");
     Path modelDir = userProject.resolve("model");
     Files.createDirectories(modelDir);
@@ -70,7 +78,9 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
     String jarPath =
         new File("src/main/resources/lsp/tools.vitruv.dsls.reactions.ide.jar").getAbsolutePath();
 
-    ProcessBuilder pb = new ProcessBuilder("java", "-jar", jarPath, "-log", "-trace");
+    String javaHome = System.getProperty("java.home");
+    String javaExecutable = javaHome + File.separator + "bin" + File.separator + "java";
+    ProcessBuilder pb = new ProcessBuilder(javaExecutable, "-jar", jarPath, "-log", "-trace");
     pb.directory(userProject.toFile());
     pb.redirectErrorStream(true);
 
@@ -105,7 +115,6 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
               } catch (Exception e) {
                 logger.error(
                     "💥 Thread interrupted while sending workspaceReady: {}", e.getMessage());
-                e.printStackTrace();
               }
             })
         .start();
