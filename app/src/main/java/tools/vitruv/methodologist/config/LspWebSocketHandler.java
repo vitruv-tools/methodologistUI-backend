@@ -31,6 +31,11 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
   private final ConcurrentHashMap<String, LspServerProcess> sessions = new ConcurrentHashMap<>();
   private final MetaModelService metaModelService;
 
+  /**
+   * Constructs a new LspWebSocketHandler with the required metamodel service.
+   *
+   * @param metaModelService the service for metamodel operations
+   */
   public LspWebSocketHandler(MetaModelService metaModelService) {
     this.metaModelService = metaModelService;
   }

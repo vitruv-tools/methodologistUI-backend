@@ -70,6 +70,18 @@ public class MetaModelService {
   FileStorageService fileStorageService;
   VsumMetaModelRepository vsumMetaModelRepository;
 
+  /**
+   * Constructs a new MetaModelService with all required dependencies.
+   *
+   * @param self lazy-loaded self-reference for transactional method calls
+   * @param metaModelMapper mapper for converting between entities and DTOs
+   * @param metaModelRepository repository for metamodel persistence
+   * @param fileStorageRepository repository for file storage operations
+   * @param userRepository repository for user data access
+   * @param metamodelBuildService service for building metamodel artifacts
+   * @param fileStorageService service for file storage management
+   * @param vsumMetaModelRepository repository for VSUM-metamodel relationships
+   */
   public MetaModelService(
       @Lazy MetaModelService self,
       MetaModelMapper metaModelMapper,
