@@ -46,25 +46,8 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
 
   @Override
   public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-    logger.info("=== WebSocket Connection Established ===");
-    logger.info("Session ID: {}", session.getId());
-
-    // Session Attributes
-    logger.info("Session Attributes:");
-    session.getAttributes().forEach((key, value) -> logger.info("  {} = {}", key, value));
-
-    // Handshake Headers
-    logger.info("Handshake Headers:");
-    session.getHandshakeHeaders().forEach((key, values) -> logger.info("  {} = {}", key, values));
-
-    // Principal (User info)
-    logger.info("Principal: {}", session.getPrincipal());
-
     // Extrahierte Werte
     Long vsumId = extractProjectId(session);
-    logger.info("Extracted projectId: {}", vsumId);
-    logger.info("=== End WebSocket Info ===");
-
     FileAttribute<Set<PosixFilePermission>> attr =
         PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"));
     Path sessionDir;
@@ -160,11 +143,11 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
                     try {
                       Files.delete(path);
                     } catch (IOException e) {
-                      logger.warn("Cleanup failed: {}", path);
+                      logger.warn("Cleanup failed");
                     }
                   });
         } catch (IOException e) {
-          logger.warn("Failed to walk directory: {}", serverProcess.tempDir, e);
+          logger.warn("Failed to walk directory");
         }
       }
     }
@@ -172,7 +155,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
 
   @Override
   public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
-    logger.error("WebSocket transport error for session: {}", session.getId(), exception);
+    logger.error("WebSocket transport error for session: {}", session.getId());
     LspServerProcess serverProcess = sessions.remove(session.getId());
     if (serverProcess != null) {
       serverProcess.destroy();
@@ -208,23 +191,10 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         int contentLength = parseContentLength(line);
 
         String separatorLine = reader.readLine(); // Skip empty line
-        if (separatorLine == null || !separatorLine.isEmpty()) {
-          logger.warn(
-              "Expected empty line after Content-Length header for session: {}, but got: '{}'",
-              session.getId(),
-              separatorLine);
-        }
+        if (separatorLine == null || !separatorLine.isEmpty()) {}
 
         char[] content = new char[contentLength];
         int read = reader.read(content, 0, contentLength);
-
-        if (read != contentLength) {
-          logger.warn(
-              "Expected {} bytes but read {} bytes from LSP for session: {}",
-              contentLength,
-              read,
-              session.getId());
-        }
 
         String message = new String(content, 0, read);
         session.sendMessage(new TextMessage(message));
@@ -281,7 +251,6 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         String projectIdStr = extractQueryParam(query, "vsumId");
         if (projectIdStr != null) {
           Long projectId = Long.parseLong(projectIdStr);
-          logger.debug("Extracted vsumId from query parameter: {}", projectId);
           return projectId;
         }
       }
@@ -289,11 +258,8 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
       Object projectIdAttr = session.getAttributes().get("vsumId");
       if (projectIdAttr != null) {
         Long projectId = Long.parseLong(projectIdAttr.toString());
-        logger.debug("Extracted vsumId from session attributes: {}", projectId);
         return projectId;
       }
-
-      logger.debug("No vsumId found in WebSocket session (this is optional)");
       return null;
 
     } catch (Exception e) {
