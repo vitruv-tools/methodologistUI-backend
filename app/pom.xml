@@ -15,12 +15,6 @@
     <name>Methodologist - App</name>
     <packaging>jar</packaging>
 
-    <properties>
-        <reactions.ide.jar.path>
-            ${project.basedir}/src/main/resources/lsp/tools.vitruv.dsls.reactions.ide.jar
-        </reactions.ide.jar.path>
-    </properties>
-
 
     <dependencies>
         <dependency>
@@ -235,7 +229,6 @@
                 <configuration>
                     <useModulePath>false</useModulePath>
                     <systemPropertyVariables>
-                        <reactions.ide.jar.path>${reactions.ide.jar.path}</reactions.ide.jar.path>
                         <spring.profiles.active>test</spring.profiles.active>
                     </systemPropertyVariables>
                 </configuration>

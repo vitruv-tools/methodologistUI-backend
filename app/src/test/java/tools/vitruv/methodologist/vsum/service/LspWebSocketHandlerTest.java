@@ -13,14 +13,27 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
 import tools.vitruv.methodologist.config.LspWebSocketHandler;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
+
+@ExtendWith(SpringExtension.class)
+@TestPropertySource(
+    properties = {
+      "reactions.ide.jar.path=src/test/resources/lsp/tools.vitruv.dsls.reactions.ide.jar"
+    })
 
 /**
  * Unit tests for {@link LspWebSocketHandler}.
@@ -34,6 +47,9 @@ class LspWebSocketHandlerTest {
   private LspWebSocketHandler handler;
   private WebSocketSession session;
 
+  @Value("${reactions.ide.jar.path}")
+  private String testJarPath; // <-- Spring injiziert das
+
   /**
    * Sets up test fixtures before each test.
    *
@@ -43,7 +59,12 @@ class LspWebSocketHandlerTest {
   @BeforeEach
   void setUp() {
     metaModelService = mock(MetaModelService.class);
+
+    // Nutze die injizierte Property
+    Resource resource = new FileSystemResource(testJarPath);
+
     handler = new LspWebSocketHandler(metaModelService);
+    ReflectionTestUtils.setField(handler, "jarResource", resource);
     setField(handler, "metaModelService", metaModelService);
 
     session = mock(WebSocketSession.class);

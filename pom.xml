@@ -29,7 +29,7 @@
 
         <jacoco.version>0.8.11</jacoco.version>
         <sonar.maven.plugin.version>5.3.0.6276</sonar.maven.plugin.version>
-    </properties>
+    </properties> 
 
     <modules>
         <module>app</module>
