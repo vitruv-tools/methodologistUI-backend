@@ -19,6 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -31,6 +33,9 @@ import tools.vitruv.methodologist.vsum.service.MetaModelService;
 @Component
 public class LspWebSocketHandler extends TextWebSocketHandler {
 
+  @Value("${reactions.ide.jar.path}")
+  private Resource jarResource;
+
   private static final Logger logger = LoggerFactory.getLogger(LspWebSocketHandler.class);
   private final ConcurrentHashMap<String, LspServerProcess> sessions = new ConcurrentHashMap<>();
   private final MetaModelService metaModelService;
@@ -42,6 +47,11 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
    */
   public LspWebSocketHandler(MetaModelService metaModelService) {
     this.metaModelService = metaModelService;
+  }
+
+  /** Loads JarPath from properties File. */
+  private String getJarPath() throws IOException {
+    return jarResource.getFile().getAbsolutePath();
   }
 
   @Override
@@ -71,8 +81,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
       Files.write(ecoreFile, ecoreData);
     }
 
-    String jarPath =
-        new File("src/main/resources/lsp/tools.vitruv.dsls.reactions.ide.jar").getAbsolutePath();
+    String jarPath = getJarPath();
 
     String javaHome = System.getProperty("java.home");
     String javaExecutable = javaHome + File.separator + "bin" + File.separator + "java";
