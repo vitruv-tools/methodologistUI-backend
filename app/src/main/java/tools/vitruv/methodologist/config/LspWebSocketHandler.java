@@ -46,8 +46,8 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
 
   @Override
   public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-    // Extrahierte Werte
     Long vsumId = extractProjectId(session);
+
     FileAttribute<Set<PosixFilePermission>> attr =
         PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"));
     Path sessionDir;
@@ -155,7 +155,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
 
   @Override
   public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
-    logger.error("WebSocket transport error for session: {}", session.getId());
+    logger.error("WebSocket transport error for session: {}", session.getId(), exception);
     LspServerProcess serverProcess = sessions.remove(session.getId());
     if (serverProcess != null) {
       serverProcess.destroy();
@@ -191,7 +191,12 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         int contentLength = parseContentLength(line);
 
         String separatorLine = reader.readLine(); // Skip empty line
-        if (separatorLine == null || !separatorLine.isEmpty()) {}
+        if (separatorLine == null || !separatorLine.isEmpty()) {
+          logger.warn(
+              "Expected empty line after Content-Length header for session: {}, but got: '{}'",
+              session.getId(),
+              separatorLine);
+        }
 
         char[] content = new char[contentLength];
         int read = reader.read(content, 0, contentLength);
@@ -251,6 +256,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         String projectIdStr = extractQueryParam(query, "vsumId");
         if (projectIdStr != null) {
           Long projectId = Long.parseLong(projectIdStr);
+          logger.debug("Extracted vsumId from query parameter: {}", projectId);
           return projectId;
         }
       }
@@ -260,6 +266,8 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         Long projectId = Long.parseLong(projectIdAttr.toString());
         return projectId;
       }
+
+      logger.debug("No vsumId found in WebSocket session (this is optional)");
       return null;
 
     } catch (Exception e) {
