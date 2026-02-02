@@ -8,12 +8,12 @@ import static tools.vitruv.methodologist.messages.Error.VITRUV_CLI_ERROR;
 import static tools.vitruv.methodologist.messages.Error.VITRUV_CLI_EXECUTION_FAILED_ERROR;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
@@ -31,15 +31,21 @@ import tools.vitruv.methodologist.vitruvcli.VitruvCliService;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class MetaModelVitruvIntegrationService {
 
   private static final String FAT_JAR_RELATIVE_PATH =
       "vsum/target/"
           + "tools.vitruv.methodologisttemplate."
           + "vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar";
+
   private final VitruvCliService vitruvCliService;
   private final VitruvCliProperties vitruvCliProperties;
+
+  public MetaModelVitruvIntegrationService(
+      VitruvCliService vitruvCliService, VitruvCliProperties vitruvCliProperties) {
+    this.vitruvCliService = vitruvCliService;
+    this.vitruvCliProperties = vitruvCliProperties;
+  }
 
   /**
    * Returns the given byte array or an empty byte array if {@code data} is null.
@@ -190,14 +196,11 @@ public class MetaModelVitruvIntegrationService {
                 try {
                   Files.deleteIfExists(path);
                 } catch (IOException e) {
-                  throw new RuntimeException(e);
+                  throw new UncheckedIOException(e);
                 }
               });
-    } catch (RuntimeException re) {
-      if (re.getCause() instanceof IOException ioe) {
-        throw ioe;
-      }
-      throw re;
+    } catch (UncheckedIOException uio) {
+      throw uio.getCause();
     }
   }
 
@@ -257,14 +260,11 @@ public class MetaModelVitruvIntegrationService {
   private void writeReactionFiles(Path reactionsDir, List<FileStorage> reactionFiles)
       throws IOException {
 
-    List<Path> paths = new ArrayList<>(reactionFiles.size());
-
     for (int i = 0; i < reactionFiles.size(); i++) {
       FileStorage rf = reactionFiles.get(i);
       String name = safeName(rf.getFilename(), "reactions-" + i + ".reactions");
       Path p = reactionsDir.resolve(name);
       Files.write(p, nonNullBytes(rf.getData()));
-      paths.add(p);
     }
   }
 }

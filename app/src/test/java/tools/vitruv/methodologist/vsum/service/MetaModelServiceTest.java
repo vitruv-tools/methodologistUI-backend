@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -16,14 +17,21 @@ import static tools.vitruv.methodologist.messages.Error.META_MODEL_ID_NOT_FOUND_
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -46,6 +54,7 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 
 class MetaModelServiceTest {
 
+  @TempDir Path tempDir;
   private MetaModelMapper metaModelMapper;
   private MetaModelRepository metaModelRepository;
   private FileStorageRepository fileStorageRepository;
@@ -93,6 +102,7 @@ class MetaModelServiceTest {
 
     metaModelService =
         new MetaModelService(
+            metaModelService,
             metaModelMapper,
             metaModelRepository,
             fileStorageRepository,
@@ -461,7 +471,10 @@ class MetaModelServiceTest {
         .thenReturn(Optional.of(user));
     when(metaModelRepository.findById(99L)).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> metaModelService.update(email, 99L, new MetaModelPutRequest()))
+    ThrowingCallable callable =
+        () -> metaModelService.update(email, 99L, new MetaModelPutRequest());
+
+    assertThatThrownBy(callable)
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(META_MODEL_ID_NOT_FOUND_ERROR);
 
@@ -627,7 +640,9 @@ class MetaModelServiceTest {
     MetaModelService spyService = org.mockito.Mockito.spy(metaModelService);
     doThrow(new RuntimeException("clone failed")).when(spyService).clone(source);
 
-    assertThatThrownBy(() -> spyService.update(email, 200L, new MetaModelPutRequest()))
+    ThrowingCallable callable = () -> spyService.update(email, 200L, new MetaModelPutRequest());
+
+    assertThatThrownBy(callable)
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining("clone failed");
 
@@ -671,5 +686,99 @@ class MetaModelServiceTest {
     m.setUser(owner);
 
     assertThat(metaModelService.isOwnedBy(m, owner)).isTrue();
+  }
+
+  /**
+   * Verifies that finding accessible metamodels by project returns source metamodels.
+   *
+   * <p>Tests the LSP workspace preparation logic that retrieves all metamodels associated with a
+   * given VSUM, preferring source metamodels over clones.
+   */
+  @Test
+  void findAccessibleByProject_returnsSourceMetaModels() {
+
+    MetaModel source1 = new MetaModel();
+    source1.setId(1L);
+    source1.setName("SourceMM1");
+
+    MetaModel clone1 = new MetaModel();
+    clone1.setId(2L);
+    clone1.setSource(source1);
+
+    MetaModel original2 = new MetaModel();
+    original2.setId(3L);
+    original2.setName("OriginalMM2");
+    Long vsumId = 10L;
+    Vsum vsum = new Vsum();
+    vsum.setId(vsumId);
+
+    VsumMetaModel vmm1 = VsumMetaModel.builder().vsum(vsum).metaModel(clone1).build();
+    VsumMetaModel vmm2 = VsumMetaModel.builder().vsum(vsum).metaModel(original2).build();
+
+    when(vsumMetaModelRepository.findByVsumId(vsumId)).thenReturn(List.of(vmm1, vmm2));
+
+    List<MetaModel> result = metaModelService.findAccessibleByProject(vsumId);
+
+    assertThat(result).hasSize(2).contains(source1, original2).doesNotContain(clone1);
+  }
+
+  /**
+   * Verifies that finding accessible metamodels with null vsumId returns empty list.
+   *
+   * <p>Tests defensive handling when no project context is provided.
+   */
+  @Test
+  void findAccessibleByProject_withNullVsumId_returnsEmptyList() {
+    List<MetaModel> result = metaModelService.findAccessibleByProject(null);
+
+    assertThat(result).isEmpty();
+  }
+
+  private FileStorage createFileStorage(Long id, String filename, byte[] data) {
+    FileStorage file = mock(FileStorage.class);
+    when(file.getId()).thenReturn(id);
+    when(file.getFilename()).thenReturn(filename);
+    when(file.getData()).thenReturn(data);
+    return file;
+  }
+
+  /**
+   * Verifies that writing metamodels to directory creates files correctly.
+   *
+   * <p>Tests the LSP workspace initialization that writes ecore files to the filesystem for the
+   * language server to access.
+   */
+  @Test
+  void writeMetamodelsToDirectory_createsEcoreFiles() throws IOException {
+    // Setup
+    MetaModel mm1 = new MetaModel();
+    mm1.setId(1L);
+    mm1.setEcoreFile(createFileStorage(10L, "model1.ecore", "ecore content 1".getBytes()));
+
+    MetaModel mm2 = new MetaModel();
+    mm2.setId(2L);
+    mm2.setEcoreFile(createFileStorage(11L, "model2.ecore", "ecore content 2".getBytes()));
+
+    Vsum vsum = new Vsum();
+    VsumMetaModel vmm1 = VsumMetaModel.builder().vsum(vsum).metaModel(mm1).build();
+    VsumMetaModel vmm2 = VsumMetaModel.builder().vsum(vsum).metaModel(mm2).build();
+    Long vsumId = 10L;
+
+    when(vsumMetaModelRepository.findByVsumId(vsumId)).thenReturn(List.of(vmm1, vmm2));
+
+    // Inject self reference manually
+    ReflectionTestUtils.setField(metaModelService, "self", metaModelService);
+
+    File targetDir = tempDir.toFile();
+    metaModelService.writeMetamodelsToDirectory(targetDir, vsumId);
+
+    // Verify
+    File file1 = new File(targetDir, "model1.ecore");
+    File file2 = new File(targetDir, "model2.ecore");
+
+    assertThat(file1).exists();
+    assertThat(file2).exists();
+    assertThat(Files.readAllBytes(file1.toPath())).isEqualTo("ecore content 1".getBytes());
+    assertThat(Files.readAllBytes(file2.toPath())).isEqualTo("ecore content 2".getBytes());
   }
 }

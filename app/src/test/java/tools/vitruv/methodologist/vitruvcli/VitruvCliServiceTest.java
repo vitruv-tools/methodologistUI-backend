@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
@@ -142,7 +143,9 @@ class VitruvCliServiceTest {
                   .thenReturn(false);
             })) {
 
-      assertThatThrownBy(() -> service.run(folder, List.of(mm), reactionsDir))
+      ThrowingCallable callable = () -> service.run(folder, List.of(mm), reactionsDir);
+
+      assertThatThrownBy(callable)
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("timed out");
     }
@@ -168,7 +171,9 @@ class VitruvCliServiceTest {
               when(pbMock.start()).thenThrow(new IOException("cannot start process"));
             })) {
 
-      assertThatThrownBy(() -> service.run(folder, List.of(mm), reactionsDir))
+      ThrowingCallable callable = () -> service.run(folder, List.of(mm), reactionsDir);
+
+      assertThatThrownBy(callable)
           .isInstanceOf(CLIExecuteException.class)
           .hasMessageContaining("cannot start process");
     }
@@ -198,7 +203,9 @@ class VitruvCliServiceTest {
                   .thenThrow(new InterruptedException("interrupted"));
             })) {
 
-      assertThatThrownBy(() -> service.run(folder, List.of(mm), reactionsDir))
+      ThrowingCallable callable = () -> service.run(folder, List.of(mm), reactionsDir);
+
+      assertThatThrownBy(callable)
           .isInstanceOf(CLIExecuteException.class)
           .hasMessageContaining("interrupted");
     }
