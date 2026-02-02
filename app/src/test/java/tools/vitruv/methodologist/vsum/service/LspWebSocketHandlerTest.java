@@ -29,18 +29,17 @@ import tools.vitruv.methodologist.config.LspWebSocketHandler;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 
-@ExtendWith(SpringExtension.class)
-@TestPropertySource(
-    properties = {
-      "reactions.ide.jar.path=src/test/resources/lsp/tools.vitruv.dsls.reactions.ide.jar"
-    })
-
 /**
  * Unit tests for {@link LspWebSocketHandler}.
  *
  * <p>Tests WebSocket connection lifecycle, user authentication extraction, and LSP server process
  * management. Uses Mockito to mock WebSocketSession and MetaModelService dependencies.
  */
+@ExtendWith(SpringExtension.class)
+@TestPropertySource(
+    properties = {
+      "reactions.ide.jar.path=src/test/resources/lsp/tools.vitruv.dsls.reactions.ide.jar"
+    })
 class LspWebSocketHandlerTest {
 
   private MetaModelService metaModelService;
@@ -48,7 +47,7 @@ class LspWebSocketHandlerTest {
   private WebSocketSession session;
 
   @Value("${reactions.ide.jar.path}")
-  private String testJarPath; // <-- Spring injiziert das
+  private String testJarPath;
 
   /**
    * Sets up test fixtures before each test.
