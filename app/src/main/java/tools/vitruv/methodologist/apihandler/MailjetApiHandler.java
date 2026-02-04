@@ -91,13 +91,13 @@ public class MailjetApiHandler {
                         .variables(variable)
                         .from(
                             PostSendMail.Message.Email.builder()
-                                .email(fromEmail)
+                                .emailAddress(fromEmail)
                                 .name(fromName)
                                 .build())
                         .to(
                             List.of(
                                 PostSendMail.Message.Email.builder()
-                                    .email(to)
+                                    .emailAddress(to)
                                     .name(toName)
                                     .build()))
                         .build()))
@@ -152,7 +152,7 @@ public class MailjetApiHandler {
       @AllArgsConstructor
       @Builder
       public static class Email {
-        String email;
+        String emailAddress;
         String name;
       }
 

@@ -1,5 +1,7 @@
 package tools.vitruv.methodologist.apihandler;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterAll;
@@ -11,7 +13,6 @@ import org.junit.jupiter.api.Test;
 class MailjetApiHandlerTest {
   public static MockWebServer mockWebServer;
   private static GeneralWebClient generalWebClient;
-  private final String filePath = "/apihandler/";
   private MailjetApiHandler mailjetApiHandler;
 
   @BeforeAll
@@ -51,5 +52,6 @@ class MailjetApiHandlerTest {
         "dummy subject",
         7718546L,
         new MailjetApiHandler.PostSendMail.Message.VariableOTP("5", "123456"));
+    assertThat(mailjetApiHandler).isNotNull();
   }
 }
