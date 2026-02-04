@@ -154,6 +154,7 @@ public class MailjetApiHandler {
       public static class Email {
         @JsonProperty("email")
         String emailAddress;
+
         String name;
       }
 
