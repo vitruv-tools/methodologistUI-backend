@@ -1,16 +1,11 @@
 package tools.vitruv.methodologist.user.service;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
 
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.Year;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.AccessLevel;
@@ -23,21 +18,20 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.FileCopyUtils;
 import tools.vitruv.methodologist.apihandler.KeycloakApiHandler;
+import tools.vitruv.methodologist.apihandler.MailjetApiHandler;
 import tools.vitruv.methodologist.apihandler.dto.response.KeycloakWebToken;
 import tools.vitruv.methodologist.exception.EmailExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
-import tools.vitruv.methodologist.exception.StartupException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.exception.ValidationCodeExpiredException;
 import tools.vitruv.methodologist.exception.ValidationCodeNotExpiredYetException;
 import tools.vitruv.methodologist.exception.VerificationCodeException;
-import tools.vitruv.methodologist.general.service.MailService;
 import tools.vitruv.methodologist.user.controller.dto.KeycloakUser;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenByRefreshTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
+import tools.vitruv.methodologist.user.controller.dto.request.UserPutChangePasswordRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutVerifyRequest;
 import tools.vitruv.methodologist.user.controller.dto.response.UserResponse;
@@ -58,50 +52,40 @@ public class UserService {
   UserRepository userRepository;
   KeycloakService keycloakService;
   KeycloakApiHandler keycloakApiHandler;
-  MailService mailService;
-  final String sendOtpMailTemplate;
-  final String sendOtpMailSubject;
-  final int ttlMinutes;
+  String sendOtpMailSubject;
+  Long sendOtpMailTemplateId;
+  int ttlMinutes;
+  MailjetApiHandler mailjetApiHandler;
+  Long sendNewPassMailId;
+  String sendNewPassMailSubject;
 
   /**
    * Constructs a UserService with required dependencies and loads the OTP mail template.
    *
    * <p>Initializes injected collaborators and reads the OTP email template from the provided {@link
    * Resource}. The template content is stored in the instance field {@code sendOtpMailTemplate}.
-   *
-   * @param userMapper the mapper for converting between entity and DTOs
-   * @param userRepository repository for user persistence
-   * @param keycloakService service for creating/managing Keycloak users
-   * @param keycloakApiHandler handler for Keycloak API calls
-   * @param mailService service used to send emails
-   * @param sendOtpMailTemplateResource classpath resource pointing to the OTP email template
-   * @param ttlMinutes time-to-live for OTP codes in minutes
-   * @param sendOtpMailSubject email subject used when sending OTP messages
-   * @throws RuntimeException if reading the template resource fails
    */
   public UserService(
       UserMapper userMapper,
       UserRepository userRepository,
       KeycloakService keycloakService,
       KeycloakApiHandler keycloakApiHandler,
-      MailService mailService,
-      @Value("classpath:templates/mail/send_otp_message.txt") Resource sendOtpMailTemplateResource,
+      MailjetApiHandler mailjetApiHandler,
       @Value("${app.otp.ttlMinutes}") int ttlMinutes,
-      @Value("${mail.newuser.otp.subject}") String sendOtpMailSubject) {
+      @Value("${mail.newuser.otp.id}") Long sendOtpMailTemplateId,
+      @Value("${mail.newuser.otp.subject}") String sendOtpMailSubject,
+      @Value("${mail.newPass.subject}") String sendNewPassMailSubject,
+      @Value("${mail.newPass.id}") Long sendNewPassMailId) {
     this.userMapper = userMapper;
     this.userRepository = userRepository;
     this.keycloakService = keycloakService;
     this.keycloakApiHandler = keycloakApiHandler;
-    this.mailService = mailService;
     this.ttlMinutes = ttlMinutes;
     this.sendOtpMailSubject = sendOtpMailSubject;
-    Reader reader = null;
-    try {
-      reader = new InputStreamReader(sendOtpMailTemplateResource.getInputStream(), UTF_8);
-      sendOtpMailTemplate = FileCopyUtils.copyToString(reader);
-    } catch (IOException e) {
-      throw new StartupException(e.getMessage());
-    }
+    this.sendOtpMailTemplateId = sendOtpMailTemplateId;
+    this.mailjetApiHandler = mailjetApiHandler;
+    this.sendNewPassMailId = sendNewPassMailId;
+    this.sendNewPassMailSubject = sendNewPassMailSubject;
   }
 
   /**
@@ -182,7 +166,7 @@ public class UserService {
       throw new ValidationCodeNotExpiredYetException();
     }
     OtpResult otp = generateOtp(Duration.ofMinutes(ttlMinutes));
-    sendOtp(user.getEmail(), otp.code(), ttlMinutes);
+    sendOtp(user.getEmail(), user.getLastName(), otp.code(), ttlMinutes);
     user.setOtpSecret(otp.hash());
     user.setOtpExpiresAt(otp.expiresAt());
     userRepository.save(user);
@@ -250,7 +234,7 @@ public class UserService {
             .build();
     keycloakService.createUser(keycloakUser);
     OtpResult otp = generateOtp(Duration.ofMinutes(ttlMinutes));
-    sendOtp(user.getEmail(), otp.code(), ttlMinutes);
+    sendOtp(user.getEmail(), user.getLastName(), otp.code(), ttlMinutes);
     user.setOtpSecret(otp.hash());
     user.setOtpExpiresAt(otp.expiresAt());
     userRepository.save(user);
@@ -273,15 +257,16 @@ public class UserService {
    * @param otp one-time password to embed into the email template
    * @param ttlMinutes time-to-live for the OTP (in minutes) shown in the email
    */
-  public void sendOtp(String to, String otp, int ttlMinutes) {
-    String html =
-        sendOtpMailTemplate
-            .replace("{{otp}}", otp)
-            .replace("{{ttlMinutes}}", String.valueOf(ttlMinutes))
-            .replace("{{year}}", String.valueOf(Year.now().getValue()))
-            .replace("{{appName}}", "mwa.sdq.kastel.kit.edu");
-
-    mailService.send(to, sendOtpMailSubject, html);
+  public void sendOtp(String to, String toName, String otp, int ttlMinutes) {
+    mailjetApiHandler.postMail(
+        to,
+        toName,
+        sendOtpMailSubject,
+        sendOtpMailTemplateId,
+        MailjetApiHandler.PostSendMail.Message.VariableOTP.builder()
+            .otpCode(otp)
+            .ttlMinutes(String.valueOf(ttlMinutes))
+            .build());
   }
 
   /**
@@ -334,6 +319,63 @@ public class UserService {
             .findByEmailIgnoreCaseAndRemovedAtIsNull(email)
             .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
     return userMapper.toUserResponse(user);
+  }
+
+  /**
+   * Resets the password for the active user identified by the given email.
+   *
+   * <p>Finds an active (not removed) user by email, generates a secure random password, updates the
+   * password in Keycloak, and sends the new password to the user's email via Mailjet. The operation
+   * is executed within a transaction.
+   *
+   * @param email case-insensitive email address of the user to reset the password for
+   * @throws NotFoundException if no active user is found with the provided email
+   * @throws RuntimeException if updating Keycloak or sending the email fails (underlying exceptions
+   *     will propagate)
+   */
+  @Transactional
+  public void forgotPassword(String email) {
+    User user =
+        userRepository
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(email)
+            .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
+
+    String newPassword = new RandomPasswordGenerator().generateSecureRandomPassword();
+    keycloakService.setPassword(user.getUsername(), newPassword);
+
+    mailjetApiHandler.postMail(
+        user.getEmail(),
+        user.getLastName(),
+        sendNewPassMailSubject,
+        sendNewPassMailId,
+        MailjetApiHandler.PostSendMail.Message.ForgotPassword.builder()
+            .newPassword(newPassword)
+            .build());
+  }
+
+  /**
+   * Changes the password of the active user identified by the provided email.
+   *
+   * <p>Looks up an active (not removed) user by email, then delegates the password update to {@code
+   * keycloakService.setPassword}. The provided {@link UserPutChangePasswordRequest} is expected to
+   * be validated before calling this method (see its {@code @Pattern} constraint for password
+   * requirements).
+   *
+   * <p>The operation is executed within a transaction but does not modify the application user
+   * entity in the database — only the Keycloak credential is updated.
+   *
+   * @param email the case-insensitive email address of the user whose password will be changed
+   * @param userPutChangePasswordRequest the validated request DTO containing the new password
+   * @throws NotFoundException if no active user is found for the given email
+   */
+  @Transactional
+  public void changePassword(
+      String email, UserPutChangePasswordRequest userPutChangePasswordRequest) {
+    User user =
+        userRepository
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(email)
+            .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
+    keycloakService.setPassword(user.getUsername(), userPutChangePasswordRequest.getPassword());
   }
 
   /**

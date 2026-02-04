@@ -13,14 +13,14 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -31,12 +31,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.io.Resource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import tools.vitruv.methodologist.apihandler.KeycloakApiHandler;
+import tools.vitruv.methodologist.apihandler.MailjetApiHandler;
 import tools.vitruv.methodologist.apihandler.dto.response.KeycloakWebToken;
 import tools.vitruv.methodologist.exception.EmailExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -44,11 +44,11 @@ import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.exception.ValidationCodeExpiredException;
 import tools.vitruv.methodologist.exception.ValidationCodeNotExpiredYetException;
 import tools.vitruv.methodologist.exception.VerificationCodeException;
-import tools.vitruv.methodologist.general.service.MailService;
 import tools.vitruv.methodologist.user.controller.dto.KeycloakUser;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenByRefreshTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
+import tools.vitruv.methodologist.user.controller.dto.request.UserPutChangePasswordRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutVerifyRequest;
 import tools.vitruv.methodologist.user.controller.dto.response.UserResponse;
@@ -64,7 +64,7 @@ class UserServiceTest {
   @Mock private UserRepository userRepository;
   @Mock private KeycloakService keycloakService;
   @Mock private KeycloakApiHandler keycloakApiHandler;
-  @Mock private MailService mailService;
+  @Mock private MailjetApiHandler mailjetApiHandler;
 
   private UserService userService;
 
@@ -87,20 +87,8 @@ class UserServiceTest {
             "session-1",
             "openid profile email");
 
-    Resource templateResource = org.mockito.Mockito.mock(Resource.class);
-
-    String template = "<html><body>OTP: {{code}} (valid {{ttlMinutes}} min)</body></html>";
-
-    try {
-      when(templateResource.getInputStream())
-          .thenReturn(
-              new ByteArrayInputStream(template.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-
     int ttlMinutes = 5;
-    String subject = "Your OTP code";
+    String subject = "dummy-subject";
 
     userService =
         new UserService(
@@ -108,10 +96,12 @@ class UserServiceTest {
             userRepository,
             keycloakService,
             keycloakApiHandler,
-            mailService,
-            templateResource,
+            mailjetApiHandler,
             ttlMinutes,
-            subject);
+            1L,
+            subject,
+            subject,
+            1L);
   }
 
   @Test
@@ -565,6 +555,7 @@ class UserServiceTest {
     user.setVerified(false);
     user.setOtpExpiresAt(Instant.now().minusSeconds(10));
     user.setEmail("caller@example.com");
+    user.setLastName("dummy");
 
     String callerEmail = "caller@example.com";
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNullAndVerifiedIsFalse(callerEmail))
@@ -576,7 +567,7 @@ class UserServiceTest {
             "123456", BCrypt.hashpw("123456", BCrypt.gensalt()), Instant.now().plusSeconds(300));
 
     doReturn(otp).when(spyService).generateOtp(any());
-    doNothing().when(spyService).sendOtp(anyString(), anyString(), anyInt());
+    doNothing().when(spyService).sendOtp(anyString(), anyString(), anyString(), anyInt());
 
     spyService.resendOtp(callerEmail);
 
@@ -614,5 +605,123 @@ class UserServiceTest {
         .isInstanceOf(ValidationCodeNotExpiredYetException.class);
 
     verify(userRepository, never()).save(any());
+  }
+
+  @Test
+  void forgotPassword_setsNewPassword_andSendsEmail_whenUserExists() {
+    String email = "caller@example.com";
+
+    User user = new User();
+    user.setEmail(email);
+    user.setUsername("kc-user-1");
+    user.setLastName("dummy");
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    UserService spyService = spy(userService);
+
+    spyService.forgotPassword(email);
+
+    verify(keycloakService).setPassword(eq(user.getUsername()), anyString());
+  }
+
+  @Test
+  void forgotPassword_throwsNotFound_whenUserMissing() {
+    String email = "missing@example.com";
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> userService.forgotPassword(email))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(USER_EMAIL_NOT_FOUND_ERROR);
+
+    verify(keycloakService, never()).setPassword(anyString(), anyString());
+    verify(mailjetApiHandler, never()).postMail(any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void forgotPassword_propagates_whenMailjetFails_afterKeycloakPasswordSet() {
+    String email = "caller@example.com";
+
+    User user = new User();
+    user.setEmail(email);
+    user.setUsername("kc-user-1");
+    user.setLastName("dummy");
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    UserService spyService = spy(userService);
+
+    doThrow(new RuntimeException("Mailjet failed"))
+        .when(mailjetApiHandler)
+        .postMail(any(), any(), any(), any(), any());
+
+    assertThatThrownBy(() -> spyService.forgotPassword(email))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Mailjet failed");
+
+    verify(keycloakService).setPassword(eq(user.getUsername()), anyString());
+  }
+
+  @Test
+  void changePassword_setsPassword_whenUserExists() {
+    String email = "caller@example.com";
+
+    User user = new User();
+    user.setEmail(email);
+    user.setUsername("kc-user-1");
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    UserPutChangePasswordRequest req = new UserPutChangePasswordRequest();
+    req.setPassword("StrongPass#12345");
+
+    userService.changePassword(email, req);
+
+    verify(keycloakService).setPassword(user.getUsername(), req.getPassword());
+  }
+
+  @Test
+  void changePassword_throwsNotFound_whenUserMissing() {
+    String email = "missing@example.com";
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.empty());
+
+    UserPutChangePasswordRequest req = new UserPutChangePasswordRequest();
+    req.setPassword("StrongPass#12345");
+
+    assertThatThrownBy(() -> userService.changePassword(email, req))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(USER_EMAIL_NOT_FOUND_ERROR);
+
+    verify(keycloakService, never()).setPassword(anyString(), anyString());
+  }
+
+  @Test
+  void changePassword_propagates_whenKeycloakFails() {
+    String email = "caller@example.com";
+
+    User user = new User();
+    user.setEmail(email);
+    user.setUsername("kc-user-1");
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    UserPutChangePasswordRequest req = new UserPutChangePasswordRequest();
+    req.setPassword("StrongPass#12345");
+
+    doThrow(new RuntimeException("Keycloak down"))
+        .when(keycloakService)
+        .setPassword(user.getUsername(), req.getPassword());
+
+    assertThatThrownBy(() -> userService.changePassword(email, req))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Keycloak down");
   }
 }

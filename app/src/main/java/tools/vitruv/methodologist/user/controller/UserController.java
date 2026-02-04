@@ -1,10 +1,12 @@
 package tools.vitruv.methodologist.user.controller;
 
+import static tools.vitruv.methodologist.messages.Message.NEW_PASSWORD_SENT_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.RESEND_OTP_WAS_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.SIGNUP_USER_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.USER_REMOVED_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.USER_UPDATED_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VERIFIED_USER_SUCCESSFULLY;
+import static tools.vitruv.methodologist.messages.Message.YOUR_PASSWORD_CHANGE_WAS_SUCCESSFUL;
 
 import jakarta.validation.Valid;
 import java.util.List;
@@ -26,6 +28,7 @@ import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenByRefreshTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
+import tools.vitruv.methodologist.user.controller.dto.request.UserPutChangePasswordRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutVerifyRequest;
 import tools.vitruv.methodologist.user.controller.dto.response.UserResponse;
@@ -121,6 +124,51 @@ public class UserController {
     String callerEmail = authentication.getParsedToken().getEmail();
     userService.resendOtp(callerEmail);
     return ResponseTemplateDto.<Void>builder().message(RESEND_OTP_WAS_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Sends a newly generated password to the authenticated caller's email.
+   *
+   * <p>Requires the caller to have the `user` role. Extracts the caller's email from the provided
+   * {@link KeycloakAuthentication}, delegates password generation and delivery to {@code
+   * userService}, and returns a response containing a success message.
+   *
+   * @param authentication the {@link KeycloakAuthentication} containing the caller's parsed token
+   *     and email
+   * @return a {@link ResponseTemplateDto} with no payload and a success message
+   * @throws NotFoundException if no active user is found for the caller's email (propagated from
+   *     service)
+   */
+  @GetMapping("/v1/users/forgot-password")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> forgotPassword(KeycloakAuthentication authentication) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    userService.forgotPassword(callerEmail);
+    return ResponseTemplateDto.<Void>builder().message(NEW_PASSWORD_SENT_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Changes the authenticated caller's password.
+   *
+   * <p>Requires the caller to have the `user` role. Extracts the caller's email from the provided
+   * {@link KeycloakAuthentication}, delegates validation and update to {@code userService}, and
+   * returns a response containing a success message.
+   *
+   * @param authentication the {@link KeycloakAuthentication} containing the caller's parsed token
+   *     and email
+   * @param userPutChangePasswordRequest validated request DTO containing the new password
+   * @return a {@link ResponseTemplateDto} with no payload and a success message
+   * @throws RuntimeException if the service fails to change the password (underlying exceptions
+   *     will propagate)
+   */
+  @PutMapping("/v1/users/change-password")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> changePassword(
+      KeycloakAuthentication authentication,
+      @Valid @RequestBody UserPutChangePasswordRequest userPutChangePasswordRequest) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    userService.changePassword(callerEmail, userPutChangePasswordRequest);
+    return ResponseTemplateDto.<Void>builder().message(YOUR_PASSWORD_CHANGE_WAS_SUCCESSFUL).build();
   }
 
   /**

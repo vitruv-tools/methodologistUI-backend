@@ -6,6 +6,9 @@ public class Message {
   public static final String SIGNUP_USER_SUCCESSFULLY = "User successfully signed up";
   public static final String VERIFIED_USER_SUCCESSFULLY = "User successfully verified.";
   public static final String RESEND_OTP_WAS_SUCCESSFULLY = "New otp code sent to your email.";
+  public static final String NEW_PASSWORD_SENT_SUCCESSFULLY = "New password sent to your email.";
+  public static final String YOUR_PASSWORD_CHANGE_WAS_SUCCESSFUL =
+      "Your password change was successful.";
   public static final String USER_UPDATED_SUCCESSFULLY = "User successfully updated";
   public static final String USER_REMOVED_SUCCESSFULLY = "User successfully removed";
   public static final String VSUM_CREATED_SUCCESSFULLY = "Vsum successfully created";
