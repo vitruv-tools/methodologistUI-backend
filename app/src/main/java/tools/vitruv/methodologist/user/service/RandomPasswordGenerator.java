@@ -62,14 +62,7 @@ public class RandomPasswordGenerator {
   /**
    * Build a secure random password composed of:
    *
-   * <ul>
-   *   <li>2 numeric characters
-   *   <li>2 special characters
-   *   <li>2 uppercase letters
-   *   <li>4 lowercase letters
-   * </ul>
-   *
-   * The characters are collected, shuffled and concatenated into a {@link String}.
+   * <p>The characters are collected, shuffled and concatenated into a {@link String}.
    *
    * @return generated password as {@link String}
    */
