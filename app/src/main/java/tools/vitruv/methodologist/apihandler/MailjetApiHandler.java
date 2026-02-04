@@ -152,6 +152,7 @@ public class MailjetApiHandler {
       @AllArgsConstructor
       @Builder
       public static class Email {
+        @JsonProperty("email")
         String emailAddress;
         String name;
       }
