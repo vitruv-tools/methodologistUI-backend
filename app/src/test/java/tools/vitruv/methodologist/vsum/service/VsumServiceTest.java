@@ -841,9 +841,9 @@ class VsumServiceTest {
     Map<String, byte[]> entries = unzip(zip);
     assertThat(entries)
         .containsKeys(
-            "methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar", "Dockerfile");
-    assertThat(entries.get("methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar"))
-        .isEqualTo(jarBytes);
+            "methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar", "Dockerfile")
+        .containsEntry(
+            "methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar", jarBytes);
   }
 
   @Test
@@ -999,10 +999,11 @@ class VsumServiceTest {
   @Test
   void dockerfileBytes_shouldBeDeterministicAndContainExpectedInstructions() {
     String dockerfile = new String(service.dockerfileBytes(), StandardCharsets.UTF_8);
-    assertThat(dockerfile).contains("FROM eclipse-temurin:17-jre-alpine");
-    assertThat(dockerfile).contains("WORKDIR /app");
-    assertThat(dockerfile).contains("COPY app.jar /app/app.jar");
-    assertThat(dockerfile).contains("EXPOSE 8080");
-    assertThat(dockerfile).contains("ENTRYPOINT");
+    assertThat(dockerfile)
+        .contains("FROM eclipse-temurin:17-jre-alpine")
+        .contains("WORKDIR /app")
+        .contains("COPY app.jar /app/app.jar")
+        .contains("EXPOSE 8080")
+        .contains("ENTRYPOINT");
   }
 }
