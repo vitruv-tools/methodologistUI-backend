@@ -7,13 +7,18 @@ import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCES
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
 import jakarta.validation.Valid;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
@@ -53,9 +58,10 @@ import tools.vitruv.methodologist.vsum.service.MetamodelBuildService.BuildResult
  */
 @Service
 @Slf4j
-@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class MetaModelService {
+
+  MetaModelService self;
   MetaModelMapper metaModelMapper;
   MetaModelRepository metaModelRepository;
   FileStorageRepository fileStorageRepository;
@@ -63,6 +69,37 @@ public class MetaModelService {
   MetamodelBuildService metamodelBuildService;
   FileStorageService fileStorageService;
   VsumMetaModelRepository vsumMetaModelRepository;
+
+  /**
+   * Constructs a new MetaModelService with all required dependencies.
+   *
+   * @param self lazy-loaded self-reference for transactional method calls
+   * @param metaModelMapper mapper for converting between entities and DTOs
+   * @param metaModelRepository repository for metamodel persistence
+   * @param fileStorageRepository repository for file storage operations
+   * @param userRepository repository for user data access
+   * @param metamodelBuildService service for building metamodel artifacts
+   * @param fileStorageService service for file storage management
+   * @param vsumMetaModelRepository repository for VSUM-metamodel relationships
+   */
+  public MetaModelService(
+      @Lazy MetaModelService self,
+      MetaModelMapper metaModelMapper,
+      MetaModelRepository metaModelRepository,
+      FileStorageRepository fileStorageRepository,
+      UserRepository userRepository,
+      MetamodelBuildService metamodelBuildService,
+      FileStorageService fileStorageService,
+      VsumMetaModelRepository vsumMetaModelRepository) {
+    this.self = self;
+    this.metaModelMapper = metaModelMapper;
+    this.metaModelRepository = metaModelRepository;
+    this.fileStorageRepository = fileStorageRepository;
+    this.userRepository = userRepository;
+    this.metamodelBuildService = metamodelBuildService;
+    this.fileStorageService = fileStorageService;
+    this.vsumMetaModelRepository = vsumMetaModelRepository;
+  }
 
   /**
    * Saves a new MetaModel linked to the given user and the uploaded Ecore/GenModel files. Persists
@@ -295,4 +332,71 @@ public class MetaModelService {
 
   /** Pair of raw Ecore and GenModel file data. */
   private record FilePair(byte[] ecore, byte[] gen) {}
+
+  /**
+   * Finds all metamodels accessible by a given project.
+   *
+   * <p>This method retrieves:
+   *
+   * <ul>
+   *   <li>All metamodels associated with the project via VSUM (if vsumId is provided)
+   * </ul>
+   *
+   * <p>Duplicates are automatically removed by using a Set internally. This method is primarily
+   * used by the Language Server to determine which metamodels should be loaded for a specific
+   * editing session.
+   *
+   * @param vsumId the ID of the project/VSUM whose metamodels should be included (can be null)
+   * @return a list of unique MetaModel instances accessible by the user and/or project
+   */
+  @Transactional(readOnly = true)
+  public List<MetaModel> findAccessibleByProject(Long vsumId) {
+    log.info("findAccessibleByProject called with vsumId: {}", vsumId);
+
+    if (vsumId == null) {
+      log.warn("vsumId is null, returning empty list");
+      return List.of();
+    }
+
+    List<VsumMetaModel> vsumMetaModels = vsumMetaModelRepository.findByVsumId(vsumId);
+    log.info("Found {} VsumMetaModel entries for vsumId {}", vsumMetaModels.size(), vsumId);
+
+    Set<MetaModel> metamodels = new LinkedHashSet<>();
+
+    for (VsumMetaModel vmm : vsumMetaModels) {
+      MetaModel mm = vmm.getMetaModel();
+      log.info(
+          "Processing MetaModel id={}, name={}, hasSource={}",
+          mm.getId(),
+          mm.getName(),
+          mm.getSource() != null);
+
+      if (mm.getSource() != null) {
+        metamodels.add(mm.getSource());
+      } else {
+        metamodels.add(mm);
+      }
+    }
+
+    log.info("Returning {} metamodels", metamodels.size());
+    return new ArrayList<>(metamodels);
+  }
+
+  /**
+   * Writes all accessible metamodels to the specified directory for LSP workspace initialization.
+   *
+   * @param targetDir directory where .ecore files should be writtenyy
+   * @param vsumId project/VSUM whose metamodels should be included
+   * @throws IOException if file writing fails
+   */
+  @Transactional(readOnly = true)
+  public void writeMetamodelsToDirectory(File targetDir, Long vsumId) throws IOException {
+    List<MetaModel> metamodels = self.findAccessibleByProject(vsumId);
+
+    for (MetaModel mm : metamodels) {
+      String fileName = mm.getEcoreFile().getFilename();
+      File ecoreFile = new File(targetDir, fileName);
+      Files.write(ecoreFile.toPath(), mm.getEcoreFile().getData());
+    }
+  }
 }
