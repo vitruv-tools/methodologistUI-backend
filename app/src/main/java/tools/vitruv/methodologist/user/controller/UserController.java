@@ -27,6 +27,7 @@ import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenByRefreshTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenRequest;
+import tools.vitruv.methodologist.user.controller.dto.request.UserPostForgotPasswordRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutChangePasswordRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
@@ -127,23 +128,24 @@ public class UserController {
   }
 
   /**
-   * Sends a newly generated password to the authenticated caller's email.
+   * Initiates a password reset for the specified email address.
    *
-   * <p>Requires the caller to have the `user` role. Extracts the caller's email from the provided
-   * {@link KeycloakAuthentication}, delegates password generation and delivery to {@code
-   * userService}, and returns a response containing a success message.
+   * <p>Validates the incoming {@link UserPostForgotPasswordRequest}, delegates to {@code
+   * userService.forgotPassword(...)} to generate and send a new password, and returns a response
+   * with a success message when the email has been sent.
    *
-   * @param authentication the {@link KeycloakAuthentication} containing the caller's parsed token
-   *     and email
-   * @return a {@link ResponseTemplateDto} with no payload and a success message
-   * @throws NotFoundException if no active user is found for the caller's email (propagated from
-   *     service)
+   * @param userPostForgotPasswordRequest the validated request containing the email to reset; must
+   *     not be null or blank
+   * @return a {@link ResponseTemplateDto} with no payload and a success message ({@code
+   *     NEW_PASSWORD_SENT_SUCCESSFULLY})
+   * @throws jakarta.validation.ConstraintViolationException if validation of the request fails
+   * @throws RuntimeException if the password reset process fails (underlying exceptions will
+   *     propagate)
    */
-  @GetMapping("/v1/users/forgot-password")
-  @PreAuthorize("hasRole('user')")
-  public ResponseTemplateDto<Void> forgotPassword(KeycloakAuthentication authentication) {
-    String callerEmail = authentication.getParsedToken().getEmail();
-    userService.forgotPassword(callerEmail);
+  @PostMapping("/v1/users/forgot-password")
+  public ResponseTemplateDto<Void> forgotPassword(
+      @Valid @RequestBody UserPostForgotPasswordRequest userPostForgotPasswordRequest) {
+    userService.forgotPassword(userPostForgotPasswordRequest);
     return ResponseTemplateDto.<Void>builder().message(NEW_PASSWORD_SENT_SUCCESSFULLY).build();
   }
 

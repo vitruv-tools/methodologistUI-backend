@@ -30,6 +30,7 @@ import tools.vitruv.methodologist.exception.VerificationCodeException;
 import tools.vitruv.methodologist.user.controller.dto.KeycloakUser;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenByRefreshTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenRequest;
+import tools.vitruv.methodologist.user.controller.dto.request.UserPostForgotPasswordRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutChangePasswordRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
@@ -221,6 +222,11 @@ public class UserService {
   public User create(UserPostRequest userPostRequest) {
     checkEmailExistsOrThrow(userPostRequest.getEmail());
     User user = userMapper.toUser(userPostRequest);
+    OtpResult otp = generateOtp(Duration.ofMinutes(ttlMinutes));
+    sendOtp(user.getEmail(), user.getLastName(), otp.code(), ttlMinutes);
+    user.setOtpSecret(otp.hash());
+    user.setOtpExpiresAt(otp.expiresAt());
+    userRepository.save(user);
 
     KeycloakUser keycloakUser =
         KeycloakUser.builder()
@@ -233,11 +239,6 @@ public class UserService {
             .roleType(user.getRoleType())
             .build();
     keycloakService.createUser(keycloakUser);
-    OtpResult otp = generateOtp(Duration.ofMinutes(ttlMinutes));
-    sendOtp(user.getEmail(), user.getLastName(), otp.code(), ttlMinutes);
-    user.setOtpSecret(otp.hash());
-    user.setOtpExpiresAt(otp.expiresAt());
-    userRepository.save(user);
     return user;
   }
 
@@ -328,16 +329,17 @@ public class UserService {
    * password in Keycloak, and sends the new password to the user's email via Mailjet. The operation
    * is executed within a transaction.
    *
-   * @param email case-insensitive email address of the user to reset the password for
+   * @param userPostForgotPasswordRequest case-insensitive email address of the user to reset the
+   *     password for
    * @throws NotFoundException if no active user is found with the provided email
    * @throws RuntimeException if updating Keycloak or sending the email fails (underlying exceptions
    *     will propagate)
    */
   @Transactional
-  public void forgotPassword(String email) {
+  public void forgotPassword(UserPostForgotPasswordRequest userPostForgotPasswordRequest) {
     User user =
         userRepository
-            .findByEmailIgnoreCaseAndRemovedAtIsNull(email)
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(userPostForgotPasswordRequest.getEmail())
             .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
 
     String newPassword = new RandomPasswordGenerator().generateSecureRandomPassword();
