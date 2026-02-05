@@ -47,6 +47,7 @@ import tools.vitruv.methodologist.exception.VerificationCodeException;
 import tools.vitruv.methodologist.user.controller.dto.KeycloakUser;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenByRefreshTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenRequest;
+import tools.vitruv.methodologist.user.controller.dto.request.UserPostForgotPasswordRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutChangePasswordRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
@@ -621,7 +622,9 @@ class UserServiceTest {
 
     UserService spyService = spy(userService);
 
-    spyService.forgotPassword(email);
+    UserPostForgotPasswordRequest userPostForgotPasswordRequest =
+        UserPostForgotPasswordRequest.builder().email(email).build();
+    spyService.forgotPassword(userPostForgotPasswordRequest);
 
     verify(keycloakService).setPassword(eq(user.getUsername()), anyString());
   }
@@ -633,7 +636,9 @@ class UserServiceTest {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> userService.forgotPassword(email))
+    UserPostForgotPasswordRequest userPostForgotPasswordRequest =
+        UserPostForgotPasswordRequest.builder().email(email).build();
+    assertThatThrownBy(() -> userService.forgotPassword(userPostForgotPasswordRequest))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(USER_EMAIL_NOT_FOUND_ERROR);
 
@@ -659,7 +664,9 @@ class UserServiceTest {
         .when(mailjetApiHandler)
         .postMail(any(), any(), any(), any(), any());
 
-    assertThatThrownBy(() -> spyService.forgotPassword(email))
+    UserPostForgotPasswordRequest userPostForgotPasswordRequest =
+        UserPostForgotPasswordRequest.builder().email(email).build();
+    assertThatThrownBy(() -> spyService.forgotPassword(userPostForgotPasswordRequest))
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining("Mailjet failed");
 
