@@ -446,8 +446,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
 
       Object projectIdAttr = session.getAttributes().get("vsumId");
       if (projectIdAttr != null) {
-        Long projectId = Long.parseLong(projectIdAttr.toString());
-        return projectId;
+        return Long.parseLong(projectIdAttr.toString());
       }
 
       logger.debug("No vsumId found in WebSocket session (this is optional)");
