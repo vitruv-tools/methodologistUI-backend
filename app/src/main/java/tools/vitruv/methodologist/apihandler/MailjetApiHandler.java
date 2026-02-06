@@ -109,7 +109,7 @@ public class MailjetApiHandler {
         .retrieve()
         .bodyToMono(String.class)
         .doOnError(
-            (exception) -> {
+            exception -> {
               throw new UncheckedRuntimeException(exception.getMessage());
             })
         .block();
