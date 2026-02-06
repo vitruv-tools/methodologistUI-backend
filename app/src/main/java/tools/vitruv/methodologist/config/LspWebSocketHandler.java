@@ -49,7 +49,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
   private final MetaModelService metaModelService;
 
   // Configuration
-  private static final long TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes inactivity timeout
+  private static final long TIMEOUT_MS = 10L * 60 * 1000; // 10 minutes inactivity timeout
   private static final long CLEANUP_INTERVAL_SECONDS = 60; // Check every 60 seconds
 
   /**
