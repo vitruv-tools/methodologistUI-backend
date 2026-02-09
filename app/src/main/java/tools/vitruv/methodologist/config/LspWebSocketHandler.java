@@ -39,18 +39,16 @@ import tools.vitruv.methodologist.vsum.service.MetaModelService;
 @Component
 public class LspWebSocketHandler extends TextWebSocketHandler {
 
-  @Value("${reactions.ide.jar.path}")
-  private Resource jarResource;
-
   private static final Logger logger = LoggerFactory.getLogger(LspWebSocketHandler.class);
+  private static final long TIMEOUT_MS = 10L * 60 * 1000; // 10 minutes inactivity timeout
+  private static final long CLEANUP_INTERVAL_SECONDS = 60; // Check every 60 seconds
   private final ConcurrentHashMap<String, LspServerProcess> sessions = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, Long> lastActivity = new ConcurrentHashMap<>();
   private final ScheduledExecutorService cleanupScheduler = Executors.newScheduledThreadPool(1);
   private final MetaModelService metaModelService;
 
-  // Configuration
-  private static final long TIMEOUT_MS = 10L * 60 * 1000; // 10 minutes inactivity timeout
-  private static final long CLEANUP_INTERVAL_SECONDS = 60; // Check every 60 seconds
+  @Value("${reactions.ide.jar.path}")
+  private Resource jarResource;
 
   /**
    * Constructs a new LspWebSocketHandler with the required metamodel service.
@@ -75,7 +73,11 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
 
   /** Loads JarPath from properties File. */
   private String getJarPath() throws IOException {
-    return jarResource.getFile().getAbsolutePath();
+    try (var in = jarResource.getInputStream()) {
+      Path tempFile = Files.createTempFile("reactions-ide-", ".jar");
+      Files.copy(in, tempFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      return tempFile.toAbsolutePath().toString();
+    }
   }
 
   @Override
@@ -115,11 +117,22 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
 
     String javaHome = System.getProperty("java.home");
     String javaExecutable = javaHome + File.separator + "bin" + File.separator + "java";
-    ProcessBuilder pb = new ProcessBuilder(javaExecutable, "-jar", jarPath, "-log", "-trace");
+    ProcessBuilder pb = new ProcessBuilder(javaExecutable, "-jar", jarPath);
     pb.directory(userProject.toFile());
     pb.redirectErrorStream(true);
 
     Process process = pb.start();
+
+    new Thread(
+            () -> {
+              try {
+                int code = process.waitFor();
+                logger.error("LSP process exited for session {} with code {}", sessionId, code);
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+              }
+            })
+        .start();
 
     BufferedWriter writer =
         new BufferedWriter(
@@ -328,6 +341,47 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
     return info;
   }
 
+  private Long extractProjectId(WebSocketSession session) {
+    try {
+      String query = session.getUri().getQuery();
+      if (query != null && query.contains("vsumId=")) {
+        String projectIdStr = extractQueryParam(query, "vsumId");
+        if (projectIdStr != null) {
+          Long projectId = Long.parseLong(projectIdStr);
+          logger.debug("Extracted vsumId from query parameter: {}", projectId);
+          return projectId;
+        }
+      }
+
+      Object projectIdAttr = session.getAttributes().get("vsumId");
+      if (projectIdAttr != null) {
+        return Long.parseLong(projectIdAttr.toString());
+      }
+
+      logger.debug("No vsumId found in WebSocket session (this is optional)");
+      return null;
+
+    } catch (Exception e) {
+      logger.error("Error extracting vsumId from WebSocket session", e);
+      return null;
+    }
+  }
+
+  private String extractQueryParam(String query, String paramName) {
+    if (query == null || paramName == null) {
+      return null;
+    }
+
+    String[] params = query.split("&");
+    for (String param : params) {
+      String[] keyValue = param.split("=", 2);
+      if (keyValue.length == 2 && keyValue[0].equals(paramName)) {
+        return keyValue[1];
+      }
+    }
+    return null;
+  }
+
   private class LspServerProcess {
     final WebSocketSession session;
     final Process process;
@@ -417,6 +471,9 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
 
       // CRITICAL: Wait for process to actually exit (especially important on Windows)
       try {
+        if (!process.isAlive()) {
+          throw new IOException("LSP process is not alive (already exited)");
+        }
         boolean exited = process.waitFor(5, TimeUnit.SECONDS);
         if (!exited) {
           logger.warn(
@@ -428,48 +485,9 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         Thread.currentThread().interrupt();
         logger.warn("Interrupted while waiting for LSP process to exit");
         process.destroyForcibly();
+      } catch (IOException e) {
+        throw new RuntimeException(e);
       }
     }
-  }
-
-  private Long extractProjectId(WebSocketSession session) {
-    try {
-      String query = session.getUri().getQuery();
-      if (query != null && query.contains("vsumId=")) {
-        String projectIdStr = extractQueryParam(query, "vsumId");
-        if (projectIdStr != null) {
-          Long projectId = Long.parseLong(projectIdStr);
-          logger.debug("Extracted vsumId from query parameter: {}", projectId);
-          return projectId;
-        }
-      }
-
-      Object projectIdAttr = session.getAttributes().get("vsumId");
-      if (projectIdAttr != null) {
-        return Long.parseLong(projectIdAttr.toString());
-      }
-
-      logger.debug("No vsumId found in WebSocket session (this is optional)");
-      return null;
-
-    } catch (Exception e) {
-      logger.error("Error extracting vsumId from WebSocket session", e);
-      return null;
-    }
-  }
-
-  private String extractQueryParam(String query, String paramName) {
-    if (query == null || paramName == null) {
-      return null;
-    }
-
-    String[] params = query.split("&");
-    for (String param : params) {
-      String[] keyValue = param.split("=", 2);
-      if (keyValue.length == 2 && keyValue[0].equals(paramName)) {
-        return keyValue[1];
-      }
-    }
-    return null;
   }
 }
