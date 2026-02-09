@@ -7,6 +7,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -85,6 +87,10 @@ class LspWebSocketHandlerTest {
 
     MetaModel metamodel = createMetaModel(1L, "test.ecore", "test content".getBytes());
     when(metaModelService.findAccessibleByProject(1L)).thenReturn(List.of(metamodel));
+    Path fakeJar = Files.createTempFile("reactions-ide-", ".jar");
+    Files.write(fakeJar, "not-a-real-jar".getBytes());
+
+    ReflectionTestUtils.setField(handler, "jarResource", new FileSystemResource(fakeJar.toFile()));
 
     handler.afterConnectionEstablished(session);
 
@@ -103,6 +109,10 @@ class LspWebSocketHandlerTest {
     URI uri = new URI("ws://localhost/lsp?userId=99&vsumId=5");
     when(session.getUri()).thenReturn(uri);
     when(metaModelService.findAccessibleByProject(5L)).thenReturn(Collections.emptyList());
+    Path fakeJar = Files.createTempFile("reactions-ide-", ".jar");
+    Files.write(fakeJar, "not-a-real-jar".getBytes());
+
+    ReflectionTestUtils.setField(handler, "jarResource", new FileSystemResource(fakeJar.toFile()));
 
     handler.afterConnectionEstablished(session);
 
@@ -127,6 +137,10 @@ class LspWebSocketHandlerTest {
     when(session.getPrincipal()).thenReturn(jwtToken);
 
     when(metaModelService.findAccessibleByProject(3L)).thenReturn(Collections.emptyList());
+    Path fakeJar = Files.createTempFile("reactions-ide-", ".jar");
+    Files.write(fakeJar, "not-a-real-jar".getBytes());
+
+    ReflectionTestUtils.setField(handler, "jarResource", new FileSystemResource(fakeJar.toFile()));
 
     handler.afterConnectionEstablished(session);
 
@@ -150,6 +164,10 @@ class LspWebSocketHandlerTest {
     when(session.getAttributes()).thenReturn(attributes);
 
     when(metaModelService.findAccessibleByProject(2L)).thenReturn(Collections.emptyList());
+    Path fakeJar = Files.createTempFile("reactions-ide-", ".jar");
+    Files.write(fakeJar, "not-a-real-jar".getBytes());
+
+    ReflectionTestUtils.setField(handler, "jarResource", new FileSystemResource(fakeJar.toFile()));
 
     handler.afterConnectionEstablished(session);
 
@@ -170,6 +188,10 @@ class LspWebSocketHandlerTest {
 
     MetaModel mm1 = createMetaModel(1L, "model1.ecore", "content1".getBytes());
     MetaModel mm2 = createMetaModel(2L, "model2.ecore", "content2".getBytes());
+    Path fakeJar = Files.createTempFile("reactions-ide-", ".jar");
+    Files.write(fakeJar, "not-a-real-jar".getBytes());
+
+    ReflectionTestUtils.setField(handler, "jarResource", new FileSystemResource(fakeJar.toFile()));
 
     when(metaModelService.findAccessibleByProject(10L)).thenReturn(List.of(mm1, mm2));
 
