@@ -1,7 +1,6 @@
 package tools.vitruv.methodologist.vitruvcli;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -22,26 +21,32 @@ import tools.vitruv.methodologist.exception.CLIExecuteException;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VitruvCliService {
+
   VitruvCliProperties properties;
 
   /**
-   * Executes Vitruv-CLI for the given project folder, metamodels and reaction file.
+   * Invoke the external Vitruv-CLI process to build models.
    *
-   * @param projectFolder the folder passed to {@code -f/--folder}
-   * @param metamodels a list of metamodel inputs (ecore + genmodel pairs)
-   * @param reactionFile the reaction file passed to {@code -r/--reation}
-   * @return the result of the CLI execution
+   * <p>Constructs the command line for Vitruv-CLI using the provided properties and the list of
+   * metamodel inputs. The {@code -m} argument is a semicolon-separated list of {@code
+   * ecore,genmodel} filename pairs. The {@code -r} argument is set from the provided {@code
+   * reactionsDir} path's filename (the CLI is executed with {@code jobDir} as working directory).
+   *
+   * @param jobDir the working directory for the CLI invocation; created if missing
+   * @param metamodels list of metamodel input pairs (ecore + genmodel); must not be {@code null}
+   * @param reactionsDir path referencing the reactions file or directory (its filename is passed to
+   *     the CLI)
+   * @return a {@link VitruvCliResult} containing the process exit code and captured stdout/stderr
+   * @throws CLIExecuteException on I/O or interruption errors while executing the CLI
    */
-  public VitruvCliResult run(
-      Path projectFolder, List<MetamodelInput> metamodels, Path reactionFile) {
-
-    if (metamodels == null || metamodels.isEmpty()) {
-      throw new IllegalArgumentException("At least one metamodel must be provided");
-    }
-
+  public VitruvCliResult run(Path jobDir, List<MetamodelInput> metamodels, Path reactionsDir) {
     String metamodelArg =
         metamodels.stream()
-            .map(mm -> mm.getEcorePath() + "," + mm.getGenmodelPath())
+            .map(
+                metamodelInput ->
+                    metamodelInput.getEcorePath().getFileName()
+                        + ","
+                        + metamodelInput.getGenmodelPath().getFileName())
             .collect(Collectors.joining(";"));
 
     List<String> command =
@@ -49,29 +54,34 @@ public class VitruvCliService {
             properties.getBinary(),
             "-jar",
             properties.getJar(),
-            "--folder",
-            projectFolder.toString(),
-            "--metamodel",
+            "-f",
+            ".",
+            "-m",
             metamodelArg,
-            "--reaction",
-            reactionFile.toString(),
-            "--userinteractor",
+            "-rs",
+            reactionsDir.getFileName().toString(),
+            "-u",
             "default");
 
     log.info("Running Vitruv-CLI with command: {}", String.join(" ", command));
 
     try {
-      Path workDir = Path.of(properties.getWorkingDir());
-      Files.createDirectories(workDir);
+      Files.createDirectories(jobDir);
 
       ProcessBuilder processBuilder = new ProcessBuilder(command);
-      processBuilder.directory(workDir.toFile());
+      processBuilder.directory(jobDir.toFile());
       processBuilder.redirectErrorStream(false);
 
       Process process = processBuilder.start();
 
-      boolean finished = process.waitFor(properties.getTimeoutSeconds(), TimeUnit.SECONDS);
+      var outFuture =
+          java.util.concurrent.CompletableFuture.supplyAsync(
+              () -> readStream(process.getInputStream()));
+      var errFuture =
+          java.util.concurrent.CompletableFuture.supplyAsync(
+              () -> readStream(process.getErrorStream()));
 
+      boolean finished = process.waitFor(properties.getTimeoutSeconds(), TimeUnit.SECONDS);
       if (!finished) {
         process.destroyForcibly();
         throw new IllegalStateException(
@@ -79,8 +89,8 @@ public class VitruvCliService {
       }
 
       int exitCode = process.exitValue();
-      String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-      String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+      String stdout = outFuture.join();
+      String stderr = errFuture.join();
 
       log.info(
           "Vitruv-CLI finished with exitCode={}, stdout={}, stderr={}",
@@ -89,9 +99,18 @@ public class VitruvCliService {
           truncate(stderr));
 
       return VitruvCliResult.builder().exitCode(exitCode).stdout(stdout).stderr(stderr).build();
+
     } catch (IOException | InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new CLIExecuteException(e.getMessage());
+    }
+  }
+
+  private String readStream(java.io.InputStream in) {
+    try {
+      return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+    } catch (IOException e) {
+      return "FAILED_TO_READ_STREAM: " + e.getMessage();
     }
   }
 
@@ -129,7 +148,7 @@ public class VitruvCliService {
     String stderr;
 
     public boolean isSuccess() {
-      return exitCode == 0 && (stderr == null || stderr.isBlank());
+      return exitCode == 0;
     }
   }
 }

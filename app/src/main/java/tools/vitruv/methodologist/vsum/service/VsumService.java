@@ -1,19 +1,27 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import static tools.vitruv.methodologist.messages.Error.METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -23,11 +31,16 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.exception.BuildArtifactCreationException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
+import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
+import tools.vitruv.methodologist.vsum.build.BuildCoordinator;
+import tools.vitruv.methodologist.vsum.build.BuildKey;
+import tools.vitruv.methodologist.vsum.build.InputsFingerprint;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
@@ -39,6 +52,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
+import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
@@ -75,6 +89,7 @@ public class VsumService {
   MetaModelRelationRepository metaModelRelationRepository;
   VsumHistoryService vsumHistoryService;
   MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
+  BuildCoordinator buildCoordinator;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -121,19 +136,20 @@ public class VsumService {
   }
 
   /**
-   * Updates a VSUM owned by the caller and synchronizes its meta-models and meta-model relations
-   * with the provided request.
+   * Update a VSUM owned by the caller and synchronize its meta-models and relations to match the
+   * provided {@link VsumSyncChangesPutRequest}.
    *
-   * <p>Associations not present in the request are removed; missing associations are created. If
-   * collections in the request are null or empty, the corresponding associations are cleared. The
-   * operation is transactional.
+   * <p>The method verifies the caller's membership and throws a {@link NotFoundException} when the
+   * VSUM or membership is not found. Actual synchronization and persistence are delegated to {@link
+   * #applySyncChanges(Vsum, User, VsumSyncChangesPutRequest, boolean)}; when changes occur a
+   * history entry may be created.
    *
-   * @param callerEmail the authenticated user's email; must own the VSUM
-   * @param id the VSUM identifier to update
-   * @param vsumSyncChangesPutRequest the desired state (meta-model IDs and relation definitions)
+   * @param callerEmail the authenticated user's email; must be a member of the VSUM
+   * @param id the identifier of the VSUM to update
+   * @param vsumSyncChangesPutRequest DTO describing desired meta-model ids and relation
+   *     definitions; may be {@code null}
    * @return the persisted, updated {@link Vsum}
-   * @throws tools.vitruv.methodologist.exception.NotFoundException if the VSUM does not exist, is
-   *     removed, or does not belong to the caller
+   * @throws NotFoundException if the VSUM or the caller's membership is not found
    */
   @Transactional
   public Vsum update(
@@ -144,108 +160,8 @@ public class VsumService {
                 id, callerEmail)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
 
-    List<MetaModelRelationRequest> desiredMetaModelRelation =
-        vsumSyncChangesPutRequest.getMetaModelRelationRequests() == null
-            ? List.of()
-            : vsumSyncChangesPutRequest.getMetaModelRelationRequests().stream()
-                .filter(
-                    metaModelRelationRequest ->
-                        metaModelRelationRequest != null
-                            && metaModelRelationRequest.getSourceId() != null
-                            && metaModelRelationRequest.getTargetId() != null)
-                .toList();
-
-    List<MetaModelRelation> existingMetaModelRelation =
-        metaModelRelationRepository.findAllByVsum(vsumUser.getVsum());
-
-    Set<String> desiredMetaModelRelationPairs =
-        desiredMetaModelRelation.stream()
-            .map(
-                metaModelRelationRequest ->
-                    metaModelRelationRequest.getSourceId()
-                        + ":"
-                        + metaModelRelationRequest.getTargetId())
-            .collect(Collectors.toSet());
-
-    Map<String, MetaModelRelation> existingByPair = new HashMap<>();
-    for (MetaModelRelation metaModelRelation : existingMetaModelRelation) {
-      String metaModelRelationPairKey =
-          metaModelRelation.getSource().getSource().getId()
-              + ":"
-              + metaModelRelation.getTarget().getSource().getId();
-      existingByPair.put(metaModelRelationPairKey, metaModelRelation);
-    }
-
-    Set<String> existingMetaModelRelationPairs = new HashSet<>(existingByPair.keySet());
-
-    Set<String> toRemoveMetaModelRelation = new HashSet<>(existingMetaModelRelationPairs);
-    toRemoveMetaModelRelation.removeAll(desiredMetaModelRelationPairs);
-
-    List<Long> metaModelIds = vsumSyncChangesPutRequest.getMetaModelIds();
-    List<VsumMetaModel> existingVsumMetaModel =
-        vsumMetaModelRepository.findAllByVsum(vsumUser.getVsum());
-
-    Set<Long> existingVsumMetaModelIds =
-        existingVsumMetaModel.stream()
-            .map(vsumMetaModel -> vsumMetaModel.getMetaModel().getSource().getId())
-            .collect(Collectors.toSet());
-    Set<Long> desiredMetaModelIds =
-        metaModelIds == null
-            ? Set.of()
-            : metaModelIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
-    Set<Long> toRemoveVsumMetaModelIds = new HashSet<>(existingVsumMetaModelIds);
-    toRemoveVsumMetaModelIds.removeAll(desiredMetaModelIds);
-
-    Set<Long> toAddVsumMetaModelIds = new HashSet<>(desiredMetaModelIds);
-    toAddVsumMetaModelIds.removeAll(existingVsumMetaModelIds);
-
-    Set<String> toAddMetaModelRelation = new HashSet<>(desiredMetaModelRelationPairs);
-    toAddMetaModelRelation.removeAll(existingMetaModelRelationPairs);
-
-    if (!toRemoveMetaModelRelation.isEmpty()
-        || !toRemoveVsumMetaModelIds.isEmpty()
-        || !toAddVsumMetaModelIds.isEmpty()
-        || !toAddMetaModelRelation.isEmpty()) {
-      vsumHistoryService.create(vsumUser.getVsum(), vsumUser.getUser());
-    }
-
-    if (!toRemoveMetaModelRelation.isEmpty()) {
-      List<MetaModelRelation> deletions =
-          toRemoveMetaModelRelation.stream().map(existingByPair::get).toList();
-      metaModelRelationService.delete(deletions);
-      deletions.forEach(vsumUser.getVsum().getMetaModelRelations()::remove);
-    }
-
-    if (!toRemoveVsumMetaModelIds.isEmpty()) {
-      List<VsumMetaModel> toDeleteVsumMetaModel =
-          existingVsumMetaModel.stream()
-              .filter(
-                  vsumMetaModel ->
-                      toRemoveVsumMetaModelIds.contains(
-                          vsumMetaModel.getMetaModel().getSource().getId()))
-              .toList();
-      vsumMetaModelService.delete(vsumUser.getVsum(), toDeleteVsumMetaModel);
-      toDeleteVsumMetaModel.forEach(vsumUser.getVsum().getVsumMetaModels()::remove);
-    }
-
-    if (!toAddVsumMetaModelIds.isEmpty()) {
-      vsumMetaModelService.create(vsumUser.getVsum(), toAddVsumMetaModelIds);
-    }
-
-    if (!toAddMetaModelRelation.isEmpty()) {
-      List<MetaModelRelationRequest> creations =
-          desiredMetaModelRelation.stream()
-              .filter(
-                  metaModelRelationRequest ->
-                      toAddMetaModelRelation.contains(
-                          metaModelRelationRequest.getSourceId()
-                              + ":"
-                              + metaModelRelationRequest.getTargetId()))
-              .toList();
-      metaModelRelationService.create(vsumUser.getVsum(), creations);
-    }
-    vsumRepository.save(vsumUser.getVsum());
-    return vsumUser.getVsum();
+    return applySyncChanges(
+        vsumUser.getVsum(), vsumUser.getUser(), vsumSyncChangesPutRequest, true);
   }
 
   /**
@@ -431,14 +347,29 @@ public class VsumService {
   }
 
   /**
-   * Builds/synchronizes a VSUM via Vitruv-CLI.
+   * Builds the VSUM project (if necessary) and returns a ZIP archive containing the generated fat
+   * JAR and a standard Dockerfile.
    *
-   * @param callerEmail authenticated user's email (must be member of the VSUM)
-   * @param id VSUM identifier
-   * @throws AccessDeniedException if caller is not a member of the VSUM
-   * @throws NotFoundException if VSUM or its relations/files are not properly defined
+   * <p>Access is restricted to users who are members of the given VSUM. If the caller does not have
+   * access, an {@link AccessDeniedException} is thrown.
+   *
+   * <p>The returned ZIP always contains:
+   *
+   * <ul>
+   *   <li><b>app.jar</b> – the VSUM fat JAR with dependencies
+   *   <li><b>Dockerfile</b> – a minimal Dockerfile to run the JAR
+   * </ul>
+   *
+   * <p>The build process is delegated to {@link #buildOrThrow(Vsum)}. If a valid artifact already
+   * exists, it may be reused; otherwise a new build is triggered.
+   *
+   * @param callerEmail email address of the requesting user
+   * @param id the VSUM identifier
+   * @return ZIP archive bytes containing the fat JAR and Dockerfile
+   * @throws AccessDeniedException if the user is not authorized for this VSUM
+   * @throws tools.vitruv.methodologist.exception.VsumBuildingException if the build process fails
    */
-  public void buildOrThrow(String callerEmail, Long id) {
+  public byte[] getJarfat(String callerEmail, Long id) {
     VsumUser vsumUser =
         vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
@@ -446,6 +377,221 @@ public class VsumService {
             .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
 
     Vsum vsum = vsumUser.getVsum();
+    BuildKey key = buildKey(callerEmail, id, vsum);
+
+    byte[] jarBytes = buildCoordinator.runOncePerKey(key, () -> buildOrThrow(vsum));
+
+    return zipJarAndDockerfile(jarBytes);
+  }
+
+  /**
+   * Creates a ZIP archive that contains the provided JAR bytes and a Dockerfile.
+   *
+   * <p>The produced ZIP contains two entries: \- "findGoodname.jar" with the raw {@code jarBytes}
+   * \- "Dockerfile" with the {@code dockerfile} content encoded as UTF\-8
+   *
+   * @param jarBytes the JAR bytes to include in the archive; must not be {@code null}
+   * @return a byte array containing the ZIP archive
+   * @throws RuntimeException if an I/O error occurs while creating the ZIP archive
+   */
+  private byte[] zipJarAndDockerfile(byte[] jarBytes) {
+    try {
+
+      ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+      try (ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream)) {
+
+        ZipEntry jarEntry =
+            new ZipEntry("methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar");
+        zipOutputStream.putNextEntry(jarEntry);
+        zipOutputStream.write(jarBytes);
+        zipOutputStream.closeEntry();
+
+        zipOutputStream.putNextEntry(new ZipEntry("Dockerfile"));
+        zipOutputStream.write(dockerfileBytes());
+        zipOutputStream.closeEntry();
+      }
+      return byteArrayOutputStream.toByteArray();
+    } catch (IOException e) {
+      throw new BuildArtifactCreationException(e.getMessage());
+    }
+  }
+
+  /**
+   * Provides a standard Dockerfile for running the generated VSUM fat JAR.
+   *
+   * <p>The Dockerfile uses a minimal Java 17 runtime image, copies the application JAR into the
+   * container, exposes port 8080, and starts the application using {@code java -jar}.
+   *
+   * <p>This Dockerfile is intentionally static and deterministic:
+   *
+   * <p>The client is expected to build the image with:
+   *
+   * <pre>{@code
+   * docker build -t my-app .
+   * }</pre>
+   *
+   * @return Dockerfile content as UTF-8 encoded bytes
+   */
+  public byte[] dockerfileBytes() {
+    String dockerfile =
+        """
+            FROM eclipse-temurin:17-jre-alpine
+
+            WORKDIR /app
+
+            COPY app.jar /app/app.jar
+
+            EXPOSE 8080
+
+            ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+            """;
+
+    return dockerfile.getBytes(StandardCharsets.UTF_8);
+  }
+
+  /**
+   * Builds a VSUM distribution by collecting all required metamodel Ecore/GenModel pairs and
+   * reaction files referenced by the given {@link Vsum} and invoking the external Vitruv
+   * integration to produce a fat JAR.
+   *
+   * <p>The method deduplicates metamodel files, validates that at least one Ecore/GenModel pair and
+   * at least one reaction file are present, and delegates the actual build to {@link
+   * #metaModelVitruvIntegrationService}.
+   *
+   * @param vsum the VSUM aggregate containing meta-model relations and reaction file references
+   * @return a {@link java.lang.Byte} containing the generated fat JAR bytes and a Dockerfile
+   *     content string
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if required files (meta-models
+   *     or reactions) are missing
+   * @throws tools.vitruv.methodologist.exception.VsumBuildingException if the external build
+   *     process fails or IO errors occur during build
+   */
+  public byte[] buildOrThrow(Vsum vsum) {
+    if (vsum.getMetaModelRelations() == null || vsum.getMetaModelRelations().isEmpty()) {
+      throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
+    }
+
+    Map<String, FileStorage> ecores = new LinkedHashMap<>();
+    Map<String, FileStorage> genmodels = new LinkedHashMap<>();
+    List<FileStorage> reactions = new ArrayList<>();
+
+    for (MetaModelRelation relation : vsum.getMetaModelRelations()) {
+      if (relation == null) {
+        throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
+      }
+
+      MetaModel source = relation.getSource();
+      MetaModel target = relation.getTarget();
+
+      if (source != null) {
+        putPair(ecores, genmodels, source.getEcoreFile(), source.getGenModelFile());
+      }
+      if (target != null) {
+        putPair(ecores, genmodels, target.getEcoreFile(), target.getGenModelFile());
+      }
+
+      FileStorage reaction = relation.getReactionFileStorage();
+      if (reaction != null) {
+        reactions.add(reaction);
+      }
+    }
+
+    if (ecores.isEmpty() || genmodels.isEmpty()) {
+      throw new NotFoundException(METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR);
+    }
+    if (reactions.isEmpty()) {
+      throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
+    }
+
+    List<FileStorage> ecoreList = new ArrayList<>(ecores.values());
+    List<FileStorage> genList = new ArrayList<>(genmodels.values());
+
+    return metaModelVitruvIntegrationService.runVitruvAndGetFatJarBytes(
+        ecoreList, genList, reactions);
+  }
+
+  /**
+   * Associates an Ecore/GenModel pair into the provided maps using stable keys.
+   *
+   * <p>If either {@code ecore} or {@code genmodel} is {@code null} the pair is ignored. Existing
+   * entries in the maps are preserved (first seen wins).
+   *
+   * @param ecores map to populate with Ecore FileStorage instances keyed by {@link
+   *     #key(FileStorage)}
+   * @param genmodels map to populate with GenModel FileStorage instances keyed by {@link
+   *     #key(FileStorage)}
+   * @param ecore the Ecore file storage; may be {@code null}
+   * @param genmodel the GenModel file storage; may be {@code null}
+   */
+  private void putPair(
+      Map<String, FileStorage> ecores,
+      Map<String, FileStorage> genmodels,
+      FileStorage ecore,
+      FileStorage genmodel) {
+
+    if (ecore == null || genmodel == null) {
+      return;
+    }
+
+    String keyE = key(ecore);
+    String keyG = key(genmodel);
+
+    ecores.putIfAbsent(keyE, ecore);
+    genmodels.putIfAbsent(keyG, genmodel);
+  }
+
+  /**
+   * Produces a stable lookup key for a {@link FileStorage}.
+   *
+   * <p>If the storage has a non-{@code null} id the returned key is {@code "id:<id>"}, otherwise it
+   * is {@code "name:<filename>"}. A {@code null} filename is treated as an empty string.
+   *
+   * @param fs the FileStorage instance; must not be {@code null}
+   * @return a stable string key suitable for map lookups
+   */
+  private String key(FileStorage fs) {
+    if (fs.getId() != null) {
+      return "id:" + fs.getId();
+    }
+    return "name:" + (fs.getFilename() == null ? "" : fs.getFilename());
+  }
+
+  /**
+   * Builds a {@link BuildKey} that uniquely identifies a build request for the given VSUM.
+   *
+   * <p>The method collects a deterministic set of Ecore/GenModel pairs and the first reaction file
+   * referenced by the provided {@code vsum} and computes an inputs fingerprint using {@link
+   * InputsFingerprint#fingerprint(List, List, FileStorage)}. The returned {@link BuildKey} encodes
+   * the requesting user's email, the VSUM id and the computed fingerprint so concurrent or repeated
+   * requests with identical inputs can be deduplicated.
+   *
+   * <p>Important details:
+   *
+   * <ul>
+   *   <li>Pairs are deduplicated using stable keys (insertion order is preserved via {@link
+   *       java.util.LinkedHashMap} to make fingerprinting deterministic).
+   *   <li>The fingerprint is computed from the list of Ecore files, the list of GenModel files, and
+   *       the first reaction file found in the VSUM relations.
+   *   <li>The method performs validation and will throw {@link
+   *       tools.vitruv.methodologist.exception.NotFoundException} when required input data is
+   *       missing or relations are malformed.
+   * </ul>
+   *
+   * @param callerEmail the email of the caller that will be associated with the build key; may be
+   *     used to scope keys per-user
+   * @param vsumId the identifier of the VSUM for which the build is requested
+   * @param vsum the VSUM aggregate containing meta-model relations and reaction file references;
+   *     must not be {@code null} and must contain at least one valid meta-model pair and one
+   *     reaction file reference
+   * @return a new {@link BuildKey} composed of the caller email, VSUM id and an inputs fingerprint
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if {@code
+   *     vsum.getMetaModelRelations()} is {@code null} or empty, or if any relation is {@code null},
+   *     or if no valid Ecore/GenModel pairs or reaction files are available
+   */
+  private BuildKey buildKey(String callerEmail, Long vsumId, Vsum vsum) {
+    Map<String, FileStorage> ecores = new LinkedHashMap<>();
+    Map<String, FileStorage> genmodels = new LinkedHashMap<>();
+    List<FileStorage> reactions = new ArrayList<>();
 
     if (vsum.getMetaModelRelations() == null || vsum.getMetaModelRelations().isEmpty()) {
       throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
@@ -453,14 +599,178 @@ public class VsumService {
 
     for (MetaModelRelation relation : vsum.getMetaModelRelations()) {
       if (relation == null) {
-        continue;
+        throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
       }
-      metaModelVitruvIntegrationService.runVitruvForMetaModels(
-          relation.getSource().getEcoreFile(),
-          relation.getSource().getGenModelFile(),
-          relation.getTarget().getEcoreFile(),
-          relation.getTarget().getGenModelFile(),
-          relation.getReactionFileStorage());
+
+      MetaModel source = relation.getSource();
+      MetaModel target = relation.getTarget();
+
+      if (source != null) {
+        putPair(ecores, genmodels, source.getEcoreFile(), source.getGenModelFile());
+      }
+      if (target != null) {
+        putPair(ecores, genmodels, target.getEcoreFile(), target.getGenModelFile());
+      }
+
+      FileStorage reaction = relation.getReactionFileStorage();
+      if (reaction != null) {
+        reactions.add(reaction);
+      }
     }
+
+    if (ecores.isEmpty() || genmodels.isEmpty()) {
+      throw new NotFoundException(METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR);
+    }
+    if (reactions.isEmpty()) {
+      throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
+    }
+
+    String fingerprint =
+        InputsFingerprint.fingerprint(
+            new ArrayList<>(ecores.values()),
+            new ArrayList<>(genmodels.values()),
+            reactions.get(0));
+
+    return new BuildKey(callerEmail, vsumId, fingerprint);
+  }
+
+  /**
+   * Synchronize the given {@link Vsum} to match the desired state described by the {@link
+   * VsumSyncChangesPutRequest}.
+   *
+   * <p>The method will:
+   *
+   * <p>Change persistence and creation/deletion work is delegated to domain services. If {@code
+   * createHistory} is {@code true} and any change is detected, a history entry for the provided
+   * {@code user} is created. The updated {@link Vsum} is saved before being returned.
+   *
+   * <p>Runtime exceptions from delegated services (for example {@link
+   * tools.vitruv.methodologist.exception.NotFoundException} or {@link
+   * org.springframework.security.access.AccessDeniedException}) may be propagated.
+   *
+   * @param vsum the target {@link Vsum} to update; must not be {@code null}
+   * @param user the acting {@link User} used for history creation when changes occur
+   * @param vsumSyncChangesPutRequest DTO describing desired meta-model ids and relation requests;
+   *     may be {@code null} and will be treated as empty
+   * @param createHistory when {@code true}, create a history record if any modifications are made
+   * @return the persisted, updated {@link Vsum}
+   */
+  public Vsum applySyncChanges(
+      Vsum vsum,
+      User user,
+      VsumSyncChangesPutRequest vsumSyncChangesPutRequest,
+      boolean createHistory) {
+
+    List<MetaModelRelationRequest> desiredMetaModelRelation =
+        vsumSyncChangesPutRequest.getMetaModelRelationRequests() == null
+            ? List.of()
+            : vsumSyncChangesPutRequest.getMetaModelRelationRequests().stream()
+                .filter(
+                    metaModelRelationRequest ->
+                        metaModelRelationRequest != null
+                            && metaModelRelationRequest.getSourceId() != null
+                            && metaModelRelationRequest.getTargetId() != null)
+                .toList();
+
+    List<MetaModelRelation> existingMetaModelRelation =
+        metaModelRelationRepository.findAllByVsum(vsum);
+
+    Set<String> desiredMetaModelRelationPairs =
+        desiredMetaModelRelation.stream()
+            .map(
+                metaModelRelationRequest ->
+                    metaModelRelationRequest.getSourceId()
+                        + ":"
+                        + metaModelRelationRequest.getTargetId())
+            .collect(Collectors.toSet());
+
+    Map<String, MetaModelRelation> existingByPair = new HashMap<>();
+    for (MetaModelRelation metaModelRelation : existingMetaModelRelation) {
+      String metaModelRelationPairKey =
+          metaModelRelation.getSource().getSource().getId()
+              + ":"
+              + metaModelRelation.getTarget().getSource().getId();
+      existingByPair.put(metaModelRelationPairKey, metaModelRelation);
+    }
+
+    Set<String> existingMetaModelRelationPairs = new HashSet<>(existingByPair.keySet());
+
+    Set<String> toRemoveMetaModelRelation = new HashSet<>(existingMetaModelRelationPairs);
+    toRemoveMetaModelRelation.removeAll(desiredMetaModelRelationPairs);
+
+    List<Long> metaModelIds = vsumSyncChangesPutRequest.getMetaModelIds();
+    List<VsumMetaModel> existingVsumMetaModel = vsumMetaModelRepository.findAllByVsum(vsum);
+
+    Set<Long> existingVsumMetaModelIds =
+        existingVsumMetaModel.stream()
+            .map(vsumMetaModel -> vsumMetaModel.getMetaModel().getSource().getId())
+            .collect(Collectors.toSet());
+
+    Set<Long> desiredMetaModelIds =
+        metaModelIds == null
+            ? Set.of()
+            : metaModelIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+
+    Set<Long> toRemoveVsumMetaModelIds = new HashSet<>(existingVsumMetaModelIds);
+    toRemoveVsumMetaModelIds.removeAll(desiredMetaModelIds);
+
+    Set<Long> toAddVsumMetaModelIds = new HashSet<>(desiredMetaModelIds);
+    toAddVsumMetaModelIds.removeAll(existingVsumMetaModelIds);
+
+    Set<String> toAddMetaModelRelation = new HashSet<>(desiredMetaModelRelationPairs);
+    toAddMetaModelRelation.removeAll(existingMetaModelRelationPairs);
+
+    boolean hasAnyChanges =
+        !toRemoveMetaModelRelation.isEmpty()
+            || !toRemoveVsumMetaModelIds.isEmpty()
+            || !toAddVsumMetaModelIds.isEmpty()
+            || !toAddMetaModelRelation.isEmpty();
+
+    if (createHistory && hasAnyChanges) {
+      vsumHistoryService.create(vsum, user);
+    }
+
+    if (!toRemoveMetaModelRelation.isEmpty()) {
+      List<MetaModelRelation> deletions =
+          toRemoveMetaModelRelation.stream().map(existingByPair::get).toList();
+      metaModelRelationService.delete(deletions);
+      if (vsum.getMetaModelRelations() != null) {
+        deletions.forEach(vsum.getMetaModelRelations()::remove);
+      }
+    }
+
+    if (!toRemoveVsumMetaModelIds.isEmpty()) {
+      List<VsumMetaModel> toDeleteVsumMetaModel =
+          existingVsumMetaModel.stream()
+              .filter(
+                  vsumMetaModel ->
+                      toRemoveVsumMetaModelIds.contains(
+                          vsumMetaModel.getMetaModel().getSource().getId()))
+              .toList();
+      vsumMetaModelService.delete(vsum, toDeleteVsumMetaModel);
+      if (vsum.getVsumMetaModels() != null) {
+        toDeleteVsumMetaModel.forEach(vsum.getVsumMetaModels()::remove);
+      }
+    }
+
+    if (!toAddVsumMetaModelIds.isEmpty()) {
+      vsumMetaModelService.create(vsum, toAddVsumMetaModelIds);
+    }
+
+    if (!toAddMetaModelRelation.isEmpty()) {
+      List<MetaModelRelationRequest> creations =
+          desiredMetaModelRelation.stream()
+              .filter(
+                  metaModelRelationRequest ->
+                      toAddMetaModelRelation.contains(
+                          metaModelRelationRequest.getSourceId()
+                              + ":"
+                              + metaModelRelationRequest.getTargetId()))
+              .toList();
+      metaModelRelationService.create(vsum, creations);
+    }
+
+    vsumRepository.save(vsum);
+    return vsum;
   }
 }

@@ -51,6 +51,100 @@ public class GlobalExceptionHandlerController {
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
 
   /**
+   * Handles {@link ValidationCodeNotExpiredYetException} thrown when a previously issued
+   * validation/verification code is still valid and a new one cannot be generated yet.
+   *
+   * <p>Responds with HTTP 400 (Bad Request) and returns an {@link ErrorResponse} containing: - the
+   * exception message as the client-facing message - the request path where the error occurred
+   *
+   * @param ex the thrown {@link ValidationCodeNotExpiredYetException}
+   * @param handlerMethod the controller method where the exception originated
+   * @param request the current {@link ServletWebRequest} providing request context
+   * @return an {@link ErrorResponse} with the exception message and request path
+   */
+  @ExceptionHandler(value = ValidationCodeNotExpiredYetException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse validationCodeNotExpiredYetException(
+      ValidationCodeNotExpiredYetException ex,
+      HandlerMethod handlerMethod,
+      ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link ValidationCodeExpiredException} thrown when a validation or verification code
+   * has expired (for example during email or token verification).
+   *
+   * <p>Responds with HTTP 400 (Bad Request) and returns an {@link ErrorResponse} containing: - the
+   * exception message as the client-facing message - the request path where the error occurred
+   *
+   * @param ex the thrown {@link ValidationCodeExpiredException}
+   * @param handlerMethod the controller method where the exception originated
+   * @param request the current {@link ServletWebRequest} providing request context
+   * @return an {@link ErrorResponse} with the exception message and request path
+   */
+  @ExceptionHandler(value = ValidationCodeExpiredException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse validationCodeExpiredException(
+      ValidationCodeExpiredException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link VerificationCodeException} thrown during verification flows.
+   *
+   * <p>Responds with HTTP 400 (Bad Request) and returns an {@link ErrorResponse} containing: - a
+   * standardized error code from {@link VerificationCodeException#VERIFICATION_COD_IS_NOT_VALID} -
+   * the exception message - the request path where the error occurred
+   *
+   * @param ex the thrown {@link VerificationCodeException}
+   * @param handlerMethod the controller method where the exception originated
+   * @param request the current {@link ServletWebRequest} providing request context
+   * @return an {@link ErrorResponse} with error code, message and request path
+   */
+  @ExceptionHandler(value = VerificationCodeException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse verificationCodeException(
+      VerificationCodeException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(VerificationCodeException.VERIFICATION_CODE_IS_NOT_VALID)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link BuildArtifactCreationException} thrown when creating the build artifact fails.
+   *
+   * <p>Responds with HTTP 500 (Internal Server Error) and returns a standardized {@link
+   * ErrorResponse} containing the exception message and the request path.
+   *
+   * @param ex the thrown {@link BuildArtifactCreationException}
+   * @param handlerMethod the controller method where the exception originated
+   * @param request the current {@link ServletWebRequest} providing request context
+   * @return an {@link ErrorResponse} with the failure message and request path
+   */
+  @ExceptionHandler(value = BuildArtifactCreationException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse buildArtifactCreationException(
+      BuildArtifactCreationException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles {@link CLIExecuteException} thrown when execution of the external Vitruv-CLI fails.
    *
    * <p>Responds with HTTP 400 (Bad Request) and returns a standardized {@link ErrorResponse}
@@ -373,9 +467,21 @@ public class GlobalExceptionHandlerController {
         handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
         ex.getMessage());
     log.debug(STACKTRACE_LOG, ex.toString());
+    var fieldError = ex.getBindingResult().getFieldError();
+
+    String clientMessage;
+    if (fieldError != null) {
+      String fieldName = Objects.requireNonNullElse(fieldError.getField(), "field");
+      String defaultMessage =
+          Objects.requireNonNullElse(fieldError.getDefaultMessage(), "Invalid value");
+      clientMessage = fieldName + ": " + defaultMessage;
+    } else {
+      clientMessage = Objects.requireNonNullElse(ex.getMessage(), "Validation failed");
+    }
+
     return ErrorResponse.builder()
         .error(FORMAT_ERROR)
-        .message(Objects.requireNonNull(ex.getFieldError()).getField())
+        .message(clientMessage)
         .path(getPath(request))
         .build();
   }
