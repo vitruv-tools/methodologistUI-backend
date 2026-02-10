@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.VITRUV_CLI_ERROR;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.io.ByteArrayOutputStream;
@@ -34,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.BuildArtifactCreationException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
+import tools.vitruv.methodologist.exception.VsumBuildingException;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
@@ -379,9 +381,13 @@ public class VsumService {
     Vsum vsum = vsumUser.getVsum();
     BuildKey key = buildKey(callerEmail, id, vsum);
 
-    byte[] jarBytes = buildCoordinator.runOncePerKey(key, () -> buildOrThrow(vsum));
+    try {
+      byte[] jarBytes = buildCoordinator.runOncePerKey(key, () -> buildOrThrow(vsum));
+      return zipJarAndDockerfile(jarBytes);
 
-    return zipJarAndDockerfile(jarBytes);
+    } catch (Exception e) {
+      throw new VsumBuildingException(VITRUV_CLI_ERROR + e);
+    }
   }
 
   /**
