@@ -143,6 +143,12 @@ public class PostmarkApiHandler {
     Long templateId;
     TemplateModel templateModel;
 
+    /**
+     * Template model values for the password email template.
+     *
+     * <p>Used as the template model when sending password-reset emails via Postmark. Contains the
+     * plain-text password value that will be injected into the template.
+     */
     @Setter
     @Getter
     @NoArgsConstructor
