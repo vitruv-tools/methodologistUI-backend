@@ -28,10 +28,8 @@ public class UserPutChangePasswordRequest {
   @NotBlank
   @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
   @Pattern(
-      regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$",
-      message =
-          "Password must be at least 8 characters and include at least one uppercase letter,"
-              + " one lowercase letter, one number, and one special character (@$!%*?&).")
+      regexp = "^(?=.{8,256}$)(?=.*\\p{Ll})(?=.*\\p{Lu})(?=.*\\p{Nd})(?=.*[^\\p{L}\\p{Nd}\\s]).*$",
+      message = "Password must be 8–256 chars and include upper, lower, number, and a symbol.")
   private String password;
 
   @Override
