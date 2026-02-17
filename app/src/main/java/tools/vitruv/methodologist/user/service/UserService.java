@@ -19,7 +19,7 @@ import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.apihandler.KeycloakApiHandler;
-import tools.vitruv.methodologist.apihandler.MailjetApiHandler;
+import tools.vitruv.methodologist.apihandler.PostmarkApiHandler;
 import tools.vitruv.methodologist.apihandler.dto.response.KeycloakWebToken;
 import tools.vitruv.methodologist.exception.EmailExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -53,12 +53,8 @@ public class UserService {
   UserRepository userRepository;
   KeycloakService keycloakService;
   KeycloakApiHandler keycloakApiHandler;
-  String sendOtpMailSubject;
-  Long sendOtpMailTemplateId;
   int ttlMinutes;
-  MailjetApiHandler mailjetApiHandler;
-  Long sendNewPassMailId;
-  String sendNewPassMailSubject;
+  PostmarkApiHandler postmarkApiHandler;
 
   /**
    * Constructs a UserService with required dependencies and loads the OTP mail template.
@@ -71,22 +67,14 @@ public class UserService {
       UserRepository userRepository,
       KeycloakService keycloakService,
       KeycloakApiHandler keycloakApiHandler,
-      MailjetApiHandler mailjetApiHandler,
-      @Value("${app.otp.ttlMinutes}") int ttlMinutes,
-      @Value("${mail.newuser.otp.id}") Long sendOtpMailTemplateId,
-      @Value("${mail.newuser.otp.subject}") String sendOtpMailSubject,
-      @Value("${mail.newPass.subject}") String sendNewPassMailSubject,
-      @Value("${mail.newPass.id}") Long sendNewPassMailId) {
+      PostmarkApiHandler postmarkApiHandler,
+      @Value("${app.otp.ttlMinutes}") int ttlMinutes) {
     this.userMapper = userMapper;
     this.userRepository = userRepository;
     this.keycloakService = keycloakService;
     this.keycloakApiHandler = keycloakApiHandler;
     this.ttlMinutes = ttlMinutes;
-    this.sendOtpMailSubject = sendOtpMailSubject;
-    this.sendOtpMailTemplateId = sendOtpMailTemplateId;
-    this.mailjetApiHandler = mailjetApiHandler;
-    this.sendNewPassMailId = sendNewPassMailId;
-    this.sendNewPassMailSubject = sendNewPassMailSubject;
+    this.postmarkApiHandler = postmarkApiHandler;
   }
 
   /**
@@ -259,15 +247,7 @@ public class UserService {
    * @param ttlMinutes time-to-live for the OTP (in minutes) shown in the email
    */
   public void sendOtp(String to, String toName, String otp, int ttlMinutes) {
-    mailjetApiHandler.postMail(
-        to,
-        toName,
-        sendOtpMailSubject,
-        sendOtpMailTemplateId,
-        MailjetApiHandler.PostSendMail.Message.VariableOTP.builder()
-            .otpCode(otp)
-            .ttlMinutes(String.valueOf(ttlMinutes))
-            .build());
+    postmarkApiHandler.postOTPMail(to, otp, String.valueOf(ttlMinutes));
   }
 
   /**
@@ -345,14 +325,7 @@ public class UserService {
     String newPassword = new RandomPasswordGenerator().generateSecureRandomPassword();
     keycloakService.setPassword(user.getUsername(), newPassword);
 
-    mailjetApiHandler.postMail(
-        user.getEmail(),
-        user.getLastName(),
-        sendNewPassMailSubject,
-        sendNewPassMailId,
-        MailjetApiHandler.PostSendMail.Message.ForgotPassword.builder()
-            .newPassword(newPassword)
-            .build());
+    postmarkApiHandler.postPasswordMail(user.getEmail(), newPassword);
   }
 
   /**

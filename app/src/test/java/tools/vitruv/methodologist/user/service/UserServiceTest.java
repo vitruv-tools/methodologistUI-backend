@@ -36,7 +36,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import tools.vitruv.methodologist.apihandler.KeycloakApiHandler;
-import tools.vitruv.methodologist.apihandler.MailjetApiHandler;
+import tools.vitruv.methodologist.apihandler.PostmarkApiHandler;
 import tools.vitruv.methodologist.apihandler.dto.response.KeycloakWebToken;
 import tools.vitruv.methodologist.exception.EmailExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -65,7 +65,7 @@ class UserServiceTest {
   @Mock private UserRepository userRepository;
   @Mock private KeycloakService keycloakService;
   @Mock private KeycloakApiHandler keycloakApiHandler;
-  @Mock private MailjetApiHandler mailjetApiHandler;
+  @Mock private PostmarkApiHandler postmarkApiHandler;
 
   private UserService userService;
 
@@ -97,12 +97,8 @@ class UserServiceTest {
             userRepository,
             keycloakService,
             keycloakApiHandler,
-            mailjetApiHandler,
-            ttlMinutes,
-            1L,
-            subject,
-            subject,
-            1L);
+            postmarkApiHandler,
+            ttlMinutes);
   }
 
   @Test
@@ -643,7 +639,7 @@ class UserServiceTest {
         .hasMessageContaining(USER_EMAIL_NOT_FOUND_ERROR);
 
     verify(keycloakService, never()).setPassword(anyString(), anyString());
-    verify(mailjetApiHandler, never()).postMail(any(), any(), any(), any(), any());
+    verify(postmarkApiHandler, never()).postPasswordMail(any(), any());
   }
 
   @Test
@@ -661,8 +657,8 @@ class UserServiceTest {
     UserService spyService = spy(userService);
 
     doThrow(new RuntimeException("Mailjet failed"))
-        .when(mailjetApiHandler)
-        .postMail(any(), any(), any(), any(), any());
+        .when(postmarkApiHandler)
+        .postPasswordMail(any(), any());
 
     UserPostForgotPasswordRequest userPostForgotPasswordRequest =
         UserPostForgotPasswordRequest.builder().email(email).build();
