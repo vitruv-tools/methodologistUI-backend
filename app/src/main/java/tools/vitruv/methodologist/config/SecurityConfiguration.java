@@ -4,25 +4,17 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-/**
- * Spring Security configuration for the application.
- *
- * <p>Configures CORS, stateless session management, and JWT-based OAuth2 resource server support.
- * Method security is enabled via annotations.
- */
 @Configuration
-@EnableWebSecurity
 @EnableMethodSecurity(jsr250Enabled = true, prePostEnabled = true)
 public class SecurityConfiguration {
 
@@ -32,23 +24,12 @@ public class SecurityConfiguration {
   @Value("${allowed.headers:*}")
   private String allowedHeaders;
 
-  /**
-   * Defines the security filter chain:
-   *
-   * <ul>
-   *   <li>Disables CSRF (REST API).
-   *   <li>Applies CORS configuration from {@link #corsConfigurationSource()}.
-   *   <li>Enforces stateless session management.
-   *   <li>Configures request authorization and the OAuth2 resource server JWT converter.
-   * </ul>
-   *
-   * @param http the {@link HttpSecurity} to configure
-   * @return the built {@link SecurityFilterChain}
-   * @throws Exception on configuration errors
-   */
+  /** 1) API security: Bearer JWT, stateless Applies ONLY to /api/** */
   @Bean
-  public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-    return http.csrf(csrf -> csrf.disable())
+  @Order(1)
+  public SecurityFilterChain apiFilterChain(HttpSecurity http) throws Exception {
+    return http.securityMatcher("/api/**")
+        .csrf(csrf -> csrf.disable())
         .cors(cors -> cors.configurationSource(corsConfigurationSource()))
         .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
@@ -56,8 +37,7 @@ public class SecurityConfiguration {
                 auth.requestMatchers(HttpMethod.OPTIONS, "/**")
                     .permitAll()
                     .anyRequest()
-                    .permitAll() // while debugging
-            )
+                    .authenticated())
         .oauth2ResourceServer(
             oauth2 ->
                 oauth2.jwt(
@@ -66,35 +46,27 @@ public class SecurityConfiguration {
         .build();
   }
 
-  /**
-   * Creates and configures a {@link JwtAuthenticationConverter} that delegates extraction of
-   * granted authorities to {@link GrantedAuthoritiesConverter}.
-   *
-   * <p>Used when a plain {@link JwtAuthenticationConverter} instance is required.
-   *
-   * @return a configured {@link JwtAuthenticationConverter}
-   */
-  private JwtAuthenticationConverter jwtAuthenticationConverter() {
-    var conv = new JwtAuthenticationConverter();
-    conv.setJwtGrantedAuthoritiesConverter(new GrantedAuthoritiesConverter());
-    return conv;
+  /** 2) Web security: OAuth2 Login (KIT), session-based Applies to everything EXCEPT /api/** */
+  @Bean
+  @Order(2)
+  public SecurityFilterChain webFilterChain(HttpSecurity http) throws Exception {
+    return http.csrf(csrf -> csrf.disable())
+        .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+        .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+        .oauth2Login(o -> o.defaultSuccessUrl("/login/success", true))
+        .authorizeHttpRequests(
+            auth ->
+                auth.requestMatchers(HttpMethod.OPTIONS, "/**")
+                    .permitAll()
+                    .requestMatchers("/", "/index.html", "/login/**", "/oauth2/**", "/error")
+                    .permitAll()
+                    .anyRequest()
+                    .authenticated())
+        .oauth2Login(oauth2 -> {}) // enables /oauth2/authorization/{registrationId}
+        .oauth2Client(oauth2 -> {})
+        .build();
   }
 
-  /**
-   * Builds the CORS configuration source used by Spring Security.
-   *
-   * <p>Configuration includes:
-   *
-   * <ul>
-   *   <li>Allowed origin patterns from {@code allowedOrigins}.
-   *   <li>Allowed HTTP methods and headers.
-   *   <li>Credentials support and exposed headers (Authorization, Content-Type, Cache-Control,
-   *       Pragma, Expires).
-   *   <li>Max age for preflight responses.
-   * </ul>
-   *
-   * @return the {@link CorsConfigurationSource} registered for all paths
-   */
   @Bean
   public CorsConfigurationSource corsConfigurationSource() {
     var cfg = new CorsConfiguration();
@@ -105,6 +77,7 @@ public class SecurityConfiguration {
     cfg.setExposedHeaders(
         List.of("Authorization", "Content-Type", "Cache-Control", "Pragma", "Expires"));
     cfg.setMaxAge(3600L);
+
     var source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", cfg);
     return source;
