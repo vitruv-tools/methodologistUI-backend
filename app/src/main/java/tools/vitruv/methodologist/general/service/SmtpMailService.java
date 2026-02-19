@@ -14,14 +14,35 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+/**
+ * Service responsible for sending email messages using an SMTP backend.
+ *
+ * <p>Configures a {@link JavaMailSenderImpl} from application properties and provides methods to
+ * render simple templates from classpath resources and send HTML emails (OTP and password reset).
+ */
 @Service
 public class SmtpMailService {
 
   private final JavaMailSender mailSender;
-
   private final String fromEmail;
   private final String fromName;
 
+  /**
+   * Constructs the SMTP mail service and configures the underlying JavaMail sender.
+   *
+   * @param host SMTP host
+   * @param port SMTP port
+   * @param username SMTP username
+   * @param password SMTP password
+   * @param fromEmail default sender email address; must not be {@code null}
+   * @param fromName default sender display name; must not be {@code null}
+   * @param startTls whether STARTTLS is enabled
+   * @param ssl whether SSL is enabled
+   * @param connectionTimeoutMs connection timeout in milliseconds
+   * @param timeoutMs read timeout in milliseconds
+   * @param writeTimeoutMs write timeout in milliseconds
+   * @throws NullPointerException if {@code fromEmail} or {@code fromName} is {@code null}
+   */
   public SmtpMailService(
       @Value("${mail.smtp.host}") String host,
       @Value("${mail.smtp.port}") int port,
@@ -53,17 +74,25 @@ public class SmtpMailService {
     props.put("mail.smtp.timeout", String.valueOf(timeoutMs));
     props.put("mail.smtp.writetimeout", String.valueOf(writeTimeoutMs));
 
-    // Helpful in dev if your provider is weird; remove later
-    // props.put("mail.debug", "true");
-
     this.mailSender = impl;
   }
 
+  /**
+   * Sends an OTP (one-time password) email to a recipient.
+   *
+   * <p>Renders a small HTML template from the classpath and sends it via configured SMTP server.
+   *
+   * @param toEmail recipient email address
+   * @param toName recipient display name (may be {@code null} or blank)
+   * @param otpCode the one-time code to include in the message
+   * @param ttlMinutes time-to-live for the OTP, in minutes
+   * @throws RuntimeException if reading the template or sending the message fails
+   */
   public void sendOtpMail(String toEmail, String toName, String otpCode, int ttlMinutes) {
     String subject = "Verify your email";
     String html =
         loadAndRenderTemplate(
-            "mail-templates/send_otp_message.html",
+            "templates/mail/send_otp_message.txt",
             Map.of(
                 "otp_code", otpCode,
                 "ttl_minutes", String.valueOf(ttlMinutes),
@@ -71,15 +100,34 @@ public class SmtpMailService {
     sendHtml(toEmail, toName, subject, html);
   }
 
+  /**
+   * Sends a "forgot password" email containing a newly generated password.
+   *
+   * <p>Renders a small HTML template from the classpath and sends it via configured SMTP server.
+   *
+   * @param toEmail recipient email address
+   * @param toName recipient display name (may be {@code null} or blank)
+   * @param newPassword the new password to include in the email
+   * @throws RuntimeException if reading the template or sending the message fails
+   */
   public void sendForgotPasswordMail(String toEmail, String toName, String newPassword) {
     String subject = "Your new password";
     String html =
         loadAndRenderTemplate(
-            "mail-templates/forgot-password.html",
-            Map.of("new_password", newPassword, "recipient_name", safe(toName)));
+            "templates/mail/send_new_password.txt",
+            Map.of("password", newPassword, "recipient_name", safe(toName)));
     sendHtml(toEmail, toName, subject, html);
   }
 
+  /**
+   * Sends an HTML email using the configured {@link JavaMailSender}.
+   *
+   * @param toEmail recipient email address
+   * @param toName recipient display name (may be {@code null} or blank)
+   * @param subject email subject
+   * @param html HTML payload (already escaped/rendered)
+   * @throws RuntimeException if creating or sending the message fails
+   */
   private void sendHtml(String toEmail, String toName, String subject, String html) {
     try {
       MimeMessage msg = mailSender.createMimeMessage();
@@ -97,6 +145,14 @@ public class SmtpMailService {
     }
   }
 
+  /**
+   * Loads a template from the classpath and replaces simple placeholders of the form {@code
+   * {{key}}} with escaped values provided in {@code vars}.
+   *
+   * @param classpathPath classpath resource path to the template file
+   * @param vars map of placeholder names to values
+   * @return rendered HTML string
+   */
   private String loadAndRenderTemplate(String classpathPath, Map<String, String> vars) {
     String raw = readClasspathFile(classpathPath);
     String rendered = raw;
@@ -112,6 +168,13 @@ public class SmtpMailService {
     return rendered;
   }
 
+  /**
+   * Reads the contents of a classpath resource as UTF-8.
+   *
+   * @param classpathPath classpath resource path
+   * @return file contents as UTF-8 string
+   * @throws RuntimeException if the resource cannot be read
+   */
   private String readClasspathFile(String classpathPath) {
     try (var in = new ClassPathResource(classpathPath).getInputStream()) {
       return new String(in.readAllBytes(), StandardCharsets.UTF_8);
