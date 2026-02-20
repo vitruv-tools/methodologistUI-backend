@@ -28,7 +28,7 @@ jobs:
 
       - name: Build backend image
         run: |
-          docker build -t ghcr.io/$IMAGE_NAME/backend:$TAG ./backend
+          docker build -t ghcr.io/$IMAGE_NAME/backend:$TAG .
           docker push ghcr.io/$IMAGE_NAME/backend:$TAG
 
       - name: Deploy to staging server
