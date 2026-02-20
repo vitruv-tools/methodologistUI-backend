@@ -41,7 +41,7 @@ jobs:
       - name: Prepare app.jar for Dockerfile
         run: |
           set -eux
-          find . -maxdepth 8 -path "*/target/*.jar" -print
+          test -f app/target/app.jar
           cp app/target/app.jar app.jar
           ls -lah app.jar
 
