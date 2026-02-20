@@ -50,6 +50,12 @@ jobs:
           docker build -t ghcr.io/$IMAGE_NAME/backend:$TAG .
           docker push ghcr.io/$IMAGE_NAME/backend:$TAG
 
+      - name: Debug SSH inputs presence
+        run: |
+          test -n "${{ secrets.STAGE_SSH_HOST }}" && echo "HOST ok" || (echo "HOST missing" && exit 1)
+          test -n "${{ secrets.STAGE_SSH_USER }}" && echo "USER ok" || (echo "USER missing" && exit 1)
+          test -n "${{ secrets.STAGE_SSH_KEY }}"  && echo "KEY ok"  || (echo "KEY missing"  && exit 1)
+
       - name: Deploy to staging server
         uses: appleboy/ssh-action@v1
         with:
