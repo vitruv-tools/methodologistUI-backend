@@ -40,10 +40,9 @@ jobs:
 
       - name: Prepare app.jar for Dockerfile
         run: |
-          find . -maxdepth 6 -path "*/target/*.jar" -print
-          JAR="$(ls -1 backend/target/*.jar | grep -v plain | head -n 1)"
-          echo "Using jar: $JAR"
-          cp "$JAR" app.jar
+          set -eux
+          find . -maxdepth 8 -path "*/target/*.jar" -print
+          cp app/target/app.jar app.jar
           ls -lah app.jar
 
       - name: Build & push image
