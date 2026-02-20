@@ -9,6 +9,9 @@ on:
     branches:
       - main
       - develop
+  push:
+    branches:
+      - "release/**"
   # nightly
   schedule:
     - cron: "0 3 * * *"
@@ -39,7 +42,7 @@ jobs:
           --batch-mode
           --update-snapshots
           --no-transfer-progress
-          
+
       - name: Stage build results (Unix)
         run: mkdir staging-ubuntu-latest && find . -path '*/target/*.jar' -exec cp {} staging-ubuntu-latest/ \;
 
@@ -52,7 +55,7 @@ jobs:
   sonar:
     name: SonarQube analysis
     runs-on: ubuntu-latest
-    needs: [verify]
+    needs: [ verify ]
     if: github.event_name == 'schedule' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
     strategy:
       fail-fast: true
