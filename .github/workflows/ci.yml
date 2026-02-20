@@ -11,7 +11,8 @@ on:
       - develop
   push:
     branches:
-      - "release/**"
+      - main
+      - develop
   # nightly
   schedule:
     - cron: "0 3 * * *"
