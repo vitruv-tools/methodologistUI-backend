@@ -1,0 +1,33 @@
+name: Build - Production Image
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build-prod:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set tag
+        run: echo "TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+
+      - name: Login to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build backend
+        run: |
+          docker build -t ghcr.io/${{ github.repository }}/backend:$TAG ./backend
+          docker push ghcr.io/${{ github.repository }}/backend:$TAG
+
+      - name: Build frontend
+        run: |
+          docker build -t ghcr.io/${{ github.repository }}/frontend:$TAG ./frontend
+          docker push ghcr.io/${{ github.repository }}/frontend:$TAG
