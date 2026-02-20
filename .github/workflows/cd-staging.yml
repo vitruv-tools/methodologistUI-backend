@@ -23,15 +23,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set image name
+        run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Build backend image
         run: |
-          docker build -t ghcr.io/${{ github.repository }}/backend:$TAG ./backend
-          docker push ghcr.io/${{ github.repository }}/backend:$TAG
-
-      - name: Build frontend image
-        run: |
-          docker build -t ghcr.io/${{ github.repository }}/frontend:$TAG ./frontend
-          docker push ghcr.io/${{ github.repository }}/frontend:$TAG
+          docker build -t ghcr.io/$IMAGE_NAME/backend:$TAG ./backend
+          docker push ghcr.io/$IMAGE_NAME/backend:$TAG
 
       - name: Deploy to staging server
         uses: appleboy/ssh-action@v1
