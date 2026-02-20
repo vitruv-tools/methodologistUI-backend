@@ -56,9 +56,9 @@ jobs:
           host: ${{ secrets.STAGE_SSH_HOST }}
           username: ${{ secrets.STAGE_SSH_USER }}
           key: ${{ secrets.STAGE_SSH_KEY }}
+          passphrase: ${{ secrets.STAGE_SSH_PASSPHRASE }}
           script: |
-            set -e
             cd /opt/methodologist
-            echo "BACKEND_IMAGE_TAG=$TAG" > .deploy.env
+            echo "BACKEND_IMAGE_TAG=${TAG}" > .deploy.env
             docker compose --env-file .deploy.env pull backend
             docker compose --env-file .deploy.env up -d backend
