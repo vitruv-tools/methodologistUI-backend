@@ -183,6 +183,7 @@ public class GlobalExceptionHandlerController {
   public ErrorResponse vsumBuildingException(
       VsumBuildingException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
+        .error(VsumBuildingException.ERROR_TEMPLATE)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
         .build();
