@@ -20,11 +20,15 @@ public class LowCodeReactionFieldMetadata {
     private String mapValueType;
 
     /**
-     * \@ReactionMetadata(name=?, description=?, hide=?)
+     * \@ReactionMetadata(name=?, description=?, hide=?, defaultStringValue=?)
      */
     private String displayName;
     private String displayDescription;
     private boolean displayHide;
+    private String displayDefaultStringValue;
+    private Integer displayDefaultIntValue;
+    private boolean displayDefaultBooleanValue;
+    private Double displayDefaultDoubleValue;
 
     /**
      * \@Schema(allowableValues=...) as list of enum names, e.g. ["A", "B", "C"]

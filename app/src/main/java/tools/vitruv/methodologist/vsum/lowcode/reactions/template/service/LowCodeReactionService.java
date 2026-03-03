@@ -8,6 +8,7 @@ import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
 import tools.vitruv.methodologist.general.service.FileStorageService;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.LowCodeReactionRequestBase;
+import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.response.LowCodeReactionMetadataResponse;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 import freemarker.template.*;
 
@@ -19,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class LowCodeReactionService {
+    private final LowCodeReactionMetadataService lowCodeReactionMetadataService;
     private final FileStorageService fileStorageService;
     private final VsumUserRepository vsumUserRepository;
 

@@ -11,4 +11,8 @@ public @interface ReactionMetadata {
     String name() default "";
     String description() default "";
     boolean hide() default false;
+    String defaultStringValue() default "";
+    int defaultIntValue() default 0;
+    boolean defaultBooleanValue() default false;
+    double defaultDoubleValue() default 0.0;
 }

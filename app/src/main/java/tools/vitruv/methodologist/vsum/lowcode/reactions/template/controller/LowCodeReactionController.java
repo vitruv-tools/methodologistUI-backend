@@ -13,10 +13,13 @@ import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.LowCodeReactionRequestBase;
+import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.response.LowCodeReactionMetadataResponse;
+import tools.vitruv.methodologist.vsum.lowcode.reactions.template.service.LowCodeReactionMetadataService;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.service.LowCodeReactionService;
 
 import java.util.*;
 
+import static tools.vitruv.methodologist.messages.Message.LOWCODE_REACTIONS_METADATA_LOADED_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.LOWCODE_REACTION_CREATED_SUCCESSFULLY;
 
 @RestController
@@ -25,6 +28,7 @@ import static tools.vitruv.methodologist.messages.Message.LOWCODE_REACTION_CREAT
 @AllArgsConstructor
 public class LowCodeReactionController {
     private final LowCodeReactionService lowCodeReactionService;
+    private final LowCodeReactionMetadataService lowCodeReactionMetadataService;
 
     /**
      * Creates a low-code reaction.
@@ -55,5 +59,12 @@ public class LowCodeReactionController {
                 .data(response)
                 .message(LOWCODE_REACTION_CREATED_SUCCESSFULLY)
                 .build();
+    }
+
+    @Operation(summary = "Get metadata for low-code reactions", description = "Gets the configuration metadata for a low-code reactions")
+    @GetMapping("/lowcode-metadata")
+    @PreAuthorize("hasRole('user')")
+    public ResponseTemplateDto<LowCodeReactionMetadataResponse> getAllLowCodeReactionMetadata() {
+        return ResponseTemplateDto.<LowCodeReactionMetadataResponse>builder().data(lowCodeReactionMetadataService.getAllLowCodeReactionMetadata()).message(LOWCODE_REACTIONS_METADATA_LOADED_SUCCESSFULLY).build();
     }
 }

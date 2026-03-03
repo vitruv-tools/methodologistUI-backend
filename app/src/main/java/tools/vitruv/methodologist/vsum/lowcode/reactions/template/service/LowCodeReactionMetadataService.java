@@ -1,17 +1,13 @@
-package tools.vitruv.methodologist.vsum.lowcode.reactions.template.controller;
+package tools.vitruv.methodologist.vsum.lowcode.reactions.template.service;
 
-import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import org.hibernate.validator.constraints.Length;
 import org.jspecify.annotations.NonNull;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import tools.vitruv.methodologist.ResponseTemplateDto;
+import org.springframework.stereotype.Service;
 import tools.vitruv.methodologist.annotation.ReactionMetadata;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.LowCodeReactionRequestBase;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.response.LowCodeReactionFieldMetadata;
@@ -24,13 +20,10 @@ import java.lang.reflect.Type;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static tools.vitruv.methodologist.messages.Message.LOWCODE_REACTIONS_METADATA_LOADED_SUCCESSFULLY;
-
-@RestController
-@RequestMapping("/api/")
-@Validated
+@Service
 @AllArgsConstructor
-public class LowCodeReactionMetadataController {
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+public class LowCodeReactionMetadataService {
     private final List<LowCodeReactionRequestBase> lowCodeReactionRequestBaseList;
 
     private static String simpleTypeName(Type type) {
@@ -54,6 +47,10 @@ public class LowCodeReactionMetadataController {
                 meta.setDisplayName(reactionMetadata.name());
                 meta.setDisplayDescription(reactionMetadata.description());
                 meta.setDisplayHide(reactionMetadata.hide());
+                meta.setDisplayDefaultStringValue(reactionMetadata.defaultStringValue());
+                meta.setDisplayDefaultBooleanValue(reactionMetadata.defaultBooleanValue());
+                meta.setDisplayDefaultDoubleValue(reactionMetadata.defaultDoubleValue());
+                meta.setDisplayDefaultIntValue(reactionMetadata.defaultIntValue());
             }
 
             Size size = field.getAnnotation(Size.class);
@@ -161,12 +158,9 @@ public class LowCodeReactionMetadataController {
         }
     }
 
-    @Operation(summary = "Get metadata for low-code reactions", description = "Gets the configuration metadata for a low-code reactions")
-    @GetMapping("/lowcode-metadata")
-    @PreAuthorize("hasRole('user')")
-    public ResponseTemplateDto<LowCodeReactionMetadataResponse> getDtoMetadata() {
+    public LowCodeReactionMetadataResponse getAllLowCodeReactionMetadata() {
         var data = lowCodeReactionRequestBaseList.stream().map(dto -> new AbstractMap.SimpleEntry<>(dto.getName(), getDtoMetadata(dto.getClass()))).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        return ResponseTemplateDto.<LowCodeReactionMetadataResponse>builder().data(LowCodeReactionMetadataResponse.builder().reactionMetadataMap(data).build()).message(LOWCODE_REACTIONS_METADATA_LOADED_SUCCESSFULLY).build();
+        return LowCodeReactionMetadataResponse.builder().reactionMetadataMap(data).build();
     }
 
     private LowCodeReactionMetadata getDtoMetadata(Class<? extends LowCodeReactionRequestBase> dtoClass) {
