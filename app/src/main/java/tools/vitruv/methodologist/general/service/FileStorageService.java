@@ -63,6 +63,52 @@ public class FileStorageService {
    * with the same hash and size exists, returns that file instead of creating a duplicate.
    *
    * @param callerUserEmail email of the user storing the file
+   * @param data the file contents
+   * @param fileName the name of the file
+   * @param contentType the MIME type of the file
+   * @param type the type of file being stored
+   * @return FileStorageResponse containing the stored file's ID
+   * @throws Exception if file hashing fails
+   * @throws NotFoundException if the user email is not found
+   * @throws IllegalArgumentException if the file is empty
+   */
+  @Transactional
+  public FileStorageResponse storeFile(
+          String callerUserEmail, byte[] data, String fileName, String contentType, FileEnumType type) throws Exception {
+    User user =
+            userRepository
+                    .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
+                    .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
+    if (data.length == 0) {
+      throw new IllegalArgumentException("File is empty");
+    }
+
+    String sha = sha256Hex(data);
+
+    var optional = fileStorageRepository.findByUserAndSha256AndSizeBytes(user, sha, data.length);
+    if (optional.isPresent()) {
+      return FileStorageResponse.builder().id(optional.get().getId()).build();
+    }
+
+    FileStorage fileStorage = new FileStorage();
+    fileStorage.setFilename(fileName);
+    fileStorage.setType(type);
+    fileStorage.setContentType(
+            contentType == null ? "application/octet-stream" : contentType);
+    fileStorage.setSizeBytes(data.length);
+    fileStorage.setSha256(sha);
+    fileStorage.setData(data);
+    fileStorage.setUser(user);
+    fileStorageRepository.save(fileStorage);
+
+    return FileStorageResponse.builder().id(fileStorage.getId()).build();
+  }
+
+  /**
+   * Stores a file in the system with deduplication based on SHA-256 hash and file size. If a file
+   * with the same hash and size exists, returns that file instead of creating a duplicate.
+   *
+   * @param callerUserEmail email of the user storing the file
    * @param file the MultipartFile to store
    * @param type the type of file being stored
    * @return FileStorageResponse containing the stored file's ID
@@ -73,34 +119,11 @@ public class FileStorageService {
   @Transactional
   public FileStorageResponse storeFile(
       String callerUserEmail, MultipartFile file, FileEnumType type) throws Exception {
-    User user =
-        userRepository
-            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
-            .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
     if (file.isEmpty()) {
       throw new IllegalArgumentException("File is empty");
     }
 
-    byte[] data = file.getBytes();
-    String sha = sha256Hex(data);
-
-    var optional = fileStorageRepository.findByUserAndSha256AndSizeBytes(user, sha, data.length);
-    if (optional.isPresent()) {
-      return FileStorageResponse.builder().id(optional.get().getId()).build();
-    }
-
-    FileStorage fileStorage = new FileStorage();
-    fileStorage.setFilename(file.getOriginalFilename());
-    fileStorage.setType(type);
-    fileStorage.setContentType(
-        file.getContentType() == null ? "application/octet-stream" : file.getContentType());
-    fileStorage.setSizeBytes(data.length);
-    fileStorage.setSha256(sha);
-    fileStorage.setData(data);
-    fileStorage.setUser(user);
-    fileStorageRepository.save(fileStorage);
-
-    return FileStorageResponse.builder().id(fileStorage.getId()).build();
+    return storeFile(callerUserEmail, file.getBytes(), file.getOriginalFilename(), file.getContentType(), type);
   }
 
   /**
@@ -140,6 +163,63 @@ public class FileStorageService {
    *
    * @param callerUserEmail email of the user requesting the update
    * @param fileId the ID of the existing file to update
+   * @param data the file contents
+   * @param fileName the name of the file
+   * @param contentType the MIME type of the file
+   * @return FileStorageResponse containing the updated file's ID
+   * @throws Exception if file hashing fails
+   * @throws NotFoundException if the user email is not found
+   * @throws IllegalArgumentException if the file is empty or the file ID is not found
+   * @throws FileAlreadyExistsException if another file with the same content already exists for the
+   *     same user
+   */
+  @Transactional
+  public FileStorageResponse updateFile(String callerUserEmail, Long fileId, byte[] data, String fileName, String contentType)
+          throws Exception {
+    User user =
+            userRepository
+                    .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
+                    .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
+
+    FileStorage existing =
+            fileStorageRepository
+                    .findByIdAndType(fileId, FileEnumType.REACTION)
+                    .orElseThrow(() -> new NotFoundException("File not found"));
+
+    if (existing.getUser() == null
+            || existing.getUser().getId() == null
+            || !existing.getUser().getId().equals(user.getId())) {
+      throw new IllegalArgumentException("File does not belong to the requesting user");
+    }
+
+    if (data.length == 0) {
+      throw new IllegalArgumentException("File is empty");
+    }
+
+    String sha = sha256Hex(data);
+
+    existing.setFilename(fileName);
+    existing.setType(FileEnumType.REACTION);
+    existing.setContentType(
+            contentType == null ? "application/octet-stream" : contentType);
+    existing.setSizeBytes(data.length);
+    existing.setSha256(sha);
+    existing.setData(data);
+
+    fileStorageRepository.save(existing);
+
+    return FileStorageResponse.builder().id(existing.getId()).build();
+  }
+
+  /**
+   * Updates an existing file by overwriting its stored content with a new file, while enforcing
+   * deduplication against other files owned by the same user.
+   *
+   * <p>The existing file is identified by its ID. The caller must be the owner of the file. If a
+   * different file of the same user with identical content already exists, the update is rejected.
+   *
+   * @param callerUserEmail email of the user requesting the update
+   * @param fileId the ID of the existing file to update
    * @param file the new MultipartFile whose content will replace the existing file content
    * @return FileStorageResponse containing the updated file's ID
    * @throws Exception if file hashing fails
@@ -151,40 +231,11 @@ public class FileStorageService {
   @Transactional
   public FileStorageResponse updateFile(String callerUserEmail, Long fileId, MultipartFile file)
       throws Exception {
-    User user =
-        userRepository
-            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
-            .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
-
-    FileStorage existing =
-        fileStorageRepository
-            .findByIdAndType(fileId, FileEnumType.REACTION)
-            .orElseThrow(() -> new NotFoundException("File not found"));
-
-    if (existing.getUser() == null
-        || existing.getUser().getId() == null
-        || !existing.getUser().getId().equals(user.getId())) {
-      throw new IllegalArgumentException("File does not belong to the requesting user");
-    }
-
     if (file.isEmpty()) {
       throw new IllegalArgumentException("File is empty");
     }
 
-    byte[] data = file.getBytes();
-    String sha = sha256Hex(data);
-
-    existing.setFilename(file.getOriginalFilename());
-    existing.setType(FileEnumType.REACTION);
-    existing.setContentType(
-        file.getContentType() == null ? "application/octet-stream" : file.getContentType());
-    existing.setSizeBytes(data.length);
-    existing.setSha256(sha);
-    existing.setData(data);
-
-    fileStorageRepository.save(existing);
-
-    return FileStorageResponse.builder().id(existing.getId()).build();
+    return updateFile(callerUserEmail, fileId, file.getBytes(), file.getOriginalFilename(), file.getContentType());
   }
 
   /**
