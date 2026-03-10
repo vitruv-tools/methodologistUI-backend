@@ -37,9 +37,4 @@ public class ExampleRequest extends LowCodeReactionRequestBase {
     @Size(min = 1, max = 10)
     @NotNull private String[] stringArrayField;
     @NotNull private Map<String, Boolean> mapField;
-
-    @Override
-    public Map<String, Object> toTemplateData() {
-        throw new UnsupportedOperationException();
-    }
 }

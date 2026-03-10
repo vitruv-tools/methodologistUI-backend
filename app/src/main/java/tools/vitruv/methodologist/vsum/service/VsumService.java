@@ -33,6 +33,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelation
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
+import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
@@ -64,6 +65,7 @@ public class VsumService {
   VsumUserService vsumUserService;
   MetaModelRelationService metaModelRelationService;
   MetaModelRelationMapper metaModelRelationMapper;
+  LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
   VsumMetaModelRepository vsumMetaModelRepository;
   VsumHistoryService vsumHistoryService;
   MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
@@ -260,12 +262,11 @@ public class VsumService {
                 .map(metaModel -> metaModelMapper.toMetaModelResponse(metaModel.getMetaModel()))
                 .toList();
     response.setMetaModels(metaModels);
-
     List<MetaModelRelationResponse> metaModelRelation =
         (vsum.getMetaModelRelations() == null
                 ? List.<MetaModelRelation>of()
                 : vsum.getMetaModelRelations())
-            .stream().map(metaModelRelationMapper::toMetaModelRelationResponse).toList();
+            .stream().map(m -> metaModelRelationMapper.toMetaModelRelationResponse(m, lowCodeReactionRequestMapper)).toList();
     response.setMetaModelsRelation(metaModelRelation);
 
     return response;

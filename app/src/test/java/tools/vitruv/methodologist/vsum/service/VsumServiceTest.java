@@ -45,6 +45,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelation
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
+import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
@@ -71,6 +72,7 @@ class VsumServiceTest {
   @Mock private VsumUserService vsumUserService;
   @Mock private MetaModelRelationService metaModelRelationService;
   @Mock private MetaModelRelationMapper metaModelRelationMapper;
+  @Mock private LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
   @Mock private VsumMetaModelRepository vsumMetaModelRepository;
   @Mock private MetaModelRelationRepository metaModelRelationRepository;
   @Mock private VsumHistoryService vsumHistoryService;
@@ -126,6 +128,7 @@ class VsumServiceTest {
             vsumUserService,
             metaModelRelationService,
             metaModelRelationMapper,
+            lowCodeReactionRequestMapper,
             vsumMetaModelRepository,
             vsumHistoryService,
             metaModelVitruvIntegrationService);
@@ -290,7 +293,7 @@ class VsumServiceTest {
     when(metaModelMapper.toMetaModelResponse(mm)).thenReturn(mmResp);
 
     MetaModelRelationResponse relResp = new MetaModelRelationResponse();
-    when(metaModelRelationMapper.toMetaModelRelationResponse(rel)).thenReturn(relResp);
+    when(metaModelRelationMapper.toMetaModelRelationResponse(rel, lowCodeReactionRequestMapper)).thenReturn(relResp);
 
     VsumMetaModelResponse result = service.findVsumWithDetails(email, 78L);
 

@@ -42,18 +42,4 @@ public class CreateCorrespondingRootOnInsertRootRequest extends LowCodeReactionR
     @NotNull private String model2RootType;
     @ReactionMetadata(defaultStringValue = "${sourceAlias.toLowerCase()}")
     @NotNull private String model1RootVar;
-
-    @Override
-    public Map<String, Object> toTemplateData() {
-        Map<String, Object> data = new HashMap<>();
-        data.put("model1Uri", model1Uri);
-        data.put("model2Uri", model2Uri);
-        data.put("model1Alias", model1Alias);
-        data.put("model2Alias", model2Alias);
-        data.put("reactionName", reactionName);
-        data.put("model1RootType", model1RootType);
-        data.put("model2RootType", model2RootType);
-        data.put("model1RootVar", model1RootVar);
-        return data;
-    }
 }

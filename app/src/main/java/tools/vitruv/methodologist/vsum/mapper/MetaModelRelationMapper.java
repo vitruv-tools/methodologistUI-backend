@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.mapper;
 
+import org.mapstruct.Context;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
@@ -19,11 +20,12 @@ public interface MetaModelRelationMapper {
    * Maps a {@link MetaModelRelation} to its {@link MetaModelRelationResponse} representation.
    *
    * @param metaModelRelation the source entity; may be {@code null}
+   * @param lowCodeReactionRequestMapper context mapper for fine-granular relations; may be {@code null}
    * @return the mapped response DTO, or {@code null} if input is {@code null}
    */
   @Mapping(source = "source.id", target = "sourceId")
   @Mapping(source = "target.id", target = "targetId")
   @Mapping(source = "reactionFileStorage.id", target = "reactionFileStorageId")
   @Mapping(source = "fineGranularMetaModelRelationSet", target = "fineGranularMetaModelRelationSet")
-  MetaModelRelationResponse toMetaModelRelationResponse(MetaModelRelation metaModelRelation);
+  MetaModelRelationResponse toMetaModelRelationResponse(MetaModelRelation metaModelRelation, @Context LowCodeReactionRequestMapper lowCodeReactionRequestMapper);
 }

@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.vsum.controller.dto.response;
 
 import lombok.*;
+import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.LowCodeReactionRequestBase;
 
 import java.util.Map;
 
@@ -14,6 +15,5 @@ public class FineGranularMetaModelRelationResponse {
     private String sourceId;
     private String targetId;
     private Long reactionFileStorageId;
-    private String lowCodeReactionTemplate;
-    private Map<String, Object> lowCodeReactionTemplateParams;
+    private LowCodeReactionRequestBase lowCodeReactionRequestBase;
 }
