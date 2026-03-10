@@ -38,5 +38,6 @@ public class VsumRepresentation implements Serializable {
     private Long sourceId;
     private Long targetId;
     private Long relationFileStorage;
+    //TODO(Reinbold): This is missing support for fine-granular meta model relations
   }
 }

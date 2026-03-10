@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.model;
 
+import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -7,7 +8,10 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Type;
 import tools.vitruv.methodologist.general.model.FileStorage;
+
+import java.util.Map;
 
 @Data
 @Builder
@@ -24,8 +28,11 @@ public class FineGranularMetaModelRelation {
     @NotNull @NotBlank
     private String targetId;
 
-    @NotNull @NotBlank
     private String lowCodeReactionTemplate;
+
+    @Type(JsonType.class)
+    @Column(columnDefinition = "jsonb")
+    private Map<String, Object> lowCodeReactionTemplateParams;
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)

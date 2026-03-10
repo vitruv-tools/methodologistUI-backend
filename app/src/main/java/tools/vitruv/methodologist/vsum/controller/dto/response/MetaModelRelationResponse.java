@@ -6,6 +6,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+import java.util.Set;
+
 /**
  * Response DTO representing a relation between two meta models.
  *
@@ -24,4 +27,5 @@ public class MetaModelRelationResponse {
   private Long sourceId;
   private Long targetId;
   private Long reactionFileStorageId;
+  private Set<FineGranularMetaModelRelationResponse> fineGranularMetaModelRelationSet;
 }

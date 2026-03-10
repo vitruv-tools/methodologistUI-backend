@@ -41,14 +41,16 @@ public abstract class LowCodeReactionRequestBase {
     @ReactionMetadata(hide = true)
     private Long vsumId;
 
-    @ReactionMetadata(hide = true)
+    @ReactionMetadata(hide = true, defaultStringValue = "${sourceUri}")
     @NotNull @NotBlank
     private String source;
 
-    @ReactionMetadata(hide = true)
+    @ReactionMetadata(hide = true, defaultStringValue = "${targetUri}")
     @NotNull @NotBlank
     private String target;
 
+    @ReactionMetadata(hide = true)
+    private boolean regenerate = false;
 
     private boolean bidirectional;
 

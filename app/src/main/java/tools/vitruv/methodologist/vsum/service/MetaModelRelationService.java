@@ -1,14 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
-import static tools.vitruv.methodologist.messages.Error.METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR;
-import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
-
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -19,22 +11,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
+import tools.vitruv.methodologist.general.MemoizedSupplier;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
-import tools.vitruv.methodologist.vsum.model.MetaModel;
-import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
-import tools.vitruv.methodologist.vsum.model.Vsum;
-import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
+import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
+import tools.vitruv.methodologist.vsum.model.*;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelRelationRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
+
+import static tools.vitruv.methodologist.messages.Error.*;
 
 /** Syncs MetaModel relations in a VSUM using full-state input. */
 @Service
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class MetaModelRelationService {
-
   MetaModelRelationRepository metaModelRelationRepository;
   FileStorageRepository fileStorageRepository;
   VsumMetaModelRepository vsumMetaModelRepository;
@@ -43,9 +36,10 @@ public class MetaModelRelationService {
    * Creates relations for the given requests; requires non-null reactionFileId for new relations.
    */
   @Transactional
-  public void create(Vsum vsum, List<MetaModelRelationRequest> requests) {
+  public Map<MetaModelRelationRequest, MetaModelRelation> create(Vsum vsum, List<MetaModelRelationRequest> requests) {
+    var result = new HashMap<MetaModelRelationRequest, MetaModelRelation>();
     if (requests == null || requests.isEmpty()) {
-      return;
+      return result;
     }
 
     Set<Long> metaModelSourceIds =
@@ -104,20 +98,23 @@ public class MetaModelRelationService {
       MetaModel target = metaModelBySourceId.get(targetId);
       FileStorage reactionFile = reactionFileById.get(reactionFileId);
 
-      toSave.add(
-          MetaModelRelation.builder()
-              .vsum(vsum)
-              .source(source)
-              .target(target)
-              .reactionFileStorage(reactionFile)
-              .build());
+      MetaModelRelation metaModelRelation =
+              MetaModelRelation.builder()
+                      .vsum(vsum)
+                      .source(source)
+                      .target(target)
+                      .reactionFileStorage(reactionFile)
+                      .build();
+      result.put(metaModelRelationRequest, metaModelRelation);
+      toSave.add(metaModelRelation);
     }
 
     if (toSave.isEmpty()) {
-      return;
+      return result;
     }
 
     metaModelRelationRepository.saveAll(toSave);
+    return result;
   }
 
   /** Deletes the provided relations in batch. */
@@ -133,5 +130,76 @@ public class MetaModelRelationService {
    */
   public void deleteByVsum(Vsum vsum) {
     metaModelRelationRepository.deleteMetaModelRelationByVsum(vsum);
+  }
+
+  @Transactional
+  public Map<MetaModelRelationRequest, MetaModelRelation> update(Vsum vsum, List<MetaModelRelationRequest> metaModelRelationRequests, MemoizedSupplier<Boolean> vsumHistorySaveSupplier) {
+    Map<MetaModelRelationRequest, MetaModelRelation> metaModelRelationRequestToRelation = new HashMap<>();
+
+    List<MetaModelRelationRequest> desiredMetaModelRelation =
+            metaModelRelationRequests == null
+                    ? List.of()
+                    : metaModelRelationRequests.stream()
+                    .filter(
+                            metaModelRelationRequest ->
+                                    metaModelRelationRequest != null
+                                            && metaModelRelationRequest.getSourceId() != null
+                                            && metaModelRelationRequest.getTargetId() != null)
+                    .toList();
+
+    List<MetaModelRelation> existingMetaModelRelation =
+            metaModelRelationRepository.findAllByVsum(vsum);
+
+    Set<String> desiredMetaModelRelationPairs =
+            desiredMetaModelRelation.stream()
+                    .map(
+                            metaModelRelationRequest ->
+                                    metaModelRelationRequest.getSourceId()
+                                            + ":"
+                                            + metaModelRelationRequest.getTargetId())
+                    .collect(Collectors.toSet());
+
+    Map<String, MetaModelRelation> existingByPair = new HashMap<>();
+    for (MetaModelRelation metaModelRelation : existingMetaModelRelation) {
+      String metaModelRelationPairKey =
+              metaModelRelation.getSource().getSource().getId()
+                      + ":"
+                      + metaModelRelation.getTarget().getSource().getId();
+      existingByPair.put(metaModelRelationPairKey, metaModelRelation);
+    }
+
+    Set<String> existingMetaModelRelationPairs = new HashSet<>(existingByPair.keySet());
+
+    Set<String> toRemoveMetaModelRelation = new HashSet<>(existingMetaModelRelationPairs);
+    toRemoveMetaModelRelation.removeAll(desiredMetaModelRelationPairs);
+
+    Set<String> toAddMetaModelRelation = new HashSet<>(desiredMetaModelRelationPairs);
+    toAddMetaModelRelation.removeAll(existingMetaModelRelationPairs);
+
+    // Save vsum to history if it wasn't already (with this supplier)
+    if (!toRemoveMetaModelRelation.isEmpty() || !toAddMetaModelRelation.isEmpty()) {
+      vsumHistorySaveSupplier.get();
+    }
+
+    if (!toRemoveMetaModelRelation.isEmpty()) {
+      List<MetaModelRelation> deletions =
+              toRemoveMetaModelRelation.stream().map(existingByPair::get).toList();
+      this.delete(deletions);
+      deletions.forEach(vsum.getMetaModelRelations()::remove);
+    }
+
+    if (!toAddMetaModelRelation.isEmpty()) {
+      List<MetaModelRelationRequest> creations =
+              desiredMetaModelRelation.stream()
+                      .filter(
+                              metaModelRelationRequest ->
+                                      toAddMetaModelRelation.contains(
+                                              metaModelRelationRequest.getSourceId()
+                                                      + ":"
+                                                      + metaModelRelationRequest.getTargetId()))
+                      .toList();
+      metaModelRelationRequestToRelation.putAll(this.create(vsum, creations));
+    }
+    return metaModelRelationRequestToRelation;
   }
 }

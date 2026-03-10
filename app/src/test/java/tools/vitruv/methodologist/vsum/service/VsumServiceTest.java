@@ -17,6 +17,7 @@ import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -74,6 +75,7 @@ class VsumServiceTest {
   @Mock private MetaModelRelationRepository metaModelRelationRepository;
   @Mock private VsumHistoryService vsumHistoryService;
   @Mock private MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
+  @Mock private FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
 
   private VsumService service;
 
@@ -128,7 +130,8 @@ class VsumServiceTest {
             vsumMetaModelRepository,
             metaModelRelationRepository,
             vsumHistoryService,
-            metaModelVitruvIntegrationService);
+            metaModelVitruvIntegrationService,
+            fineGranularMetaModelRelationService);
   }
 
   @Test
@@ -385,7 +388,7 @@ class VsumServiceTest {
   }
 
   @Test
-  void update_removesRelations_whenPairsMissingInDesired_andWritesHistory() {
+  void update_removesRelations_whenPairsMissingInDesired_andWritesHistory() throws Exception {
     Vsum vsum = new Vsum();
     vsum.setId(1L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());
@@ -408,7 +411,7 @@ class VsumServiceTest {
     when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setMetaModelRelationRequests(List.of(new MetaModelRelationRequest(100L, 200L, 999L)));
+    put.setMetaModelRelationRequests(List.of(new MetaModelRelationRequest(100L, 200L, 999L, new HashSet<>())));
 
     Vsum result = service.update(email, 1L, put);
 
@@ -423,7 +426,7 @@ class VsumServiceTest {
   }
 
   @Test
-  void update_createsRelations_whenNewPairsAppear_andWritesHistory() {
+  void update_createsRelations_whenNewPairsAppear_andWritesHistory() throws Exception {
     Vsum vsum = new Vsum();
     vsum.setId(2L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());
@@ -438,7 +441,7 @@ class VsumServiceTest {
     when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
     when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
 
-    MetaModelRelationRequest req = new MetaModelRelationRequest(100L, 200L, 777L);
+    MetaModelRelationRequest req = new MetaModelRelationRequest(100L, 200L, 777L, new HashSet<>());
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelRelationRequests(List.of(req));
 
@@ -450,7 +453,7 @@ class VsumServiceTest {
   }
 
   @Test
-  void update_removesVsumMetaModels_notInDesiredList_andWritesHistory() {
+  void update_removesVsumMetaModels_notInDesiredList_andWritesHistory() throws Exception {
     Vsum vsum = new Vsum();
     vsum.setId(3L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());
@@ -483,7 +486,7 @@ class VsumServiceTest {
   }
 
   @Test
-  void update_addsVsumMetaModels_whenNewIdsAppear_andWritesHistory() {
+  void update_addsVsumMetaModels_whenNewIdsAppear_andWritesHistory() throws Exception {
     Vsum vsum = new Vsum();
     vsum.setId(4L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());
@@ -513,7 +516,7 @@ class VsumServiceTest {
   }
 
   @Test
-  void update_mixedChanges_relationsAndMetaModels_andWritesHistoryOnce() {
+  void update_mixedChanges_relationsAndMetaModels_andWritesHistoryOnce() throws Exception {
     Vsum vsum = new Vsum();
     vsum.setId(5L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());
@@ -539,11 +542,11 @@ class VsumServiceTest {
     MetaModelRelation r30And40 = metaModelRelation(vsum, s30, t40);
     when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r10And20, r30And40));
 
-    MetaModelRelationRequest addRelationReq = new MetaModelRelationRequest(50L, 60L, 909L);
+    MetaModelRelationRequest addRelationReq = new MetaModelRelationRequest(50L, 60L, 909L, new HashSet<>());
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelRelationRequests(
-        List.of(new MetaModelRelationRequest(10L, 20L, 111L), addRelationReq));
+        List.of(new MetaModelRelationRequest(10L, 20L, 111L, new HashSet<>()), addRelationReq));
     put.setMetaModelIds(List.of(41L, 43L));
 
     service.update(email, 5L, put);
@@ -557,7 +560,7 @@ class VsumServiceTest {
   }
 
   @Test
-  void update_noChanges_noSideEffects_exceptSave_andNoHistory() {
+  void update_noChanges_noSideEffects_exceptSave_andNoHistory() throws Exception {
     Vsum vsum = new Vsum();
     vsum.setId(6L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());
@@ -582,7 +585,7 @@ class VsumServiceTest {
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelIds(List.of(1L, 2L));
-    put.setMetaModelRelationRequests(List.of(new MetaModelRelationRequest(1L, 2L, 555L)));
+    put.setMetaModelRelationRequests(List.of(new MetaModelRelationRequest(1L, 2L, 555L, new HashSet<>())));
 
     service.update(email, 6L, put);
 
@@ -595,7 +598,7 @@ class VsumServiceTest {
   }
 
   @Test
-  void update_clearsAll_whenRequestListsAreNull_orEmpty_andWritesHistory() {
+  void update_clearsAll_whenRequestListsAreNull_orEmpty_andWritesHistory() throws Exception {
     Vsum vsum = new Vsum();
     vsum.setId(7L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());

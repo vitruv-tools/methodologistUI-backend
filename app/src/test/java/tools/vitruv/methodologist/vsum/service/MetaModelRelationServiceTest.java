@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,7 +62,7 @@ class MetaModelRelationServiceTest {
 
     FileStorage file = FileStorage.builder().id(300L).type(FileEnumType.REACTION).build();
 
-    MetaModelRelationRequest req = new MetaModelRelationRequest(100L, 200L, 300L);
+    MetaModelRelationRequest req = new MetaModelRelationRequest(100L, 200L, 300L, new HashSet<>());
 
     when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
         .thenReturn(List.of(vmm1, vmm2));
@@ -84,7 +85,7 @@ class MetaModelRelationServiceTest {
 
   @Test
   void create_throwsNotFound_whenMetaModelMissing() {
-    MetaModelRelationRequest req = new MetaModelRelationRequest(111L, 222L, 333L);
+    MetaModelRelationRequest req = new MetaModelRelationRequest(111L, 222L, 333L, new HashSet<>());
 
     when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
         .thenReturn(List.of());
@@ -99,7 +100,7 @@ class MetaModelRelationServiceTest {
     MetaModel mm = MetaModel.builder().id(10L).source(MetaModel.builder().id(111L).build()).build();
     VsumMetaModel vmm = new VsumMetaModel(null, vsum, mm, null, null, null);
 
-    MetaModelRelationRequest req = new MetaModelRelationRequest(111L, 222L, 333L);
+    MetaModelRelationRequest req = new MetaModelRelationRequest(111L, 222L, 333L, new HashSet<>());
 
     when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
         .thenReturn(List.of(vmm));
@@ -122,8 +123,8 @@ class MetaModelRelationServiceTest {
     VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, tgt, null, null, null);
     FileStorage file = FileStorage.builder().id(300L).type(FileEnumType.REACTION).build();
 
-    MetaModelRelationRequest r1 = new MetaModelRelationRequest(100L, 200L, 300L);
-    MetaModelRelationRequest r2 = new MetaModelRelationRequest(100L, 200L, 300L);
+    MetaModelRelationRequest r1 = new MetaModelRelationRequest(100L, 200L, 300L, new HashSet<>());
+    MetaModelRelationRequest r2 = new MetaModelRelationRequest(100L, 200L, 300L, new HashSet<>());
 
     when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
         .thenReturn(List.of(vmm1, vmm2));

@@ -24,5 +24,6 @@ public interface MetaModelRelationMapper {
   @Mapping(source = "source.id", target = "sourceId")
   @Mapping(source = "target.id", target = "targetId")
   @Mapping(source = "reactionFileStorage.id", target = "reactionFileStorageId")
+  @Mapping(source = "fineGranularMetaModelRelationSet", target = "fineGranularMetaModelRelationSet")
   MetaModelRelationResponse toMetaModelRelationResponse(MetaModelRelation metaModelRelation);
 }

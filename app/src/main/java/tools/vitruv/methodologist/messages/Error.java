@@ -17,4 +17,5 @@ public class Error {
   public static final String FILE_ID_NOT_FOUND_ERROR = "File not found.";
   public static final String METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR =
       "MetaModel IDs not found in this VSUM";
+  public static final String NO_TEMPLATE_PROVIDED_ERROR = "No template provided for fine-granular reaction.";
 }

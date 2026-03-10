@@ -49,7 +49,6 @@ public class MetaModelRelation {
   @JoinColumn(name = "target_id")
   private MetaModel target;
 
-  @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "reaction_file_id")
   private FileStorage reactionFileStorage;

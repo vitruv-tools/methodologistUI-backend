@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.Set;
+
 /**
  * Request DTO for creating or updating a relation between two meta models.
  *
@@ -23,4 +25,5 @@ public class MetaModelRelationRequest {
   @NotNull private Long sourceId;
   @NotNull private Long targetId;
   @NotNull private Long reactionFileId;
+  private Set<FineGranularMetaModelRelationRequest> fineGranularMetaModelRelationSet;
 }

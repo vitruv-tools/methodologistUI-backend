@@ -26,18 +26,21 @@ public class CreateCorrespondingRootOnInsertRootRequest extends LowCodeReactionR
     @ReactionMetadata(hide = true)
     private String name = "create_corresponding_root_on_insert_root";
 
-    @ReactionMetadata(defaultStringValue = "${sourceUri}")
+    @ReactionMetadata(defaultStringValue = "${sourceModelUri}")
     @NotNull private String model1Uri;
-    @ReactionMetadata(defaultStringValue = "${targetUri}")
+    @ReactionMetadata(defaultStringValue = "${targetModelUri}")
     @NotNull private String model2Uri;
-    @ReactionMetadata(defaultStringValue = "${sourceAlias}")
+    @ReactionMetadata(defaultStringValue = "${sourceModelAlias}")
     @NotNull private String model1Alias;
-    @ReactionMetadata(defaultStringValue = "${targetAlias}")
+    @ReactionMetadata(defaultStringValue = "${targetModelAlias}")
     @NotNull private String model2Alias;
-    @ReactionMetadata(defaultStringValue = "${sourceAlias}2${targetAlias}")
+    @ReactionMetadata(defaultStringValue = "${sourceModelAlias}2${capitalizeFirst(targetModelAlias)}")
     @NotNull private String reactionName;
+    @ReactionMetadata(defaultStringValue = "${sourceAlias}")
     @NotNull private String model1RootType;
+    @ReactionMetadata(defaultStringValue = "${targetAlias}")
     @NotNull private String model2RootType;
+    @ReactionMetadata(defaultStringValue = "${sourceAlias.toLowerCase()}")
     @NotNull private String model1RootVar;
 
     @Override
