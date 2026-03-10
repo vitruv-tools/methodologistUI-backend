@@ -4,10 +4,7 @@ import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.Type;
 import tools.vitruv.methodologist.general.model.FileStorage;
 
@@ -37,6 +34,7 @@ public class FineGranularMetaModelRelation {
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "meta_model_relation_id")
+    @EqualsAndHashCode.Exclude
     private MetaModelRelation metaModelRelation;
 
     @NotNull

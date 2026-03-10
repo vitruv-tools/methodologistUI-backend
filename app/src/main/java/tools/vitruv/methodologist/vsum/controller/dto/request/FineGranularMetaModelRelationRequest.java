@@ -2,11 +2,12 @@ package tools.vitruv.methodologist.vsum.controller.dto.request;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.LowCodeReactionRequestBase;
 import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 
-import java.util.Map;
 import java.util.Objects;
 
 @Builder
@@ -15,12 +16,18 @@ import java.util.Objects;
 @NoArgsConstructor
 @AllArgsConstructor
 public class FineGranularMetaModelRelationRequest {
+    private Long id;
+    @NotNull @NotBlank
     private String sourceId;
+    @NotNull @NotBlank
     private String targetId;
     private Long reactionFileStorageId;
     private LowCodeReactionRequestBase lowCodeReactionRequestBase;
 
     public boolean equals(FineGranularMetaModelRelation fineGranularMetaModelRelation) {
+        if (id != null && !Objects.equals(id, fineGranularMetaModelRelation.getId())) {
+            return false;
+        }
         if (!Objects.equals(sourceId, fineGranularMetaModelRelation.getSourceId())) {
             return false;
         }

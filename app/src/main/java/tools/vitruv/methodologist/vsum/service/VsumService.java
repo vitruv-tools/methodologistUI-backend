@@ -6,7 +6,6 @@ import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +37,6 @@ import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
 import tools.vitruv.methodologist.vsum.model.*;
-import tools.vitruv.methodologist.vsum.model.repository.MetaModelRelationRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
@@ -67,10 +65,8 @@ public class VsumService {
   MetaModelRelationService metaModelRelationService;
   MetaModelRelationMapper metaModelRelationMapper;
   VsumMetaModelRepository vsumMetaModelRepository;
-  MetaModelRelationRepository metaModelRelationRepository;
   VsumHistoryService vsumHistoryService;
   MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
-  FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -185,8 +181,7 @@ public class VsumService {
       vsumMetaModelService.create(vsumUser.getVsum(), toAddVsumMetaModelIds);
     }
 
-    var map = metaModelRelationService.update(vsumUser.getVsum(), vsumSyncChangesPutRequest.getMetaModelRelationRequests(), vsumHistorySaveSupplier);
-    fineGranularMetaModelRelationService.update(callerEmail, map, vsumHistorySaveSupplier);
+    metaModelRelationService.update(callerEmail, vsumUser.getVsum(), vsumSyncChangesPutRequest.getMetaModelRelationRequests(), vsumHistorySaveSupplier);
 
     vsumRepository.save(vsumUser.getVsum());
     return vsumUser.getVsum();

@@ -75,7 +75,6 @@ class VsumServiceTest {
   @Mock private MetaModelRelationRepository metaModelRelationRepository;
   @Mock private VsumHistoryService vsumHistoryService;
   @Mock private MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
-  @Mock private FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
 
   private VsumService service;
 
@@ -128,10 +127,8 @@ class VsumServiceTest {
             metaModelRelationService,
             metaModelRelationMapper,
             vsumMetaModelRepository,
-            metaModelRelationRepository,
             vsumHistoryService,
-            metaModelVitruvIntegrationService,
-            fineGranularMetaModelRelationService);
+            metaModelVitruvIntegrationService);
   }
 
   @Test

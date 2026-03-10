@@ -6,7 +6,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -22,8 +24,38 @@ import java.util.Set;
 @AllArgsConstructor
 @NoArgsConstructor
 public class MetaModelRelationRequest {
+  private Long id;
   @NotNull private Long sourceId;
   @NotNull private Long targetId;
-  @NotNull private Long reactionFileId;
+  private Long reactionFileId;
   private Set<FineGranularMetaModelRelationRequest> fineGranularMetaModelRelationSet;
+
+  public MetaModelRelationRequest(long sourceId, long targetId, long reactionFileId, Set<FineGranularMetaModelRelationRequest> fineGranularMetaModelRelationSet) {
+    this(null, sourceId, targetId, reactionFileId, fineGranularMetaModelRelationSet);
+  }
+
+  public boolean equals(MetaModelRelation metaModelRelation) {
+    if (id != null && !Objects.equals(id, metaModelRelation.getId())) {
+      return false;
+    }
+    if (!Objects.equals(sourceId, metaModelRelation.getSource().getSource().getId())) {
+      return false;
+    }
+    if (!Objects.equals(targetId, metaModelRelation.getTarget().getSource().getId())) {
+      return false;
+    }
+    if (!Objects.equals(reactionFileId, metaModelRelation.getReactionFileStorage().getId())) {
+      return false;
+    }
+    if (fineGranularMetaModelRelationSet.size() != metaModelRelation.getFineGranularMetaModelRelationSet().size()) {
+      return false;
+    }
+    for (var fgmmr : fineGranularMetaModelRelationSet) {
+      // Since we checked for size, we can safely assume that this check validates the sets are equal if it passes for all elements
+      if (metaModelRelation.getFineGranularMetaModelRelationSet().stream().noneMatch(fgmmr::equals)) {
+        return false;
+      }
+    }
+    return true;
+  }
 }
