@@ -13,7 +13,7 @@ import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
  * <p>Uses {@code componentModel\="spring"} for Spring DI and {@link ReportingPolicy#IGNORE} to
  * ignore unmapped targets.
  */
-@Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE, componentModel = "spring")
+@Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE, componentModel = "spring", uses = FineGranularMetaModelRelationMapper.class)
 public interface MetaModelRelationMapper {
   /**
    * Maps a {@link MetaModelRelation} to its {@link MetaModelRelationResponse} representation.
