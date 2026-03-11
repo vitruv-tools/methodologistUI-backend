@@ -336,8 +336,13 @@ class MetaModelServiceTest {
         .thenReturn(
             precheck(
                 GenModelPrecheckStatus.UNKNOWN,
-                "GENMODEL_PRECHECK_STATUS: UNKNOWN\nbasePackage must equal modelPluginID\n/Users/x/model.genmodel",
-                "Exception in thread \"main\" java.util.NoSuchElementException: No line found\n\tat x.y.Z(Z.java:1)",
+                """
+                            GENMODEL_PRECHECK_STATUS: UNKNOWN
+                            basePackage \
+                            must equal modelPluginID
+                            /Users/x/model.genmodel""",
+                "Exception in thread \"main\" java.util.NoSuchElementException:"
+                    + " No line found\n\tat x.y.Z(Z.java:1)",
                 List.of()));
 
     assertThatThrownBy(() -> metaModelService.create(email, request))
