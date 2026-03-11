@@ -5,7 +5,7 @@ import "${model2Uri}" as ${model2Alias}
 
 reactions: ${reactionName}
 in reaction to changes in ${model1Alias}
-execute actions in ${model1Alias}
+execute actions in ${model2Alias}
 
 reaction RootObjectInsertedIn${model1Alias} {
     after element ${model1Alias}::${model1RootType} inserted as root
