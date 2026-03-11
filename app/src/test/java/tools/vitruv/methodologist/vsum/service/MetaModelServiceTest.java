@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.vsum.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -497,7 +498,8 @@ class MetaModelServiceTest {
         .hasMessageContaining(ECORE_FILE_ID_NOT_FOUND_ERROR);
 
     verify(fileStorageRepository, never()).findByIdAndType(10L, FileEnumType.ECORE);
-    verify(metaModelVitruvIntegrationService, never()).precheckGenModels(any(), any(), any());
+    verify(metaModelVitruvIntegrationService, never())
+        .precheckGenModels(any(), any(), anyBoolean());
   }
 
   @Test
