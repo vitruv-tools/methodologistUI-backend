@@ -399,7 +399,8 @@ class MetaModelVitruvIntegrationServiceTest {
             .status(tools.vitruv.methodologist.vitruvcli.GenModelPrecheckStatus.CLEAN)
             .build();
 
-    when(vitruvCliService.precheckGenmodels(any(Path.class), anyList(), org.mockito.ArgumentMatchers.eq(false)))
+    when(vitruvCliService.precheckGenmodels(
+            any(Path.class), anyList(), org.mockito.ArgumentMatchers.eq(false)))
         .thenReturn(precheckResult);
 
     try (MockedStatic<Files> filesMock = org.mockito.Mockito.mockStatic(Files.class)) {
@@ -415,7 +416,11 @@ class MetaModelVitruvIntegrationServiceTest {
       var result = service.precheckGenModels(ecores, gens, false);
 
       assertThat(result.isSuccess()).isTrue();
-      verify(vitruvCliService).precheckGenmodels(org.mockito.ArgumentMatchers.eq(precheckDir), anyList(), org.mockito.ArgumentMatchers.eq(false));
+      verify(vitruvCliService)
+          .precheckGenmodels(
+              org.mockito.ArgumentMatchers.eq(precheckDir),
+              anyList(),
+              org.mockito.ArgumentMatchers.eq(false));
       filesMock.verify(() -> Files.createTempDirectory(baseWorkDir, "precheck-"));
     }
   }
@@ -437,6 +442,7 @@ class MetaModelVitruvIntegrationServiceTest {
           .hasMessageContaining("cannot create temp dir");
     }
 
-    verify(vitruvCliService, times(0)).precheckGenmodels(any(Path.class), anyList(), org.mockito.ArgumentMatchers.eq(false));
+    verify(vitruvCliService, times(0))
+        .precheckGenmodels(any(Path.class), anyList(), org.mockito.ArgumentMatchers.eq(false));
   }
 }

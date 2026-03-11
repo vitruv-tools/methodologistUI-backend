@@ -214,7 +214,8 @@ public class MetaModelService {
       return null;
     }
 
-    return output.lines()
+    return output
+        .lines()
         .map(String::trim)
         .filter(this::isClientSafePrecheckSummaryLine)
         .map(this::truncatePrecheckSummary)
