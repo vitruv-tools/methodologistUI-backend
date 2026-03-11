@@ -61,7 +61,7 @@ public interface VsumHistoryMapper {
                 VsumRepresentation.MetaModelRelation.builder()
                     .sourceId(metaModelRelation.getSource().getSource().getId())
                     .targetId(metaModelRelation.getTarget().getSource().getId())
-                    .relationFileStorage(metaModelRelation.getReactionFileStorage().getId())
+                    .relationFileStorage(metaModelRelation.getReactionFileStorage() == null ? null : metaModelRelation.getReactionFileStorage().getId())
                     .build())
         .collect(Collectors.toSet());
   }

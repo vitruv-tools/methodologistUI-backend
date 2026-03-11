@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.LowCodeReactionRequestBase;
+import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 
 import java.util.Objects;
@@ -24,7 +25,7 @@ public class FineGranularMetaModelRelationRequest {
     private Long reactionFileStorageId;
     private LowCodeReactionRequestBase lowCodeReactionRequestBase;
 
-    public boolean equals(FineGranularMetaModelRelation fineGranularMetaModelRelation) {
+    public boolean equals(LowCodeReactionRequestMapper lowCodeReactionRequestMapper, FineGranularMetaModelRelation fineGranularMetaModelRelation) {
         if (id != null && !Objects.equals(id, fineGranularMetaModelRelation.getId())) {
             return false;
         }
@@ -43,7 +44,12 @@ public class FineGranularMetaModelRelationRequest {
             }
             ObjectMapper mapper = new ObjectMapper();
             JsonNode node1 = mapper.valueToTree(lowCodeReactionRequestBase.toTemplateData());
-            JsonNode node2 = mapper.valueToTree(fineGranularMetaModelRelation.getLowCodeReactionTemplateParams());
+            JsonNode node2 = mapper.valueToTree(
+                    lowCodeReactionRequestMapper.map(
+                            lowCodeReactionRequestBase.getName(),
+                            fineGranularMetaModelRelation.getLowCodeReactionTemplateParams()
+                    ).toTemplateData()
+            );
             return node1.equals(node2);
         }
         return true;

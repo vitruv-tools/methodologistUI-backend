@@ -5,9 +5,11 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Type;
 import tools.vitruv.methodologist.general.model.FileStorage;
 
+import java.time.Instant;
 import java.util.Map;
 
 @Data
@@ -41,4 +43,7 @@ public class FineGranularMetaModelRelation {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reaction_file_id")
     private FileStorage reactionFileStorage;
+
+    @CreationTimestamp
+    private Instant createdAt;
 }

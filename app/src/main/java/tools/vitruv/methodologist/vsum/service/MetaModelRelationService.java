@@ -16,6 +16,7 @@ import tools.vitruv.methodologist.general.MemoizedSupplier;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
+import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.model.*;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelRelationRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
@@ -31,6 +32,7 @@ public class MetaModelRelationService {
   FileStorageRepository fileStorageRepository;
   VsumMetaModelRepository vsumMetaModelRepository;
   FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
+  private final LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
 
   /**
    * Creates relations for the given requests; requires non-null reactionFileId or fine granular relations for new relations.
@@ -219,7 +221,7 @@ public class MetaModelRelationService {
                               metaModelRelationRequest ->
                                       Objects.equals(metaModelRelation.getSource().getSource().getId(), metaModelRelationRequest.getSourceId())
                                       && Objects.equals(metaModelRelation.getTarget().getSource().getId(), metaModelRelationRequest.getTargetId())
-                                      && !metaModelRelationRequest.equals(metaModelRelation)
+                                      && !metaModelRelationRequest.equals(lowCodeReactionRequestMapper, metaModelRelation)
                       )
                       .findFirst();
       desired.ifPresent(metaModelRelationRequest -> toUpdateMetaModelRelation.put(metaModelRelationRequest, metaModelRelation));
