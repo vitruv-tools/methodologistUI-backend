@@ -25,4 +25,5 @@ public class MetaModelPostRequest {
   @NotNull private List<String> keyword;
   @NotNull private Long ecoreFileId;
   @NotNull private Long genModelFileId;
+  private boolean applyGenModelFixes;
 }
