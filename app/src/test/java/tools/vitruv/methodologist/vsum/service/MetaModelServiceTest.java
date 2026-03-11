@@ -379,7 +379,8 @@ class MetaModelServiceTest {
                 .status(GenModelPrecheckStatus.CLEAN)
                 .stdout("Validation failed after CLI execution")
                 .stderr(
-                    "Exception in thread \"main\" java.lang.IllegalStateException: broken\n\tat x.y.Z(Z.java:1)\n/Users/x/model.genmodel")
+                    "Exception in thread \"main\" java.lang.IllegalStateException:"
+                        + " broken\n\tat x.y.Z(Z.java:1)\n/Users/x/model.genmodel")
                 .updatedGenModelBytes(List.of())
                 .build());
 
