@@ -3,7 +3,6 @@ package tools.vitruv.methodologist.vsum.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -141,11 +140,13 @@ class MetaModelServiceTest {
         .thenReturn(Optional.of(user));
 
     final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
-    when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.of(ecore));
 
     final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
-    when(fileStorageRepository.findByIdAndType(20L, FileEnumType.GEN_MODEL))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
         .thenReturn(Optional.of(gen));
 
     when(metaModelVitruvIntegrationService.precheckGenModels(List.of(ecore), List.of(gen), false))
@@ -195,9 +196,11 @@ class MetaModelServiceTest {
 
     final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
     final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "old-gen".getBytes());
-    when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.of(ecore));
-    when(fileStorageRepository.findByIdAndType(20L, FileEnumType.GEN_MODEL))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
         .thenReturn(Optional.of(gen));
 
     byte[] fixedGen = "fixed-gen".getBytes();
@@ -250,9 +253,11 @@ class MetaModelServiceTest {
 
     final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
     final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
-    when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.of(ecore));
-    when(fileStorageRepository.findByIdAndType(20L, FileEnumType.GEN_MODEL))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
         .thenReturn(Optional.of(gen));
 
     when(metaModelMapper.toMetaModel(request)).thenReturn(metaModel(null, ecore, gen));
@@ -284,9 +289,11 @@ class MetaModelServiceTest {
 
     final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
     final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
-    when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.of(ecore));
-    when(fileStorageRepository.findByIdAndType(20L, FileEnumType.GEN_MODEL))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
         .thenReturn(Optional.of(gen));
 
     when(metaModelMapper.toMetaModel(request)).thenReturn(metaModel(null, ecore, gen));
@@ -295,13 +302,87 @@ class MetaModelServiceTest {
             precheck(
                 GenModelPrecheckStatus.ABORTED,
                 "GENMODEL_PRECHECK_STATUS: ABORTED",
-                "Exception in thread \"main\" java.util.NoSuchElementException: No line found\n\tat x.y.Z(Z.java:1)",
+                "Exception in thread \"main\" java.util.NoSuchElementException:"
+                    + " No line found\n\tat x.y.Z(Z.java:1)",
                 List.of()));
 
     assertThatThrownBy(() -> metaModelService.create(email, request))
         .isInstanceOf(CreateMwe2FileException.class)
         .hasMessageContaining("GenModel precheck status: ABORTED")
         .hasMessageNotContaining("NoSuchElementException");
+  }
+
+  @Test
+  void create_returnsSanitizedMessage_whenPrecheckStatusIsUnknown() {
+    final String email = "u@ex.com";
+    final MetaModelPostRequest request = req(10L, 20L);
+    final User user = new User();
+    user.setEmail(email);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
+    final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
+        .thenReturn(Optional.of(ecore));
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
+        .thenReturn(Optional.of(gen));
+
+    when(metaModelMapper.toMetaModel(request)).thenReturn(metaModel(null, ecore, gen));
+    when(metaModelVitruvIntegrationService.precheckGenModels(List.of(ecore), List.of(gen), false))
+        .thenReturn(
+            precheck(
+                GenModelPrecheckStatus.UNKNOWN,
+                "GENMODEL_PRECHECK_STATUS: UNKNOWN\nbasePackage must equal modelPluginID\n/Users/x/model.genmodel",
+                "Exception in thread \"main\" java.util.NoSuchElementException: No line found\n\tat x.y.Z(Z.java:1)",
+                List.of()));
+
+    assertThatThrownBy(() -> metaModelService.create(email, request))
+        .isInstanceOf(CreateMwe2FileException.class)
+        .hasMessageContaining("GenModel precheck did not return a valid status.")
+        .hasMessageContaining("basePackage must equal modelPluginID")
+        .hasMessageNotContaining("NoSuchElementException")
+        .hasMessageNotContaining("/Users/x/model.genmodel");
+  }
+
+  @Test
+  void create_returnsSanitizedMessage_whenPrecheckFailsWithNonSpecialStatus() {
+    final String email = "u@ex.com";
+    final MetaModelPostRequest request = req(10L, 20L);
+    final User user = new User();
+    user.setEmail(email);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
+    final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
+        .thenReturn(Optional.of(ecore));
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
+        .thenReturn(Optional.of(gen));
+
+    when(metaModelMapper.toMetaModel(request)).thenReturn(metaModel(null, ecore, gen));
+    when(metaModelVitruvIntegrationService.precheckGenModels(List.of(ecore), List.of(gen), false))
+        .thenReturn(
+            MetaModelVitruvIntegrationService.GenModelPrecheckExecutionResult.builder()
+                .exitCode(1)
+                .status(GenModelPrecheckStatus.CLEAN)
+                .stdout("Validation failed after CLI execution")
+                .stderr(
+                    "Exception in thread \"main\" java.lang.IllegalStateException: broken\n\tat x.y.Z(Z.java:1)\n/Users/x/model.genmodel")
+                .updatedGenModelBytes(List.of())
+                .build());
+
+    assertThatThrownBy(() -> metaModelService.create(email, request))
+        .isInstanceOf(CreateMwe2FileException.class)
+        .hasMessageContaining("GenModel precheck failed with status: CLEAN")
+        .hasMessageContaining("Validation failed after CLI execution")
+        .hasMessageNotContaining("IllegalStateException")
+        .hasMessageNotContaining("/Users/x/model.genmodel");
   }
 
   @Test
@@ -315,11 +396,13 @@ class MetaModelServiceTest {
         .thenReturn(Optional.of(user));
 
     final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
-    when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.of(ecore));
 
     final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
-    when(fileStorageRepository.findByIdAndType(20L, FileEnumType.GEN_MODEL))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
         .thenReturn(Optional.of(gen));
 
     when(metaModelVitruvIntegrationService.precheckGenModels(List.of(ecore), List.of(gen), false))
@@ -366,7 +449,8 @@ class MetaModelServiceTest {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.of(user));
 
-    when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
@@ -383,15 +467,37 @@ class MetaModelServiceTest {
         .thenReturn(Optional.of(user));
 
     final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
-    when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.of(ecore));
 
-    when(fileStorageRepository.findByIdAndType(20L, FileEnumType.GEN_MODEL))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
         .thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(GEN_MODEL_FILE_ID_NOT_FOUND_ERROR);
+  }
+
+  @Test
+  void create_throwsNotFound_whenEcoreBelongsToAnotherUser() {
+    final String email = "u@ex.com";
+    final User user = new User();
+    user.setEmail(email);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(ECORE_FILE_ID_NOT_FOUND_ERROR);
+
+    verify(fileStorageRepository, never()).findByIdAndType(10L, FileEnumType.ECORE);
+    verify(metaModelVitruvIntegrationService, never()).precheckGenModels(any(), any(), any());
   }
 
   @Test

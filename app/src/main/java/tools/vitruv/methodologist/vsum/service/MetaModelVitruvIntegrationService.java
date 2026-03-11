@@ -167,8 +167,7 @@ public class MetaModelVitruvIntegrationService {
       Path baseWorkDir = Path.of(requireWorkingDir());
       Files.createDirectories(baseWorkDir);
 
-      jobDir = baseWorkDir.resolve("precheck-" + System.currentTimeMillis());
-      Files.createDirectories(jobDir);
+      jobDir = Files.createTempDirectory(baseWorkDir, "precheck-");
 
       List<VitruvCliService.MetamodelInput> metamodels =
           writeMetamodels(jobDir, ecoreFiles, genModelFiles);
@@ -200,7 +199,13 @@ public class MetaModelVitruvIntegrationService {
           .updatedGenModelBytes(updatedGenModelBytes)
           .build();
     } catch (UncheckedIOException | IOException e) {
-      throw new CLIExecuteException(e.getMessage());
+      log.error("GenModel precheck failed due to I/O error", e);
+      String reason =
+          "I/O error during GenModel precheck ("
+              + e.getClass().getSimpleName()
+              + "): "
+              + (e.getMessage() != null ? e.getMessage() : "no detailed message available");
+      throw new CLIExecuteException(reason);
     } finally {
       if (jobDir != null) {
         try {

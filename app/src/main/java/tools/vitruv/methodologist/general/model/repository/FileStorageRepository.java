@@ -41,6 +41,19 @@ public interface FileStorageRepository extends CrudRepository<FileStorage, Long>
   Optional<FileStorage> findByIdAndType(Long id, FileEnumType type);
 
   /**
+   * Finds a file storage entry by id, type, and owning user email when the user is active.
+   *
+   * @param id the identifier of the file storage entry
+   * @param type the expected file type
+   * @param callerEmail the email of the owning active user
+   * @return the matching file storage entry if it exists, belongs to the caller, and has the
+   *     expected type; otherwise an empty optional
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  Optional<FileStorage> findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+      Long id, FileEnumType type, String callerEmail);
+
+  /**
    * Retrieves all {@link FileStorage} entities matching the given set of IDs and file type.
    *
    * @param fileIds the set of file storage IDs to search for (must not be {@code null})

@@ -383,4 +383,60 @@ class MetaModelVitruvIntegrationServiceTest {
       assertThat(walkInvoked).isTrue();
     }
   }
+
+  @Test
+  void precheckGenModels_usesUniqueTempDirectory_whenPrecheckRuns() {
+    var ecores = List.of(fs("model.ecore"));
+    var gens = List.of(fs("model.genmodel"));
+    Path baseWorkDir = Path.of("fake/workdir");
+    Path precheckDir = baseWorkDir.resolve("precheck-abc123");
+
+    var precheckResult =
+        VitruvCliService.GenModelPrecheckResult.builder()
+            .exitCode(0)
+            .stdout("GENMODEL_PRECHECK_STATUS: CLEAN")
+            .stderr("")
+            .status(tools.vitruv.methodologist.vitruvcli.GenModelPrecheckStatus.CLEAN)
+            .build();
+
+    when(vitruvCliService.precheckGenmodels(any(Path.class), anyList(), org.mockito.ArgumentMatchers.eq(false)))
+        .thenReturn(precheckResult);
+
+    try (MockedStatic<Files> filesMock = org.mockito.Mockito.mockStatic(Files.class)) {
+      filesMock.when(() -> Files.createDirectories(baseWorkDir)).thenReturn(baseWorkDir);
+      filesMock
+          .when(() -> Files.createTempDirectory(baseWorkDir, "precheck-"))
+          .thenReturn(precheckDir);
+      filesMock
+          .when(() -> Files.write(any(Path.class), any(byte[].class)))
+          .thenAnswer(inv -> inv.getArgument(0));
+      filesMock.when(() -> Files.walk(any(Path.class))).thenReturn(Stream.empty());
+
+      var result = service.precheckGenModels(ecores, gens, false);
+
+      assertThat(result.isSuccess()).isTrue();
+      verify(vitruvCliService).precheckGenmodels(org.mockito.ArgumentMatchers.eq(precheckDir), anyList(), org.mockito.ArgumentMatchers.eq(false));
+      filesMock.verify(() -> Files.createTempDirectory(baseWorkDir, "precheck-"));
+    }
+  }
+
+  @Test
+  void precheckGenModels_throwsWhenTempDirectoryCreationFails() {
+    var ecores = List.of(fs("model.ecore"));
+    var gens = List.of(fs("model.genmodel"));
+    Path baseWorkDir = Path.of("fake/workdir");
+
+    try (MockedStatic<Files> filesMock = org.mockito.Mockito.mockStatic(Files.class)) {
+      filesMock.when(() -> Files.createDirectories(baseWorkDir)).thenReturn(baseWorkDir);
+      filesMock
+          .when(() -> Files.createTempDirectory(baseWorkDir, "precheck-"))
+          .thenThrow(new IOException("cannot create temp dir"));
+
+      assertThatThrownBy(() -> service.precheckGenModels(ecores, gens, false))
+          .isInstanceOf(tools.vitruv.methodologist.exception.CLIExecuteException.class)
+          .hasMessageContaining("cannot create temp dir");
+    }
+
+    verify(vitruvCliService, times(0)).precheckGenmodels(any(Path.class), anyList(), org.mockito.ArgumentMatchers.eq(false));
+  }
 }

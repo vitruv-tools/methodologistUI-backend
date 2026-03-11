@@ -65,6 +65,8 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class MetaModelService {
 
+  private static final int PRECHECK_SUMMARY_MAX_LENGTH = 160;
+
   MetaModelService self;
   MetaModelMapper metaModelMapper;
   MetaModelRepository metaModelRepository;
@@ -127,12 +129,14 @@ public class MetaModelService {
 
     FileStorage ecoreFile =
         fileStorageRepository
-            .findByIdAndType(req.getEcoreFileId(), FileEnumType.ECORE)
+            .findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+                req.getEcoreFileId(), FileEnumType.ECORE, callerEmail)
             .orElseThrow(() -> new NotFoundException(ECORE_FILE_ID_NOT_FOUND_ERROR));
 
     FileStorage genModelFile =
         fileStorageRepository
-            .findByIdAndType(req.getGenModelFileId(), FileEnumType.GEN_MODEL)
+            .findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+                req.getGenModelFileId(), FileEnumType.GEN_MODEL, callerEmail)
             .orElseThrow(() -> new NotFoundException(GEN_MODEL_FILE_ID_NOT_FOUND_ERROR));
 
     return new CreateContext(user, metaModel, ecoreFile, genModelFile);
@@ -154,6 +158,7 @@ public class MetaModelService {
             applyGenModelFixes);
 
     if (!result.isSuccess()) {
+      logPrecheckFailure(result);
       throw new CreateMwe2FileException(precheckFailureMessage(result));
     }
 
@@ -173,19 +178,71 @@ public class MetaModelService {
       return PRE_CHECK_GEN_MODEL_ABORTED;
     }
 
-    String details =
-        result.getStderr() != null && !result.getStderr().isBlank()
-            ? result.getStderr()
-            : result.getStdout();
-
-    if (details == null || details.isBlank()) {
-      details = PRE_CHECK_GEN_MODEL_FAILED + result.getStatus();
+    String summary = extractClientSafePrecheckSummary(result);
+    String details = PRE_CHECK_GEN_MODEL_FAILED + result.getStatus();
+    if (summary != null) {
+      details += ". Summary: " + summary;
     }
 
     if (result.getStatus() == GenModelPrecheckStatus.UNKNOWN) {
       return PRE_CHECK_GEN_MODEL_UNKNOWN + details;
     }
     return details;
+  }
+
+  private void logPrecheckFailure(
+      MetaModelVitruvIntegrationService.GenModelPrecheckExecutionResult result) {
+    log.warn(
+        "GenModel precheck failed with status={}, exitCode={}, stdout={}, stderr={}",
+        result.getStatus(),
+        result.getExitCode(),
+        result.getStdout(),
+        result.getStderr());
+  }
+
+  private String extractClientSafePrecheckSummary(
+      MetaModelVitruvIntegrationService.GenModelPrecheckExecutionResult result) {
+    String stderrSummary = extractClientSafePrecheckSummary(result.getStderr());
+    if (stderrSummary != null) {
+      return stderrSummary;
+    }
+    return extractClientSafePrecheckSummary(result.getStdout());
+  }
+
+  private String extractClientSafePrecheckSummary(String output) {
+    if (output == null || output.isBlank()) {
+      return null;
+    }
+
+    return output.lines()
+        .map(String::trim)
+        .filter(this::isClientSafePrecheckSummaryLine)
+        .map(this::truncatePrecheckSummary)
+        .findFirst()
+        .orElse(null);
+  }
+
+  private boolean isClientSafePrecheckSummaryLine(String line) {
+    if (line == null || line.isBlank()) {
+      return false;
+    }
+
+    return !line.startsWith("GENMODEL_PRECHECK_STATUS:")
+        && !line.startsWith("Exception in thread")
+        && !line.startsWith("Caused by:")
+        && !line.startsWith("at ")
+        && !line.startsWith("INFO:")
+        && !line.contains(".java:")
+        && !line.contains("/")
+        && !line.contains("\\");
+  }
+
+  private String truncatePrecheckSummary(String line) {
+    String normalized = line.replaceAll("\\s+", " ").trim();
+    if (normalized.length() <= PRECHECK_SUMMARY_MAX_LENGTH) {
+      return normalized;
+    }
+    return normalized.substring(0, PRECHECK_SUMMARY_MAX_LENGTH - 3) + "...";
   }
 
   /** Creates a metamodel, runs GenModel precheck, then headless build, and accepts/rejects it. */

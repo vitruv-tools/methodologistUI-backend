@@ -3,9 +3,11 @@ package tools.vitruv.methodologist.messages;
 /** Contains constant messages used throughout the application for user operations. */
 public class Message {
   public static final String FOUND_ISSUE_IN_GEN_MODEL =
-      "GenModel precheck status: ISSUES_FOUND. Validation issues were found in the GenModel file.";
+      "GenModel precheck status: ISSUES_FOUND."
+          + " Validation issues were found in the GenModel file.";
   public static final String PRE_CHECK_GEN_MODEL_ABORTED =
-      "GenModel precheck status: ABORTED. Precheck was aborted. Set applyGenModelFixes=true to apply fixes automatically.";
+      "GenModel precheck status: ABORTED. Precheck was aborted."
+          + " Set applyGenModelFixes=true to apply fixes automatically.";
   public static final String PRE_CHECK_GEN_MODEL_UNKNOWN =
       "GenModel precheck did not return a valid status. ";
   public static final String PRE_CHECK_GEN_MODEL_FAILED = "GenModel precheck failed with status: ";
