@@ -66,8 +66,8 @@ public class VitruvCliService {
                       projectFolder.toString(),
                       "--metamodel",
                       metamodelArg,
-                      "--reaction",
-                      reactionFile.toString(),
+                      "--reactions",
+                      reactionFile.getParent().toString(),
                       "--userinteractor",
                       "default");
 

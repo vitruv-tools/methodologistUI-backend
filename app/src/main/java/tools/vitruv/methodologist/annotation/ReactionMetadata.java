@@ -11,6 +11,7 @@ public @interface ReactionMetadata {
     String name() default "";
     String description() default "";
     boolean hide() default false;
+    //TODO: Add readonly property
     String defaultStringValue() default "";
     int defaultIntValue() default 0;
     boolean defaultBooleanValue() default false;

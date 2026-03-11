@@ -10,6 +10,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class LowCodeReactionFieldMetadata {
+    //TODO: Should have read-only support --> See ReactionMetadata Annotation
     private String name;
     private String type;
     private boolean required;

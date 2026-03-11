@@ -34,7 +34,7 @@ public class CreateCorrespondingRootOnInsertRootRequest extends LowCodeReactionR
     @NotNull private String model1Alias;
     @ReactionMetadata(defaultStringValue = "${targetModelAlias}")
     @NotNull private String model2Alias;
-    @ReactionMetadata(defaultStringValue = "${sourceModelAlias}2${capitalizeFirst(targetModelAlias)}")
+    @ReactionMetadata(defaultStringValue = "createCorrespondingRoot${capitalizeFirst(targetAlias)}OnInsertRoot${capitalizeFirst(sourceAlias)}")
     @NotNull private String reactionName;
     @ReactionMetadata(defaultStringValue = "${sourceAlias}")
     @NotNull private String model1RootType;

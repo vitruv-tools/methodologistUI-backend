@@ -21,9 +21,7 @@ import java.nio.charset.StandardCharsets;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class LowCodeReactionService {
-    private final LowCodeReactionMetadataService lowCodeReactionMetadataService;
     private final FileStorageService fileStorageService;
-    private final VsumUserRepository vsumUserRepository;
 
     public FileStorage generateAndSaveReaction(String callerUserEmail, LowCodeReactionRequestBase lowCodeReactionRequestBase, FileStorage fileStorage) throws Exception {
         // Step 1: Run template engine
@@ -44,7 +42,7 @@ public class LowCodeReactionService {
         return fileStorageService.getFile(fileStorageResponse.getId());
     }
 
-    protected String applyTemplate(LowCodeReactionRequestBase lowCodeReactionRequestBase) throws IOException, TemplateException {
+    public String applyTemplate(LowCodeReactionRequestBase lowCodeReactionRequestBase) throws IOException, TemplateException {
         Configuration cfg = new Configuration(Configuration.VERSION_2_3_33);
         cfg.setClassLoaderForTemplateLoading(
                 getClass().getClassLoader(), "/lowcode/reactions/template"

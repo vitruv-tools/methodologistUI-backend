@@ -45,6 +45,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelation
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
+import tools.vitruv.methodologist.vsum.lowcode.reactions.template.service.LowCodeReactionService;
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
@@ -77,6 +78,7 @@ class VsumServiceTest {
   @Mock private MetaModelRelationRepository metaModelRelationRepository;
   @Mock private VsumHistoryService vsumHistoryService;
   @Mock private MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
+  @Mock private LowCodeReactionService lowCodeReactionService;
 
   private VsumService service;
 
@@ -131,7 +133,8 @@ class VsumServiceTest {
             lowCodeReactionRequestMapper,
             vsumMetaModelRepository,
             vsumHistoryService,
-            metaModelVitruvIntegrationService);
+            metaModelVitruvIntegrationService,
+            lowCodeReactionService);
   }
 
   @Test

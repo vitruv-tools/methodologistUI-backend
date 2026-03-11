@@ -6,13 +6,10 @@ import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -33,6 +30,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelation
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
+import tools.vitruv.methodologist.vsum.lowcode.reactions.template.service.LowCodeReactionService;
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
@@ -69,6 +67,7 @@ public class VsumService {
   VsumMetaModelRepository vsumMetaModelRepository;
   VsumHistoryService vsumHistoryService;
   MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
+  private final LowCodeReactionService lowCodeReactionService;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -395,12 +394,14 @@ public class VsumService {
       if (relation == null) {
         continue;
       }
+      MetaModelVitruvIntegrationService.BuildParameters buildParameters = metaModelVitruvIntegrationService.getBuildParameters(relation);
       metaModelVitruvIntegrationService.runVitruvForMetaModels(
-          relation.getSource().getEcoreFile(),
-          relation.getSource().getGenModelFile(),
-          relation.getTarget().getEcoreFile(),
-          relation.getTarget().getGenModelFile(),
-          relation.getReactionFileStorage());
+              relation.getSource().getEcoreFile(),
+              relation.getSource().getGenModelFile(),
+              relation.getTarget().getEcoreFile(),
+              relation.getTarget().getGenModelFile(),
+              buildParameters.compositeReactionFile(),
+              buildParameters.additionalReactionFiles());
     }
   }
 }
