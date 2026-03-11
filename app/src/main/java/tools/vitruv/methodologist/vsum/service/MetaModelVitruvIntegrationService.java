@@ -346,11 +346,9 @@ public class MetaModelVitruvIntegrationService {
     }
   }
 
+  /** Immutable precheck result returned by the GenModel validation flow. */
   @Value
   @Builder
-  /**
-   * Immutable precheck result returned by the GenModel validation flow.
-   */
   public static class GenModelPrecheckExecutionResult {
     int exitCode;
     String stdout;
