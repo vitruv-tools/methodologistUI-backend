@@ -110,6 +110,8 @@ public class FineGranularMetaModelRelationService {
             toSave.add(result);
         }
 
+        // Remove old from metamodel relation explicitly in case of update
+        toSave.forEach(rel -> rel.getMetaModelRelation().getFineGranularMetaModelRelationSet().remove(rel));
         // Add to metamodel relation explicitly
         toSave.forEach(rel -> rel.getMetaModelRelation().getFineGranularMetaModelRelationSet().add(rel));
         fineGranularMetaModelRelationRepository.saveAll(toSave);

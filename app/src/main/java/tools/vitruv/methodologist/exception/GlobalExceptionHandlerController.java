@@ -17,8 +17,12 @@
 package tools.vitruv.methodologist.exception;
 
 import java.util.Objects;
+import java.util.Arrays;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -40,6 +44,8 @@ import org.springframework.web.method.HandlerMethod;
 @RestControllerAdvice(basePackages = "tools.vitruv.methodologist")
 @RequiredArgsConstructor
 public class GlobalExceptionHandlerController {
+  private final Environment environment;
+
   private static final String METHOD_ARGUMENT_NOT_VALID_EXCEPTION =
       "MethodArgumentNotValidException handled in controller: {}, message: {}";
   private static final String STACKTRACE_LOG = "Stacktrace: {}";
@@ -69,6 +75,7 @@ public class GlobalExceptionHandlerController {
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -91,6 +98,7 @@ public class GlobalExceptionHandlerController {
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -114,6 +122,7 @@ public class GlobalExceptionHandlerController {
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -135,6 +144,7 @@ public class GlobalExceptionHandlerController {
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -156,6 +166,7 @@ public class GlobalExceptionHandlerController {
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -177,6 +188,7 @@ public class GlobalExceptionHandlerController {
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -198,6 +210,7 @@ public class GlobalExceptionHandlerController {
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -219,6 +232,7 @@ public class GlobalExceptionHandlerController {
         .error(FileAlreadyExistsException.MESSAGE_TEMPLATE)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -242,6 +256,7 @@ public class GlobalExceptionHandlerController {
         .error(UserAlreadyExistInVsumWithSameRoleException.MESSAGE_TEMPLATE)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -263,6 +278,7 @@ public class GlobalExceptionHandlerController {
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -286,6 +302,7 @@ public class GlobalExceptionHandlerController {
         .error(CreateMwe2FileException.MESSAGE_TEMPLATE)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -310,6 +327,7 @@ public class GlobalExceptionHandlerController {
         .error(UnauthorizedException.MESSAGE_TEMPLATE)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -325,7 +343,11 @@ public class GlobalExceptionHandlerController {
   @ResponseStatus(HttpStatus.CONFLICT)
   public ErrorResponse emailExistsException(
       EmailExistsException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    return ErrorResponse.builder().message(ex.getMessage()).path(getPath(request)).build();
+    return ErrorResponse.builder()
+        .message(ex.getMessage())
+        .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
+        .build();
   }
 
   /**
@@ -352,6 +374,7 @@ public class GlobalExceptionHandlerController {
         .error(BAD_REQUEST_ERROR)
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -377,6 +400,7 @@ public class GlobalExceptionHandlerController {
         .error(FORMAT_ERROR)
         .message(Objects.requireNonNull(ex.getFieldError()).getField())
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -402,6 +426,7 @@ public class GlobalExceptionHandlerController {
         .error(FORBIDDEN_ERROR)
         .message(ex.getMessage())
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -422,7 +447,11 @@ public class GlobalExceptionHandlerController {
         ex.getMessage());
     log.debug(STACKTRACE_LOG, ex.toString());
     ErrorResponse errorResponse =
-        ErrorResponse.builder().error(ex.getMessage().toUpperCase()).path(getPath(request)).build();
+        ErrorResponse.builder()
+            .error(ex.getMessage().toUpperCase())
+            .path(getPath(request))
+            .stackTrace(getStackTrace(ex))
+            .build();
     return new ResponseEntity<>(errorResponse, ex.getStatusCode());
   }
 
@@ -447,6 +476,7 @@ public class GlobalExceptionHandlerController {
         .error(NOT_FOUND_ERROR)
         .message(ex.getMessage())
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -470,8 +500,9 @@ public class GlobalExceptionHandlerController {
 
     return ErrorResponse.builder()
         .error(INTERNAL_SERVER_ERROR)
-        .message("")
+        .message(isDevProfile() ? ex.getMessage() : "")
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -516,6 +547,7 @@ public class GlobalExceptionHandlerController {
         .error(FORMAT_ERROR)
         .message(Objects.requireNonNull(ex.getRootCause()).getMessage())
         .path(getPath(request))
+        .stackTrace(getStackTrace(ex))
         .build();
   }
 
@@ -527,5 +559,19 @@ public class GlobalExceptionHandlerController {
    */
   private String getPath(ServletWebRequest request) {
     return request.getRequest().getRequestURI();
+  }
+
+  private String getStackTrace(Exception ex) {
+    if (isDevProfile()) {
+      StringWriter sw = new StringWriter();
+      PrintWriter pw = new PrintWriter(sw);
+      ex.printStackTrace(pw);
+      return sw.toString();
+    }
+    return null;
+  }
+
+  private boolean isDevProfile() {
+    return Arrays.asList(environment.getActiveProfiles()).contains("dev");
   }
 }

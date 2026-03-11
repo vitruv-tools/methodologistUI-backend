@@ -31,19 +31,23 @@ public class FineGranularMetaModelRelation {
 
     @Type(JsonType.class)
     @Column(columnDefinition = "jsonb")
+    @EqualsAndHashCode.Exclude
     private Map<String, Object> lowCodeReactionTemplateParams;
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "meta_model_relation_id")
     @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private MetaModelRelation metaModelRelation;
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reaction_file_id")
+    @EqualsAndHashCode.Exclude
     private FileStorage reactionFileStorage;
 
     @CreationTimestamp
+    @EqualsAndHashCode.Exclude
     private Instant createdAt;
 }
