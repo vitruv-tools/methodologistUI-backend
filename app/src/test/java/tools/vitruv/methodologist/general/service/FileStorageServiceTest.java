@@ -289,4 +289,24 @@ class FileStorageServiceTest {
 
     assertThrows(NotFoundException.class, () -> fileStorageService.remove(email, id));
   }
+
+  @Test
+  void overwriteStoredContent_updatesDerivedMetadataAndSaves() {
+    byte[] newData = "updated-genmodel".getBytes();
+    when(fileStorageRepository.save(any(FileStorage.class))).thenAnswer(inv -> inv.getArgument(0));
+
+    FileStorage result = fileStorageService.overwriteStoredContent(testFileStorage, newData);
+
+    assertNotNull(result);
+    assertEquals(newData.length, result.getSizeBytes());
+    assertEquals(testFileStorage, result);
+    verify(fileStorageRepository)
+        .save(
+            argThat(
+                file ->
+                    file == testFileStorage
+                        && Arrays.equals(file.getData(), newData)
+                        && file.getSha256() != null
+                        && !file.getSha256().isBlank()));
+  }
 }

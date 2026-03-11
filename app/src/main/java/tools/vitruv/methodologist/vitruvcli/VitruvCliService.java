@@ -3,8 +3,11 @@ package tools.vitruv.methodologist.vitruvcli;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -21,6 +24,11 @@ import tools.vitruv.methodologist.exception.CLIExecuteException;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VitruvCliService {
+
+  static final String GENMODEL_PRECHECK_STATUS_PREFIX = "GENMODEL_PRECHECK_STATUS:";
+  private static final Pattern GENMODEL_PRECHECK_STATUS_PATTERN =
+      Pattern.compile(
+          "(?m)^" + Pattern.quote(GENMODEL_PRECHECK_STATUS_PREFIX) + "\\s*([A-Z_]+)\\s*$");
 
   VitruvCliProperties properties;
 
@@ -40,15 +48,6 @@ public class VitruvCliService {
    * @throws CLIExecuteException on I/O or interruption errors while executing the CLI
    */
   public VitruvCliResult run(Path jobDir, List<MetamodelInput> metamodels, Path reactionsDir) {
-    String metamodelArg =
-        metamodels.stream()
-            .map(
-                metamodelInput ->
-                    metamodelInput.getEcorePath().getFileName()
-                        + ","
-                        + metamodelInput.getGenmodelPath().getFileName())
-            .collect(Collectors.joining(";"));
-
     List<String> command =
         List.of(
             properties.getBinary(),
@@ -57,12 +56,57 @@ public class VitruvCliService {
             "-f",
             ".",
             "-m",
-            metamodelArg,
+            buildMetamodelArg(metamodels),
             "-rs",
             reactionsDir.getFileName().toString(),
             "-u",
             "default");
+    return execute(jobDir, command);
+  }
 
+  /**
+   * Invoke the external Vitruv-CLI process in standalone GenModel precheck mode.
+   *
+   * @param jobDir the working directory containing the metamodel files
+   * @param metamodels list of metamodel input pairs to validate
+   * @param applyChanges whether detected fixes should be applied automatically
+   * @return the CLI execution result enriched with the parsed precheck status marker
+   */
+  public GenModelPrecheckResult precheckGenmodels(
+      Path jobDir, List<MetamodelInput> metamodels, boolean applyChanges) {
+    List<String> command =
+        new ArrayList<>(
+            List.of(
+                properties.getBinary(),
+                "-jar",
+                properties.getJar(),
+                "-m",
+                buildMetamodelArg(metamodels),
+                "-pg"));
+    if (applyChanges) {
+      command.add("--apply");
+    }
+
+    VitruvCliResult result = execute(jobDir, command);
+    return GenModelPrecheckResult.builder()
+        .exitCode(result.getExitCode())
+        .stdout(result.getStdout())
+        .stderr(result.getStderr())
+        .status(extractPrecheckStatus(result.getStdout()))
+        .build();
+  }
+
+  private String buildMetamodelArg(List<MetamodelInput> metamodels) {
+    return metamodels.stream()
+        .map(
+            metamodelInput ->
+                metamodelInput.getEcorePath().getFileName()
+                    + ","
+                    + metamodelInput.getGenmodelPath().getFileName())
+        .collect(Collectors.joining(";"));
+  }
+
+  private VitruvCliResult execute(Path jobDir, List<String> command) {
     log.info("Running Vitruv-CLI with command: {}", String.join(" ", command));
 
     try {
@@ -73,6 +117,7 @@ public class VitruvCliService {
       processBuilder.redirectErrorStream(false);
 
       Process process = processBuilder.start();
+      process.getOutputStream().close();
 
       var outFuture =
           java.util.concurrent.CompletableFuture.supplyAsync(
@@ -100,9 +145,33 @@ public class VitruvCliService {
 
       return VitruvCliResult.builder().exitCode(exitCode).stdout(stdout).stderr(stderr).build();
 
-    } catch (IOException | InterruptedException e) {
+    } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new CLIExecuteException(e.getMessage());
+    } catch (IOException e) {
+      throw new CLIExecuteException(e.getMessage());
+    }
+  }
+
+  private GenModelPrecheckStatus extractPrecheckStatus(String stdout) {
+    if (stdout == null || stdout.isBlank()) {
+      return GenModelPrecheckStatus.UNKNOWN;
+    }
+
+    Matcher matcher = GENMODEL_PRECHECK_STATUS_PATTERN.matcher(stdout);
+    String lastStatus = null;
+    while (matcher.find()) {
+      lastStatus = matcher.group(1);
+    }
+
+    if (lastStatus == null) {
+      return GenModelPrecheckStatus.UNKNOWN;
+    }
+
+    try {
+      return GenModelPrecheckStatus.valueOf(lastStatus);
+    } catch (IllegalArgumentException ex) {
+      return GenModelPrecheckStatus.UNKNOWN;
     }
   }
 
@@ -132,6 +201,26 @@ public class VitruvCliService {
   public static class MetamodelInput {
     Path ecorePath;
     Path genmodelPath;
+  }
+
+  /**
+   * Result of a GenModel precheck CLI execution.
+   *
+   * <p>Includes the parsed machine-readable status marker reported in stdout.
+   */
+  @Value
+  @Builder
+  public static class GenModelPrecheckResult {
+    int exitCode;
+    String stdout;
+    String stderr;
+    GenModelPrecheckStatus status;
+
+    public boolean isSuccess() {
+      return exitCode == 0
+          && (status == GenModelPrecheckStatus.CLEAN
+              || status == GenModelPrecheckStatus.FIXES_APPLIED);
+    }
   }
 
   /**

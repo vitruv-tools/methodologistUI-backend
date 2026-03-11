@@ -220,4 +220,20 @@ public class FileStorageService {
 
     fileStorageRepository.delete(fileStorage);
   }
+
+  /**
+   * Overwrites the stored binary content and derived metadata of the given file.
+   *
+   * @param fileStorage the persisted file entity to update
+   * @param data the replacement binary content
+   * @return the updated and saved file entity
+   */
+  @Transactional
+  public FileStorage overwriteStoredContent(FileStorage fileStorage, byte[] data) {
+    byte[] safeData = data == null ? new byte[0] : data;
+    fileStorage.setSizeBytes(safeData.length);
+    fileStorage.setSha256(sha256Hex(safeData));
+    fileStorage.setData(safeData);
+    return fileStorageRepository.save(fileStorage);
+  }
 }
