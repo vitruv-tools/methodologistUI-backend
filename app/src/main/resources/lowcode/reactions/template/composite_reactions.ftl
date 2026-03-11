@@ -9,5 +9,5 @@ execute actions in ${model2Alias}
 
 <#-- Loop over items to import -->
 <#list imports as imp>
-    import ${imp}
+import ${imp}
 </#list>
