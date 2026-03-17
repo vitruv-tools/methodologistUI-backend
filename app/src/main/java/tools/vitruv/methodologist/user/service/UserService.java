@@ -247,7 +247,7 @@ public class UserService {
    * @param ttlMinutes time-to-live for the OTP (in minutes) shown in the email
    */
   public void sendOtp(String to, String toName, String otp, int ttlMinutes) {
-    mailService.sendOtpMail(to, toName, otp, ttlMinutes);
+    //    mailService.sendOtpMail(to, toName, otp, ttlMinutes);
   }
 
   /**

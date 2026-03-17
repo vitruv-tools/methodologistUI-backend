@@ -66,4 +66,8 @@ public class Vsum {
   @ToString.Exclude
   @OneToMany(mappedBy = "vsum", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
   private Set<MetaModelRelation> metaModelRelations = new HashSet<>();
+
+  @ToString.Exclude
+  @OneToMany(mappedBy = "vsum", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+  private Set<VsumView> vsumViews = new HashSet<>();
 }
