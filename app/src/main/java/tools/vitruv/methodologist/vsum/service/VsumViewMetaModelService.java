@@ -9,9 +9,11 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
+import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 import tools.vitruv.methodologist.vsum.model.VsumView;
 import tools.vitruv.methodologist.vsum.model.VsumViewMetaModel;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumViewMetaModelRepository;
 
 /**
@@ -27,6 +29,7 @@ public class VsumViewMetaModelService {
 
   VsumViewMetaModelRepository vsumViewMetaModelRepository;
   MetaModelRepository metaModelRepository;
+  VsumMetaModelRepository vsumMetaModelRepository;
 
   /**
    * Creates associations between a view and the provided metamodel ids.
@@ -39,11 +42,17 @@ public class VsumViewMetaModelService {
    */
   @Transactional
   public List<VsumViewMetaModel> create(VsumView vsumView, Set<Long> metaModelIds) {
-    List<MetaModel> metaModels = metaModelRepository.findAllByIdInAndSourceIsNull(metaModelIds);
+    List<VsumMetaModel> vsumMetaModels =
+        vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(
+            vsumView.getVsum(), metaModelIds);
 
-    List<VsumViewMetaModel> entities = new ArrayList<>(metaModels.size());
-    for (MetaModel metaModel : metaModels) {
-      entities.add(VsumViewMetaModel.builder().vsumView(vsumView).metaModel(metaModel).build());
+    List<VsumViewMetaModel> entities = new ArrayList<>(vsumMetaModels.size());
+    for (VsumMetaModel vsumMetaModel : vsumMetaModels) {
+      entities.add(
+          VsumViewMetaModel.builder()
+              .vsumView(vsumView)
+              .metaModel(vsumMetaModel.getMetaModel())
+              .build());
     }
 
     return (List<VsumViewMetaModel>) vsumViewMetaModelRepository.saveAll(entities);

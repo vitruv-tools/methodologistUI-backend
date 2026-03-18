@@ -174,7 +174,11 @@ class VsumServiceTest {
             metaModelRelationRepository,
             vsumHistoryService,
             metaModelVitruvIntegrationService,
-            buildCoordinator);
+            buildCoordinator,
+            null,
+            null,
+            null,
+            null);
   }
 
   @Test

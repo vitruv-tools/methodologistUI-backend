@@ -69,5 +69,5 @@ public class Vsum {
 
   @ToString.Exclude
   @OneToMany(mappedBy = "vsum", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
-  private Set<VsumView> vsumViews = new HashSet<>();
+  private Set<VsumView> views = new HashSet<>();
 }

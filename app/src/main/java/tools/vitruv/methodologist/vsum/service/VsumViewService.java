@@ -50,8 +50,8 @@ public class VsumViewService {
 
     VsumView saved = vsumViewRepository.save(vsumView);
 
-    if (vsum.getVsumViews() != null) {
-      vsum.getVsumViews().add(saved);
+    if (vsum.getViews() != null) {
+      vsum.getViews().add(saved);
     }
 
     return saved;
@@ -67,8 +67,8 @@ public class VsumViewService {
   public void delete(Vsum vsum, VsumView vsumView) {
     vsumViewRepository.delete(vsumView);
 
-    if (vsum.getVsumViews() != null) {
-      vsum.getVsumViews().remove(vsumView);
+    if (vsum.getViews() != null) {
+      vsum.getViews().remove(vsumView);
     }
   }
 
@@ -81,8 +81,8 @@ public class VsumViewService {
   public void deleteByVsum(Vsum vsum) {
     vsumViewRepository.deleteAllByVsum(vsum);
 
-    if (vsum.getVsumViews() != null) {
-      vsum.getVsumViews().clear();
+    if (vsum.getViews() != null) {
+      vsum.getViews().clear();
     }
   }
 }
