@@ -61,8 +61,7 @@ public class VsumViewMetaModelService {
               .build());
     }
 
-    return StreamSupport.stream(
-            vsumViewMetaModelRepository.saveAll(entities).spliterator(), false)
+    return StreamSupport.stream(vsumViewMetaModelRepository.saveAll(entities).spliterator(), false)
         .toList();
   }
 

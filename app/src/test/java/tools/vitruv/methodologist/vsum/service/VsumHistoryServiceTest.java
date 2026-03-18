@@ -414,15 +414,9 @@ class VsumHistoryServiceTest {
     vsum.setId(104L);
 
     VsumRepresentation.View view1 =
-        VsumRepresentation.View.builder()
-            .fileStorageId(10L)
-            .metaModelIds(List.of(1L, 2L))
-            .build();
+        VsumRepresentation.View.builder().fileStorageId(10L).metaModelIds(List.of(1L, 2L)).build();
     VsumRepresentation.View view2 =
-        VsumRepresentation.View.builder()
-            .fileStorageId(20L)
-            .metaModelIds(List.of(3L))
-            .build();
+        VsumRepresentation.View.builder().fileStorageId(20L).metaModelIds(List.of(3L)).build();
 
     VsumRepresentation rep =
         VsumRepresentation.builder()
@@ -476,11 +470,7 @@ class VsumHistoryServiceTest {
     vsum.setId(105L);
 
     VsumRepresentation rep =
-        VsumRepresentation.builder()
-            .metaModels(null)
-            .metaModelsRealation(null)
-            .views(null)
-            .build();
+        VsumRepresentation.builder().metaModels(null).metaModelsRealation(null).views(null).build();
 
     Long historyId = 17L;
     VsumHistory history =
