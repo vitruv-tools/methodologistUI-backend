@@ -87,6 +87,7 @@ public interface VsumHistoryMapper {
                             .map(
                                 vsumViewMetaModel ->
                                     vsumViewMetaModel.getMetaModel().getSource().getId())
+                            .sorted()
                             .toList())
                     .fileStorageId(view.getFileStorage().getId())
                     .build())

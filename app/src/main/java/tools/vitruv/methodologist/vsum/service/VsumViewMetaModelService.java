@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.vsum.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -34,14 +35,19 @@ public class VsumViewMetaModelService {
   /**
    * Creates associations between a view and the provided metamodel ids.
    *
-   * <p>Only source metamodels are considered valid for association.
+   * <p>Only source metamodels are considered valid for association. A {@code null} or empty {@code
+   * metaModelIds} set results in an empty list being returned without querying the database.
    *
    * @param vsumView target view
-   * @param metaModelIds metamodel ids to associate
+   * @param metaModelIds metamodel ids to associate; may be {@code null} (treated as empty)
    * @return persisted join entities
    */
   @Transactional
   public List<VsumViewMetaModel> create(VsumView vsumView, Set<Long> metaModelIds) {
+    if (metaModelIds == null || metaModelIds.isEmpty()) {
+      return List.of();
+    }
+
     List<VsumMetaModel> vsumMetaModels =
         vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(
             vsumView.getVsum(), metaModelIds);
@@ -55,7 +61,9 @@ public class VsumViewMetaModelService {
               .build());
     }
 
-    return (List<VsumViewMetaModel>) vsumViewMetaModelRepository.saveAll(entities);
+    return StreamSupport.stream(
+            vsumViewMetaModelRepository.saveAll(entities).spliterator(), false)
+        .toList();
   }
 
   /**
