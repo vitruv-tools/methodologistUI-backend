@@ -7,9 +7,8 @@ import tools.vitruv.methodologist.vsum.model.VsumView;
 import tools.vitruv.methodologist.vsum.model.VsumViewMetaModel;
 
 /**
- * Repository for accessing {@link VsumViewMetaModel} entities.
- * Provides data access methods to query and remove view-meta-model associations by their owning
- * {@link VsumView}.
+ * Repository for accessing {@link VsumViewMetaModel} entities. Provides data access methods to
+ * query and remove view-meta-model associations by their owning {@link VsumView}.
  */
 @Repository
 public interface VsumViewMetaModelRepository extends CrudRepository<VsumViewMetaModel, Long> {

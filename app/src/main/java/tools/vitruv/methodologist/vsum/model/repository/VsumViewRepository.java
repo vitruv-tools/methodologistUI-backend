@@ -7,8 +7,8 @@ import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumView;
 
 /**
- * Repository for accessing VsumView entities.
- * Provides data access operations for VSUM view records scoped by Vsum.
+ * Repository for accessing VsumView entities. Provides data access operations for VSUM view records
+ * scoped by Vsum.
  */
 @Repository
 public interface VsumViewRepository extends CrudRepository<VsumView, Long> {

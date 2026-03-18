@@ -59,17 +59,6 @@ public class VsumViewMetaModelService {
   }
 
   /**
-   * Returns all metamodel associations of the given view.
-   *
-   * @param vsumView target view
-   * @return all persisted associations
-   */
-  @Transactional(readOnly = true)
-  public List<VsumViewMetaModel> findAllByVsumView(VsumView vsumView) {
-    return vsumViewMetaModelRepository.findAllByVsumView(vsumView);
-  }
-
-  /**
    * Deletes the provided associations.
    *
    * @param viewMetaModels associations to delete
