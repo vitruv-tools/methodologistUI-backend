@@ -65,6 +65,8 @@ import tools.vitruv.methodologist.vsum.model.repository.MetaModelRelationReposit
 import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumViewMetaModelRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
 
 @ExtendWith(MockitoExtension.class)
 class VsumServiceTest {
@@ -84,6 +86,10 @@ class VsumServiceTest {
   @Mock private VsumHistoryService vsumHistoryService;
   @Mock private MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
   @Mock private BuildCoordinator buildCoordinator;
+  @Mock private VsumViewMetaModelService vsumViewMetaModelService;
+  @Mock private VsumViewService vsumViewService;
+  @Mock private VsumViewRepository vsumViewRepository;
+  @Mock private VsumViewMetaModelRepository vsumViewMetaModelRepository;
 
   private VsumService service;
 
@@ -175,10 +181,10 @@ class VsumServiceTest {
             vsumHistoryService,
             metaModelVitruvIntegrationService,
             buildCoordinator,
-            null,
-            null,
-            null,
-            null);
+            vsumViewMetaModelService,
+            vsumViewService,
+            vsumViewRepository,
+            vsumViewMetaModelRepository);
   }
 
   @Test
