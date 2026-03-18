@@ -681,9 +681,6 @@ public class VsumService {
         normalizeMetaModelRelationRequests(
             vsumSyncChangesPutRequest.getMetaModelRelationRequests());
 
-    List<ViewRequest> desiredViewRequests =
-        normalizeViewRequests(vsumSyncChangesPutRequest.getViewRequests());
-
     List<MetaModelRelation> existingMetaModelRelation =
         metaModelRelationRepository.findAllByVsum(vsum);
 
@@ -727,6 +724,9 @@ public class VsumService {
 
     Set<Long> toAddVsumMetaModelIds = new HashSet<>(desiredMetaModelIds);
     toAddVsumMetaModelIds.removeAll(existingVsumMetaModelIds);
+
+    List<ViewRequest> desiredViewRequests =
+        normalizeViewRequests(vsumSyncChangesPutRequest.getViewRequests());
 
     ViewSyncPlan viewSyncPlan = buildViewSyncPlan(vsum, desiredViewRequests);
 
