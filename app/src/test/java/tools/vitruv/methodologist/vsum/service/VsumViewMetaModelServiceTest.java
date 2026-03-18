@@ -1,8 +1,10 @@
 package tools.vitruv.methodologist.vsum.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -120,15 +122,11 @@ class VsumViewMetaModelServiceTest {
   }
 
   @Test
-  void create_whenMetaModelIdsIsNull_delegatesToRepository_andReturnsEmpty() {
-    when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(vsum, null))
-        .thenReturn(List.of());
-    when(vsumViewMetaModelRepository.saveAll(argThat(entities -> true))).thenReturn(List.of());
-
+  void create_whenMetaModelIdsIsNull_treatsAsEmpty_andReturnsEmptyWithoutQueryingRepository() {
     List<VsumViewMetaModel> result = service.create(vsumView, null);
 
-    verify(vsumMetaModelRepository).findAllByVsumAndMetaModel_source_idIn(vsum, null);
-    verify(vsumViewMetaModelRepository).saveAll(argThat(entities -> true));
+    verify(vsumMetaModelRepository, never()).findAllByVsumAndMetaModel_source_idIn(any(), any());
+    verify(vsumViewMetaModelRepository, never()).saveAll(any());
     assertThat(result).isEmpty();
     verifyNoInteractions(metaModelRepository);
   }

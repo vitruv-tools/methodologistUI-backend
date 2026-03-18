@@ -832,9 +832,7 @@ public class VsumService {
     return request.getFileStorageId() + "|" + metaModelPart;
   }
 
-  private String toViewKey(VsumView vsumView) {
-    List<VsumViewMetaModel> relations = vsumViewMetaModelRepository.findAllByVsumView(vsumView);
-
+  private String toViewKey(VsumView vsumView, List<VsumViewMetaModel> relations) {
     String metaModelPart =
         relations.stream()
             .map(VsumViewMetaModel::getMetaModel)
@@ -855,9 +853,22 @@ public class VsumService {
   private ViewSyncPlan buildViewSyncPlan(Vsum vsum, List<ViewRequest> desiredViewRequests) {
     List<VsumView> existingViews = vsumViewRepository.findAllByVsum(vsum);
 
+    Map<Long, List<VsumViewMetaModel>> relationsByViewId = new HashMap<>();
+    if (!existingViews.isEmpty()) {
+      List<VsumViewMetaModel> allRelations =
+          vsumViewMetaModelRepository.findAllByVsumViewIn(existingViews);
+      for (VsumViewMetaModel relation : allRelations) {
+        relationsByViewId
+            .computeIfAbsent(relation.getVsumView().getId(), k -> new ArrayList<>())
+            .add(relation);
+      }
+    }
+
     Map<String, VsumView> existingByKey = new HashMap<>();
     for (VsumView existingView : existingViews) {
-      existingByKey.put(toViewKey(existingView), existingView);
+      List<VsumViewMetaModel> viewRelations =
+          relationsByViewId.getOrDefault(existingView.getId(), List.of());
+      existingByKey.put(toViewKey(existingView, viewRelations), existingView);
     }
 
     Set<String> existingKeys = new HashSet<>(existingByKey.keySet());

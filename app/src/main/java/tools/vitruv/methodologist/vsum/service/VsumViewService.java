@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.service;
 
 import static tools.vitruv.methodologist.messages.Error.VIEW_FILE_ID_NOT_FOUND_ERROR;
 
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -14,6 +15,7 @@ import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumView;
+import tools.vitruv.methodologist.vsum.model.repository.VsumViewMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
 
 /**
@@ -30,6 +32,7 @@ public class VsumViewService {
 
   VsumViewRepository vsumViewRepository;
   FileStorageRepository fileStorageRepository;
+  VsumViewMetaModelRepository vsumViewMetaModelRepository;
 
   /**
    * Creates and persists a new {@link VsumView} for the given VSUM and NeoJoin file.
@@ -60,11 +63,15 @@ public class VsumViewService {
   /**
    * Deletes the specified view and removes it from the in-memory VSUM collection if present.
    *
+   * <p>Metamodel associations ({@code VsumViewMetaModel}) for the view are deleted before the view
+   * itself to satisfy foreign key constraints.
+   *
    * @param vsum target VSUM
    * @param vsumView view to delete
    */
   @Transactional
   public void delete(Vsum vsum, VsumView vsumView) {
+    vsumViewMetaModelRepository.deleteAllByVsumView(vsumView);
     vsumViewRepository.delete(vsumView);
 
     if (vsum.getViews() != null) {
@@ -75,10 +82,17 @@ public class VsumViewService {
   /**
    * Deletes all views associated with the given VSUM.
    *
+   * <p>Metamodel associations ({@code VsumViewMetaModel}) for all views are deleted before the
+   * views themselves to satisfy foreign key constraints.
+   *
    * @param vsum target VSUM
    */
   @Transactional
   public void deleteByVsum(Vsum vsum) {
+    List<VsumView> views = vsumViewRepository.findAllByVsum(vsum);
+    if (!views.isEmpty()) {
+      vsumViewMetaModelRepository.deleteAllByVsumViewIn(views);
+    }
     vsumViewRepository.deleteAllByVsum(vsum);
 
     if (vsum.getViews() != null) {

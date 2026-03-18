@@ -193,7 +193,7 @@ class VsumServiceTest {
 
     lenient().when(vsumViewRepository.findAllByVsum(any(Vsum.class))).thenReturn(List.of());
     lenient()
-        .when(vsumViewMetaModelRepository.findAllByVsumView(any(VsumView.class)))
+        .when(vsumViewMetaModelRepository.findAllByVsumViewIn(anyList()))
         .thenReturn(List.of());
   }
 
@@ -765,9 +765,12 @@ class VsumServiceTest {
 
     VsumViewMetaModel vm1 = new VsumViewMetaModel();
     vm1.setMetaModel(clonedMetaModel(1001L, 1L));
+    vm1.setVsumView(existingView);
     VsumViewMetaModel vm2 = new VsumViewMetaModel();
     vm2.setMetaModel(clonedMetaModel(1002L, 2L));
-    when(vsumViewMetaModelRepository.findAllByVsumView(existingView)).thenReturn(List.of(vm1, vm2));
+    vm2.setVsumView(existingView);
+    when(vsumViewMetaModelRepository.findAllByVsumViewIn(List.of(existingView)))
+        .thenReturn(List.of(vm1, vm2));
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setViewRequests(List.of());
@@ -806,9 +809,12 @@ class VsumServiceTest {
 
     VsumViewMetaModel vm1 = new VsumViewMetaModel();
     vm1.setMetaModel(clonedMetaModel(2001L, 1L));
+    vm1.setVsumView(existingView);
     VsumViewMetaModel vm2 = new VsumViewMetaModel();
     vm2.setMetaModel(clonedMetaModel(2002L, 2L));
-    when(vsumViewMetaModelRepository.findAllByVsumView(existingView)).thenReturn(List.of(vm1, vm2));
+    vm2.setVsumView(existingView);
+    when(vsumViewMetaModelRepository.findAllByVsumViewIn(List.of(existingView)))
+        .thenReturn(List.of(vm1, vm2));
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setViewRequests(

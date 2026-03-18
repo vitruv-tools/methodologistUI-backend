@@ -3,12 +3,16 @@ package tools.vitruv.methodologist.vsum.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +28,7 @@ import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumView;
+import tools.vitruv.methodologist.vsum.model.repository.VsumViewMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +36,7 @@ class VsumViewServiceTest {
 
   @Mock private VsumViewRepository vsumViewRepository;
   @Mock private FileStorageRepository fileStorageRepository;
+  @Mock private VsumViewMetaModelRepository vsumViewMetaModelRepository;
 
   @InjectMocks private VsumViewService service;
 
@@ -125,23 +131,25 @@ class VsumViewServiceTest {
   }
 
   @Test
-  void delete_deletesView_andRemovesItFromVsumViews() {
+  void delete_deletesAssociationsFirst_thenDeletesView_andRemovesItFromVsumViews() {
     VsumView view = VsumView.builder().id(200L).vsum(vsum).build();
     vsum.setViews(new HashSet<>(Set.of(view)));
 
     service.delete(vsum, view);
 
+    verify(vsumViewMetaModelRepository).deleteAllByVsumView(view);
     verify(vsumViewRepository).delete(view);
     assertThat(vsum.getViews()).doesNotContain(view);
   }
 
   @Test
-  void delete_whenVsumViewsIsNull_deletesFromRepositoryOnly() {
+  void delete_whenVsumViewsIsNull_deletesAssociationsAndViewFromRepositoryOnly() {
     vsum.setViews(null);
     VsumView view = VsumView.builder().id(201L).vsum(vsum).build();
 
     service.delete(vsum, view);
 
+    verify(vsumViewMetaModelRepository).deleteAllByVsumView(view);
     verify(vsumViewRepository).delete(view);
     assertThat(vsum.getViews()).isNull();
   }
@@ -154,18 +162,28 @@ class VsumViewServiceTest {
 
     service.delete(vsum, other);
 
+    verify(vsumViewMetaModelRepository).deleteAllByVsumView(other);
     verify(vsumViewRepository).delete(other);
     assertThat(vsum.getViews()).containsExactly(existing);
   }
 
   @Test
-  void deleteByVsum_deletesAllViews_andClearsCollection() {
+  void deleteByVsum_deletesAssociationsBulk_thenDeletesAllViews_andClearsCollection() {
     VsumView view1 = VsumView.builder().id(300L).vsum(vsum).build();
     VsumView view2 = VsumView.builder().id(301L).vsum(vsum).build();
     vsum.setViews(new HashSet<>(Set.of(view1, view2)));
 
+    when(vsumViewRepository.findAllByVsum(vsum)).thenReturn(List.of(view1, view2));
+
     service.deleteByVsum(vsum);
 
+    verify(vsumViewRepository).findAllByVsum(vsum);
+    verify(vsumViewMetaModelRepository)
+        .deleteAllByVsumViewIn(
+            argThat(
+                c ->
+                    c instanceof Collection<?>
+                        && ((Collection<?>) c).containsAll(List.of(view1, view2))));
     verify(vsumViewRepository).deleteAllByVsum(vsum);
     assertThat(vsum.getViews()).isEmpty();
   }
@@ -174,8 +192,12 @@ class VsumViewServiceTest {
   void deleteByVsum_whenVsumViewsIsNull_deletesFromRepositoryOnly() {
     vsum.setViews(null);
 
+    when(vsumViewRepository.findAllByVsum(vsum)).thenReturn(List.of());
+
     service.deleteByVsum(vsum);
 
+    verify(vsumViewRepository).findAllByVsum(vsum);
+    verify(vsumViewMetaModelRepository, never()).deleteAllByVsumViewIn(anyCollection());
     verify(vsumViewRepository).deleteAllByVsum(eq(vsum));
     assertThat(vsum.getViews()).isNull();
   }
@@ -184,9 +206,28 @@ class VsumViewServiceTest {
   void deleteByVsum_whenVsumViewsIsEmpty_keepsCollectionEmpty() {
     vsum.setViews(new HashSet<>());
 
+    when(vsumViewRepository.findAllByVsum(vsum)).thenReturn(List.of());
+
     service.deleteByVsum(vsum);
 
+    verify(vsumViewRepository).findAllByVsum(vsum);
+    verify(vsumViewMetaModelRepository, never()).deleteAllByVsumViewIn(anyCollection());
     verify(vsumViewRepository).deleteAllByVsum(vsum);
     assertThat(vsum.getViews()).isEmpty();
+  }
+
+  @Test
+  void deleteByVsum_whenViewsExist_deletesAssociationsBeforeViews() {
+    VsumView view = VsumView.builder().id(400L).vsum(vsum).build();
+    vsum.setViews(new HashSet<>(Set.of(view)));
+
+    when(vsumViewRepository.findAllByVsum(vsum)).thenReturn(List.of(view));
+
+    service.deleteByVsum(vsum);
+
+    org.mockito.InOrder inOrder =
+        org.mockito.Mockito.inOrder(vsumViewMetaModelRepository, vsumViewRepository);
+    inOrder.verify(vsumViewMetaModelRepository).deleteAllByVsumViewIn(anyCollection());
+    inOrder.verify(vsumViewRepository).deleteAllByVsum(vsum);
   }
 }
