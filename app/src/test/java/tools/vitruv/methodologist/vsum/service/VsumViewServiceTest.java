@@ -44,7 +44,8 @@ class VsumViewServiceTest {
   @Test
   void create_savesView_addsToVsumViews_andReturnsSavedEntity() {
     Long fileStorageId = 10L;
-    FileStorage fileStorage = FileStorage.builder().id(fileStorageId).type(FileEnumType.NEO_JOIN).build();
+    FileStorage fileStorage =
+        FileStorage.builder().id(fileStorageId).type(FileEnumType.NEO_JOIN).build();
 
     when(fileStorageRepository.findByIdAndType(fileStorageId, FileEnumType.NEO_JOIN))
         .thenReturn(Optional.of(fileStorage));
@@ -70,7 +71,8 @@ class VsumViewServiceTest {
     vsum.setViews(null);
 
     Long fileStorageId = 11L;
-    FileStorage fileStorage = FileStorage.builder().id(fileStorageId).type(FileEnumType.NEO_JOIN).build();
+    FileStorage fileStorage =
+        FileStorage.builder().id(fileStorageId).type(FileEnumType.NEO_JOIN).build();
 
     when(fileStorageRepository.findByIdAndType(fileStorageId, FileEnumType.NEO_JOIN))
         .thenReturn(Optional.of(fileStorage));
@@ -188,4 +190,3 @@ class VsumViewServiceTest {
     assertThat(vsum.getViews()).isEmpty();
   }
 }
-

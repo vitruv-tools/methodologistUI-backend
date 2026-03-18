@@ -152,7 +152,3 @@ class VsumViewMetaModelServiceTest {
     verify(vsumViewMetaModelRepository).deleteAllByVsumView(eq(vsumView));
   }
 }
-
-
-
-
