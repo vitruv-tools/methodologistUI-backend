@@ -1,19 +1,30 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import static tools.vitruv.methodologist.messages.Error.FAT_JAR_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.METAMODEL_PAIR_COUNT_MISMATCH_ERROR;
+import static tools.vitruv.methodologist.messages.Error.METAMODEL_PAIR_REQUIRED_ERROR;
+import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_REQUIRED_ERROR;
+import static tools.vitruv.methodologist.messages.Error.VITRUV_CLI_ERROR;
+import static tools.vitruv.methodologist.messages.Error.VITRUV_CLI_EXECUTION_FAILED_ERROR;
+
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import freemarker.template.TemplateException;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.vitruvcli.VitruvCliProperties;
 import tools.vitruv.methodologist.vitruvcli.VitruvCliService;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.CompositeReactionsRequest;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.service.LowCodeReactionService;
@@ -21,104 +32,348 @@ import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.reaction.ReactionParserUtil;
 
-/** Service that integrates VSUM-related files with Vitruv-CLI. */
+/**
+ * Service that prepares metamodel inputs and runs the Vitruv CLI to produce a fat JAR.
+ *
+ * <p>This service writes provided Ecore/GenModel and reaction files into a temporary job directory
+ * under the configured working directory, concatenates reaction files, invokes the Vitruv CLI,
+ * reads the produced fat JAR and attempts to remove the job directory. IO errors and CLI failures
+ * are wrapped in {@link VsumBuildingException}.
+ */
+@Slf4j
 @Service
-@RequiredArgsConstructor
 public class MetaModelVitruvIntegrationService {
 
+  private static final String FAT_JAR_RELATIVE_PATH =
+      "vsum/target/"
+          + "tools.vitruv.methodologisttemplate."
+          + "vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar";
+
   private final VitruvCliService vitruvCliService;
-  private final LowCodeReactionService lowCodeReactionService;
+  private final VitruvCliProperties vitruvCliProperties;
 
-  /**
-   * Runs Vitruv-CLI for two metamodels (Ecore + GenModel) and a reaction file.
-   *
-   * @param firstEcore the first metamodel's Ecore file
-   * @param firstGenModel the first metamodel's GenModel file
-   * @param secondEcore the second metamodel's Ecore file
-   * @param secondGenModel the second metamodel's GenModel file
-   * @param reactionFile the reaction file that defines the relation between the metamodels
-   */
-  public void runVitruvForMetaModels(
-          FileStorage firstEcore,
-          FileStorage firstGenModel,
-          FileStorage secondEcore,
-          FileStorage secondGenModel,
-          FileStorage reactionFile) {
-
-    runVitruvForMetaModels(firstEcore, firstGenModel, secondEcore, secondGenModel, reactionFile, List.of());
+  public MetaModelVitruvIntegrationService(
+      VitruvCliService vitruvCliService, VitruvCliProperties vitruvCliProperties) {
+    this.vitruvCliService = vitruvCliService;
+    this.vitruvCliProperties = vitruvCliProperties;
   }
 
   /**
-   * Runs Vitruv-CLI for two metamodels (Ecore + GenModel) and a reaction file.
+   * Returns the given byte array or an empty byte array if {@code data} is null.
    *
-   * @param firstEcore the first metamodel's Ecore file
-   * @param firstGenModel the first metamodel's GenModel file
-   * @param secondEcore the second metamodel's Ecore file
-   * @param secondGenModel the second metamodel's GenModel file
-   * @param compositeReactionFile the composite reaction file that defines the relation between the metamodels
-   * @param additionalReactionFiles additional reaction files that should be used for the build
+   * @param data the input byte array, may be {@code null}
+   * @return a non-null byte array (empty if input was {@code null})
    */
-  public void runVitruvForMetaModels(
-      FileStorage firstEcore,
-      FileStorage firstGenModel,
-      FileStorage secondEcore,
-      FileStorage secondGenModel,
-      FileStorage compositeReactionFile,
-      List<FileStorage> additionalReactionFiles) {
+  private static byte[] nonNullBytes(byte[] data) {
+    return data == null ? new byte[0] : data;
+  }
 
+  /**
+   * Produces a filesystem-safe name by replacing path separators with underscores. If the provided
+   * name is null or blank, returns the provided fallback.
+   *
+   * @param name the original filename or identifier
+   * @param fallback fallback name used when {@code name} is null or blank
+   * @return a sanitized filename suitable for use within a job directory
+   */
+  private static String safeName(String name, String fallback) {
+    if (name == null || name.isBlank()) {
+      return fallback;
+    }
+    return name.replace("\\", "/").replace("/", "_");
+  }
+
+  /**
+   * Runs the Vitruv CLI to build a fat JAR for the given metamodel inputs and reaction files. The
+   * method creates a temporary job directory under the configured working directory, writes
+   * provided files, invokes the CLI, reads the produced fat JAR bytes, and then attempts to remove
+   * the job directory.
+   *
+   * <p>The method wraps IO errors and CLI failures into {@link VsumBuildingException}.
+   *
+   * @param ecoreFiles the list of Ecore file storage objects (one per metamodel)
+   * @param genModelFiles the list of corresponding GenModel file storage objects
+   * @param reactionFiles the list of reaction files to include
+   * @return the bytes of the generated fat JAR
+   * @throws VsumBuildingException if inputs are invalid, the CLI fails, or IO errors occur
+   */
+  public byte[] runVitruvAndGetFatJarBytes(
+      List<FileStorage> ecoreFiles,
+      List<FileStorage> genModelFiles,
+      List<FileStorage> reactionFiles) {
+
+    validateInputs(ecoreFiles, genModelFiles, reactionFiles);
+
+    Path jobDir = null;
     try {
-      Path workDir = Files.createTempDirectory("vitruv-job-");
+      Path baseWorkDir = Path.of(requireWorkingDir());
+      Files.createDirectories(baseWorkDir);
 
-      Path firstEcorePath = workDir.resolve(firstEcore.getFilename());
-      Path firstGenModelPath = workDir.resolve(firstGenModel.getFilename());
-      Path secondEcorePath = workDir.resolve(secondEcore.getFilename());
-      Path secondGenModelPath = workDir.resolve(secondGenModel.getFilename());
-      Path reactionPath = ensureReactionPathEndsWithProperExtension(workDir.resolve(compositeReactionFile.getFilename()));
-      Map<FileStorage, Path> additionalReactionPaths = additionalReactionFiles.stream().map(arf -> new AbstractMap.SimpleEntry<>(arf, workDir.resolve(arf.getFilename()))).collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));
-
-      Files.write(firstEcorePath, firstEcore.getData());
-      Files.write(firstGenModelPath, firstGenModel.getData());
-      Files.write(secondEcorePath, secondEcore.getData());
-      Files.write(secondGenModelPath, secondGenModel.getData());
-      Files.write(reactionPath, compositeReactionFile.getData());
-      for (Map.Entry<FileStorage, Path> entry : additionalReactionPaths.entrySet()) {
-        FileStorage fs = entry.getKey();
-        Path path = ensureReactionPathEndsWithProperExtension(entry.getValue());
-        Files.write(path, fs.getData());
-      }
+      jobDir = baseWorkDir.resolve("job-" + System.currentTimeMillis());
+      Files.createDirectories(jobDir);
 
       List<VitruvCliService.MetamodelInput> metamodels =
-        List.of(
-            VitruvCliService.MetamodelInput.builder()
-                .ecorePath(firstEcorePath)
-                .genmodelPath(firstGenModelPath)
-                .build(),
-            VitruvCliService.MetamodelInput.builder()
-                .ecorePath(secondEcorePath)
-                .genmodelPath(secondGenModelPath)
-                .build());
+          writeMetamodels(jobDir, ecoreFiles, genModelFiles);
+
+      Path reactionsDir = jobDir.resolve("reactions");
+      Files.createDirectories(reactionsDir);
+      writeReactionFiles(reactionsDir, reactionFiles);
 
       VitruvCliService.VitruvCliResult result =
-          vitruvCliService.run(workDir, metamodels, reactionPath);
+          vitruvCliService.run(jobDir, metamodels, reactionsDir);
 
       if (!result.isSuccess()) {
-        String message = result.getStderr().isBlank() ? result.getStdout() : result.getStderr();
-        throw new VsumBuildingException(String.format("Vitruv-CLI Error: %s", message));
+        String msg =
+            (result.getStderr() == null || result.getStderr().isBlank())
+                ? result.getStdout()
+                : result.getStderr();
+        throw new VsumBuildingException(VITRUV_CLI_ERROR + msg);
       }
+
+      Path jarPath = jobDir.resolve(FAT_JAR_RELATIVE_PATH);
+      if (!Files.exists(jarPath)) {
+        throw new VsumBuildingException(FAT_JAR_NOT_FOUND_ERROR + jarPath);
+      }
+
+      return Files.readAllBytes(jarPath);
     } catch (IOException e) {
-      throw new VsumBuildingException(
-          String.format("Vitruv-CLI execution failed: %s", e.getMessage()));
+      throw new VsumBuildingException(VITRUV_CLI_EXECUTION_FAILED_ERROR + e.getMessage());
+    } finally {
+      if (jobDir != null) {
+        try {
+          deleteRecursively(jobDir);
+        } catch (IOException e) {
+          log.warn("Failed to delete job directory: {}", jobDir, e);
+        }
+      }
     }
   }
 
-  private Path ensureReactionPathEndsWithProperExtension(Path path) {
-    if (!path.getFileName().toString().endsWith(".reactions")) {
-      String filename = path.getFileName().toString();
-      int dotIndex = filename.lastIndexOf('.');
-      String nameWithoutExtension = (dotIndex == -1) ? filename : filename.substring(0, dotIndex);
-      return path.resolveSibling(nameWithoutExtension + ".reactions");
+  /**
+   * Validates method inputs for {@link #runVitruvAndGetFatJarBytes(List, List, List)}.
+   *
+   * @param ecoreFiles list of Ecore files (must not be null or empty)
+   * @param genModelFiles list of GenModel files (must match size of ecoreFiles)
+   * @param reactionFiles list of reaction files (must not be null or empty)
+   * @throws VsumBuildingException when validation fails
+   */
+  private void validateInputs(
+      List<FileStorage> ecoreFiles,
+      List<FileStorage> genModelFiles,
+      List<FileStorage> reactionFiles) {
+
+    if (ecoreFiles == null
+        || genModelFiles == null
+        || ecoreFiles.isEmpty()
+        || genModelFiles.isEmpty()) {
+      throw new VsumBuildingException(METAMODEL_PAIR_REQUIRED_ERROR);
     }
-    return path;
+    if (ecoreFiles.size() != genModelFiles.size()) {
+      throw new VsumBuildingException(METAMODEL_PAIR_COUNT_MISMATCH_ERROR);
+    }
+    if (reactionFiles == null || reactionFiles.isEmpty()) {
+      throw new VsumBuildingException(REACTION_FILE_REQUIRED_ERROR);
+    }
+  }
+
+  /**
+   * Returns the configured working directory for Vitruv CLI jobs.
+   *
+   * @return the configured working directory path string
+   * @throws VsumBuildingException if the property is not configured
+   */
+  private String requireWorkingDir() {
+    String wd = vitruvCliProperties.getWorkingDir();
+    if (wd == null || wd.isBlank()) {
+      throw new VsumBuildingException("vitruv.cli.working-dir is not configured");
+    }
+    return wd;
+  }
+
+  /**
+   * Recursively deletes a directory and its contents.
+   *
+   * @param dir the directory to delete
+   * @throws IOException when file system operations fail
+   */
+  private void deleteRecursively(Path dir) throws IOException {
+    if (dir == null || !Files.exists(dir)) {
+      return;
+    }
+    try (var walk = Files.walk(dir)) {
+      walk.sorted(Comparator.reverseOrder())
+          .forEach(
+              path -> {
+                try {
+                  Files.deleteIfExists(path);
+                } catch (IOException e) {
+                  throw new UncheckedIOException(e);
+                }
+              });
+    } catch (UncheckedIOException uio) {
+      throw uio.getCause();
+    }
+  }
+
+  /**
+   * Writes Ecore and GenModel files into the given job directory and returns inputs for the CLI.
+   *
+   * @param jobDir the directory where files will be written
+   * @param ecoreFiles Ecore file storage entries
+   * @param genModelFiles GenModel file storage entries
+   * @return list of MetamodelInput records with paths to the written files
+   * @throws IOException when file IO fails
+   */
+  private List<VitruvCliService.MetamodelInput> writeMetamodels(
+      Path jobDir, List<FileStorage> ecoreFiles, List<FileStorage> genModelFiles)
+      throws IOException {
+
+    List<VitruvCliService.MetamodelInput> inputs = new ArrayList<>(ecoreFiles.size());
+
+    for (int i = 0; i < ecoreFiles.size(); i++) {
+      FileStorage ecore = ecoreFiles.get(i);
+      FileStorage gen = genModelFiles.get(i);
+
+      String ecoreName = safeName(ecore.getFilename(), "model-" + i + ".ecore");
+      String genName = safeName(gen.getFilename(), "model-" + i + ".genmodel");
+
+      Path ecorePath = jobDir.resolve(ecoreName);
+      Path genPath = jobDir.resolve(genName);
+
+      Files.write(ecorePath, nonNullBytes(ecore.getData()));
+      Files.write(genPath, nonNullBytes(gen.getData()));
+
+      inputs.add(
+          VitruvCliService.MetamodelInput.builder()
+              .ecorePath(ecorePath)
+              .genmodelPath(genPath)
+              .build());
+    }
+
+    return inputs;
+  }
+
+  /**
+   * Writes the provided reaction files into the given directory.
+   *
+   * <p>Each entry from {@code reactionFiles} is written to {@code reactionsDir} using a
+   * filesystem-safe name (the implementation falls back to {@code "reactions-<i>.reactions"} when a
+   * filename is missing). Null file data is treated as an empty byte array.
+   *
+   * <p>IO errors encountered while writing are propagated as an unchecked {@link RuntimeException}.
+   *
+   * @param reactionsDir the directory where reaction files will be written; must not be {@code
+   *     null}
+   * @param reactionFiles the list of reaction {@code FileStorage} objects to write; must not be
+   *     {@code null}
+   * @throws RuntimeException if an I/O error occurs while writing any reaction file
+   */
+  private void writeReactionFiles(Path reactionsDir, List<FileStorage> reactionFiles)
+      throws IOException {
+
+    for (int i = 0; i < reactionFiles.size(); i++) {
+      FileStorage rf = reactionFiles.get(i);
+      String name = safeName(rf.getFilename(), "reactions-" + i + ".reactions");
+      Path p = reactionsDir.resolve(name);
+      Files.write(p, nonNullBytes(rf.getData()));
+    }
+  }
+
+  public @NonNull BuildParameters getBuildParameters(MetaModelRelation relation) {
+    ArrayList<FileStorage> additionalReactionFiles = new ArrayList<>(relation.getFineGranularMetaModelRelationSet().stream().map(FineGranularMetaModelRelation::getReactionFileStorage).filter(Objects::nonNull).toList());
+    if (relation.getReactionFileStorage() != null) {
+      additionalReactionFiles.add(relation.getReactionFileStorage());
+    }
+    FileStorage compositeReactionFile;
+    if (additionalReactionFiles.size() == 1) {
+      compositeReactionFile = additionalReactionFiles.get(0);
+      additionalReactionFiles.remove(0);
+    } else {
+      //TODO: this is a quick and dirty way to get the required information, but there is simply no other way to get it without actually parsing the file.
+      ReactionParserUtil.ReactionFileInfo reactionFileInfo = ReactionParserUtil.parse(new String(additionalReactionFiles.get(0).getData(), StandardCharsets.UTF_8));
+      CompositeReactionsRequest compositeReactionsRequest = new CompositeReactionsRequest();
+      compositeReactionsRequest.setRegenerate(true);
+      compositeReactionsRequest.setModel1Uri(reactionFileInfo.modelUri1());
+      compositeReactionsRequest.setModel2Uri(reactionFileInfo.modelUri2());
+      compositeReactionsRequest.setModel1Alias(reactionFileInfo.modelAlias1());
+      compositeReactionsRequest.setModel2Alias(reactionFileInfo.modelAlias2());
+      compositeReactionsRequest.setReactionName("compositeReaction");
+      var imports = additionalReactionFiles.stream().map(fileStorage -> {
+        var importReactionFileInfo = ReactionParserUtil.parse(new String(fileStorage.getData(), StandardCharsets.UTF_8));
+        if (!Objects.equals(reactionFileInfo.modelAlias1(), importReactionFileInfo.modelAlias1())) {
+          throw new RuntimeException(
+                  String.format(
+                          "All reaction files must be between the same pair of model aliases. Found source model alias %s in reaction %s, but source model alias %s in reaction %s!",
+                          reactionFileInfo.modelAlias1(),
+                          reactionFileInfo.reactionName(),
+                          importReactionFileInfo.modelAlias1(),
+                          importReactionFileInfo.reactionName()
+                  )
+          );
+        }
+        if (!Objects.equals(reactionFileInfo.modelAlias2(), importReactionFileInfo.modelAlias2())) {
+          throw new RuntimeException(
+                  String.format(
+                          "All reaction files must be between the same pair of model aliases. Found target model alias %s in reaction %s, but target model alias %s in reaction %s!",
+                          reactionFileInfo.modelAlias2(),
+                          reactionFileInfo.reactionName(),
+                          importReactionFileInfo.modelAlias2(),
+                          importReactionFileInfo.reactionName()
+                  )
+          );
+        }
+        if (!Objects.equals(reactionFileInfo.modelUri1(), importReactionFileInfo.modelUri1())) {
+          throw new RuntimeException(
+                  String.format(
+                          "All reaction files must be between the same pair of model uris. Found source model uri %s in reaction %s, but source model uri %s in reaction %s!",
+                          reactionFileInfo.modelUri1(),
+                          reactionFileInfo.reactionName(),
+                          importReactionFileInfo.modelUri1(),
+                          importReactionFileInfo.reactionName()
+                  )
+          );
+        }
+        if (!Objects.equals(reactionFileInfo.modelUri2(), importReactionFileInfo.modelUri2())) {
+          throw new RuntimeException(
+                  String.format(
+                          "All reaction files must be between the same pair of model uris. Found target model uri %s in reaction %s, but target model uri %s in reaction %s!",
+                          reactionFileInfo.modelUri2(),
+                          reactionFileInfo.reactionName(),
+                          importReactionFileInfo.modelUri2(),
+                          importReactionFileInfo.reactionName()
+                  )
+          );
+        }
+        return importReactionFileInfo.reactionName();
+      }).toList();
+      List<String> duplicates =
+              imports.stream()
+                      .filter(e -> Collections.frequency(imports, e) > 1)
+                      .distinct()
+                      .toList();
+      if (!duplicates.isEmpty()) {
+        throw new RuntimeException(String.format("Reaction names must be unique. Found duplicates: %s", duplicates));
+      }
+      compositeReactionsRequest.setImports(imports.toArray(new String[0]));
+
+      try {
+        var compositeReactionContent = lowCodeReactionService.applyTemplate(compositeReactionsRequest);
+        compositeReactionFile = FileStorage
+                .builder()
+                .data(compositeReactionContent
+                        .getBytes(StandardCharsets.UTF_8))
+                .filename("compositeReaction.reactions")
+                .type(FileEnumType.REACTION)
+                .contentType("text/plain")
+                .build();
+      } catch (IOException | TemplateException e) {
+        throw new RuntimeException(e);
+      }
+    }
+    return new BuildParameters(additionalReactionFiles, compositeReactionFile);
+  }
+
+  public record BuildParameters(ArrayList<FileStorage> additionalReactionFiles, FileStorage compositeReactionFile) {
   }
 
   public @NonNull BuildParameters getBuildParameters(MetaModelRelation relation) {

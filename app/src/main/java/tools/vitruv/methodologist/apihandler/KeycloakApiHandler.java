@@ -39,7 +39,7 @@ public class KeycloakApiHandler {
   private final WebClient webClient;
   private final ObjectMapper mapper = new ObjectMapper();
 
-  @Value("${investino.keycloak.client-id}")
+  @Value("${methodologist.keycloak.client-id}")
   private String clientId;
 
   /**

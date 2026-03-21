@@ -53,6 +53,15 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
   private static final Set<String> FILE_BODYLESS_PATH_PREFIXES =
       Set.of("/api/files", "/api/upload");
 
+  private static final Set<String> BINARY_BODYLESS_PATH_PREFIXES = Set.of("/api/v1/vsums");
+
+  private static final Set<String> BINARY_CONTENT_TYPES =
+      Set.of(
+          "application/octet-stream",
+          "application/java-archive",
+          "application/zip",
+          "application/x-zip-compressed");
+
   private static final String MASK = "***";
   private final ObjectMapper mapper = new ObjectMapper();
 
@@ -66,6 +75,14 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
     }
     String ct = contentType.toLowerCase();
     return ct.contains(MediaType.APPLICATION_JSON_VALUE) || ct.matches(".*\\+json(;.*)?$");
+  }
+
+  private static boolean isBinaryContentType(String contentType) {
+    if (contentType == null) {
+      return false;
+    }
+    String ct = contentType.toLowerCase();
+    return BINARY_CONTENT_TYPES.stream().anyMatch(ct::contains);
   }
 
   private static String contentTypeOrEmpty(String ct) {
@@ -90,6 +107,23 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
   private boolean isFileEndpoint(HttpServletRequest request) {
     String uri = request.getRequestURI();
     return FILE_BODYLESS_PATH_PREFIXES.stream().anyMatch(uri::startsWith);
+  }
+
+  private boolean isArtifactEndpoint(HttpServletRequest request) {
+    String uri = request.getRequestURI();
+    if (uri == null) {
+      return false;
+    }
+    return uri.matches("^/api/v1/vsums/\\d+/build/(artifact|check)$");
+  }
+
+  private boolean isBinaryEndpoint(HttpServletRequest request) {
+    String uri = request.getRequestURI();
+    if (uri == null) {
+      return false;
+    }
+    return isArtifactEndpoint(request)
+        || BINARY_BODYLESS_PATH_PREFIXES.stream().anyMatch(uri::startsWith);
   }
 
   /**
@@ -126,7 +160,9 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
           request.getRequestURI().contains("swagger")
               || request.getRequestURI().contains("actuator")
               || isMultipart(request.getContentType())
-              || isFileEndpoint(request);
+              || isFileEndpoint(request)
+              || isBinaryEndpoint(request)
+              || isBinaryContentType(responseWrapper.getContentType());
 
       if (!skipBodyLogging) {
         String reqBody =
@@ -145,6 +181,14 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
         logEntry.put("request", tryParseJson(sanitizedReq, isJson(request.getContentType())));
         logEntry.put(
             "response", tryParseJson(sanitizedRes, isJson(responseWrapper.getContentType())));
+      } else {
+        logEntry.put("request", "");
+        logEntry.put("response", "");
+        logEntry.put("response_content_type", responseWrapper.getContentType());
+        String cl = responseWrapper.getHeader("Content-Length");
+        if (cl != null) {
+          logEntry.put("response_content_length", cl);
+        }
       }
 
       responseWrapper.copyBodyToResponse();

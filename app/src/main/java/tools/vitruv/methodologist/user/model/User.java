@@ -30,15 +30,21 @@ public class User {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @Email private String email;
+  @NotNull @Email private String email;
 
   @NotNull
   @Enumerated(EnumType.STRING)
   private RoleType roleType;
 
-  private String username;
-  private String firstName;
-  private String lastName;
+  @NotNull private String username;
+
+  @NotNull private String firstName;
+
+  @NotNull private String lastName;
+  private String otpSecret;
+  private Instant otpExpiresAt;
+
+  @NotNull @Builder.Default private Boolean verified = false;
 
   @CreationTimestamp private Instant createdAt;
   private Instant removedAt;

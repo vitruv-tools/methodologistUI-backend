@@ -54,4 +54,20 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
    */
   @SuppressWarnings("checkstyle:MethodName")
   Optional<MetaModel> findByIdAndUser_Email(Long id, String callerEmail);
+
+  /**
+   * Finds all metamodels associated with a specific user ID.
+   *
+   * @param userId id of the user
+   * @return list of metamodels belonging to the user
+   */
+  List<MetaModel> findByUserId(Long userId);
+
+  /**
+   * Finds all metamodels associated with a specific user ID that have not been removed.
+   *
+   * @param userId id of the user
+   * @return
+   */
+  List<MetaModel> findByUserIdAndRemovedAtIsNull(Long userId);
 }

@@ -1,8 +1,12 @@
 package tools.vitruv.methodologist.user.controller;
 
+import static tools.vitruv.methodologist.messages.Message.NEW_PASSWORD_SENT_SUCCESSFULLY;
+import static tools.vitruv.methodologist.messages.Message.RESEND_OTP_WAS_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.SIGNUP_USER_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.USER_REMOVED_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.USER_UPDATED_SUCCESSFULLY;
+import static tools.vitruv.methodologist.messages.Message.VERIFIED_USER_SUCCESSFULLY;
+import static tools.vitruv.methodologist.messages.Message.YOUR_PASSWORD_CHANGE_WAS_SUCCESSFUL;
 
 import jakarta.validation.Valid;
 import java.util.List;
@@ -23,8 +27,11 @@ import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenByRefreshTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenRequest;
+import tools.vitruv.methodologist.user.controller.dto.request.UserPostForgotPasswordRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPostRequest;
+import tools.vitruv.methodologist.user.controller.dto.request.UserPutChangePasswordRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.UserPutRequest;
+import tools.vitruv.methodologist.user.controller.dto.request.UserPutVerifyRequest;
 import tools.vitruv.methodologist.user.controller.dto.response.UserResponse;
 import tools.vitruv.methodologist.user.controller.dto.response.UserWebToken;
 import tools.vitruv.methodologist.user.service.UserService;
@@ -79,6 +86,91 @@ public class UserController {
   public ResponseTemplateDto<Void> create(@Valid @RequestBody UserPostRequest userPostRequest) {
     userService.create(userPostRequest);
     return ResponseTemplateDto.<Void>builder().message(SIGNUP_USER_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Verifies a one-time password (OTP) for the authenticated caller.
+   *
+   * <p>Endpoint requires the caller to have the `user` role. On success it returns a {@link
+   * ResponseTemplateDto} with no data and a success message ({@code VERIFIED_USER_SUCCESSFULLY}).
+   *
+   * @param authentication the {@link KeycloakAuthentication} containing the caller's parsed token
+   *     and email
+   * @param userPutVerifyRequest the request payload containing OTP/verification data
+   * @return a {@link ResponseTemplateDto} with a success message and no payload
+   */
+  @PutMapping("/v1/users/verify-otp")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> verifyOtp(
+      KeycloakAuthentication authentication,
+      @Valid @RequestBody UserPutVerifyRequest userPutVerifyRequest) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    userService.verifyOtp(callerEmail, userPutVerifyRequest);
+    return ResponseTemplateDto.<Void>builder().message(VERIFIED_USER_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Sends a new one-time password (OTP) to the authenticated caller's email.
+   *
+   * <p>Accessible only to callers with the user role. On success returns a {@link
+   * ResponseTemplateDto} with no data and a success message ({@code RESEND_OTP_WAS_SUCCESSFULLY}).
+   *
+   * @param authentication the {@link KeycloakAuthentication} containing the caller's parsed token
+   *     and email
+   * @return a {@link ResponseTemplateDto} with no payload and a success message
+   */
+  @GetMapping("/v1/users/resend-otp")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> resendOtp(KeycloakAuthentication authentication) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    userService.resendOtp(callerEmail);
+    return ResponseTemplateDto.<Void>builder().message(RESEND_OTP_WAS_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Initiates a password reset for the specified email address.
+   *
+   * <p>Validates the incoming {@link UserPostForgotPasswordRequest}, delegates to {@code
+   * userService.forgotPassword(...)} to generate and send a new password, and returns a response
+   * with a success message when the email has been sent.
+   *
+   * @param userPostForgotPasswordRequest the validated request containing the email to reset; must
+   *     not be null or blank
+   * @return a {@link ResponseTemplateDto} with no payload and a success message ({@code
+   *     NEW_PASSWORD_SENT_SUCCESSFULLY})
+   * @throws jakarta.validation.ConstraintViolationException if validation of the request fails
+   * @throws RuntimeException if the password reset process fails (underlying exceptions will
+   *     propagate)
+   */
+  @PostMapping("/v1/users/forgot-password")
+  public ResponseTemplateDto<Void> forgotPassword(
+      @Valid @RequestBody UserPostForgotPasswordRequest userPostForgotPasswordRequest) {
+    userService.forgotPassword(userPostForgotPasswordRequest);
+    return ResponseTemplateDto.<Void>builder().message(NEW_PASSWORD_SENT_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Changes the authenticated caller's password.
+   *
+   * <p>Requires the caller to have the `user` role. Extracts the caller's email from the provided
+   * {@link KeycloakAuthentication}, delegates validation and update to {@code userService}, and
+   * returns a response containing a success message.
+   *
+   * @param authentication the {@link KeycloakAuthentication} containing the caller's parsed token
+   *     and email
+   * @param userPutChangePasswordRequest validated request DTO containing the new password
+   * @return a {@link ResponseTemplateDto} with no payload and a success message
+   * @throws RuntimeException if the service fails to change the password (underlying exceptions
+   *     will propagate)
+   */
+  @PutMapping("/v1/users/change-password")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> changePassword(
+      KeycloakAuthentication authentication,
+      @Valid @RequestBody UserPutChangePasswordRequest userPutChangePasswordRequest) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    userService.changePassword(callerEmail, userPutChangePasswordRequest);
+    return ResponseTemplateDto.<Void>builder().message(YOUR_PASSWORD_CHANGE_WAS_SUCCESSFUL).build();
   }
 
   /**

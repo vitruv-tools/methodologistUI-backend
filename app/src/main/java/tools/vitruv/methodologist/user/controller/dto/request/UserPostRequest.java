@@ -41,10 +41,8 @@ public class UserPostRequest {
   @NotBlank
   @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
   @Pattern(
-      regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$",
-      message =
-          "Password must be at least 8 characters long, contain upper and lower case letters,"
-              + " a number, and a special character.")
+      regexp = "^(?=.{8,256}$)(?=.*\\p{Ll})(?=.*\\p{Lu})(?=.*\\p{Nd})(?=.*[^\\p{L}\\p{Nd}\\s]).*$",
+      message = "The password needs to be at least 8 characters long.")
   private String password;
 
   @Override

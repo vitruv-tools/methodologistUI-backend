@@ -1,0 +1,26 @@
+ALTER TABLE usr
+    ADD otp_expires_at TIMESTAMP WITHOUT TIME ZONE;
+
+ALTER TABLE usr
+    ADD otp_secret VARCHAR(255);
+
+ALTER TABLE usr
+    ADD verified BOOLEAN;
+
+UPDATE usr
+SET verified = 'true'
+WHERE verified IS NULL;
+ALTER TABLE usr
+    ALTER COLUMN verified SET NOT NULL;
+
+ALTER TABLE usr
+    ALTER COLUMN email SET NOT NULL;
+
+ALTER TABLE usr
+    ALTER COLUMN first_name SET NOT NULL;
+
+ALTER TABLE usr
+    ALTER COLUMN last_name SET NOT NULL;
+
+ALTER TABLE usr
+    ALTER COLUMN username SET NOT NULL;
