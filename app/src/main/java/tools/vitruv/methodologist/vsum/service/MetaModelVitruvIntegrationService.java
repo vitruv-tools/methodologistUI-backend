@@ -15,7 +15,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import freemarker.template.TemplateException;
 import lombok.extern.slf4j.Slf4j;
@@ -51,9 +50,14 @@ public class MetaModelVitruvIntegrationService {
 
   private final VitruvCliService vitruvCliService;
   private final VitruvCliProperties vitruvCliProperties;
+  private final LowCodeReactionService lowCodeReactionService;
 
   public MetaModelVitruvIntegrationService(
-      VitruvCliService vitruvCliService, VitruvCliProperties vitruvCliProperties) {
+          LowCodeReactionService lowCodeReactionService,
+          VitruvCliService vitruvCliService,
+          VitruvCliProperties vitruvCliProperties
+  ) {
+    this.lowCodeReactionService = lowCodeReactionService;
     this.vitruvCliService = vitruvCliService;
     this.vitruvCliProperties = vitruvCliProperties;
   }
@@ -277,103 +281,6 @@ public class MetaModelVitruvIntegrationService {
       Path p = reactionsDir.resolve(name);
       Files.write(p, nonNullBytes(rf.getData()));
     }
-  }
-
-  public @NonNull BuildParameters getBuildParameters(MetaModelRelation relation) {
-    ArrayList<FileStorage> additionalReactionFiles = new ArrayList<>(relation.getFineGranularMetaModelRelationSet().stream().map(FineGranularMetaModelRelation::getReactionFileStorage).filter(Objects::nonNull).toList());
-    if (relation.getReactionFileStorage() != null) {
-      additionalReactionFiles.add(relation.getReactionFileStorage());
-    }
-    FileStorage compositeReactionFile;
-    if (additionalReactionFiles.size() == 1) {
-      compositeReactionFile = additionalReactionFiles.get(0);
-      additionalReactionFiles.remove(0);
-    } else {
-      //TODO: this is a quick and dirty way to get the required information, but there is simply no other way to get it without actually parsing the file.
-      ReactionParserUtil.ReactionFileInfo reactionFileInfo = ReactionParserUtil.parse(new String(additionalReactionFiles.get(0).getData(), StandardCharsets.UTF_8));
-      CompositeReactionsRequest compositeReactionsRequest = new CompositeReactionsRequest();
-      compositeReactionsRequest.setRegenerate(true);
-      compositeReactionsRequest.setModel1Uri(reactionFileInfo.modelUri1());
-      compositeReactionsRequest.setModel2Uri(reactionFileInfo.modelUri2());
-      compositeReactionsRequest.setModel1Alias(reactionFileInfo.modelAlias1());
-      compositeReactionsRequest.setModel2Alias(reactionFileInfo.modelAlias2());
-      compositeReactionsRequest.setReactionName("compositeReaction");
-      var imports = additionalReactionFiles.stream().map(fileStorage -> {
-        var importReactionFileInfo = ReactionParserUtil.parse(new String(fileStorage.getData(), StandardCharsets.UTF_8));
-        if (!Objects.equals(reactionFileInfo.modelAlias1(), importReactionFileInfo.modelAlias1())) {
-          throw new RuntimeException(
-                  String.format(
-                          "All reaction files must be between the same pair of model aliases. Found source model alias %s in reaction %s, but source model alias %s in reaction %s!",
-                          reactionFileInfo.modelAlias1(),
-                          reactionFileInfo.reactionName(),
-                          importReactionFileInfo.modelAlias1(),
-                          importReactionFileInfo.reactionName()
-                  )
-          );
-        }
-        if (!Objects.equals(reactionFileInfo.modelAlias2(), importReactionFileInfo.modelAlias2())) {
-          throw new RuntimeException(
-                  String.format(
-                          "All reaction files must be between the same pair of model aliases. Found target model alias %s in reaction %s, but target model alias %s in reaction %s!",
-                          reactionFileInfo.modelAlias2(),
-                          reactionFileInfo.reactionName(),
-                          importReactionFileInfo.modelAlias2(),
-                          importReactionFileInfo.reactionName()
-                  )
-          );
-        }
-        if (!Objects.equals(reactionFileInfo.modelUri1(), importReactionFileInfo.modelUri1())) {
-          throw new RuntimeException(
-                  String.format(
-                          "All reaction files must be between the same pair of model uris. Found source model uri %s in reaction %s, but source model uri %s in reaction %s!",
-                          reactionFileInfo.modelUri1(),
-                          reactionFileInfo.reactionName(),
-                          importReactionFileInfo.modelUri1(),
-                          importReactionFileInfo.reactionName()
-                  )
-          );
-        }
-        if (!Objects.equals(reactionFileInfo.modelUri2(), importReactionFileInfo.modelUri2())) {
-          throw new RuntimeException(
-                  String.format(
-                          "All reaction files must be between the same pair of model uris. Found target model uri %s in reaction %s, but target model uri %s in reaction %s!",
-                          reactionFileInfo.modelUri2(),
-                          reactionFileInfo.reactionName(),
-                          importReactionFileInfo.modelUri2(),
-                          importReactionFileInfo.reactionName()
-                  )
-          );
-        }
-        return importReactionFileInfo.reactionName();
-      }).toList();
-      List<String> duplicates =
-              imports.stream()
-                      .filter(e -> Collections.frequency(imports, e) > 1)
-                      .distinct()
-                      .toList();
-      if (!duplicates.isEmpty()) {
-        throw new RuntimeException(String.format("Reaction names must be unique. Found duplicates: %s", duplicates));
-      }
-      compositeReactionsRequest.setImports(imports.toArray(new String[0]));
-
-      try {
-        var compositeReactionContent = lowCodeReactionService.applyTemplate(compositeReactionsRequest);
-        compositeReactionFile = FileStorage
-                .builder()
-                .data(compositeReactionContent
-                        .getBytes(StandardCharsets.UTF_8))
-                .filename("compositeReaction.reactions")
-                .type(FileEnumType.REACTION)
-                .contentType("text/plain")
-                .build();
-      } catch (IOException | TemplateException e) {
-        throw new RuntimeException(e);
-      }
-    }
-    return new BuildParameters(additionalReactionFiles, compositeReactionFile);
-  }
-
-  public record BuildParameters(ArrayList<FileStorage> additionalReactionFiles, FileStorage compositeReactionFile) {
   }
 
   public @NonNull BuildParameters getBuildParameters(MetaModelRelation relation) {

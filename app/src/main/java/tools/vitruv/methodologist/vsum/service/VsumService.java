@@ -97,7 +97,6 @@ public class VsumService {
   VsumMetaModelRepository vsumMetaModelRepository;
   VsumHistoryService vsumHistoryService;
   MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
-  private final LowCodeReactionService lowCodeReactionService;
   BuildCoordinator buildCoordinator;
 
   /**
@@ -502,10 +501,9 @@ public class VsumService {
         putPair(ecores, genmodels, target.getEcoreFile(), target.getGenModelFile());
       }
 
-      FileStorage reaction = relation.getReactionFileStorage();
-      if (reaction != null) {
-        reactions.add(reaction);
-      }
+      var result = metaModelVitruvIntegrationService.getBuildParameters(relation);
+      reactions.add(result.compositeReactionFile());
+      reactions.addAll(result.additionalReactionFiles());
     }
 
     if (ecores.isEmpty() || genmodels.isEmpty()) {
@@ -624,18 +622,9 @@ public class VsumService {
         putPair(ecores, genmodels, target.getEcoreFile(), target.getGenModelFile());
       }
 
-      FileStorage reaction = relation.getReactionFileStorage();
-      if (reaction != null) {
-        reactions.add(reaction);
-      }
-      MetaModelVitruvIntegrationService.BuildParameters buildParameters = metaModelVitruvIntegrationService.getBuildParameters(relation);
-      metaModelVitruvIntegrationService.runVitruvForMetaModels(
-              relation.getSource().getEcoreFile(),
-              relation.getSource().getGenModelFile(),
-              relation.getTarget().getEcoreFile(),
-              relation.getTarget().getGenModelFile(),
-              buildParameters.compositeReactionFile(),
-              buildParameters.additionalReactionFiles());
+      var result = metaModelVitruvIntegrationService.getBuildParameters(relation);
+      reactions.add(result.compositeReactionFile());
+      reactions.addAll(result.additionalReactionFiles());
     }
 
     if (ecores.isEmpty() || genmodels.isEmpty()) {
@@ -679,11 +668,11 @@ public class VsumService {
       Vsum vsum,
       User user,
       VsumSyncChangesPutRequest vsumSyncChangesPutRequest,
-      boolean createHistory) {
+      boolean createHistory) throws Exception {
 
     List<Long> metaModelIds = vsumSyncChangesPutRequest.getMetaModelIds();
     List<VsumMetaModel> existingVsumMetaModel =
-        vsumMetaModelRepository.findAllByVsum(vsumUser.getVsum());
+        vsumMetaModelRepository.findAllByVsum(vsum);
 
     Set<Long> existingVsumMetaModelIds =
         existingVsumMetaModel.stream()
@@ -701,7 +690,7 @@ public class VsumService {
 
     MemoizedSupplier<Boolean> vsumHistorySaveSupplier = new MemoizedSupplier<>(() -> {
       if (createHistory) {
-        vsumHistoryService.create(vsumUser.getVsum(), vsumUser.getUser());
+        vsumHistoryService.create(vsum, user);
       }
       return true;
     });
@@ -720,17 +709,17 @@ public class VsumService {
                       toRemoveVsumMetaModelIds.contains(
                           vsumMetaModel.getMetaModel().getSource().getId()))
               .toList();
-      vsumMetaModelService.delete(vsumUser.getVsum(), toDeleteVsumMetaModel);
-      toDeleteVsumMetaModel.forEach(vsumUser.getVsum().getVsumMetaModels()::remove);
+      vsumMetaModelService.delete(vsum, toDeleteVsumMetaModel);
+      toDeleteVsumMetaModel.forEach(vsum.getVsumMetaModels()::remove);
     }
 
     if (!toAddVsumMetaModelIds.isEmpty()) {
-      vsumMetaModelService.create(vsumUser.getVsum(), toAddVsumMetaModelIds);
+      vsumMetaModelService.create(vsum, toAddVsumMetaModelIds);
     }
 
-    metaModelRelationService.update(callerEmail, vsumUser.getVsum(), vsumSyncChangesPutRequest.getMetaModelRelationRequests(), vsumHistorySaveSupplier);
+    metaModelRelationService.update(user.getEmail(), vsum, vsumSyncChangesPutRequest.getMetaModelRelationRequests(), vsumHistorySaveSupplier);
 
-    vsumRepository.save(vsumUser.getVsum());
-    return vsumUser.getVsum();
+    vsumRepository.save(vsum);
+    return vsum;
   }
 }

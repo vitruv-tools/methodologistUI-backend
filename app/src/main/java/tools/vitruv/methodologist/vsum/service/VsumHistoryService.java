@@ -136,7 +136,7 @@ public class VsumHistoryService {
    * @throws NotFoundException if the history entry with {@code id} does not exist
    */
   @Transactional
-  public void revert(String callerEmail, Long id) {
+  public void revert(String callerEmail, Long id) throws Exception {
     User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)

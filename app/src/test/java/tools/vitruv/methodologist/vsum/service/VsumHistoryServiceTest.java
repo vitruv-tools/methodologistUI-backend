@@ -201,7 +201,7 @@ class VsumHistoryServiceTest {
   }
 
   @Test
-  void revert_throwsAccessDenied_whenCallerNotFoundOrInactive() {
+  void revert_throwsAccessDenied_whenCallerNotFoundOrInactive() throws Exception {
     String callerEmail = "missing@ex.com";
     Long historyId = 10L;
 
@@ -219,7 +219,7 @@ class VsumHistoryServiceTest {
   }
 
   @Test
-  void revert_throwsNotFound_whenHistoryEntryDoesNotExist() {
+  void revert_throwsNotFound_whenHistoryEntryDoesNotExist() throws Exception {
     String callerEmail = "u@ex.com";
 
     User user = new User();
@@ -240,7 +240,7 @@ class VsumHistoryServiceTest {
   }
 
   @Test
-  void revert_throwsAccessDenied_whenCallerHasNoAccessToVsumOfHistory() {
+  void revert_throwsAccessDenied_whenCallerHasNoAccessToVsumOfHistory() throws Exception {
     String callerEmail = "u@ex.com";
 
     User user = new User();
@@ -268,7 +268,7 @@ class VsumHistoryServiceTest {
   }
 
   @Test
-  void revert_createsAuditSnapshot_thenAppliesRecordedChanges_withoutCreatingHistoryAgain() {
+  void revert_createsAuditSnapshot_thenAppliesRecordedChanges_withoutCreatingHistoryAgain() throws Exception {
     String callerEmail = "u@ex.com";
 
     User user = new User();
@@ -322,7 +322,7 @@ class VsumHistoryServiceTest {
   }
 
   @Test
-  void revert_mapsNullCollectionsToEmptyLists() {
+  void revert_mapsNullCollectionsToEmptyLists() throws Exception {
     String callerEmail = "u@ex.com";
 
     User user = new User();
@@ -358,7 +358,7 @@ class VsumHistoryServiceTest {
   }
 
   @Test
-  void revert_filtersNullRelationsWhileMapping() {
+  void revert_filtersNullRelationsWhileMapping() throws Exception {
     String callerEmail = "u@ex.com";
 
     User user = new User();

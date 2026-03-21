@@ -74,7 +74,7 @@ public class VsumHistoryController {
   @PutMapping("/v1/vsum-histories/{id}/revert")
   @PreAuthorize("hasRole('user')")
   public ResponseTemplateDto<List<VsumHistoryResponse>> revert(
-      KeycloakAuthentication authentication, @PathVariable Long id) {
+      KeycloakAuthentication authentication, @PathVariable Long id) throws Exception {
     String callerEmail = authentication.getParsedToken().getEmail();
     vsumHistoryService.revert(callerEmail, id);
     return ResponseTemplateDto.<List<VsumHistoryResponse>>builder()

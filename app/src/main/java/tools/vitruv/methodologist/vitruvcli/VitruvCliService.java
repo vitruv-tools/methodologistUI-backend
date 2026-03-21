@@ -67,7 +67,7 @@ public class VitruvCliService {
               List.of(
                   properties.getBinary(),
                   "-jar",
-                  properties.getJar(),
+                  jar,
                   "-f",
                   ".",
                   "-m",

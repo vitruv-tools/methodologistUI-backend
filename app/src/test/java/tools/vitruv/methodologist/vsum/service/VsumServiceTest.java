@@ -87,7 +87,6 @@ class VsumServiceTest {
   @Mock private MetaModelRelationRepository metaModelRelationRepository;
   @Mock private VsumHistoryService vsumHistoryService;
   @Mock private MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
-  @Mock private LowCodeReactionService lowCodeReactionService;
   @Mock private BuildCoordinator buildCoordinator;
 
   private VsumService service;
@@ -179,7 +178,6 @@ class VsumServiceTest {
             vsumMetaModelRepository,
             vsumHistoryService,
             metaModelVitruvIntegrationService,
-            lowCodeReactionService);
             buildCoordinator);
   }
 
