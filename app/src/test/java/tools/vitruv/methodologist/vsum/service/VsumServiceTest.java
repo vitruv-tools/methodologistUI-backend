@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
@@ -440,26 +441,37 @@ class VsumServiceTest {
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(1L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
 
-    MetaModel a = clonedMetaModel(10L, 100L);
-    MetaModel b = clonedMetaModel(20L, 200L);
-    MetaModel c = clonedMetaModel(30L, 300L);
-    MetaModel d = clonedMetaModel(40L, 400L);
-
-    MetaModelRelation relAB = metaModelRelation(vsum, a, b);
-    MetaModelRelation relCD = metaModelRelation(vsum, c, d);
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(relAB, relCD));
     when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelRelationRequests(
         List.of(new MetaModelRelationRequest(100L, 200L, 999L, new HashSet<>())));
 
+    doAnswer(
+            invocation -> {
+              @SuppressWarnings("unchecked")
+              var historySaveSupplier =
+                  (tools.vitruv.methodologist.general.MemoizedSupplier<Boolean>)
+                      invocation.getArgument(3);
+              historySaveSupplier.get();
+              return Map.of();
+            })
+        .when(metaModelRelationService)
+        .update(eq(email), eq(vsum), anyList(), any());
+
     Vsum result = service.update(email, 1L, put);
 
-    verify(metaModelRelationService).delete(List.of(relCD));
     verify(metaModelRelationService)
-        .delete(
-            argThat((List<MetaModelRelation> list) -> list.size() == 1 && list.contains(relCD)));
+        .update(
+            eq(email),
+            eq(vsum),
+            argThat(
+                requests ->
+                    requests != null
+                        && requests.size() == 1
+                        && Objects.equals(requests.get(0).getSourceId(), 100L)
+                        && Objects.equals(requests.get(0).getTargetId(), 200L)),
+            any());
     assertThat(result.getMetaModelRelations()).isEmpty();
     verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
@@ -479,16 +491,32 @@ class VsumServiceTest {
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(2L, email))
         .thenReturn(Optional.of(vsumUser(vsum, owner)));
 
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
     when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
 
     MetaModelRelationRequest req = new MetaModelRelationRequest(100L, 200L, 777L, new HashSet<>());
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelRelationRequests(List.of(req));
 
+    doAnswer(
+            invocation -> {
+              @SuppressWarnings("unchecked")
+              var historySaveSupplier =
+                  (tools.vitruv.methodologist.general.MemoizedSupplier<Boolean>)
+                      invocation.getArgument(3);
+              historySaveSupplier.get();
+              return Map.of();
+            })
+        .when(metaModelRelationService)
+        .update(eq(email), eq(vsum), anyList(), any());
+
     service.update(email, 2L, put);
 
-    verify(metaModelRelationService).create(vsum, List.of(req));
+    verify(metaModelRelationService)
+        .update(
+            eq(email),
+            eq(vsum),
+            argThat(requests -> requests != null && requests.size() == 1 && requests.get(0) == req),
+            any());
     verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
   }
@@ -513,7 +541,6 @@ class VsumServiceTest {
     VsumMetaModel v20 = vsumMetaModel(vsum, mm20);
     VsumMetaModel v30 = vsumMetaModel(vsum, mm30);
     when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v10, v20, v30));
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelIds(List.of(10L, 30L));
@@ -521,6 +548,7 @@ class VsumServiceTest {
     Vsum result = service.update(email, 3L, put);
 
     verify(vsumMetaModelService).delete(vsum, List.of(v20));
+    verify(metaModelRelationService).update(eq(email), eq(vsum), isNull(), any());
     verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
     assertThat(result.getVsumMetaModels()).doesNotContain(v20);
@@ -580,8 +608,6 @@ class VsumServiceTest {
     MetaModel t40 = clonedMetaModel(40L, 40L);
     MetaModelRelation r10And20 = metaModelRelation(vsum, s10, t20);
     MetaModelRelation r30And40 = metaModelRelation(vsum, s30, t40);
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r10And20, r30And40));
-
     MetaModelRelationRequest addRelationReq =
         new MetaModelRelationRequest(50L, 60L, 909L, new HashSet<>());
 
@@ -594,8 +620,21 @@ class VsumServiceTest {
 
     verify(vsumMetaModelService).delete(vsum, List.of(v42));
     verify(vsumMetaModelService).create(vsum, Set.of(43L));
-    verify(metaModelRelationService).delete(List.of(r30And40));
-    verify(metaModelRelationService).create(vsum, List.of(addRelationReq));
+    verify(metaModelRelationService)
+        .update(
+            eq(email),
+            eq(vsum),
+            argThat(
+                requests ->
+                    requests != null
+                        && requests.size() == 2
+                        && requests.stream()
+                            .anyMatch(
+                                request ->
+                                    Objects.equals(request.getSourceId(), 10L)
+                                        && Objects.equals(request.getTargetId(), 20L))
+                        && requests.contains(addRelationReq)),
+            any());
     verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
   }
@@ -619,11 +658,6 @@ class VsumServiceTest {
     VsumMetaModel v2 = vsumMetaModel(vsum, m2);
     when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v1, v2));
 
-    MetaModel s1 = clonedMetaModel(1L, 1L);
-    MetaModel t2 = clonedMetaModel(2L, 2L);
-    MetaModelRelation r12 = metaModelRelation(vsum, s1, t2);
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r12));
-
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelIds(List.of(1L, 2L));
     put.setMetaModelRelationRequests(
@@ -633,8 +667,14 @@ class VsumServiceTest {
 
     verify(vsumMetaModelService, never()).delete(any(), any());
     verify(vsumMetaModelService, never()).create(any(), any());
+    verify(metaModelRelationService)
+        .update(
+            eq(email),
+            eq(vsum),
+            argThat(requests -> requests != null && requests.size() == 1),
+            any());
     verify(metaModelRelationService, never()).delete(any());
-    verify(metaModelRelationService, never()).create(any(), any());
+    verify(metaModelRelationService, never()).create(any(), anyList());
     verify(vsumHistoryService, never()).create(any(), any());
     verify(vsumRepository).save(vsum);
   }
@@ -658,11 +698,6 @@ class VsumServiceTest {
     VsumMetaModel v20 = vsumMetaModel(vsum, mm20);
     when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v10, v20));
 
-    MetaModel s1 = clonedMetaModel(11L, 11L);
-    MetaModel t2 = clonedMetaModel(22L, 22L);
-    MetaModelRelation r = metaModelRelation(vsum, s1, t2);
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r));
-
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelIds(null);
     put.setMetaModelRelationRequests(null);
@@ -671,7 +706,8 @@ class VsumServiceTest {
 
     verify(vsumMetaModelService)
         .delete(eq(vsum), argThat(list -> list.size() == 2 && list.containsAll(List.of(v10, v20))));
-    verify(metaModelRelationService).delete(List.of(r));
+    verify(metaModelRelationService).update(eq(email), eq(vsum), isNull(), any());
+    verify(metaModelRelationService, never()).delete(any());
     verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
   }
