@@ -30,6 +30,14 @@ public class MetaModelRelationRequest {
   private Long reactionFileId;
   private Set<FineGranularMetaModelRelationRequest> fineGranularMetaModelRelationSet;
 
+  /**
+   * Constructs a new MetaModelRelationRequest.
+   *
+   * @param sourceId the ID of the source meta model
+   * @param targetId the ID of the target meta model
+   * @param reactionFileId the ID of the reaction file
+   * @param fineGranularMetaModelRelationSet the set of fine-granular meta-model relation requests
+   */
   public MetaModelRelationRequest(
       long sourceId,
       long targetId,

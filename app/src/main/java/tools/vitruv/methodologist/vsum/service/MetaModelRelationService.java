@@ -76,6 +76,123 @@ public class MetaModelRelationService {
   }
 
   /**
+   * Updates the relations for a VSUM based on the provided requests.
+   *
+   * @param callerEmail                the email of the caller
+   * @param vsum                       the VSUM to update
+   * @param metaModelRelationRequests the list of relation requests
+   * @param vsumHistorySaveSupplier    the supplier for saving VSUM history
+   * @return a map of requests to updated relations
+   * @throws Exception if an error occurs during update
+   */
+  @Transactional
+  public Map<MetaModelRelationRequest, MetaModelRelation> update(
+          String callerEmail,
+          Vsum vsum,
+          List<MetaModelRelationRequest> metaModelRelationRequests,
+          MemoizedSupplier<Boolean> vsumHistorySaveSupplier)
+          throws Exception {
+
+    List<MetaModelRelationRequest> desiredMetaModelRelation =
+            metaModelRelationRequests == null
+                    ? List.of()
+                    : metaModelRelationRequests.stream()
+                    .filter(
+                            metaModelRelationRequest ->
+                                    metaModelRelationRequest != null
+                                            && metaModelRelationRequest.getSourceId() != null
+                                            && metaModelRelationRequest.getTargetId() != null)
+                    .toList();
+
+    List<MetaModelRelation> existingMetaModelRelation =
+            metaModelRelationRepository.findAllByVsum(vsum);
+
+    Set<String> desiredMetaModelRelationPairs =
+            desiredMetaModelRelation.stream()
+                    .map(
+                            metaModelRelationRequest ->
+                                    metaModelRelationRequest.getSourceId()
+                                            + ":"
+                                            + metaModelRelationRequest.getTargetId())
+                    .collect(Collectors.toSet());
+
+    Map<String, MetaModelRelation> existingByPair = new HashMap<>();
+    for (MetaModelRelation metaModelRelation : existingMetaModelRelation) {
+      String metaModelRelationPairKey =
+              metaModelRelation.getSource().getSource().getId()
+                      + ":"
+                      + metaModelRelation.getTarget().getSource().getId();
+      existingByPair.put(metaModelRelationPairKey, metaModelRelation);
+    }
+
+    Set<String> existingMetaModelRelationPairs = new HashSet<>(existingByPair.keySet());
+
+    Set<String> toRemoveMetaModelRelation = new HashSet<>(existingMetaModelRelationPairs);
+    toRemoveMetaModelRelation.removeAll(desiredMetaModelRelationPairs);
+
+    Set<String> toAddMetaModelRelation = new HashSet<>(desiredMetaModelRelationPairs);
+    toAddMetaModelRelation.removeAll(existingMetaModelRelationPairs);
+
+    Map<MetaModelRelationRequest, MetaModelRelation> toUpdateMetaModelRelation = new HashMap<>();
+    for (var metaModelRelation : existingMetaModelRelation) {
+      var desired =
+              desiredMetaModelRelation.stream()
+                      .filter(
+                              metaModelRelationRequest ->
+                                      Objects.equals(
+                                              metaModelRelation.getSource().getSource().getId(),
+                                              metaModelRelationRequest.getSourceId())
+                                              && Objects.equals(
+                                              metaModelRelation.getTarget().getSource().getId(),
+                                              metaModelRelationRequest.getTargetId())
+                                              && !metaModelRelationRequest.equals(
+                                              lowCodeReactionRequestMapper, metaModelRelation))
+                      .findFirst();
+      desired.ifPresent(
+              metaModelRelationRequest ->
+                      toUpdateMetaModelRelation.put(metaModelRelationRequest, metaModelRelation));
+    }
+    Map<MetaModelRelationRequest, MetaModelRelation> metaModelRelationRequestToRelation =
+            new HashMap<>(toUpdateMetaModelRelation);
+
+    // Save vsum to history if it wasn't already (with this supplier)
+    if (!toRemoveMetaModelRelation.isEmpty()
+            || !toAddMetaModelRelation.isEmpty()
+            || !toUpdateMetaModelRelation.isEmpty()) {
+      vsumHistorySaveSupplier.get();
+    }
+
+    if (!toRemoveMetaModelRelation.isEmpty()) {
+      List<MetaModelRelation> deletions =
+              toRemoveMetaModelRelation.stream().map(existingByPair::get).toList();
+      this.delete(deletions);
+      deletions.forEach(vsum.getMetaModelRelations()::remove);
+    }
+
+    if (!toAddMetaModelRelation.isEmpty()) {
+      List<MetaModelRelationRequest> creations =
+              desiredMetaModelRelation.stream()
+                      .filter(
+                              metaModelRelationRequest ->
+                                      toAddMetaModelRelation.contains(
+                                              metaModelRelationRequest.getSourceId()
+                                                      + ":"
+                                                      + metaModelRelationRequest.getTargetId()))
+                      .toList();
+      metaModelRelationRequestToRelation.putAll(this.create(vsum, creations));
+    }
+
+    if (!toUpdateMetaModelRelation.isEmpty()) {
+      metaModelRelationRequestToRelation.putAll(this.update(vsum, toUpdateMetaModelRelation));
+    }
+
+    fineGranularMetaModelRelationService.update(
+            callerEmail, metaModelRelationRequestToRelation, vsumHistorySaveSupplier);
+
+    return metaModelRelationRequestToRelation;
+  }
+
+  /**
    * Creates or updates relations for the given requests; requires non-null reactionFileId or fine
    * granular relations for new relations.
    *
@@ -145,7 +262,8 @@ public class MetaModelRelationService {
       if (reactionFileId == null
           && metaModelRelationRequest.getFineGranularMetaModelRelationSet().isEmpty()) {
         throw new MetaModelRelationCreationException(
-            "Metamodel relation must have a reaction file or at least one fine-grained meta-model relation.");
+            "Metamodel relation must have a reaction file or at least one "
+                + "fine-grained meta-model relation.");
       }
 
       Key k = new Key(sourceId, targetId, reactionFileId);
@@ -223,122 +341,5 @@ public class MetaModelRelationService {
    */
   public void deleteByVsum(Vsum vsum) {
     metaModelRelationRepository.deleteMetaModelRelationByVsum(vsum);
-  }
-
-  /**
-   * Updates the relations for a VSUM based on the provided requests.
-   *
-   * @param callerEmail                the email of the caller
-   * @param vsum                       the VSUM to update
-   * @param metaModelRelationRequests the list of relation requests
-   * @param vsumHistorySaveSupplier    the supplier for saving VSUM history
-   * @return a map of requests to updated relations
-   * @throws Exception if an error occurs during update
-   */
-  @Transactional
-  public Map<MetaModelRelationRequest, MetaModelRelation> update(
-      String callerEmail,
-      Vsum vsum,
-      List<MetaModelRelationRequest> metaModelRelationRequests,
-      MemoizedSupplier<Boolean> vsumHistorySaveSupplier)
-      throws Exception {
-
-    List<MetaModelRelationRequest> desiredMetaModelRelation =
-        metaModelRelationRequests == null
-            ? List.of()
-            : metaModelRelationRequests.stream()
-                .filter(
-                    metaModelRelationRequest ->
-                        metaModelRelationRequest != null
-                            && metaModelRelationRequest.getSourceId() != null
-                            && metaModelRelationRequest.getTargetId() != null)
-                .toList();
-
-    List<MetaModelRelation> existingMetaModelRelation =
-        metaModelRelationRepository.findAllByVsum(vsum);
-
-    Set<String> desiredMetaModelRelationPairs =
-        desiredMetaModelRelation.stream()
-            .map(
-                metaModelRelationRequest ->
-                    metaModelRelationRequest.getSourceId()
-                        + ":"
-                        + metaModelRelationRequest.getTargetId())
-            .collect(Collectors.toSet());
-
-    Map<String, MetaModelRelation> existingByPair = new HashMap<>();
-    for (MetaModelRelation metaModelRelation : existingMetaModelRelation) {
-      String metaModelRelationPairKey =
-          metaModelRelation.getSource().getSource().getId()
-              + ":"
-              + metaModelRelation.getTarget().getSource().getId();
-      existingByPair.put(metaModelRelationPairKey, metaModelRelation);
-    }
-
-    Set<String> existingMetaModelRelationPairs = new HashSet<>(existingByPair.keySet());
-
-    Set<String> toRemoveMetaModelRelation = new HashSet<>(existingMetaModelRelationPairs);
-    toRemoveMetaModelRelation.removeAll(desiredMetaModelRelationPairs);
-
-    Set<String> toAddMetaModelRelation = new HashSet<>(desiredMetaModelRelationPairs);
-    toAddMetaModelRelation.removeAll(existingMetaModelRelationPairs);
-
-    Map<MetaModelRelationRequest, MetaModelRelation> toUpdateMetaModelRelation = new HashMap<>();
-    for (var metaModelRelation : existingMetaModelRelation) {
-      var desired =
-          desiredMetaModelRelation.stream()
-              .filter(
-                  metaModelRelationRequest ->
-                      Objects.equals(
-                              metaModelRelation.getSource().getSource().getId(),
-                              metaModelRelationRequest.getSourceId())
-                          && Objects.equals(
-                              metaModelRelation.getTarget().getSource().getId(),
-                              metaModelRelationRequest.getTargetId())
-                          && !metaModelRelationRequest.equals(
-                              lowCodeReactionRequestMapper, metaModelRelation))
-              .findFirst();
-      desired.ifPresent(
-          metaModelRelationRequest ->
-              toUpdateMetaModelRelation.put(metaModelRelationRequest, metaModelRelation));
-    }
-    Map<MetaModelRelationRequest, MetaModelRelation> metaModelRelationRequestToRelation =
-        new HashMap<>(toUpdateMetaModelRelation);
-
-    // Save vsum to history if it wasn't already (with this supplier)
-    if (!toRemoveMetaModelRelation.isEmpty()
-        || !toAddMetaModelRelation.isEmpty()
-        || !toUpdateMetaModelRelation.isEmpty()) {
-      vsumHistorySaveSupplier.get();
-    }
-
-    if (!toRemoveMetaModelRelation.isEmpty()) {
-      List<MetaModelRelation> deletions =
-          toRemoveMetaModelRelation.stream().map(existingByPair::get).toList();
-      this.delete(deletions);
-      deletions.forEach(vsum.getMetaModelRelations()::remove);
-    }
-
-    if (!toAddMetaModelRelation.isEmpty()) {
-      List<MetaModelRelationRequest> creations =
-          desiredMetaModelRelation.stream()
-              .filter(
-                  metaModelRelationRequest ->
-                      toAddMetaModelRelation.contains(
-                          metaModelRelationRequest.getSourceId()
-                              + ":"
-                              + metaModelRelationRequest.getTargetId()))
-              .toList();
-      metaModelRelationRequestToRelation.putAll(this.create(vsum, creations));
-    }
-
-    if (!toUpdateMetaModelRelation.isEmpty()) {
-      metaModelRelationRequestToRelation.putAll(this.update(vsum, toUpdateMetaModelRelation));
-    }
-
-    fineGranularMetaModelRelationService.update(
-        callerEmail, metaModelRelationRequestToRelation, vsumHistorySaveSupplier);
-
-    return metaModelRelationRequestToRelation;
   }
 }

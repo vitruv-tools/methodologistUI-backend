@@ -176,6 +176,11 @@ public class LowCodeReactionMetadataService {
     }
   }
 
+  /**
+   * Gets metadata for all low-code reactions.
+   *
+   * @return the metadata for all low-code reactions
+   */
   public LowCodeReactionMetadataResponse getAllLowCodeReactionMetadata() {
     var data =
         lowCodeReactionRequestBaseList.stream()

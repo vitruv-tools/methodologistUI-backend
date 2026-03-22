@@ -330,7 +330,9 @@ public class MetaModelVitruvIntegrationService {
                         reactionFileInfo.modelAlias1(), importReactionFileInfo.modelAlias1())) {
                       throw new RuntimeException(
                           String.format(
-                              "All reaction files must be between the same pair of model aliases. Found source model alias %s in reaction %s, but source model alias %s in reaction %s!",
+                              "All reaction files must be between the same pair of model aliases. "
+                                  + "Found source model alias %s in reaction %s, but "
+                                  + "source model alias %s in reaction %s!",
                               reactionFileInfo.modelAlias1(),
                               reactionFileInfo.reactionName(),
                               importReactionFileInfo.modelAlias1(),
@@ -340,7 +342,9 @@ public class MetaModelVitruvIntegrationService {
                         reactionFileInfo.modelAlias2(), importReactionFileInfo.modelAlias2())) {
                       throw new RuntimeException(
                           String.format(
-                              "All reaction files must be between the same pair of model aliases. Found target model alias %s in reaction %s, but target model alias %s in reaction %s!",
+                              "All reaction files must be between the same pair of model aliases. "
+                                  + "Found target model alias %s in reaction %s, but target "
+                                  + "model alias %s in reaction %s!",
                               reactionFileInfo.modelAlias2(),
                               reactionFileInfo.reactionName(),
                               importReactionFileInfo.modelAlias2(),
@@ -350,7 +354,9 @@ public class MetaModelVitruvIntegrationService {
                         reactionFileInfo.modelUri1(), importReactionFileInfo.modelUri1())) {
                       throw new RuntimeException(
                           String.format(
-                              "All reaction files must be between the same pair of model uris. Found source model uri %s in reaction %s, but source model uri %s in reaction %s!",
+                              "All reaction files must be between the same pair of model uris. "
+                                  + "Found source model uri %s in reaction %s, but source "
+                                  + "model uri %s in reaction %s!",
                               reactionFileInfo.modelUri1(),
                               reactionFileInfo.reactionName(),
                               importReactionFileInfo.modelUri1(),
@@ -360,7 +366,9 @@ public class MetaModelVitruvIntegrationService {
                         reactionFileInfo.modelUri2(), importReactionFileInfo.modelUri2())) {
                       throw new RuntimeException(
                           String.format(
-                              "All reaction files must be between the same pair of model uris. Found target model uri %s in reaction %s, but target model uri %s in reaction %s!",
+                              "All reaction files must be between the same pair of model uris. "
+                                  + "Found target model uri %s in reaction %s, but target "
+                                  + "model uri %s in reaction %s!",
                               reactionFileInfo.modelUri2(),
                               reactionFileInfo.reactionName(),
                               importReactionFileInfo.modelUri2(),
