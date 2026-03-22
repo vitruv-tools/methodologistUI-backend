@@ -1,8 +1,7 @@
 package tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.response;
 
-import lombok.*;
-
 import java.util.List;
+import lombok.*;
 
 @Builder
 @Getter
@@ -10,8 +9,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class LowCodeReactionMetadata {
-    private String name;
-    private String description;
-    private boolean hide;
-    private List<LowCodeReactionFieldMetadata> fields;
+  private String name;
+  private String description;
+  private boolean hide;
+  private List<LowCodeReactionFieldMetadata> fields;
 }

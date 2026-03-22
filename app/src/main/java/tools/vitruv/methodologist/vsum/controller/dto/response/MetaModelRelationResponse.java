@@ -1,13 +1,11 @@
 package tools.vitruv.methodologist.vsum.controller.dto.response;
 
+import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.util.List;
-import java.util.Set;
 
 /**
  * Response DTO representing a relation between two meta models.

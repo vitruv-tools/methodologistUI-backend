@@ -6,10 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.anyList;
-import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import java.util.Arrays;
 import java.util.List;
@@ -68,8 +65,8 @@ class FileStorageServiceTest {
   void storeFile_newFile_success() throws Exception {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(anyString()))
         .thenReturn(Optional.of(testUser));
-    when(fileStorageRepository.existsByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
-        .thenReturn(false);
+    when(fileStorageRepository.findByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
+        .thenReturn(Optional.empty());
     when(fileStorageRepository.save(any(FileStorage.class))).thenReturn(testFileStorage);
 
     FileStorageResponse response =
@@ -100,7 +97,8 @@ class FileStorageServiceTest {
     MockMultipartFile emptyFile =
         new MockMultipartFile("file", "empty.txt", "text/plain", new byte[0]);
 
-    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(anyString()))
+    lenient()
+        .when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(anyString()))
         .thenReturn(Optional.of(testUser));
 
     assertThrows(
@@ -247,7 +245,8 @@ class FileStorageServiceTest {
   void updateFile_emptyFile_throwsIllegalArgumentException() {
     String email = "test@example.com";
 
-    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+    lenient()
+        .when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.of(testUser));
 
     FileStorage existing = new FileStorage();
@@ -255,7 +254,8 @@ class FileStorageServiceTest {
     existing.setUser(testUser);
     existing.setType(FileEnumType.REACTION);
 
-    when(fileStorageRepository.findByIdAndType(1L, FileEnumType.REACTION))
+    lenient()
+        .when(fileStorageRepository.findByIdAndType(1L, FileEnumType.REACTION))
         .thenReturn(Optional.of(existing));
 
     MockMultipartFile emptyFile =

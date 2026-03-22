@@ -268,7 +268,8 @@ class VsumHistoryServiceTest {
   }
 
   @Test
-  void revert_createsAuditSnapshot_thenAppliesRecordedChanges_withoutCreatingHistoryAgain() throws Exception {
+  void revert_createsAuditSnapshot_thenAppliesRecordedChanges_withoutCreatingHistoryAgain()
+      throws Exception {
     String callerEmail = "u@ex.com";
 
     User user = new User();

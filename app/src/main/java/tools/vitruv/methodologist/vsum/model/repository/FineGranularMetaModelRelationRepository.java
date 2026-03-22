@@ -5,9 +5,9 @@ import org.springframework.stereotype.Repository;
 import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 
 /**
- * Repository for managing {@link FineGranularMetaModelRelation} entities. Provides CRUD operations through
- * {@link CrudRepository}.
+ * Repository for managing {@link FineGranularMetaModelRelation} entities. Provides CRUD operations
+ * through {@link CrudRepository}.
  */
 @Repository
-public interface FineGranularMetaModelRelationRepository extends CrudRepository<FineGranularMetaModelRelation, Long> {
-}
+public interface FineGranularMetaModelRelationRepository
+    extends CrudRepository<FineGranularMetaModelRelation, Long> {}

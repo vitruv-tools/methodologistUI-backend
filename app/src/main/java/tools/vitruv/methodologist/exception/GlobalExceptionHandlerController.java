@@ -16,10 +16,10 @@
 
 package tools.vitruv.methodologist.exception;
 
-import java.util.Objects;
-import java.util.Arrays;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.Arrays;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;

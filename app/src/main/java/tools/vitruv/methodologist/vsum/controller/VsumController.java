@@ -122,7 +122,8 @@ public class VsumController {
   public ResponseTemplateDto<Void> update(
       KeycloakAuthentication authentication,
       @PathVariable Long id,
-      @Valid @RequestBody VsumSyncChangesPutRequest vsumSyncChangesPutRequest) throws Exception {
+      @Valid @RequestBody VsumSyncChangesPutRequest vsumSyncChangesPutRequest)
+      throws Exception {
     String callerEmail = authentication.getParsedToken().getEmail();
     vsumService.update(callerEmail, id, vsumSyncChangesPutRequest);
     return ResponseTemplateDto.<Void>builder().message(VSUM_UPDATED_SUCCESSFULLY).build();

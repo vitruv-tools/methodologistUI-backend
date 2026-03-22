@@ -8,12 +8,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.io.ByteArrayInputStream;
@@ -21,13 +16,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashSet;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,7 +43,6 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelation
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
-import tools.vitruv.methodologist.vsum.lowcode.reactions.template.service.LowCodeReactionService;
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
@@ -158,6 +146,10 @@ class VsumServiceTest {
     r.setSource(source);
     r.setTarget(target);
     r.setReactionFileStorage(reaction);
+    lenient()
+        .when(metaModelVitruvIntegrationService.getBuildParameters(r))
+        .thenReturn(
+            new MetaModelVitruvIntegrationService.BuildParameters(new ArrayList<>(), reaction));
     return r;
   }
 
@@ -340,7 +332,8 @@ class VsumServiceTest {
     when(metaModelMapper.toMetaModelResponse(mm)).thenReturn(mmResp);
 
     MetaModelRelationResponse relResp = new MetaModelRelationResponse();
-    when(metaModelRelationMapper.toMetaModelRelationResponse(rel, lowCodeReactionRequestMapper)).thenReturn(relResp);
+    when(metaModelRelationMapper.toMetaModelRelationResponse(rel, lowCodeReactionRequestMapper))
+        .thenReturn(relResp);
 
     VsumMetaModelResponse result = service.findVsumWithDetails(email, 78L);
 
@@ -458,7 +451,8 @@ class VsumServiceTest {
     when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setMetaModelRelationRequests(List.of(new MetaModelRelationRequest(100L, 200L, 999L, new HashSet<>())));
+    put.setMetaModelRelationRequests(
+        List.of(new MetaModelRelationRequest(100L, 200L, 999L, new HashSet<>())));
 
     Vsum result = service.update(email, 1L, put);
 
@@ -550,7 +544,6 @@ class VsumServiceTest {
     VsumMetaModel v11 = vsumMetaModel(vsum, mm11);
     VsumMetaModel v12 = vsumMetaModel(vsum, mm12);
     when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v11, v12));
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelIds(List.of(11L, 12L, 13L));
@@ -589,7 +582,8 @@ class VsumServiceTest {
     MetaModelRelation r30And40 = metaModelRelation(vsum, s30, t40);
     when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r10And20, r30And40));
 
-    MetaModelRelationRequest addRelationReq = new MetaModelRelationRequest(50L, 60L, 909L, new HashSet<>());
+    MetaModelRelationRequest addRelationReq =
+        new MetaModelRelationRequest(50L, 60L, 909L, new HashSet<>());
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelRelationRequests(
@@ -632,7 +626,8 @@ class VsumServiceTest {
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelIds(List.of(1L, 2L));
-    put.setMetaModelRelationRequests(List.of(new MetaModelRelationRequest(1L, 2L, 555L, new HashSet<>())));
+    put.setMetaModelRelationRequests(
+        List.of(new MetaModelRelationRequest(1L, 2L, 555L, new HashSet<>())));
 
     service.update(email, 6L, put);
 
@@ -831,6 +826,9 @@ class VsumServiceTest {
             anyList(), anyList(), anyList()))
         .thenReturn(jarBytes);
 
+    when(metaModelVitruvIntegrationService.getBuildParameters(any()))
+        .thenReturn(new MetaModelVitruvIntegrationService.BuildParameters(new ArrayList<>(), r1));
+
     when(buildCoordinator.runOncePerKey(any(), any()))
         .thenAnswer(
             inv -> {
@@ -908,6 +906,8 @@ class VsumServiceTest {
     FileStorage e = fs(1L, "a.ecore", new byte[] {1});
     FileStorage g = fs(2L, "a.genmodel", new byte[] {2});
     vsum.setMetaModelRelations(Set.of(rel(mm(e, g), null, null)));
+    when(metaModelVitruvIntegrationService.getBuildParameters(any()))
+        .thenReturn(new MetaModelVitruvIntegrationService.BuildParameters(new ArrayList<>(), null));
 
     assertThatThrownBy(() -> service.buildOrThrow(vsum)).isInstanceOf(NotFoundException.class);
 
@@ -933,6 +933,9 @@ class VsumServiceTest {
     when(metaModelVitruvIntegrationService.runVitruvAndGetFatJarBytes(
             anyList(), anyList(), anyList()))
         .thenReturn(jar);
+
+    when(metaModelVitruvIntegrationService.getBuildParameters(any()))
+        .thenReturn(new MetaModelVitruvIntegrationService.BuildParameters(new ArrayList<>(), r1));
 
     byte[] out = service.buildOrThrow(vsum);
     assertThat(out).isEqualTo(jar);

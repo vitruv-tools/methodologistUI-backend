@@ -1,8 +1,7 @@
 package tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.response;
 
-import lombok.*;
-
 import java.util.Map;
+import lombok.*;
 
 @Builder
 @Getter
@@ -10,5 +9,5 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class LowCodeReactionMetadataResponse {
-    private Map<String, LowCodeReactionMetadata> reactionMetadataMap;
+  private Map<String, LowCodeReactionMetadata> reactionMetadataMap;
 }

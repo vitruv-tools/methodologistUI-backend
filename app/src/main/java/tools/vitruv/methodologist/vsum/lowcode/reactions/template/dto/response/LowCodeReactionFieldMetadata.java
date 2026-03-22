@@ -1,8 +1,7 @@
 package tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.response;
 
-import lombok.*;
-
 import java.util.List;
+import lombok.*;
 
 @Builder
 @Getter
@@ -10,63 +9,61 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class LowCodeReactionFieldMetadata {
-    //TODO: Should have read-only support --> See ReactionMetadata Annotation
-    private String name;
-    private String type;
-    private boolean required;
-    private boolean array;
+  // TODO: Should have read-only support --> See ReactionMetadata Annotation
+  private String name;
+  private String type;
+  private boolean required;
+  private boolean array;
 
-    private boolean map;
-    private String mapKeyType;
-    private String mapValueType;
+  private boolean map;
+  private String mapKeyType;
+  private String mapValueType;
 
-    /**
-     * \@ReactionMetadata(name=?, description=?, hide=?, defaultStringValue=?)
-     */
-    private String displayName;
-    private String displayDescription;
-    private boolean displayHide;
-    private String displayDefaultStringValue;
-    private Integer displayDefaultIntValue;
-    private boolean displayDefaultBooleanValue;
-    private Double displayDefaultDoubleValue;
+  /** \@ReactionMetadata(name=?, description=?, hide=?, defaultStringValue=?) */
+  private String displayName;
 
-    /**
-     * \@Schema(allowableValues=...) as list of enum names, e.g. ["A", "B", "C"]
-     */
-    private String[] allowableValues;
+  private String displayDescription;
+  private boolean displayHide;
+  private String displayDefaultStringValue;
+  private Integer displayDefaultIntValue;
+  private boolean displayDefaultBooleanValue;
+  private Double displayDefaultDoubleValue;
 
-    /**
-     * \@Size(min=?, max=?)
-     * Applies to: String length, arrays length, collections size (depending on field type).
-     */
-    private Integer sizeMin;
-    private Integer sizeMax;
+  /** \@Schema(allowableValues=...) as list of enum names, e.g. ["A", "B", "C"] */
+  private String[] allowableValues;
 
-    /**
-     * \@Length(min=?, max=?)
-     * Hibernate Validator annotation (primarily for String length).
-     */
-    private Integer lengthMin;
-    private Integer lengthMax;
+  /**
+   * \@Size(min=?, max=?) Applies to: String length, arrays length, collections size (depending on
+   * field type).
+   */
+  private Integer sizeMin;
 
-    /** \@Min(value=?) */
-    private Long min;
+  private Integer sizeMax;
 
-    /** \@Max(value=?) */
-    private Long max;
+  /** \@Length(min=?, max=?) Hibernate Validator annotation (primarily for String length). */
+  private Integer lengthMin;
 
-    /** \@DecimalMin(value=?, inclusive=?) */
-    private String decimalMin;
-    private Boolean decimalMinInclusive;
+  private Integer lengthMax;
 
-    /** \@DecimalMax(value=?, inclusive=?) */
-    private String decimalMax;
-    private Boolean decimalMaxInclusive;
+  /** \@Min(value=?) */
+  private Long min;
 
-    /** \@Pattern(regexp=?) */
-    private String pattern;
+  /** \@Max(value=?) */
+  private Long max;
 
-    /** \@Pattern(flags=...) as list of enum names, e.g. ["CASE_INSENSITIVE"] */
-    private List<String> patternFlags;
+  /** \@DecimalMin(value=?, inclusive=?) */
+  private String decimalMin;
+
+  private Boolean decimalMinInclusive;
+
+  /** \@DecimalMax(value=?, inclusive=?) */
+  private String decimalMax;
+
+  private Boolean decimalMaxInclusive;
+
+  /** \@Pattern(regexp=?) */
+  private String pattern;
+
+  /** \@Pattern(flags=...) as list of enum names, e.g. ["CASE_INSENSITIVE"] */
+  private List<String> patternFlags;
 }

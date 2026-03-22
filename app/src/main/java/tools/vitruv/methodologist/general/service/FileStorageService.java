@@ -74,11 +74,12 @@ public class FileStorageService {
    */
   @Transactional
   public FileStorageResponse storeFile(
-          String callerUserEmail, byte[] data, String fileName, String contentType, FileEnumType type) throws Exception {
+      String callerUserEmail, byte[] data, String fileName, String contentType, FileEnumType type)
+      throws Exception {
     User user =
-            userRepository
-                    .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
-                    .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
+        userRepository
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
+            .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
     if (data.length == 0) {
       throw new IllegalArgumentException("File is empty");
     }
@@ -93,8 +94,7 @@ public class FileStorageService {
     FileStorage fileStorage = new FileStorage();
     fileStorage.setFilename(fileName);
     fileStorage.setType(type);
-    fileStorage.setContentType(
-            contentType == null ? "application/octet-stream" : contentType);
+    fileStorage.setContentType(contentType == null ? "application/octet-stream" : contentType);
     fileStorage.setSizeBytes(data.length);
     fileStorage.setSha256(sha);
     fileStorage.setData(data);
@@ -123,7 +123,8 @@ public class FileStorageService {
       throw new IllegalArgumentException("File is empty");
     }
 
-    return storeFile(callerUserEmail, file.getBytes(), file.getOriginalFilename(), file.getContentType(), type);
+    return storeFile(
+        callerUserEmail, file.getBytes(), file.getOriginalFilename(), file.getContentType(), type);
   }
 
   /**
@@ -174,21 +175,22 @@ public class FileStorageService {
    *     same user
    */
   @Transactional
-  public FileStorageResponse updateFile(String callerUserEmail, Long fileId, byte[] data, String fileName, String contentType)
-          throws Exception {
+  public FileStorageResponse updateFile(
+      String callerUserEmail, Long fileId, byte[] data, String fileName, String contentType)
+      throws Exception {
     User user =
-            userRepository
-                    .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
-                    .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
+        userRepository
+            .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
+            .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
 
     FileStorage existing =
-            fileStorageRepository
-                    .findByIdAndType(fileId, FileEnumType.REACTION)
-                    .orElseThrow(() -> new NotFoundException("File not found"));
+        fileStorageRepository
+            .findByIdAndType(fileId, FileEnumType.REACTION)
+            .orElseThrow(() -> new NotFoundException("File not found"));
 
     if (existing.getUser() == null
-            || existing.getUser().getId() == null
-            || !existing.getUser().getId().equals(user.getId())) {
+        || existing.getUser().getId() == null
+        || !existing.getUser().getId().equals(user.getId())) {
       throw new IllegalArgumentException("File does not belong to the requesting user");
     }
 
@@ -200,8 +202,7 @@ public class FileStorageService {
 
     existing.setFilename(fileName);
     existing.setType(FileEnumType.REACTION);
-    existing.setContentType(
-            contentType == null ? "application/octet-stream" : contentType);
+    existing.setContentType(contentType == null ? "application/octet-stream" : contentType);
     existing.setSizeBytes(data.length);
     existing.setSha256(sha);
     existing.setData(data);
@@ -235,7 +236,12 @@ public class FileStorageService {
       throw new IllegalArgumentException("File is empty");
     }
 
-    return updateFile(callerUserEmail, fileId, file.getBytes(), file.getOriginalFilename(), file.getContentType());
+    return updateFile(
+        callerUserEmail,
+        fileId,
+        file.getBytes(),
+        file.getOriginalFilename(),
+        file.getContentType());
   }
 
   /**

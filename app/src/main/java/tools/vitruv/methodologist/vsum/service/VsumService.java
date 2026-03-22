@@ -12,11 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,12 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.BuildArtifactCreationException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
-import tools.vitruv.methodologist.general.MemoizedSupplier;
-import tools.vitruv.methodologist.user.model.User;
-import tools.vitruv.methodologist.user.model.repository.UserRepository;
-import tools.vitruv.methodologist.vsum.VsumRole;
-import tools.vitruv.methodologist.vsum.controller.dto.request.*;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
+import tools.vitruv.methodologist.general.MemoizedSupplier;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
@@ -52,7 +44,7 @@ import tools.vitruv.methodologist.vsum.VsumRole;
 import tools.vitruv.methodologist.vsum.build.BuildCoordinator;
 import tools.vitruv.methodologist.vsum.build.BuildKey;
 import tools.vitruv.methodologist.vsum.build.InputsFingerprint;
-import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.request.*;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
@@ -60,7 +52,6 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelation
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
-import tools.vitruv.methodologist.vsum.lowcode.reactions.template.service.LowCodeReactionService;
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
@@ -161,7 +152,8 @@ public class VsumService {
    */
   @Transactional
   public Vsum update(
-      String callerEmail, Long id, VsumSyncChangesPutRequest vsumSyncChangesPutRequest) throws Exception {
+      String callerEmail, Long id, VsumSyncChangesPutRequest vsumSyncChangesPutRequest)
+      throws Exception {
     VsumUser vsumUser =
         vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
@@ -249,7 +241,12 @@ public class VsumService {
         (vsum.getMetaModelRelations() == null
                 ? List.<MetaModelRelation>of()
                 : vsum.getMetaModelRelations())
-            .stream().map(m -> metaModelRelationMapper.toMetaModelRelationResponse(m, lowCodeReactionRequestMapper)).toList();
+            .stream()
+                .map(
+                    m ->
+                        metaModelRelationMapper.toMetaModelRelationResponse(
+                            m, lowCodeReactionRequestMapper))
+                .toList();
     response.setMetaModelsRelation(metaModelRelation);
 
     return response;
@@ -502,7 +499,9 @@ public class VsumService {
       }
 
       var result = metaModelVitruvIntegrationService.getBuildParameters(relation);
-      reactions.add(result.compositeReactionFile());
+      if (result.compositeReactionFile() != null) {
+        reactions.add(result.compositeReactionFile());
+      }
       reactions.addAll(result.additionalReactionFiles());
     }
 
@@ -668,11 +667,11 @@ public class VsumService {
       Vsum vsum,
       User user,
       VsumSyncChangesPutRequest vsumSyncChangesPutRequest,
-      boolean createHistory) throws Exception {
+      boolean createHistory)
+      throws Exception {
 
     List<Long> metaModelIds = vsumSyncChangesPutRequest.getMetaModelIds();
-    List<VsumMetaModel> existingVsumMetaModel =
-        vsumMetaModelRepository.findAllByVsum(vsum);
+    List<VsumMetaModel> existingVsumMetaModel = vsumMetaModelRepository.findAllByVsum(vsum);
 
     Set<Long> existingVsumMetaModelIds =
         existingVsumMetaModel.stream()
@@ -688,19 +687,20 @@ public class VsumService {
     Set<Long> toAddVsumMetaModelIds = new HashSet<>(desiredMetaModelIds);
     toAddVsumMetaModelIds.removeAll(existingVsumMetaModelIds);
 
-    MemoizedSupplier<Boolean> vsumHistorySaveSupplier = new MemoizedSupplier<>(() -> {
-      if (createHistory) {
-        vsumHistoryService.create(vsum, user);
-      }
-      return true;
-    });
+    MemoizedSupplier<Boolean> vsumHistorySaveSupplier =
+        new MemoizedSupplier<>(
+            () -> {
+              if (createHistory) {
+                vsumHistoryService.create(vsum, user);
+              }
+              return true;
+            });
 
-    if (!toRemoveVsumMetaModelIds.isEmpty()
-            || !toAddVsumMetaModelIds.isEmpty()) {
+    if (!toRemoveVsumMetaModelIds.isEmpty() || !toAddVsumMetaModelIds.isEmpty()) {
       vsumHistorySaveSupplier.get();
     }
 
-    //TODO: I would also move this to meta model service for separation of concerns
+    // TODO: I would also move this to meta model service for separation of concerns
     if (!toRemoveVsumMetaModelIds.isEmpty()) {
       List<VsumMetaModel> toDeleteVsumMetaModel =
           existingVsumMetaModel.stream()
@@ -717,7 +717,11 @@ public class VsumService {
       vsumMetaModelService.create(vsum, toAddVsumMetaModelIds);
     }
 
-    metaModelRelationService.update(user.getEmail(), vsum, vsumSyncChangesPutRequest.getMetaModelRelationRequests(), vsumHistorySaveSupplier);
+    metaModelRelationService.update(
+        user.getEmail(),
+        vsum,
+        vsumSyncChangesPutRequest.getMetaModelRelationRequests(),
+        vsumHistorySaveSupplier);
 
     vsumRepository.save(vsum);
     return vsum;

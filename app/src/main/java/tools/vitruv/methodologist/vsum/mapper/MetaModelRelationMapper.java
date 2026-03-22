@@ -14,18 +14,24 @@ import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
  * <p>Uses {@code componentModel\="spring"} for Spring DI and {@link ReportingPolicy#IGNORE} to
  * ignore unmapped targets.
  */
-@Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE, componentModel = "spring", uses = FineGranularMetaModelRelationMapper.class)
+@Mapper(
+    unmappedTargetPolicy = ReportingPolicy.IGNORE,
+    componentModel = "spring",
+    uses = FineGranularMetaModelRelationMapper.class)
 public interface MetaModelRelationMapper {
   /**
    * Maps a {@link MetaModelRelation} to its {@link MetaModelRelationResponse} representation.
    *
    * @param metaModelRelation the source entity; may be {@code null}
-   * @param lowCodeReactionRequestMapper context mapper for fine-granular relations; may be {@code null}
+   * @param lowCodeReactionRequestMapper context mapper for fine-granular relations; may be {@code
+   *     null}
    * @return the mapped response DTO, or {@code null} if input is {@code null}
    */
   @Mapping(source = "source.id", target = "sourceId")
   @Mapping(source = "target.id", target = "targetId")
   @Mapping(source = "reactionFileStorage.id", target = "reactionFileStorageId")
   @Mapping(source = "fineGranularMetaModelRelationSet", target = "fineGranularMetaModelRelationSet")
-  MetaModelRelationResponse toMetaModelRelationResponse(MetaModelRelation metaModelRelation, @Context LowCodeReactionRequestMapper lowCodeReactionRequestMapper);
+  MetaModelRelationResponse toMetaModelRelationResponse(
+      MetaModelRelation metaModelRelation,
+      @Context LowCodeReactionRequestMapper lowCodeReactionRequestMapper);
 }

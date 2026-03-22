@@ -26,7 +26,9 @@ public interface FileStorageRepository extends CrudRepository<FileStorage, Long>
   boolean existsByUserAndSha256AndSizeBytes(User user, String sha256, long sizeBytes);
 
   /**
-   * Finds a {@link tools.vitruv.methodologist.general.model.FileStorage} by its SHA-256 hash and size.
+   * Finds a {@link tools.vitruv.methodologist.general.model.FileStorage} by its SHA-256 hash and
+   * size.
+   *
    * @param user the user who owns the file
    * @param sha256 the SHA-256 hash of the file content
    * @param sizeBytes the size of the file in bytes

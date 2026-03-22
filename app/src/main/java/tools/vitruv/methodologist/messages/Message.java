@@ -27,6 +27,8 @@ public class Message {
       "Member successfully removed from the Vsum";
   public static final String VSUM_USER_CREATED_SUCCESSFULLY =
       "Member successfully added into the Vsum.";
-  public static final String LOWCODE_REACTION_CREATED_SUCCESSFULLY = "Low-code reaction created successfully";
-  public static final String LOWCODE_REACTIONS_METADATA_LOADED_SUCCESSFULLY = "Low-code reactions metadata loaded successfully";
+  public static final String LOWCODE_REACTION_CREATED_SUCCESSFULLY =
+      "Low-code reaction created successfully";
+  public static final String LOWCODE_REACTIONS_METADATA_LOADED_SUCCESSFULLY =
+      "Low-code reactions metadata loaded successfully";
 }

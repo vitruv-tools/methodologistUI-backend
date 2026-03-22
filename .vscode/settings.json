@@ -1,4 +1,9 @@
 {
   "java.configuration.updateBuildConfiguration": "automatic",
-  "java.compile.nullAnalysis.mode": "automatic"
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.configuration.annotationProcessing.enabled": true,
+  "maven.executable.path": "${workspaceFolder}/mvnw.cmd",
+  "maven.terminal.useJavaHome": true,
+  "files.encoding": "utf8",
+  "java.checkstyle.configuration": "${workspaceFolder}\\checkstyle.xml"
 }

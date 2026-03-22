@@ -1,10 +1,6 @@
 package tools.vitruv.methodologist.vitruvcli;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -60,22 +56,23 @@ public class VitruvCliService {
       }
       Files.createDirectories(workDir);
 
-      // Relative jar paths should be relative to this program rather than the temp working dir of the subprocess
+      // Relative jar paths should be relative to this program rather than the temp working dir of
+      // the subprocess
       String jar = Path.of(properties.getJar()).toAbsolutePath().toString();
 
       List<String> command =
-              List.of(
-                  properties.getBinary(),
-                  "-jar",
-                  jar,
-                  "-f",
-                  ".",
-                  "-m",
-                  metamodelArg,
-                  "-rs",
-                  reactionsDir.getFileName().toString(),
-                  "-u",
-                  "default");
+          List.of(
+              properties.getBinary(),
+              "-jar",
+              jar,
+              "-f",
+              ".",
+              "-m",
+              metamodelArg,
+              "-rs",
+              reactionsDir.getFileName().toString(),
+              "-u",
+              "default");
 
       log.info("Running Vitruv-CLI with command: {}", String.join(" ", command));
 

@@ -22,7 +22,8 @@ public class Error {
       "At least one metamodel (Ecore/GenModel pair) must be provided.";
   public static final String METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR =
       "MetaModel IDs not found in this VSUM";
-  public static final String NO_TEMPLATE_PROVIDED_ERROR = "No template provided for fine-granular reaction.";
+  public static final String NO_TEMPLATE_PROVIDED_ERROR =
+      "No template provided for fine-granular reaction.";
   public static final String REACTION_FILE_REQUIRED_ERROR =
       "At least one reactions file must be provided";
   public static final String FAT_JAR_NOT_FOUND_ERROR = "Fat jar not found at: ";

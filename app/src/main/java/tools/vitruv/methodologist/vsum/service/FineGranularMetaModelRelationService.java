@@ -1,5 +1,10 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import static tools.vitruv.methodologist.messages.Error.NO_TEMPLATE_PROVIDED_ERROR;
+import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
+
+import java.util.*;
+import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -16,185 +21,230 @@ import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.repository.FineGranularMetaModelRelationRepository;
 
-import java.util.*;
-import java.util.stream.Collectors;
-
-import static tools.vitruv.methodologist.messages.Error.NO_TEMPLATE_PROVIDED_ERROR;
-import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
-
 @Service
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class FineGranularMetaModelRelationService {
-    FineGranularMetaModelRelationRepository fineGranularMetaModelRelationRepository;
-    FileStorageRepository fileStorageRepository;
-    LowCodeReactionService lowCodeReactionService;
-    LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
+  FineGranularMetaModelRelationRepository fineGranularMetaModelRelationRepository;
+  FileStorageRepository fileStorageRepository;
+  LowCodeReactionService lowCodeReactionService;
+  LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
 
-    /**
-     * Creates relations for the given requests; requires non-null reactionFileId or template for new relations.
-     */
-    @Transactional
-    public void create(String callerUserEmail, Map<FineGranularMetaModelRelationRequest, MetaModelRelation> requestMap) throws Exception {
-        createOrUpdate(callerUserEmail, requestMap, false);
+  /**
+   * Creates relations for the given requests; requires non-null reactionFileId or template for new
+   * relations.
+   */
+  @Transactional
+  public void create(
+      String callerUserEmail,
+      Map<FineGranularMetaModelRelationRequest, MetaModelRelation> requestMap)
+      throws Exception {
+    createOrUpdate(callerUserEmail, requestMap, false);
+  }
+
+  /**
+   * Updates relations for the given requests; requires non-null reactionFileId or template for new
+   * relations.
+   */
+  @Transactional
+  public void update(
+      String callerUserEmail,
+      Map<FineGranularMetaModelRelationRequest, MetaModelRelation> requestMap)
+      throws Exception {
+    createOrUpdate(callerUserEmail, requestMap, true);
+  }
+
+  /**
+   * Creates relations for the given requests; requires non-null reactionFileId or template for new
+   * relations.
+   */
+  @Transactional
+  protected void createOrUpdate(
+      String callerUserEmail,
+      Map<FineGranularMetaModelRelationRequest, MetaModelRelation> requestMap,
+      boolean allowUpdate)
+      throws Exception {
+    if (requestMap == null || requestMap.isEmpty()) {
+      return;
     }
 
-    /**
-     * Updates relations for the given requests; requires non-null reactionFileId or template for new relations.
-     */
-    @Transactional
-    public void update(String callerUserEmail, Map<FineGranularMetaModelRelationRequest, MetaModelRelation> requestMap) throws Exception {
-        createOrUpdate(callerUserEmail, requestMap, true);
+    List<FineGranularMetaModelRelation> toSave = new ArrayList<>();
+
+    for (var kv : requestMap.entrySet()) {
+      var request = kv.getKey();
+      var relation = kv.getValue();
+      var lowCodeRequest = request.getLowCodeReactionRequestBase();
+      var builder =
+          FineGranularMetaModelRelation.builder()
+              .metaModelRelation(relation)
+              .sourceId(request.getSourceId())
+              .targetId(request.getTargetId());
+      if (request.getId() != null) {
+        if (!allowUpdate) {
+          throw new RuntimeException(
+              "Not allowed to update fine-granular relation with id " + request.getId());
+        }
+        var optExistingFGMMR =
+            relation.getFineGranularMetaModelRelationSet().stream()
+                .filter(fgmr -> fgmr.getId().equals(request.getId()))
+                .findFirst();
+        if (optExistingFGMMR.isPresent()) {
+          builder = builder.id(optExistingFGMMR.get().getId());
+        } else {
+          throw new RuntimeException(
+              "Cannot update fine-granular relation with id "
+                  + request.getId()
+                  + " because it does not exist!");
+        }
+      }
+      if (request.getReactionFileStorageId() != null) {
+        // If just a reaction file id is provided, we expect it to exist in the database.
+        var optFileStorage = fileStorageRepository.findById(request.getReactionFileStorageId());
+        if (optFileStorage.isEmpty()) {
+          throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
+        }
+        if (lowCodeRequest != null && lowCodeRequest.isRegenerate()) {
+          // We never persist the request to regenerate to the database
+          lowCodeRequest.setRegenerate(false);
+          builder =
+              builder
+                  .reactionFileStorage(
+                      lowCodeReactionService.generateAndSaveReaction(
+                          callerUserEmail, lowCodeRequest, optFileStorage.get()))
+                  .lowCodeReactionTemplate(lowCodeRequest.getName())
+                  .lowCodeReactionTemplateParams(lowCodeRequest.toTemplateData());
+        } else {
+          builder = builder.reactionFileStorage(optFileStorage.get());
+        }
+      } else {
+        if (lowCodeRequest == null) {
+          // Either a file has to be provided or a template
+          throw new RuntimeException(NO_TEMPLATE_PROVIDED_ERROR);
+        }
+        // We never persist the request to regenerate to the database
+        lowCodeRequest.setRegenerate(false);
+        builder =
+            builder
+                .reactionFileStorage(
+                    lowCodeReactionService.generateAndSaveReaction(
+                        callerUserEmail, lowCodeRequest, null))
+                .lowCodeReactionTemplate(lowCodeRequest.getName())
+                .lowCodeReactionTemplateParams(lowCodeRequest.toTemplateData());
+      }
+      var result = builder.build();
+      toSave.add(result);
     }
 
-    /**
-     * Creates relations for the given requests; requires non-null reactionFileId or template for new relations.
-     */
-    @Transactional
-    protected void createOrUpdate(String callerUserEmail, Map<FineGranularMetaModelRelationRequest, MetaModelRelation> requestMap, boolean allowUpdate) throws Exception {
-        if (requestMap == null || requestMap.isEmpty()) {
-            return;
+    // Remove old from metamodel relation explicitly in case of update
+    toSave.forEach(
+        rel -> rel.getMetaModelRelation().getFineGranularMetaModelRelationSet().remove(rel));
+    // Add to metamodel relation explicitly
+    toSave.forEach(
+        rel -> rel.getMetaModelRelation().getFineGranularMetaModelRelationSet().add(rel));
+    fineGranularMetaModelRelationRepository.saveAll(toSave);
+  }
+
+  /** Deletes the provided relations in batch. */
+  @Transactional
+  public void delete(List<FineGranularMetaModelRelation> relations) {
+    // Remove from metamodel relation explicitly
+    relations.forEach(
+        rel -> rel.getMetaModelRelation().getFineGranularMetaModelRelationSet().remove(rel));
+    fineGranularMetaModelRelationRepository.deleteAll(relations);
+  }
+
+  @Transactional
+  public void update(
+      String callerEmail,
+      Map<MetaModelRelationRequest, MetaModelRelation> metaModelRelationRequestToRelation,
+      MemoizedSupplier<Boolean> vsumHistorySaveSupplier)
+      throws Exception {
+    Collection<MetaModelRelation> existingMetaModelRelation =
+        metaModelRelationRequestToRelation.values();
+    Set<MetaModelRelationRequest> metaModelRelationRequests =
+        metaModelRelationRequestToRelation.keySet();
+    HashMap<FineGranularMetaModelRelationRequest, MetaModelRelationRequest> toAddFineGranularMMR =
+        new HashMap<FineGranularMetaModelRelationRequest, MetaModelRelationRequest>();
+    HashMap<FineGranularMetaModelRelationRequest, FineGranularMetaModelRelation>
+        toUpdateFineGranularMMR =
+            new HashMap<FineGranularMetaModelRelationRequest, FineGranularMetaModelRelation>();
+    Map<FineGranularMetaModelRelation, MetaModelRelationRequest> toRemoveFineGranularMMR =
+        metaModelRelationRequestToRelation.entrySet().stream()
+            .flatMap(
+                kv ->
+                    kv.getValue().getFineGranularMetaModelRelationSet().stream()
+                        .map(fgmmr -> new AbstractMap.SimpleEntry<>(fgmmr, kv.getKey())))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+    for (var metaModelRelationRequest : metaModelRelationRequests) {
+      for (var toAdd : metaModelRelationRequest.getFineGranularMetaModelRelationSet()) {
+        var exactMatch =
+            toRemoveFineGranularMMR.keySet().stream()
+                .filter(remove -> toAdd.equals(lowCodeReactionRequestMapper, remove))
+                .findFirst();
+        if (exactMatch.isPresent()) {
+          // No update required, so no removal either
+          toRemoveFineGranularMMR.remove(exactMatch.get());
+        } else if (toAdd.getId() == null) {
+          // There is no id, so we create a new fine-granular metamodel relation
+          toAddFineGranularMMR.put(toAdd, metaModelRelationRequest);
+        } else {
+          FineGranularMetaModelRelation toUpdate =
+              toRemoveFineGranularMMR.keySet().stream()
+                  .filter(key -> Objects.equals(key.getId(), toAdd.getId()))
+                  .findFirst()
+                  .orElseThrow();
+          // There is an id and we don't have a matching relation, so it must be an update
+          toUpdateFineGranularMMR.put(toAdd, toUpdate);
+          toRemoveFineGranularMMR.remove(toUpdate);
         }
-
-        List<FineGranularMetaModelRelation> toSave = new ArrayList<>();
-
-        for (var kv : requestMap.entrySet()) {
-            var request = kv.getKey();
-            var relation = kv.getValue();
-            var lowCodeRequest = request.getLowCodeReactionRequestBase();
-            var builder = FineGranularMetaModelRelation
-                    .builder()
-                    .metaModelRelation(relation)
-                    .sourceId(request.getSourceId())
-                    .targetId(request.getTargetId());
-            if (request.getId() != null) {
-                if (!allowUpdate) {
-                    throw new RuntimeException("Not allowed to update fine-granular relation with id " + request.getId());
-                }
-                var optExistingFGMMR = relation.getFineGranularMetaModelRelationSet().stream().filter(fgmr -> fgmr.getId().equals(request.getId())).findFirst();
-                if (optExistingFGMMR.isPresent()) {
-                    builder = builder.id(optExistingFGMMR.get().getId());
-                } else {
-                    throw new RuntimeException("Cannot update fine-granular relation with id " + request.getId() + " because it does not exist!");
-                }
-            }
-            if (request.getReactionFileStorageId() != null) {
-                // If just a reaction file id is provided, we expect it to exist in the database.
-                var optFileStorage = fileStorageRepository.findById(request.getReactionFileStorageId());
-                if (optFileStorage.isEmpty()) {
-                    throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
-                }
-                if (lowCodeRequest != null && lowCodeRequest.isRegenerate()) {
-                    // We never persist the request to regenerate to the database
-                    lowCodeRequest.setRegenerate(false);
-                    builder = builder
-                            .reactionFileStorage(lowCodeReactionService.generateAndSaveReaction(callerUserEmail, lowCodeRequest, optFileStorage.get()))
-                            .lowCodeReactionTemplate(lowCodeRequest.getName())
-                            .lowCodeReactionTemplateParams(lowCodeRequest.toTemplateData());
-                } else {
-                    builder = builder.reactionFileStorage(optFileStorage.get());
-                }
-            } else {
-                if (lowCodeRequest == null) {
-                    // Either a file has to be provided or a template
-                    throw new RuntimeException(NO_TEMPLATE_PROVIDED_ERROR);
-                }
-                // We never persist the request to regenerate to the database
-                lowCodeRequest.setRegenerate(false);
-                builder = builder
-                        .reactionFileStorage(lowCodeReactionService.generateAndSaveReaction(callerUserEmail, lowCodeRequest, null))
-                        .lowCodeReactionTemplate(lowCodeRequest.getName())
-                        .lowCodeReactionTemplateParams(lowCodeRequest.toTemplateData());
-            }
-            var result = builder.build();
-            toSave.add(result);
-        }
-
-        // Remove old from metamodel relation explicitly in case of update
-        toSave.forEach(rel -> rel.getMetaModelRelation().getFineGranularMetaModelRelationSet().remove(rel));
-        // Add to metamodel relation explicitly
-        toSave.forEach(rel -> rel.getMetaModelRelation().getFineGranularMetaModelRelationSet().add(rel));
-        fineGranularMetaModelRelationRepository.saveAll(toSave);
+      }
+      var existing =
+          existingMetaModelRelation.stream()
+              .filter(
+                  metaModelRelation ->
+                      Objects.equals(
+                              metaModelRelation.getSource().getSource().getId(),
+                              metaModelRelationRequest.getSourceId())
+                          && Objects.equals(
+                              metaModelRelation.getTarget().getSource().getId(),
+                              metaModelRelationRequest.getTargetId()))
+              .findFirst();
+      existing.ifPresent(
+          metaModelRelation ->
+              metaModelRelationRequestToRelation.put(metaModelRelationRequest, metaModelRelation));
     }
 
-    /**
-     * Deletes the provided relations in batch.
-     */
-    @Transactional
-    public void delete(List<FineGranularMetaModelRelation> relations) {
-        // Remove from metamodel relation explicitly
-        relations.forEach(rel -> rel.getMetaModelRelation().getFineGranularMetaModelRelationSet().remove(rel));
-        fineGranularMetaModelRelationRepository.deleteAll(relations);
+    // Save vsum to history if it wasn't already (with this supplier)
+    if (!toRemoveFineGranularMMR.isEmpty()
+        || !toAddFineGranularMMR.isEmpty()
+        || !toUpdateFineGranularMMR.isEmpty()) {
+      vsumHistorySaveSupplier.get();
     }
 
-    @Transactional
-    public void update(String callerEmail, Map<MetaModelRelationRequest, MetaModelRelation> metaModelRelationRequestToRelation, MemoizedSupplier<Boolean> vsumHistorySaveSupplier) throws Exception {
-        Collection<MetaModelRelation> existingMetaModelRelation = metaModelRelationRequestToRelation.values();
-        Set<MetaModelRelationRequest> metaModelRelationRequests = metaModelRelationRequestToRelation.keySet();
-        HashMap<FineGranularMetaModelRelationRequest, MetaModelRelationRequest> toAddFineGranularMMR = new HashMap<FineGranularMetaModelRelationRequest, MetaModelRelationRequest>();
-        HashMap<FineGranularMetaModelRelationRequest, FineGranularMetaModelRelation> toUpdateFineGranularMMR = new HashMap<FineGranularMetaModelRelationRequest, FineGranularMetaModelRelation>();
-        Map<FineGranularMetaModelRelation, MetaModelRelationRequest> toRemoveFineGranularMMR = metaModelRelationRequestToRelation
-                .entrySet()
-                .stream()
-                .flatMap(kv -> kv.getValue().getFineGranularMetaModelRelationSet()
-                .stream()
-                .map(fgmmr -> new AbstractMap.SimpleEntry<>(fgmmr, kv.getKey())))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        for (var metaModelRelationRequest : metaModelRelationRequests) {
-            for (var toAdd : metaModelRelationRequest.getFineGranularMetaModelRelationSet()) {
-                var exactMatch = toRemoveFineGranularMMR.keySet().stream().filter(remove -> toAdd.equals(lowCodeReactionRequestMapper, remove)).findFirst();
-                if (exactMatch.isPresent()) {
-                    // No update required, so no removal either
-                    toRemoveFineGranularMMR.remove(exactMatch.get());
-                } else if(toAdd.getId() == null) {
-                    // There is no id, so we create a new fine-granular metamodel relation
-                    toAddFineGranularMMR.put(toAdd, metaModelRelationRequest);
-                } else {
-                    FineGranularMetaModelRelation toUpdate = toRemoveFineGranularMMR.keySet().stream().filter(
-                            key -> Objects.equals(key.getId(), toAdd.getId())
-                    ).findFirst().orElseThrow();
-                    // There is an id and we don't have a matching relation, so it must be an update
-                    toUpdateFineGranularMMR.put(toAdd, toUpdate);
-                    toRemoveFineGranularMMR.remove(toUpdate);
-                }
-            }
-            var existing =
-                    existingMetaModelRelation.stream()
-                            .filter(
-                                    metaModelRelation ->
-                                            Objects.equals(metaModelRelation.getSource().getSource().getId(), metaModelRelationRequest.getSourceId())
-                                                    && Objects.equals(metaModelRelation.getTarget().getSource().getId(), metaModelRelationRequest.getTargetId()))
-                            .findFirst();
-            existing.ifPresent(metaModelRelation -> metaModelRelationRequestToRelation.put(metaModelRelationRequest, metaModelRelation));
-        }
-
-        // Save vsum to history if it wasn't already (with this supplier)
-        if (!toRemoveFineGranularMMR.isEmpty() || !toAddFineGranularMMR.isEmpty() || !toUpdateFineGranularMMR.isEmpty()) {
-            vsumHistorySaveSupplier.get();
-        }
-
-        if (!toRemoveFineGranularMMR.isEmpty()) {
-            this.delete(toRemoveFineGranularMMR.keySet().stream().toList());
-            toRemoveFineGranularMMR.entrySet().forEach(kv -> kv.getValue().getFineGranularMetaModelRelationSet().remove(kv.getKey()));
-        }
-
-        if (!toAddFineGranularMMR.isEmpty()) {
-            var map = toAddFineGranularMMR.entrySet().stream()
-                    .collect(Collectors.toMap(
-                            Map.Entry::getKey,
-                            e -> metaModelRelationRequestToRelation.get(e.getValue())
-                    ));
-            this.create(callerEmail, map);
-        }
-
-        if (!toUpdateFineGranularMMR.isEmpty()) {
-            var map = toUpdateFineGranularMMR.entrySet().stream()
-                    .collect(Collectors.toMap(
-                            Map.Entry::getKey,
-                            e -> e.getValue().getMetaModelRelation()
-                    ));
-            this.update(callerEmail, map);
-        }
+    if (!toRemoveFineGranularMMR.isEmpty()) {
+      this.delete(toRemoveFineGranularMMR.keySet().stream().toList());
+      toRemoveFineGranularMMR
+          .entrySet()
+          .forEach(kv -> kv.getValue().getFineGranularMetaModelRelationSet().remove(kv.getKey()));
     }
+
+    if (!toAddFineGranularMMR.isEmpty()) {
+      var map =
+          toAddFineGranularMMR.entrySet().stream()
+              .collect(
+                  Collectors.toMap(
+                      Map.Entry::getKey,
+                      e -> metaModelRelationRequestToRelation.get(e.getValue())));
+      this.create(callerEmail, map);
+    }
+
+    if (!toUpdateFineGranularMMR.isEmpty()) {
+      var map =
+          toUpdateFineGranularMMR.entrySet().stream()
+              .collect(
+                  Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getMetaModelRelation()));
+      this.update(callerEmail, map);
+    }
+  }
 }

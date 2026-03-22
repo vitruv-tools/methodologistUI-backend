@@ -32,7 +32,7 @@ public interface VsumHistoryMapper {
    * @return a new representation reflecting the current VSUM state
    */
   default VsumRepresentation toVsumRepresentation(Vsum vsum) {
-    //TODO(Reinbold): This is missing support for fine-granular meta model relations
+    // TODO(Reinbold): This is missing support for fine-granular meta model relations
     return VsumRepresentation.builder()
         .vsumUsers(
             vsum.getVsumUsers().stream()
@@ -62,7 +62,10 @@ public interface VsumHistoryMapper {
                 VsumRepresentation.MetaModelRelation.builder()
                     .sourceId(metaModelRelation.getSource().getSource().getId())
                     .targetId(metaModelRelation.getTarget().getSource().getId())
-                    .relationFileStorage(metaModelRelation.getReactionFileStorage() == null ? null : metaModelRelation.getReactionFileStorage().getId())
+                    .relationFileStorage(
+                        metaModelRelation.getReactionFileStorage() == null
+                            ? null
+                            : metaModelRelation.getReactionFileStorage().getId())
                     .build())
         .collect(Collectors.toSet());
   }

@@ -14,20 +14,24 @@ import tools.vitruv.methodologist.user.service.UserService;
 @Validated
 @RequestMapping("/api/")
 public class DevTokenController {
-    private final UserService userService;
+  private final UserService userService;
 
-    public DevTokenController(UserService userService) { this.userService = userService; }
+  public DevTokenController(UserService userService) {
+    this.userService = userService;
+  }
 
-    // Setup local environment variable for this
-    @Value("${keycloak.methodologist.username:none}")
-    private String username;
+  // Setup local environment variable for this
+  @Value("${keycloak.methodologist.username:none}")
+  private String username;
 
-    // Setup local environment variable for this
-    @Value("${keycloak.methodologist.password:none}")
-    private String password;
+  // Setup local environment variable for this
+  @Value("${keycloak.methodologist.password:none}")
+  private String password;
 
-    @GetMapping("/token")
-    public String getToken() {
-        return userService.getAccessToken(new PostAccessTokenRequest(username, password)).getAccessToken();
-    }
+  @GetMapping("/token")
+  public String getToken() {
+    return userService
+        .getAccessToken(new PostAccessTokenRequest(username, password))
+        .getAccessToken();
+  }
 }
