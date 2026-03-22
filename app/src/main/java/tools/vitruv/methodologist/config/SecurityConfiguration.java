@@ -32,7 +32,13 @@ public class SecurityConfiguration {
   @Value("${allowed.headers:*}")
   private String allowedHeaders;
 
-  // Dev-only: no authn/authz at all, just allow everything.
+  /**
+   * Dev-only security filter chain that permits all requests.
+   *
+   * @param http the {@link HttpSecurity} to configure
+   * @return the built {@link SecurityFilterChain}
+   * @throws Exception on configuration errors
+   */
   @Bean
   @Profile({"noauth"})
   @Order(0)

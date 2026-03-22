@@ -199,6 +199,7 @@ public class KeycloakService {
   @Transactional
   public void verifyUserPasswordOrThrow(String username, String password) {
     try {
+      @SuppressWarnings("unused")
       String dummy =
           KeycloakBuilder.builder()
               .serverUrl(authServerUrl)

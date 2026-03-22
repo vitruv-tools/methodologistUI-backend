@@ -1,6 +1,16 @@
 package tools.vitruv.methodologist.vsum.model;
 
-import jakarta.persistence.*;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.HashSet;
@@ -33,27 +43,33 @@ public class MetaModelRelation {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
+  /** The VSUM this relation belongs to. */
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "vsum_id")
   private Vsum vsum;
 
+  /** The source meta-model. */
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "source_id")
   private MetaModel source;
 
+  /** The target meta-model. */
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "target_id")
   private MetaModel target;
 
+  /** The file storage for the reaction. */
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "reaction_file_id")
   private FileStorage reactionFileStorage;
 
+  /** The set of fine-granular meta-model relations. */
   @OneToMany(mappedBy = "metaModelRelation", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
   private Set<FineGranularMetaModelRelation> fineGranularMetaModelRelationSet = new HashSet<>();
 
+  /** The timestamp when the relation was created. */
   @CreationTimestamp private Instant createdAt;
 }

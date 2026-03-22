@@ -2,7 +2,7 @@ package tools.vitruv.methodologist.apihandler;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategy;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import java.time.Duration;
 import java.util.Map;
@@ -34,9 +34,13 @@ import tools.vitruv.methodologist.exception.UncheckedRuntimeException;
  */
 @Component
 public class KeycloakApiHandler {
+  /** The timeout for API responses in seconds. */
   public static final int RESPONSE_TIMEOUT_IN_SECONDS = 5;
+  /** The URL for posting token requests. */
   public static final String POST_TOKEN_URL = "/realms/methodologist/protocol/openid-connect/token";
+  /** The WebClient used for making API calls. */
   private final WebClient webClient;
+  /** The object mapper used for JSON serialization/deserialization. */
   private final ObjectMapper mapper = new ObjectMapper();
 
   @Value("${methodologist.keycloak.client-id}")
@@ -182,7 +186,7 @@ public class KeycloakApiHandler {
   /** DTO for token exchange request body parameters. */
   @Setter
   @Getter
-  @JsonNaming(PropertyNamingStrategy.SnakeCaseStrategy.class)
+  @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
   public static class ExchangeTokenPostBody {
 
     /** DTO for token request body parameters. */
@@ -215,7 +219,7 @@ public class KeycloakApiHandler {
   @Getter
   @Builder
   @AllArgsConstructor
-  @JsonNaming(PropertyNamingStrategy.SnakeCaseStrategy.class)
+  @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
   public static class TokenPostBody {
     private String clientId;
     private String grantType;

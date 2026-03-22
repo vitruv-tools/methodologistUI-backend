@@ -5,11 +5,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.Objects;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.LowCodeReactionRequestBase;
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 
+/**
+ * Request DTO for fine-granular meta-model relations.
+ */
 @Builder
 @Getter
 @Setter
@@ -22,6 +29,13 @@ public class FineGranularMetaModelRelationRequest {
   private Long reactionFileStorageId;
   private LowCodeReactionRequestBase lowCodeReactionRequestBase;
 
+  /**
+   * Compares this request with a FineGranularMetaModelRelation entity.
+   *
+   * @param lowCodeReactionRequestMapper  the mapper for low-code reaction requests
+   * @param fineGranularMetaModelRelation the entity to compare with
+   * @return true if the request matches the entity, false otherwise
+   */
   public boolean equals(
       LowCodeReactionRequestMapper lowCodeReactionRequestMapper,
       FineGranularMetaModelRelation fineGranularMetaModelRelation) {

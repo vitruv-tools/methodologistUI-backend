@@ -3,7 +3,14 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.NO_TEMPLATE_PROVIDED_ERROR;
 import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
 
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -21,6 +28,9 @@ import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.repository.FineGranularMetaModelRelationRepository;
 
+/**
+ * Service for managing fine-granular meta-model relations.
+ */
 @Service
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -84,12 +94,12 @@ public class FineGranularMetaModelRelationService {
           throw new RuntimeException(
               "Not allowed to update fine-granular relation with id " + request.getId());
         }
-        var optExistingFGMMR =
+        var optExistingFgmmr =
             relation.getFineGranularMetaModelRelationSet().stream()
                 .filter(fgmr -> fgmr.getId().equals(request.getId()))
                 .findFirst();
-        if (optExistingFGMMR.isPresent()) {
-          builder = builder.id(optExistingFGMMR.get().getId());
+        if (optExistingFgmmr.isPresent()) {
+          builder = builder.id(optExistingFgmmr.get().getId());
         } else {
           throw new RuntimeException(
               "Cannot update fine-granular relation with id "
@@ -153,6 +163,15 @@ public class FineGranularMetaModelRelationService {
     fineGranularMetaModelRelationRepository.deleteAll(relations);
   }
 
+  /**
+   * Updates relations for the given requests; requires non-null reactionFileId or template for new
+   * relations.
+   *
+   * @param callerEmail                     the email of the caller
+   * @param metaModelRelationRequestToRelation the map of requests to relations
+   * @param vsumHistorySaveSupplier          the supplier to save VSUM history
+   * @throws Exception if an error occurs during update
+   */
   @Transactional
   public void update(
       String callerEmail,

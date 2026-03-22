@@ -8,6 +8,9 @@ import java.util.Map;
 import lombok.Data;
 import tools.vitruv.methodologist.annotation.ReactionMetadata;
 
+/**
+ * Base class for low-code reaction requests.
+ */
 @Schema(
     description = "Low-code reaction request. The 'name' field selects the request shape.",
     discriminatorProperty = "name",
@@ -29,6 +32,11 @@ import tools.vitruv.methodologist.annotation.ReactionMetadata;
 })
 @Data
 public abstract class LowCodeReactionRequestBase {
+  /**
+   * Gets the name of the reaction request.
+   *
+   * @return the name of the reaction
+   */
   public abstract String getName();
 
   @ReactionMetadata(hide = true)
@@ -36,7 +44,12 @@ public abstract class LowCodeReactionRequestBase {
 
   private boolean bidirectional;
 
-  /** Convert the typed request into the map your FreeMarker template expects. */
+  /**
+   * Convert the typed request into the map your FreeMarker template expects.
+   *
+   * @return a map containing the template data
+   */
+  @SuppressWarnings("unchecked")
   public java.util.Map<String, Object> toTemplateData() {
     ObjectMapper mapper = new ObjectMapper();
     return mapper.convertValue(this, Map.class);

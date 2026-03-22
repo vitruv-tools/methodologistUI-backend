@@ -16,8 +16,8 @@ import java.util.stream.Stream;
  * randomly chosen {@link Character} values from ASCII ranges.
  */
 public class RandomPasswordGenerator {
-
-  Random random = new SecureRandom();
+  /** The random number generator. */
+  private Random random = new SecureRandom();
 
   /**
    * Generate a stream of random alphabetic characters.

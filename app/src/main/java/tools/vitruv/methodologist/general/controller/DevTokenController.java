@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenRequest;
 import tools.vitruv.methodologist.user.service.UserService;
 
+/**
+ * Controller for generating development tokens.
+ */
 @RestController
 @Profile("dev")
 @Validated
@@ -16,6 +19,11 @@ import tools.vitruv.methodologist.user.service.UserService;
 public class DevTokenController {
   private final UserService userService;
 
+  /**
+   * Constructs a new DevTokenController.
+   *
+   * @param userService the user service to use
+   */
   public DevTokenController(UserService userService) {
     this.userService = userService;
   }

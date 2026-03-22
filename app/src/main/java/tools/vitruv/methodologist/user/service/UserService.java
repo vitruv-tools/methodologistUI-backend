@@ -166,6 +166,9 @@ public class UserService {
    * validated through Keycloak, and if successful, the response is converted into an
    * application-specific UserWebToken. If validation fails or an unexpected error occurs, an
    * UnauthorizedException is thrown.
+   *
+   * @param postAccessTokenRequest the request containing username and password
+   * @return the user web token
    */
   @Transactional
   public UserWebToken getAccessToken(PostAccessTokenRequest postAccessTokenRequest) {
@@ -184,6 +187,9 @@ public class UserService {
    * Retrieves a new access token using the provided refresh token. The refresh token is sent to
    * Keycloak for validation and exchange. If successful, the response is converted into a
    * UserWebToken. If validation fails or an error occurs, an UnauthorizedException is thrown.
+   *
+   * @param postAccessTokenByRefreshTokenRequest the request containing the refresh token
+   * @return the user web token
    */
   @Transactional
   public UserWebToken getAccessTokenByRefreshToken(
@@ -243,6 +249,7 @@ public class UserService {
    * </ul>
    *
    * @param to recipient email address
+   * @param toName recipient name
    * @param otp one-time password to embed into the email template
    * @param ttlMinutes time-to-live for the OTP (in minutes) shown in the email
    */

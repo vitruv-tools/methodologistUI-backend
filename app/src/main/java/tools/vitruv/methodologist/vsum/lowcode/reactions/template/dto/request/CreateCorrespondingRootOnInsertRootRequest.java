@@ -8,6 +8,9 @@ import lombok.EqualsAndHashCode;
 import org.springframework.stereotype.Component;
 import tools.vitruv.methodologist.annotation.ReactionMetadata;
 
+/**
+ * Request DTO for creating a corresponding root on insert root reaction.
+ */
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Component
@@ -42,7 +45,8 @@ public class CreateCorrespondingRootOnInsertRootRequest extends LowCodeReactionR
 
   @ReactionMetadata(
       defaultStringValue =
-          "createCorrespondingRoot${capitalizeFirst(targetAlias)}OnInsertRoot${capitalizeFirst(sourceAlias)}")
+          "createCorrespondingRoot${capitalizeFirst(targetAlias)}"
+              + "OnInsertRoot${capitalizeFirst(sourceAlias)}")
   @NotNull
   private String reactionName;
 

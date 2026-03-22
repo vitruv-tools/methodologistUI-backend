@@ -1,12 +1,17 @@
 package tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.stereotype.Component;
 import tools.vitruv.methodologist.annotation.ReactionMetadata;
 
+/**
+ * Request DTO for composite reactions.
+ */
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Component

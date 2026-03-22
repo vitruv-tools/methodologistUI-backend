@@ -1,8 +1,15 @@
 package tools.vitruv.methodologist.vsum.service;
 
-import static tools.vitruv.methodologist.messages.Error.*;
+import static tools.vitruv.methodologist.messages.Error.METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -19,7 +26,10 @@ import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
-import tools.vitruv.methodologist.vsum.model.*;
+import tools.vitruv.methodologist.vsum.model.MetaModel;
+import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
+import tools.vitruv.methodologist.vsum.model.Vsum;
+import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelRelationRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 
@@ -37,6 +47,10 @@ public class MetaModelRelationService {
   /**
    * Creates relations for the given requests; requires non-null reactionFileId or fine granular
    * relations for new relations.
+   *
+   * @param vsum     the VSUM to create relations for
+   * @param requests the list of requests
+   * @return a map of requests to created relations
    */
   @Transactional
   public Map<MetaModelRelationRequest, MetaModelRelation> create(
@@ -49,6 +63,10 @@ public class MetaModelRelationService {
   /**
    * Updates relations for the given requests; requires non-null reactionFileId or fine granular
    * relations for new relations.
+   *
+   * @param vsum                                the VSUM to update relations for
+   * @param metaModelRelationRequestToRelation the map of requests to relations
+   * @return a map of requests to updated relations
    */
   @Transactional
   public Map<MetaModelRelationRequest, MetaModelRelation> update(
@@ -60,6 +78,11 @@ public class MetaModelRelationService {
   /**
    * Creates or updates relations for the given requests; requires non-null reactionFileId or fine
    * granular relations for new relations.
+   *
+   * @param vsum                                the VSUM to create or update relations for
+   * @param metaModelRelationRequestToRelation the map of requests to relations
+   * @param allowUpdate                         whether to allow updates
+   * @return a map of requests to created or updated relations
    */
   @Transactional
   protected Map<MetaModelRelationRequest, MetaModelRelation> createOrUpdate(
@@ -183,7 +206,11 @@ public class MetaModelRelationService {
     return result;
   }
 
-  /** Deletes the provided relations in batch. */
+  /**
+   * Deletes the provided relations in batch.
+   *
+   * @param relations the list of relations to delete
+   */
   @Transactional
   public void delete(List<MetaModelRelation> relations) {
     metaModelRelationRepository.deleteAll(relations);
@@ -198,6 +225,16 @@ public class MetaModelRelationService {
     metaModelRelationRepository.deleteMetaModelRelationByVsum(vsum);
   }
 
+  /**
+   * Updates the relations for a VSUM based on the provided requests.
+   *
+   * @param callerEmail                the email of the caller
+   * @param vsum                       the VSUM to update
+   * @param metaModelRelationRequests the list of relation requests
+   * @param vsumHistorySaveSupplier    the supplier for saving VSUM history
+   * @return a map of requests to updated relations
+   * @throws Exception if an error occurs during update
+   */
   @Transactional
   public Map<MetaModelRelationRequest, MetaModelRelation> update(
       String callerEmail,

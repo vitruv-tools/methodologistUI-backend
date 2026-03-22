@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -114,6 +114,12 @@ public class VitruvCliService {
     }
   }
 
+  /**
+   * Reads all bytes from the given input stream and returns them as a UTF-8 string.
+   *
+   * @param in the input stream to read from
+   * @return the content of the stream as a string
+   */
   private String readStream(java.io.InputStream in) {
     try {
       return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
@@ -122,6 +128,12 @@ public class VitruvCliService {
     }
   }
 
+  /**
+   * Truncates the given string to a maximum length of 2000 characters.
+   *
+   * @param s the string to truncate
+   * @return the truncated string
+   */
   private String truncate(String s) {
     if (s == null) {
       return "";
@@ -138,7 +150,9 @@ public class VitruvCliService {
   @Value
   @Builder
   public static class MetamodelInput {
+    /** The path to the .ecore file. */
     Path ecorePath;
+    /** The path to the .genmodel file. */
     Path genmodelPath;
   }
 
@@ -151,10 +165,18 @@ public class VitruvCliService {
   @Value
   @Builder
   public static class VitruvCliResult {
+    /** The exit code of the process. */
     int exitCode;
+    /** The standard output of the process. */
     String stdout;
+    /** The standard error of the process. */
     String stderr;
 
+    /**
+     * Returns whether the process finished successfully (exit code 0).
+     *
+     * @return true if successful, false otherwise
+     */
     public boolean isSuccess() {
       return exitCode == 0;
     }

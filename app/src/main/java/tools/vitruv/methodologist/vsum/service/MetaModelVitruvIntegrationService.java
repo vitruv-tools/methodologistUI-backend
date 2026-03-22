@@ -1,6 +1,11 @@
 package tools.vitruv.methodologist.vsum.service;
 
-import static tools.vitruv.methodologist.messages.Error.*;
+import static tools.vitruv.methodologist.messages.Error.FAT_JAR_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.METAMODEL_PAIR_COUNT_MISMATCH_ERROR;
+import static tools.vitruv.methodologist.messages.Error.METAMODEL_PAIR_REQUIRED_ERROR;
+import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_REQUIRED_ERROR;
+import static tools.vitruv.methodologist.messages.Error.VITRUV_CLI_ERROR;
+import static tools.vitruv.methodologist.messages.Error.VITRUV_CLI_EXECUTION_FAILED_ERROR;
 
 import freemarker.template.TemplateException;
 import java.io.IOException;
@@ -8,9 +13,11 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
@@ -27,16 +34,10 @@ import tools.vitruv.methodologist.vsum.reaction.ReactionParserUtil;
 
 /**
  * Service that prepares metamodel inputs and runs the Vitruv CLI to produce a fat JAR.
- *
- * <p>This service writes provided Ecore/GenModel and reaction files into a temporary job directory
- * under the configured working directory, concatenates reaction files, invokes the Vitruv CLI,
- * reads the produced fat JAR and attempts to remove the job directory. IO errors and CLI failures
- * are wrapped in {@link VsumBuildingException}.
  */
 @Slf4j
 @Service
 public class MetaModelVitruvIntegrationService {
-
   private static final String FAT_JAR_RELATIVE_PATH =
       "vsum/target/"
           + "tools.vitruv.methodologisttemplate."
@@ -46,6 +47,13 @@ public class MetaModelVitruvIntegrationService {
   private final VitruvCliProperties vitruvCliProperties;
   private final LowCodeReactionService lowCodeReactionService;
 
+  /**
+   * Constructs a new MetaModelVitruvIntegrationService.
+   *
+   * @param lowCodeReactionService the low-code reaction service
+   * @param vitruvCliService      the Vitruv CLI service
+   * @param vitruvCliProperties   the Vitruv CLI properties
+   */
   public MetaModelVitruvIntegrationService(
       LowCodeReactionService lowCodeReactionService,
       VitruvCliService vitruvCliService,
@@ -276,6 +284,12 @@ public class MetaModelVitruvIntegrationService {
     }
   }
 
+  /**
+   * Gets the build parameters for the given relation.
+   *
+   * @param relation the meta-model relation
+   * @return the build parameters
+   */
   public @NonNull BuildParameters getBuildParameters(MetaModelRelation relation) {
     ArrayList<FileStorage> additionalReactionFiles =
         new ArrayList<>(
@@ -380,6 +394,12 @@ public class MetaModelVitruvIntegrationService {
     return new BuildParameters(additionalReactionFiles, compositeReactionFile);
   }
 
+  /**
+   * Record representing the build parameters.
+   *
+   * @param additionalReactionFiles list of additional reaction files
+   * @param compositeReactionFile  the composite reaction file
+   */
   public record BuildParameters(
       ArrayList<FileStorage> additionalReactionFiles, FileStorage compositeReactionFile) {}
 }

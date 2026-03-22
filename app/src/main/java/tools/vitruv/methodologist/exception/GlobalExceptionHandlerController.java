@@ -108,7 +108,7 @@ public class GlobalExceptionHandlerController {
    * Handles {@link VerificationCodeException} thrown during verification flows.
    *
    * <p>Responds with HTTP 400 (Bad Request) and returns an {@link ErrorResponse} containing: - a
-   * standardized error code from {@link VerificationCodeException#VERIFICATION_COD_IS_NOT_VALID} -
+   * standardized error code from {@link VerificationCodeException#VERIFICATION_CODE_IS_NOT_VALID} -
    * the exception message - the request path where the error occurred
    *
    * @param ex the thrown {@link VerificationCodeException}
@@ -668,6 +668,12 @@ public class GlobalExceptionHandlerController {
     return request.getRequest().getRequestURI();
   }
 
+  /**
+   * Gets the stack trace of the given exception if the application is in the dev profile.
+   *
+   * @param ex the exception to get the stack trace for
+   * @return the stack trace as a string, or null if not in the dev profile
+   */
   private String getStackTrace(Exception ex) {
     if (isDevProfile()) {
       StringWriter sw = new StringWriter();
@@ -678,6 +684,11 @@ public class GlobalExceptionHandlerController {
     return null;
   }
 
+  /**
+   * Checks if the application is running in the dev profile.
+   *
+   * @return true if the application is in the dev profile, false otherwise
+   */
   private boolean isDevProfile() {
     return Arrays.asList(environment.getActiveProfiles()).contains("dev");
   }
