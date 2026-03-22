@@ -42,8 +42,6 @@ public abstract class LowCodeReactionRequestBase {
   @ReactionMetadata(hide = true)
   private boolean regenerate = false;
 
-  private boolean bidirectional;
-
   /**
    * Convert the typed request into the map your FreeMarker template expects.
    *
