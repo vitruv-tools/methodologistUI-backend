@@ -31,9 +31,7 @@ import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.response.L
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.response.LowCodeReactionMetadata;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.response.LowCodeReactionMetadataResponse;
 
-/**
- * Service for providing metadata about low-code reactions.
- */
+/** Service for providing metadata about low-code reactions. */
 @Service
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)

@@ -17,6 +17,7 @@ import lombok.Setter;
 public class ResponseTemplateDto<T> {
   /** The data returned in the response. */
   private T data;
+
   /** A message providing additional information about the response. */
   private String message;
 }

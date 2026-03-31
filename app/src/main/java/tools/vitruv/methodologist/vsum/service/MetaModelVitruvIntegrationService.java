@@ -32,9 +32,7 @@ import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.reaction.ReactionParserUtil;
 
-/**
- * Service that prepares metamodel inputs and runs the Vitruv CLI to produce a fat JAR.
- */
+/** Service that prepares metamodel inputs and runs the Vitruv CLI to produce a fat JAR. */
 @Slf4j
 @Service
 public class MetaModelVitruvIntegrationService {
@@ -51,8 +49,8 @@ public class MetaModelVitruvIntegrationService {
    * Constructs a new MetaModelVitruvIntegrationService.
    *
    * @param lowCodeReactionService the low-code reaction service
-   * @param vitruvCliService      the Vitruv CLI service
-   * @param vitruvCliProperties   the Vitruv CLI properties
+   * @param vitruvCliService the Vitruv CLI service
+   * @param vitruvCliProperties the Vitruv CLI properties
    */
   public MetaModelVitruvIntegrationService(
       LowCodeReactionService lowCodeReactionService,
@@ -406,7 +404,7 @@ public class MetaModelVitruvIntegrationService {
    * Record representing the build parameters.
    *
    * @param additionalReactionFiles list of additional reaction files
-   * @param compositeReactionFile  the composite reaction file
+   * @param compositeReactionFile the composite reaction file
    */
   public record BuildParameters(
       ArrayList<FileStorage> additionalReactionFiles, FileStorage compositeReactionFile) {}

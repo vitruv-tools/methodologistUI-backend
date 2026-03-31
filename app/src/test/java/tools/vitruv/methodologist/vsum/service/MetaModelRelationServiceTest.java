@@ -178,12 +178,17 @@ class MetaModelRelationServiceTest {
               return true;
             });
 
-    MetaModel oldSource = MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
-    MetaModel oldTarget = MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
-    MetaModelRelation toDelete = MetaModelRelation.builder().source(oldSource).target(oldTarget).build();
+    MetaModel oldSource =
+        MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
+    MetaModel oldTarget =
+        MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
+    MetaModelRelation toDelete =
+        MetaModelRelation.builder().source(oldSource).target(oldTarget).build();
 
-    MetaModel newSource = MetaModel.builder().id(30L).source(MetaModel.builder().id(300L).build()).build();
-    MetaModel newTarget = MetaModel.builder().id(40L).source(MetaModel.builder().id(400L).build()).build();
+    MetaModel newSource =
+        MetaModel.builder().id(30L).source(MetaModel.builder().id(300L).build()).build();
+    MetaModel newTarget =
+        MetaModel.builder().id(40L).source(MetaModel.builder().id(400L).build()).build();
     VsumMetaModel vmmSource = new VsumMetaModel(null, vsum, newSource, null, null, null);
     VsumMetaModel vmmTarget = new VsumMetaModel(null, vsum, newTarget, null, null, null);
     FileStorage reaction = FileStorage.builder().id(900L).type(FileEnumType.REACTION).build();
@@ -223,7 +228,10 @@ class MetaModelRelationServiceTest {
                       && relation.getReactionFileStorage().equals(reaction);
                 }));
     verify(fineGranularMetaModelRelationService)
-        .update(eq(callerEmail), argThat(map -> map.size() == 1 && map.containsKey(createReq)), eq(historySupplier));
+        .update(
+            eq(callerEmail),
+            argThat(map -> map.size() == 1 && map.containsKey(createReq)),
+            eq(historySupplier));
     assertThat(historyCalls.get()).isEqualTo(1);
     assertThat(result).hasSize(1);
     assertThat(result).containsKey(createReq);
@@ -241,8 +249,10 @@ class MetaModelRelationServiceTest {
             });
 
     FileStorage reaction = FileStorage.builder().id(901L).type(FileEnumType.REACTION).build();
-    MetaModel source = MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
-    MetaModel target = MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
+    MetaModel source =
+        MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
+    MetaModel target =
+        MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
     MetaModelRelation existing =
         MetaModelRelation.builder()
             .id(50L)

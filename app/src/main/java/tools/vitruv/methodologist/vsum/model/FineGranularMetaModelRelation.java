@@ -23,9 +23,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Type;
 import tools.vitruv.methodologist.general.model.FileStorage;
 
-/**
- * Entity representing a fine-granular meta-model relation.
- */
+/** Entity representing a fine-granular meta-model relation. */
 @Data
 @Builder
 @Entity

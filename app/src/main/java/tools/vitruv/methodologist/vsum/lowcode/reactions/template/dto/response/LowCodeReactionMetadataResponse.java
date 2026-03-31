@@ -7,9 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * Response object containing metadata for low-code reactions.
- */
+/** Response object containing metadata for low-code reactions. */
 @Builder
 @Getter
 @Setter

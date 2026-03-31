@@ -7,9 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.LowCodeReactionRequestBase;
 
-/**
- * Response DTO for fine-granular meta-model relations.
- */
+/** Response DTO for fine-granular meta-model relations. */
 @Builder
 @Getter
 @Setter

@@ -6,9 +6,7 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.LowCodeReactionRequestBase;
 
-/**
- * Mapper for low-code reaction requests.
- */
+/** Mapper for low-code reaction requests. */
 @Component
 public class LowCodeReactionRequestMapper {
 
@@ -27,7 +25,7 @@ public class LowCodeReactionRequestMapper {
    * Maps a template and its parameters to a LowCodeReactionRequestBase.
    *
    * @param template the template name
-   * @param params   the parameters for the template
+   * @param params the parameters for the template
    * @return the mapped low-code reaction request
    */
   public LowCodeReactionRequestBase map(String template, Map<String, Object> params) {

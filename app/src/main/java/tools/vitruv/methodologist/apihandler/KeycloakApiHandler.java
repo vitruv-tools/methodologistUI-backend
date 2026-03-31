@@ -36,10 +36,13 @@ import tools.vitruv.methodologist.exception.UncheckedRuntimeException;
 public class KeycloakApiHandler {
   /** The timeout for API responses in seconds. */
   public static final int RESPONSE_TIMEOUT_IN_SECONDS = 5;
+
   /** The URL for posting token requests. */
   public static final String POST_TOKEN_URL = "/realms/methodologist/protocol/openid-connect/token";
+
   /** The WebClient used for making API calls. */
   private final WebClient webClient;
+
   /** The object mapper used for JSON serialization/deserialization. */
   private final ObjectMapper mapper = new ObjectMapper();
 

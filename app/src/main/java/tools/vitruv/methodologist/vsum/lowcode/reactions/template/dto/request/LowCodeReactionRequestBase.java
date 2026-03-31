@@ -8,9 +8,7 @@ import java.util.Map;
 import lombok.Data;
 import tools.vitruv.methodologist.annotation.ReactionMetadata;
 
-/**
- * Base class for low-code reaction requests.
- */
+/** Base class for low-code reaction requests. */
 @Schema(
     description = "Low-code reaction request. The 'name' field selects the request shape.",
     discriminatorProperty = "name",

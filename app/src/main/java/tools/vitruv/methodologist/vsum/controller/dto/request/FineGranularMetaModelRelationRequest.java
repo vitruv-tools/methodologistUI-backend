@@ -14,9 +14,7 @@ import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.Lo
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 
-/**
- * Request DTO for fine-granular meta-model relations.
- */
+/** Request DTO for fine-granular meta-model relations. */
 @Builder
 @Getter
 @Setter
@@ -32,7 +30,7 @@ public class FineGranularMetaModelRelationRequest {
   /**
    * Compares this request with a FineGranularMetaModelRelation entity.
    *
-   * @param lowCodeReactionRequestMapper  the mapper for low-code reaction requests
+   * @param lowCodeReactionRequestMapper the mapper for low-code reaction requests
    * @param fineGranularMetaModelRelation the entity to compare with
    * @return true if the request matches the entity, false otherwise
    */

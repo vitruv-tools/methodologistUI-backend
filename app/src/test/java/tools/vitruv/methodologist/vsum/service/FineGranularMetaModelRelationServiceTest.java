@@ -69,12 +69,9 @@ class FineGranularMetaModelRelationServiceTest {
     MetaModelRelation relationA = relation(100L, 200L);
     MetaModelRelation relationB = relation(300L, 400L);
 
-    FineGranularMetaModelRelation existingKeep =
-        fgRelation(1L, "A", "B", 11L, relationA);
-    FineGranularMetaModelRelation existingUpdate =
-        fgRelation(3L, "OLD_X", "OLD_Y", 13L, relationA);
-    FineGranularMetaModelRelation existingRemove =
-        fgRelation(2L, "C", "D", 12L, relationB);
+    FineGranularMetaModelRelation existingKeep = fgRelation(1L, "A", "B", 11L, relationA);
+    FineGranularMetaModelRelation existingUpdate = fgRelation(3L, "OLD_X", "OLD_Y", 13L, relationA);
+    FineGranularMetaModelRelation existingRemove = fgRelation(2L, "C", "D", 12L, relationB);
 
     relationA.getFineGranularMetaModelRelationSet().add(existingKeep);
     relationA.getFineGranularMetaModelRelationSet().add(existingUpdate);
@@ -107,14 +104,8 @@ class FineGranularMetaModelRelationServiceTest {
     service.update(callerEmail, requestToRelation, historySupplier);
 
     verify(service).delete(anyList());
-    verify(service)
-        .create(
-            eq(callerEmail),
-            eq(Map.of(createReq, relationA)));
-    verify(service)
-        .update(
-            eq(callerEmail),
-            eq(Map.of(updateReq, relationA)));
+    verify(service).create(eq(callerEmail), eq(Map.of(createReq, relationA)));
+    verify(service).update(eq(callerEmail), eq(Map.of(updateReq, relationA)));
     verify(service, times(1)).delete(eq(java.util.List.of(existingRemove)));
     assertThat(historyCalls.get()).isEqualTo(1);
   }
@@ -153,8 +144,16 @@ class FineGranularMetaModelRelationServiceTest {
   }
 
   private MetaModelRelation relation(long sourceSourceId, long targetSourceId) {
-    MetaModel source = MetaModel.builder().id(sourceSourceId).source(MetaModel.builder().id(sourceSourceId).build()).build();
-    MetaModel target = MetaModel.builder().id(targetSourceId).source(MetaModel.builder().id(targetSourceId).build()).build();
+    MetaModel source =
+        MetaModel.builder()
+            .id(sourceSourceId)
+            .source(MetaModel.builder().id(sourceSourceId).build())
+            .build();
+    MetaModel target =
+        MetaModel.builder()
+            .id(targetSourceId)
+            .source(MetaModel.builder().id(targetSourceId).build())
+            .build();
     return MetaModelRelation.builder()
         .source(source)
         .target(target)
@@ -176,6 +175,3 @@ class FineGranularMetaModelRelationServiceTest {
         .build();
   }
 }
-
-
-

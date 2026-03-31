@@ -152,6 +152,7 @@ public class VitruvCliService {
   public static class MetamodelInput {
     /** The path to the .ecore file. */
     Path ecorePath;
+
     /** The path to the .genmodel file. */
     Path genmodelPath;
   }
@@ -167,8 +168,10 @@ public class VitruvCliService {
   public static class VitruvCliResult {
     /** The exit code of the process. */
     int exitCode;
+
     /** The standard output of the process. */
     String stdout;
+
     /** The standard error of the process. */
     String stderr;
 

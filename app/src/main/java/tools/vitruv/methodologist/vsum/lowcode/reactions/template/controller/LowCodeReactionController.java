@@ -3,7 +3,6 @@ package tools.vitruv.methodologist.vsum.lowcode.reactions.template.controller;
 import static tools.vitruv.methodologist.messages.Message.LOWCODE_REACTIONS_METADATA_LOADED_SUCCESSFULLY;
 
 import io.swagger.v3.oas.annotations.Operation;
-import java.util.List;
 import lombok.AllArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
@@ -14,9 +13,7 @@ import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.response.LowCodeReactionMetadataResponse;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.service.LowCodeReactionMetadataService;
 
-/**
- * Controller for low-code reactions.
- */
+/** Controller for low-code reactions. */
 @RestController
 @RequestMapping("/api/")
 @Validated

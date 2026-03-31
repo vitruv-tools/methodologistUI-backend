@@ -9,9 +9,7 @@ import lombok.EqualsAndHashCode;
 import org.springframework.stereotype.Component;
 import tools.vitruv.methodologist.annotation.ReactionMetadata;
 
-/**
- * Request DTO for composite reactions.
- */
+/** Request DTO for composite reactions. */
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Component

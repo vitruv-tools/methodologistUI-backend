@@ -50,7 +50,7 @@ public class MetaModelRelationRequest {
    * Compares this request with a MetaModelRelation entity.
    *
    * @param lowCodeReactionRequestMapper the mapper for low-code reaction requests
-   * @param metaModelRelation            the entity to compare with
+   * @param metaModelRelation the entity to compare with
    * @return true if the request matches the entity, false otherwise
    */
   public boolean equals(

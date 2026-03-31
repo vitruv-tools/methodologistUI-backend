@@ -17,9 +17,7 @@ import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.service.FileStorageService;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.LowCodeReactionRequestBase;
 
-/**
- * Service for generating and saving reactions from low-code templates.
- */
+/** Service for generating and saving reactions from low-code templates. */
 @Service
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -29,9 +27,9 @@ public class LowCodeReactionService {
   /**
    * Generates and saves a reaction based on the provided request.
    *
-   * @param callerUserEmail            the email of the caller
+   * @param callerUserEmail the email of the caller
    * @param lowCodeReactionRequestBase the low-code reaction request
-   * @param fileStorage                the existing file storage (optional)
+   * @param fileStorage the existing file storage (optional)
    * @return the saved file storage
    * @throws Exception if an error occurs during generation or saving
    */
@@ -71,7 +69,7 @@ public class LowCodeReactionService {
    *
    * @param lowCodeReactionRequestBase the low-code reaction request
    * @return the generated reaction as a string
-   * @throws IOException       if an I/O error occurs
+   * @throws IOException if an I/O error occurs
    * @throws TemplateException if a template error occurs
    */
   public String applyTemplate(LowCodeReactionRequestBase lowCodeReactionRequestBase)

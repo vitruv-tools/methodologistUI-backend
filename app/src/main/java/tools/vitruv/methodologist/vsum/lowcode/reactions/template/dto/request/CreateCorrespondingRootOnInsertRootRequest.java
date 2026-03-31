@@ -8,9 +8,7 @@ import lombok.EqualsAndHashCode;
 import org.springframework.stereotype.Component;
 import tools.vitruv.methodologist.annotation.ReactionMetadata;
 
-/**
- * Request DTO for creating a corresponding root on insert root reaction.
- */
+/** Request DTO for creating a corresponding root on insert root reaction. */
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Component

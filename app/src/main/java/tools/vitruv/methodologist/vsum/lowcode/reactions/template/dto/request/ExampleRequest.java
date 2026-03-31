@@ -15,9 +15,7 @@ import org.hibernate.validator.constraints.Length;
 import org.springframework.stereotype.Component;
 import tools.vitruv.methodologist.annotation.ReactionMetadata;
 
-/**
- * Example request DTO.
- */
+/** Example request DTO. */
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Component
