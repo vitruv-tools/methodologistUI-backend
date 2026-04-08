@@ -18,12 +18,16 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import lombok.Builder;
+import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
+import tools.vitruv.methodologist.exception.CLIExecuteException;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.vitruvcli.GenModelPrecheckStatus;
 import tools.vitruv.methodologist.vitruvcli.VitruvCliProperties;
 import tools.vitruv.methodologist.vitruvcli.VitruvCliService;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.CompositeReactionsRequest;
@@ -46,11 +50,11 @@ public class MetaModelVitruvIntegrationService {
   private final LowCodeReactionService lowCodeReactionService;
 
   /**
-   * Constructs a new MetaModelVitruvIntegrationService.
+   * Creates a new service instance for Vitruv CLI integration.
    *
-   * @param lowCodeReactionService the low-code reaction service
-   * @param vitruvCliService the Vitruv CLI service
-   * @param vitruvCliProperties the Vitruv CLI properties
+   * @param lowCodeReactionService service used to build composite reaction files
+   * @param vitruvCliService service used to invoke the external CLI
+   * @param vitruvCliProperties configuration used for working directory and execution settings
    */
   public MetaModelVitruvIntegrationService(
       LowCodeReactionService lowCodeReactionService,
@@ -105,7 +109,8 @@ public class MetaModelVitruvIntegrationService {
       List<FileStorage> genModelFiles,
       List<FileStorage> reactionFiles) {
 
-    validateInputs(ecoreFiles, genModelFiles, reactionFiles);
+    validateMetamodelPairs(ecoreFiles, genModelFiles);
+    validateReactionFiles(reactionFiles);
 
     Path jobDir = null;
     try {
@@ -153,18 +158,82 @@ public class MetaModelVitruvIntegrationService {
   }
 
   /**
+   * Runs Vitruv CLI in GenModel precheck mode for the provided metamodel pairs.
+   *
+   * @param ecoreFiles Ecore file storage entries
+   * @param genModelFiles matching GenModel file storage entries
+   * @param applyChanges whether CLI should apply detected fixes automatically
+   * @return the precheck execution result, including updated GenModel bytes when fixes were applied
+   */
+  public GenModelPrecheckExecutionResult precheckGenModels(
+      List<FileStorage> ecoreFiles, List<FileStorage> genModelFiles, boolean applyChanges) {
+
+    validateMetamodelPairs(ecoreFiles, genModelFiles);
+
+    Path jobDir = null;
+    try {
+      Path baseWorkDir = Path.of(requireWorkingDir());
+      Files.createDirectories(baseWorkDir);
+
+      jobDir = Files.createTempDirectory(baseWorkDir, "precheck-");
+
+      List<VitruvCliService.MetamodelInput> metamodels =
+          writeMetamodels(jobDir, ecoreFiles, genModelFiles);
+
+      VitruvCliService.GenModelPrecheckResult result =
+          vitruvCliService.precheckGenmodels(jobDir, metamodels, applyChanges);
+
+      List<byte[]> updatedGenModelBytes = List.of();
+      if (result.getStatus() == GenModelPrecheckStatus.FIXES_APPLIED) {
+        updatedGenModelBytes =
+            metamodels.stream()
+                .map(VitruvCliService.MetamodelInput::getGenmodelPath)
+                .map(
+                    path -> {
+                      try {
+                        return Files.readAllBytes(path);
+                      } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                      }
+                    })
+                .toList();
+      }
+
+      return GenModelPrecheckExecutionResult.builder()
+          .exitCode(result.getExitCode())
+          .stdout(result.getStdout())
+          .stderr(result.getStderr())
+          .status(result.getStatus())
+          .updatedGenModelBytes(updatedGenModelBytes)
+          .build();
+    } catch (UncheckedIOException | IOException e) {
+      log.error("GenModel precheck failed due to I/O error", e);
+      String reason =
+          "I/O error during GenModel precheck ("
+              + e.getClass().getSimpleName()
+              + "): "
+              + (e.getMessage() != null ? e.getMessage() : "no detailed message available");
+      throw new CLIExecuteException(reason);
+    } finally {
+      if (jobDir != null) {
+        try {
+          deleteRecursively(jobDir);
+        } catch (IOException e) {
+          log.warn("Failed to delete job directory: {}", jobDir, e);
+        }
+      }
+    }
+  }
+
+  /**
    * Validates method inputs for {@link #runVitruvAndGetFatJarBytes(List, List, List)}.
    *
    * @param ecoreFiles list of Ecore files (must not be null or empty)
    * @param genModelFiles list of GenModel files (must match size of ecoreFiles)
-   * @param reactionFiles list of reaction files (must not be null or empty)
    * @throws VsumBuildingException when validation fails
    */
-  private void validateInputs(
-      List<FileStorage> ecoreFiles,
-      List<FileStorage> genModelFiles,
-      List<FileStorage> reactionFiles) {
-
+  private void validateMetamodelPairs(
+      List<FileStorage> ecoreFiles, List<FileStorage> genModelFiles) {
     if (ecoreFiles == null
         || genModelFiles == null
         || ecoreFiles.isEmpty()
@@ -174,6 +243,14 @@ public class MetaModelVitruvIntegrationService {
     if (ecoreFiles.size() != genModelFiles.size()) {
       throw new VsumBuildingException(METAMODEL_PAIR_COUNT_MISMATCH_ERROR);
     }
+  }
+
+  /**
+   * Validates that at least one reaction file is present for a build run.
+   *
+   * @param reactionFiles reaction files to validate
+   */
+  private void validateReactionFiles(List<FileStorage> reactionFiles) {
     if (reactionFiles == null || reactionFiles.isEmpty()) {
       throw new VsumBuildingException(REACTION_FILE_REQUIRED_ERROR);
     }
@@ -408,4 +485,35 @@ public class MetaModelVitruvIntegrationService {
    */
   public record BuildParameters(
       ArrayList<FileStorage> additionalReactionFiles, FileStorage compositeReactionFile) {}
+
+  /** Immutable precheck result returned by the GenModel validation flow. */
+  @Value
+  @Builder
+  public static class GenModelPrecheckExecutionResult {
+    int exitCode;
+    String stdout;
+    String stderr;
+    GenModelPrecheckStatus status;
+    @Builder.Default List<byte[]> updatedGenModelBytes = List.of();
+
+    /**
+     * Returns true when precheck exits successfully and ends in CLEAN or FIXES_APPLIED status.
+     *
+     * @return true if precheck is successful
+     */
+    public boolean isSuccess() {
+      return exitCode == 0
+          && (status == GenModelPrecheckStatus.CLEAN
+              || status == GenModelPrecheckStatus.FIXES_APPLIED);
+    }
+
+    /**
+     * Returns true when updated GenModel content should overwrite stored files.
+     *
+     * @return true if fixes were applied and updated bytes are available
+     */
+    public boolean shouldOverwriteGenModels() {
+      return status == GenModelPrecheckStatus.FIXES_APPLIED && !updatedGenModelBytes.isEmpty();
+    }
+  }
 }
