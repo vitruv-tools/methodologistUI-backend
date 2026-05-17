@@ -764,11 +764,11 @@ public class VsumService {
       }
     }
 
-    applyViewSyncPlan(vsum, viewSyncPlan);
-
     if (!toAddVsumMetaModelIds.isEmpty()) {
       vsumMetaModelService.create(vsum, toAddVsumMetaModelIds);
     }
+
+    applyViewSyncPlan(vsum, viewSyncPlan);
 
     if (!toAddMetaModelRelation.isEmpty()) {
       List<MetaModelRelationRequest> creations =
