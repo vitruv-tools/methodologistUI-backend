@@ -756,14 +756,10 @@ class UserServiceTest {
 
   @Test
   void syncWithKeycloak_updatesExistingUser_whenUsernameFound() {
-    String newEmail = "updatedemail@example.com";
-    String username = "existinguser";
-    String newFirstName = "Jane";
-    String newLastName = "Smith";
-
     User existingUser = new User();
     existingUser.setId(1L);
     existingUser.setEmail("oldemail@example.com");
+    String username = "existinguser";
     existingUser.setUsername(username);
     existingUser.setFirstName("Old");
     existingUser.setLastName("Name");
@@ -773,6 +769,9 @@ class UserServiceTest {
     when(userRepository.findByUsernameIgnoreCaseAndRemovedAtIsNull(username))
         .thenReturn(Optional.of(existingUser));
 
+    String newEmail = "updatedemail@example.com";
+    String newFirstName = "Jane";
+    String newLastName = "Smith";
     userService.syncWithKeycloak(newEmail, username, newFirstName, newLastName);
 
     ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
@@ -924,7 +923,6 @@ class UserServiceTest {
 
   @Test
   void syncWithKeycloak_usernameSearchIsCaseInsensitive() {
-    String username = "JohnDoe";
     User existing = new User();
     existing.setId(1L);
     existing.setEmail("john@example.com");
@@ -933,6 +931,7 @@ class UserServiceTest {
     existing.setLastName("Doe");
     existing.setRoleType(RoleType.USER);
 
+    String username = "JohnDoe";
     when(userRepository.findByUsernameIgnoreCaseAndRemovedAtIsNull(username))
         .thenReturn(Optional.of(existing));
 
