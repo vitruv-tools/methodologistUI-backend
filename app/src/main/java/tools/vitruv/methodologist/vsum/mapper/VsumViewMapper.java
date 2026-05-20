@@ -48,7 +48,6 @@ public interface VsumViewMapper {
    * @return the metamodel response list
    */
   @Named("toAssignedModels")
-  @SuppressWarnings("unused")
   default List<MetaModelResponse> toAssignedModels(Set<VsumViewMetaModel> viewMetaModels) {
     if (viewMetaModels == null || viewMetaModels.isEmpty()) {
       return List.of();
@@ -67,4 +66,3 @@ public interface VsumViewMapper {
    */
   MetaModelResponse toMetaModelResponse(MetaModel metaModel);
 }
-
