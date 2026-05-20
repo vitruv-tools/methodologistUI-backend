@@ -50,11 +50,13 @@ import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelationResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
+import tools.vitruv.methodologist.vsum.mapper.VsumViewMapper;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
@@ -101,6 +103,7 @@ public class VsumService {
   private final VsumViewService vsumViewService;
   private final VsumViewRepository vsumViewRepository;
   private final VsumViewMetaModelRepository vsumViewMetaModelRepository;
+  private final VsumViewMapper vsumViewMapper;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -212,13 +215,13 @@ public class VsumService {
   }
 
   /**
-   * Fetches a VSUM owned by the caller and returns its details together with the mapped
-   * meta-models. Throws {@code NotFoundException} if the VSUM does not exist or does not belong to
+   * Fetches a VSUM owned by the caller and returns its details together with the mapped meta-models
+   * and views. Throws {@code NotFoundException} if the VSUM does not exist or does not belong to
    * the caller.
    *
    * @param callerEmail the authenticated user's email (owner of the VSUM)
    * @param id the VSUM id to fetch
-   * @return a response DTO with VSUM data and its meta-models
+   * @return a response DTO with VSUM data, meta-models, and views
    * @throws NotFoundException if no matching VSUM is found
    */
   @Transactional(readOnly = true)
@@ -255,6 +258,12 @@ public class VsumService {
                 : vsum.getMetaModelRelations())
             .stream().map(metaModelRelationMapper::toMetaModelRelationResponse).toList();
     response.setMetaModelsRelation(metaModelRelation);
+
+    List<ViewsResponse> views =
+        vsumViewRepository.findAllByVsum(vsum).stream()
+            .map(vsumViewMapper::toViewsResponse)
+            .toList();
+    response.setViews(views);
 
     return response;
   }

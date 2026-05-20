@@ -56,9 +56,11 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelation
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
+import tools.vitruv.methodologist.vsum.mapper.VsumViewMapper;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
@@ -95,6 +97,7 @@ class VsumServiceTest {
   @Mock private VsumViewService vsumViewService;
   @Mock private VsumViewRepository vsumViewRepository;
   @Mock private VsumViewMetaModelRepository vsumViewMetaModelRepository;
+  @Mock private VsumViewMapper vsumViewMapper;
 
   private VsumService service;
 
@@ -189,12 +192,23 @@ class VsumServiceTest {
             vsumViewMetaModelService,
             vsumViewService,
             vsumViewRepository,
-            vsumViewMetaModelRepository);
+            vsumViewMetaModelRepository,
+            vsumViewMapper);
 
     lenient().when(vsumViewRepository.findAllByVsum(any(Vsum.class))).thenReturn(List.of());
     lenient()
         .when(vsumViewMetaModelRepository.findAllByVsumViewIn(anyList()))
         .thenReturn(List.of());
+    lenient()
+        .when(vsumViewMapper.toViewsResponse(any(VsumView.class)))
+        .thenAnswer(
+            inv -> {
+              VsumView view = inv.getArgument(0);
+              ViewsResponse response = new ViewsResponse();
+              response.setId(view.getId());
+              response.setAssignedModels(List.of());
+              return response;
+            });
   }
 
   @Test
@@ -319,7 +333,8 @@ class VsumServiceTest {
 
     assertThat(result.getMetaModels()).isNotNull().isEmpty();
     assertThat(result.getMetaModelsRelation()).isNotNull().isEmpty();
-    verifyNoInteractions(metaModelMapper, metaModelRelationMapper);
+    assertThat(result.getViews()).isNotNull().isEmpty();
+    verifyNoInteractions(metaModelMapper, metaModelRelationMapper, vsumViewMapper);
   }
 
   @Test
@@ -345,9 +360,13 @@ class VsumServiceTest {
         metaModelRelation(vsum, clonedMetaModel(11L, 11L), clonedMetaModel(22L, 22L));
     vsum.setMetaModelRelations(Set.of(rel));
 
+    VsumView view = new VsumView();
+    view.setId(901L);
+
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.of(user));
     when(vsumRepository.findByIdAndRemovedAtIsNull(78L)).thenReturn(Optional.of(vsum));
+    when(vsumViewRepository.findAllByVsum(vsum)).thenReturn(List.of(view));
 
     VsumMetaModelResponse base = new VsumMetaModelResponse();
     when(vsumMapper.toVsumMetaModelResponse(vsum)).thenReturn(base);
@@ -358,10 +377,17 @@ class VsumServiceTest {
     MetaModelRelationResponse relResp = new MetaModelRelationResponse();
     when(metaModelRelationMapper.toMetaModelRelationResponse(rel)).thenReturn(relResp);
 
+    ViewsResponse viewResp = new ViewsResponse();
+    viewResp.setId(901L);
+    viewResp.setAssignedModels(List.of(mmResp));
+    when(vsumViewMapper.toViewsResponse(view)).thenReturn(viewResp);
+
     VsumMetaModelResponse result = service.findVsumWithDetails(email, 78L);
 
     assertThat(result.getMetaModels()).containsExactly(mmResp);
     assertThat(result.getMetaModelsRelation()).containsExactly(relResp);
+    assertThat(result.getViews()).containsExactly(viewResp);
+    assertThat(result.getViews().get(0).getAssignedModels()).containsExactly(mmResp);
   }
 
   @Test
