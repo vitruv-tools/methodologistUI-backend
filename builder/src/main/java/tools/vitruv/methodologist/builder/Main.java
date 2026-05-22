@@ -8,19 +8,28 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.vitruv.methodologist.builder.configuration.MetamodelLocation;
 import tools.vitruv.methodologist.builder.configuration.VitruvConfiguration;
 
 /**
- * Entry point for the metamodel builder CLI tool. Supports command-line arguments for providing
- * metamodel definitions and generates a workflow file (MWE2) from the given Ecore and GenModel
- * files. Produces a result.json file containing success, error, and diagnostic information.
+ * Entry point for the metamodel builder CLI tool. Supports command-line
+ * arguments for providing
+ * metamodel definitions and generates a workflow file (MWE2) from the given
+ * Ecore and GenModel
+ * files. Produces a result.json file containing success, error, and diagnostic
+ * information.
  */
 public class Main {
 
+  private static final Logger logger = LoggerFactory.getLogger(Main.class);
+
   /**
-   * Runs the CLI application. Parses arguments, validates input metamodel files, generates workflow
-   * configuration, and writes a result.json file with execution details. Exits with code 0 on
+   * Runs the CLI application. Parses arguments, validates input metamodel files,
+   * generates workflow
+   * configuration, and writes a result.json file with execution details. Exits
+   * with code 0 on
    * success or 1 on failure.
    */
   public static void main(String[] args) throws Exception {
@@ -116,7 +125,7 @@ public class Main {
     result.put("report", "Generated " + mwe2.getFileName());
     result.put("nsUris", nsUris);
 
-    System.out.println(result);
+    logger.info(result.toString());
     writeResult(out, result);
   }
 
@@ -128,7 +137,7 @@ public class Main {
     result.put("report", "Build failed: " + e.getMessage());
     result.put("nsUris", nsUris);
 
-    System.out.println(result);
+    logger.info(result.toString());
     writeResult(out, result);
   }
 
