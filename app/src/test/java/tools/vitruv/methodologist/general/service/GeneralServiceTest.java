@@ -3,7 +3,6 @@ package tools.vitruv.methodologist.general.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
-import static tools.vitruv.methodologist.messages.Error.CLIENT_NOT_FOUND_ERROR;
 
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,51 +18,47 @@ import tools.vitruv.methodologist.general.model.repository.VersioningRepository;
 
 class GeneralServiceTest {
 
-    @Mock
-    private VersioningRepository versioningRepository;
+  @Mock private VersioningRepository versioningRepository;
 
-    @Mock
-    private VersioningMapper versioningMapper;
+  @Mock private VersioningMapper versioningMapper;
 
-    private GeneralService generalService;
+  private GeneralService generalService;
 
-    @BeforeEach
-    void setUp() {
-        MockitoAnnotations.openMocks(this);
-        generalService = new GeneralService(versioningRepository, versioningMapper);
-    }
+  @BeforeEach
+  void setUp() {
+    MockitoAnnotations.openMocks(this);
+    generalService = new GeneralService(versioningRepository, versioningMapper);
+  }
 
-    @Test
-    void getLatestVersion_returnsLatestVersionResponse() {
+  @Test
+  void getLatestVersion_returnsLatestVersionResponse() {
 
-        String clientName = "desktop-client";
+    String clientName = "desktop-client";
 
-        Versioning versioning = new Versioning();
-        LatestVersionResponse response = new LatestVersionResponse();
+    Versioning versioning = new Versioning();
+    LatestVersionResponse response = new LatestVersionResponse();
 
-        when(versioningRepository.findTopByAppNameOrderByIdDesc(clientName))
-                .thenReturn(Optional.of(versioning));
+    when(versioningRepository.findTopByAppNameOrderByIdDesc(clientName))
+        .thenReturn(Optional.of(versioning));
 
-        when(versioningMapper.toLatestVersionResponse(versioning))
-                .thenReturn(response);
+    when(versioningMapper.toLatestVersionResponse(versioning)).thenReturn(response);
 
-        ResponseTemplateDto<LatestVersionResponse> result = generalService.getLatestVersion(clientName);
+    ResponseTemplateDto<LatestVersionResponse> result = generalService.getLatestVersion(clientName);
 
-        assertEquals(response, result.getData());
-    }
+    assertEquals(response, result.getData());
+  }
 
-    @Test
-    void getLatestVersion_throwsNotFoundException_whenClientDoesNotExist() {
+  @Test
+  void getLatestVersion_throwsNotFoundException_whenClientDoesNotExist() {
 
-        String clientName = "unknown-client";
+    String clientName = "unknown-client";
 
-        when(versioningRepository.findTopByAppNameOrderByIdDesc(clientName))
-                .thenReturn(Optional.empty());
+    when(versioningRepository.findTopByAppNameOrderByIdDesc(clientName))
+        .thenReturn(Optional.empty());
 
-        NotFoundException exception = assertThrows(
-                NotFoundException.class,
-                () -> generalService.getLatestVersion(clientName));
+    NotFoundException exception =
+        assertThrows(NotFoundException.class, () -> generalService.getLatestVersion(clientName));
 
-        assertEquals("Client not found!", exception.getMessage());
-    }
+    assertEquals("Client not found!", exception.getMessage());
+  }
 }
