@@ -4,16 +4,19 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import tools.vitruv.methodologist.user.service.UserService;
 
 /**
  * Spring Security configuration for the application.
@@ -26,11 +29,22 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableMethodSecurity(jsr250Enabled = true, prePostEnabled = true)
 public class SecurityConfiguration {
 
+  private final UserService userService;
+
   @Value("${allowed.origins:*}")
   private String allowedOrigins;
 
   @Value("${allowed.headers:*}")
   private String allowedHeaders;
+
+  /**
+   * Constructs a new SecurityConfiguration.
+   *
+   * @param userService the {@link UserService} used for user synchronization and related logic.
+   */
+  public SecurityConfiguration(UserService userService) {
+    this.userService = userService;
+  }
 
   /**
    * Defines the security filter chain:
@@ -56,28 +70,24 @@ public class SecurityConfiguration {
                 auth.requestMatchers(HttpMethod.OPTIONS, "/**")
                     .permitAll()
                     .anyRequest()
-                    .permitAll() // while debugging
-            )
+                    .permitAll())
         .oauth2ResourceServer(
-            oauth2 ->
-                oauth2.jwt(
-                    jwt ->
-                        jwt.jwtAuthenticationConverter(new KeycloakJwtAuthenticationConverter())))
+            oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(customJwtConverter())))
         .build();
   }
 
-  /**
-   * Creates and configures a {@link JwtAuthenticationConverter} that delegates extraction of
-   * granted authorities to {@link GrantedAuthoritiesConverter}.
-   *
-   * <p>Used when a plain {@link JwtAuthenticationConverter} instance is required.
-   *
-   * @return a configured {@link JwtAuthenticationConverter}
-   */
-  private JwtAuthenticationConverter jwtAuthenticationConverter() {
-    var conv = new JwtAuthenticationConverter();
-    conv.setJwtGrantedAuthoritiesConverter(new GrantedAuthoritiesConverter());
-    return conv;
+  private Converter<Jwt, ? extends AbstractAuthenticationToken> customJwtConverter() {
+    return jwt -> {
+      userService.syncWithKeycloak(
+          jwt.getClaimAsString("email"),
+          jwt.getClaimAsString("preferred_username"),
+          jwt.getClaimAsString("given_name"),
+          jwt.getClaimAsString("family_name"));
+
+      var grantedAuthoritiesConverter = new GrantedAuthoritiesConverter();
+      var authorities = grantedAuthoritiesConverter.convert(jwt);
+      return new KeycloakAuthentication(jwt, authorities);
+    };
   }
 
   /**
