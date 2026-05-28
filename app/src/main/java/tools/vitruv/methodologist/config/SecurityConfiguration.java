@@ -12,6 +12,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -47,14 +48,7 @@ public class SecurityConfiguration {
   }
 
   /**
-   * Defines the security filter chain:
-   *
-   * <ul>
-   *   <li>Disables CSRF (REST API).
-   *   <li>Applies CORS configuration from {@link #corsConfigurationSource()}.
-   *   <li>Enforces stateless session management.
-   *   <li>Configures request authorization and the OAuth2 resource server JWT converter.
-   * </ul>
+   * Defines the security filter chain.
    *
    * @param http the {@link HttpSecurity} to configure
    * @return the built {@link SecurityFilterChain}
@@ -73,6 +67,7 @@ public class SecurityConfiguration {
                     .permitAll())
         .oauth2ResourceServer(
             oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(customJwtConverter())))
+        .addFilterAfter(new UserEmailMdcFilter(), BearerTokenAuthenticationFilter.class)
         .build();
   }
 
