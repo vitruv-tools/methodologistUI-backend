@@ -32,7 +32,11 @@ public class UserEmailMdcFilter extends OncePerRequestFilter {
       @NonNull FilterChain filterChain)
       throws ServletException, IOException {
     MDC.put("user_email", resolveUserEmail());
-    filterChain.doFilter(request, response);
+    try {
+      filterChain.doFilter(request, response);
+    } finally {
+      MDC.remove("user_email");
+    }
   }
 
   /**

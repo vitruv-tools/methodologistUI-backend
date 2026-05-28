@@ -1,15 +1,15 @@
 package tools.vitruv.methodologist.config;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
+import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.mock.web.MockFilterChain;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -44,7 +44,7 @@ class UserEmailMdcFilterTest {
 
     filter.doFilter(request, response, chain);
 
-    assertEquals("alice@example.com", MDC.get("user_email"));
+    assertNull(MDC.get("user_email"));
   }
 
   @Test
@@ -55,6 +55,6 @@ class UserEmailMdcFilterTest {
 
     filter.doFilter(request, response, chain);
 
-    assertEquals("anonymous", MDC.get("user_email"));
+    assertNull(MDC.get("user_email"));
   }
 }
