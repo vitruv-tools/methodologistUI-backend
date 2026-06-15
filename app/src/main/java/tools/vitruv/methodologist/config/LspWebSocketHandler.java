@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -486,7 +487,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         logger.warn("Interrupted while waiting for LSP process to exit");
         process.destroyForcibly();
       } catch (IOException e) {
-        throw new RuntimeException(e);
+        throw new UncheckedIOException("Failed to wait for LSP process to exit", e);
       }
     }
   }
