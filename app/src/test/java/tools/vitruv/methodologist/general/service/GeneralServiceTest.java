@@ -32,12 +32,7 @@ class GeneralServiceTest {
   void getLatestVersion_existingClient_returnsLatestVersionResponse() {
     final String clientName = "web-client";
     final Versioning versioning =
-        Versioning.builder()
-            .id(1L)
-            .appName(clientName)
-            .version("1.0.0")
-            .forceUpdate(false)
-            .build();
+        Versioning.builder().id(1L).appName(clientName).version("1.0.0").forceUpdate(false).build();
     final LatestVersionResponse latestVersionResponse =
         LatestVersionResponse.builder().version("1.0.0").forceUpdate(false).build();
 
