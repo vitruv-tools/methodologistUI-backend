@@ -28,4 +28,5 @@ public class Error {
   public static final String FAT_JAR_NOT_FOUND_ERROR = "Fat jar not found at: ";
   public static final String VITRUV_CLI_EXECUTION_FAILED_ERROR = "Vitruv-CLI execution failed: ";
   public static final String VITRUV_CLI_ERROR = "Vitruv-CLI Error: ";
+  public static final String LSP_PROCESS_WAIT_ERROR = "Failed to wait for LSP process to exit";
 }
