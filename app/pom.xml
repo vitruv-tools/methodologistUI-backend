@@ -15,6 +15,10 @@
     <name>Methodologist - App</name>
     <packaging>jar</packaging>
 
+    <properties>
+        <argLine></argLine>
+    </properties>
+
 
     <dependencies>
         <dependency>
@@ -232,6 +236,7 @@
                 <version>3.2.5</version>
                 <configuration>
                     <useModulePath>false</useModulePath>
+                    <argLine>${argLine} -javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/1.15.11/byte-buddy-agent-1.15.11.jar</argLine>
                     <systemPropertyVariables>
                         <spring.profiles.active>test</spring.profiles.active>
                     </systemPropertyVariables>
