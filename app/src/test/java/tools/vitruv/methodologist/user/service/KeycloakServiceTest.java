@@ -105,7 +105,6 @@ class KeycloakServiceTest {
 
   @Test
   void createUser_createsUserAndAssignsRole_whenKeycloakCreatesUser() {
-    KeycloakUser keycloakUser = createKeycloakUser();
     UserRepresentation createdUser = new UserRepresentation();
     createdUser.setId("user-1");
     RoleRepresentation roleRepresentation = new RoleRepresentation();
@@ -121,7 +120,7 @@ class KeycloakServiceTest {
     when(userResource.roles()).thenReturn(roleMappingResource);
     when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
 
-    keycloakService.createUser(keycloakUser);
+    keycloakService.createUser(createKeycloakUser());
 
     ArgumentCaptor<UserRepresentation> userCaptor =
         ArgumentCaptor.forClass(UserRepresentation.class);
@@ -158,7 +157,6 @@ class KeycloakServiceTest {
 
   @Test
   void createUser_removesCreatedUser_whenRoleAssignmentFails() {
-    KeycloakUser keycloakUser = createKeycloakUser();
     UserRepresentation createdUser = new UserRepresentation();
     createdUser.setId("user-1");
     RuntimeException roleError = new RuntimeException("role error");
@@ -171,7 +169,7 @@ class KeycloakServiceTest {
     when(rolesResource.get("USER")).thenThrow(roleError);
     when(usersResource.get("user-1")).thenReturn(userResource);
 
-    assertThatThrownBy(() -> keycloakService.createUser(keycloakUser)).isSameAs(roleError);
+    assertThatThrownBy(() -> keycloakService.createUser(createKeycloakUser())).isSameAs(roleError);
 
     verify(response).close();
     verify(userResource).remove();
