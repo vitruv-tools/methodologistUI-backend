@@ -14,8 +14,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
   private final OclLspWebSocketHandler oclLspWebSocketHandler;
 
   public WebSocketConfig(
-      LspWebSocketHandler lspWebSocketHandler,
-      OclLspWebSocketHandler oclLspWebSocketHandler) {
+      LspWebSocketHandler lspWebSocketHandler, OclLspWebSocketHandler oclLspWebSocketHandler) {
     this.lspWebSocketHandler = lspWebSocketHandler;
     this.oclLspWebSocketHandler = oclLspWebSocketHandler;
   }

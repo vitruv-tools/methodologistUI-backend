@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -105,7 +104,13 @@ class ConstraintRuleSetServiceTest {
   void findAll_handlesNullOclFileData() {
     FileStorage emptyFile = FileStorage.builder().filename("x.ocl").data(null).build();
     ConstraintRuleSet rs =
-        ConstraintRuleSet.builder().id(201L).vsum(vsum).name("NullData").color("#fff").oclFile(emptyFile).build();
+        ConstraintRuleSet.builder()
+            .id(201L)
+            .vsum(vsum)
+            .name("NullData")
+            .color("#fff")
+            .oclFile(emptyFile)
+            .build();
     when(ruleSetRepository.findByVsumId(10L)).thenReturn(List.of(rs));
 
     List<RuleSetResponse> result = service.findAll(10L);
@@ -120,21 +125,24 @@ class ConstraintRuleSetServiceTest {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
         .thenReturn(Optional.of(user));
     when(vsumRepository.findById(10L)).thenReturn(Optional.of(vsum));
-    when(ruleSetRepository.save(any())).thenAnswer(inv -> {
-      ConstraintRuleSet rs = inv.getArgument(0);
-      rs.getClass(); // ensure non-null
-      // assign id via reflection-free builder workaround: return a new instance with id
-      return ConstraintRuleSet.builder()
-          .id(200L)
-          .vsum(rs.getVsum())
-          .name(rs.getName())
-          .color(rs.getColor())
-          .description(rs.getDescription())
-          .oclFile(rs.getOclFile())
-          .build();
-    });
+    when(ruleSetRepository.save(any()))
+        .thenAnswer(
+            inv -> {
+              ConstraintRuleSet rs = inv.getArgument(0);
+              rs.getClass(); // ensure non-null
+              // assign id via reflection-free builder workaround: return a new instance with id
+              return ConstraintRuleSet.builder()
+                  .id(200L)
+                  .vsum(rs.getVsum())
+                  .name(rs.getName())
+                  .color(rs.getColor())
+                  .description(rs.getDescription())
+                  .oclFile(rs.getOclFile())
+                  .build();
+            });
 
-    RuleSetPostRequest request = new RuleSetPostRequest("New Set", "#ff0000", "my desc", "context X inv: 1=1");
+    RuleSetPostRequest request =
+        new RuleSetPostRequest("New Set", "#ff0000", "my desc", "context X inv: 1=1");
 
     RuleSetResponse response = service.create("test@example.com", 10L, request);
 
@@ -153,12 +161,18 @@ class ConstraintRuleSetServiceTest {
     when(vsumRepository.findById(10L)).thenReturn(Optional.of(vsum));
 
     ArgumentCaptor<ConstraintRuleSet> captor = ArgumentCaptor.forClass(ConstraintRuleSet.class);
-    when(ruleSetRepository.save(captor.capture())).thenAnswer(inv -> {
-      ConstraintRuleSet rs = captor.getValue();
-      return ConstraintRuleSet.builder()
-          .id(201L).vsum(rs.getVsum()).name(rs.getName()).color(rs.getColor())
-          .oclFile(rs.getOclFile()).build();
-    });
+    when(ruleSetRepository.save(captor.capture()))
+        .thenAnswer(
+            inv -> {
+              ConstraintRuleSet rs = captor.getValue();
+              return ConstraintRuleSet.builder()
+                  .id(201L)
+                  .vsum(rs.getVsum())
+                  .name(rs.getName())
+                  .color(rs.getColor())
+                  .oclFile(rs.getOclFile())
+                  .build();
+            });
 
     RuleSetPostRequest request = new RuleSetPostRequest("Set", null, null, null);
     service.create("test@example.com", 10L, request);
@@ -173,16 +187,23 @@ class ConstraintRuleSetServiceTest {
     when(vsumRepository.findById(10L)).thenReturn(Optional.of(vsum));
 
     ArgumentCaptor<ConstraintRuleSet> captor = ArgumentCaptor.forClass(ConstraintRuleSet.class);
-    when(ruleSetRepository.save(captor.capture())).thenAnswer(inv -> {
-      ConstraintRuleSet rs = captor.getValue();
-      return ConstraintRuleSet.builder()
-          .id(202L).vsum(rs.getVsum()).name(rs.getName()).color(rs.getColor())
-          .oclFile(rs.getOclFile()).build();
-    });
+    when(ruleSetRepository.save(captor.capture()))
+        .thenAnswer(
+            inv -> {
+              ConstraintRuleSet rs = captor.getValue();
+              return ConstraintRuleSet.builder()
+                  .id(202L)
+                  .vsum(rs.getVsum())
+                  .name(rs.getName())
+                  .color(rs.getColor())
+                  .oclFile(rs.getOclFile())
+                  .build();
+            });
 
     service.create("test@example.com", 10L, new RuleSetPostRequest("Set", null, null, null));
 
-    assertThat(new String(captor.getValue().getOclFile().getData(), StandardCharsets.UTF_8)).isEmpty();
+    assertThat(new String(captor.getValue().getOclFile().getData(), StandardCharsets.UTF_8))
+        .isEmpty();
   }
 
   @Test
@@ -191,7 +212,9 @@ class ConstraintRuleSetServiceTest {
         .thenReturn(Optional.empty());
 
     assertThatThrownBy(
-            () -> service.create("unknown@example.com", 10L, new RuleSetPostRequest("X", null, null, null)))
+            () ->
+                service.create(
+                    "unknown@example.com", 10L, new RuleSetPostRequest("X", null, null, null)))
         .isInstanceOf(UnauthorizedException.class);
   }
 
@@ -202,7 +225,9 @@ class ConstraintRuleSetServiceTest {
     when(vsumRepository.findById(99L)).thenReturn(Optional.empty());
 
     assertThatThrownBy(
-            () -> service.create("test@example.com", 99L, new RuleSetPostRequest("X", null, null, null)))
+            () ->
+                service.create(
+                    "test@example.com", 99L, new RuleSetPostRequest("X", null, null, null)))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining("VSUM not found");
   }
@@ -214,14 +239,21 @@ class ConstraintRuleSetServiceTest {
     when(vsumRepository.findById(10L)).thenReturn(Optional.of(vsum));
 
     ArgumentCaptor<ConstraintRuleSet> captor = ArgumentCaptor.forClass(ConstraintRuleSet.class);
-    when(ruleSetRepository.save(captor.capture())).thenAnswer(inv -> {
-      ConstraintRuleSet rs = captor.getValue();
-      return ConstraintRuleSet.builder()
-          .id(203L).vsum(rs.getVsum()).name(rs.getName()).color(rs.getColor())
-          .oclFile(rs.getOclFile()).build();
-    });
+    when(ruleSetRepository.save(captor.capture()))
+        .thenAnswer(
+            inv -> {
+              ConstraintRuleSet rs = captor.getValue();
+              return ConstraintRuleSet.builder()
+                  .id(203L)
+                  .vsum(rs.getVsum())
+                  .name(rs.getName())
+                  .color(rs.getColor())
+                  .oclFile(rs.getOclFile())
+                  .build();
+            });
 
-    service.create("test@example.com", 10L, new RuleSetPostRequest("My Special Rules!", null, null, ""));
+    service.create(
+        "test@example.com", 10L, new RuleSetPostRequest("My Special Rules!", null, null, ""));
 
     assertThat(captor.getValue().getOclFile().getFilename()).isEqualTo("My_Special_Rules_.ocl");
   }
@@ -233,12 +265,18 @@ class ConstraintRuleSetServiceTest {
     when(vsumRepository.findById(10L)).thenReturn(Optional.of(vsum));
 
     ArgumentCaptor<ConstraintRuleSet> captor = ArgumentCaptor.forClass(ConstraintRuleSet.class);
-    when(ruleSetRepository.save(captor.capture())).thenAnswer(inv -> {
-      ConstraintRuleSet rs = captor.getValue();
-      return ConstraintRuleSet.builder()
-          .id(204L).vsum(rs.getVsum()).name(rs.getName()).color(rs.getColor())
-          .oclFile(rs.getOclFile()).build();
-    });
+    when(ruleSetRepository.save(captor.capture()))
+        .thenAnswer(
+            inv -> {
+              ConstraintRuleSet rs = captor.getValue();
+              return ConstraintRuleSet.builder()
+                  .id(204L)
+                  .vsum(rs.getVsum())
+                  .name(rs.getName())
+                  .color(rs.getColor())
+                  .oclFile(rs.getOclFile())
+                  .build();
+            });
 
     service.create("test@example.com", 10L, new RuleSetPostRequest("X", null, null, "content"));
 
@@ -254,7 +292,8 @@ class ConstraintRuleSetServiceTest {
     when(ruleSetRepository.findByIdAndVsumId(100L, 10L)).thenReturn(Optional.of(ruleSet));
     when(ruleSetRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-    RuleSetPutRequest request = new RuleSetPutRequest("Updated Name", "#00ff00", "new desc", "context Y inv: 2=2");
+    RuleSetPutRequest request =
+        new RuleSetPutRequest("Updated Name", "#00ff00", "new desc", "context Y inv: 2=2");
 
     RuleSetResponse response = service.update("test@example.com", 10L, 100L, request);
 
@@ -285,7 +324,9 @@ class ConstraintRuleSetServiceTest {
     when(ruleSetRepository.findByIdAndVsumId(999L, 10L)).thenReturn(Optional.empty());
 
     assertThatThrownBy(
-            () -> service.update("test@example.com", 10L, 999L, new RuleSetPutRequest("X", null, null, null)))
+            () ->
+                service.update(
+                    "test@example.com", 10L, 999L, new RuleSetPutRequest("X", null, null, null)))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining("RuleSet not found");
   }
@@ -296,7 +337,9 @@ class ConstraintRuleSetServiceTest {
         .thenReturn(Optional.empty());
 
     assertThatThrownBy(
-            () -> service.update("unknown@example.com", 10L, 100L, new RuleSetPutRequest("X", null, null, null)))
+            () ->
+                service.update(
+                    "unknown@example.com", 10L, 100L, new RuleSetPutRequest("X", null, null, null)))
         .isInstanceOf(UnauthorizedException.class);
   }
 
@@ -311,7 +354,8 @@ class ConstraintRuleSetServiceTest {
 
     service.update("test@example.com", 10L, 100L, new RuleSetPutRequest("X", null, null, null));
 
-    assertThat(new String(captor.getValue().getOclFile().getData(), StandardCharsets.UTF_8)).isEmpty();
+    assertThat(new String(captor.getValue().getOclFile().getData(), StandardCharsets.UTF_8))
+        .isEmpty();
   }
 
   // ── delete ───────────────────────────────────────────────────────────────

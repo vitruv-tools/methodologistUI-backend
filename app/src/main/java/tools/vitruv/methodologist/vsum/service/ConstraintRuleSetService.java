@@ -37,9 +37,7 @@ public class ConstraintRuleSetService {
 
   @Transactional(readOnly = true)
   public List<RuleSetResponse> findAll(Long vsumId) {
-    return ruleSetRepository.findByVsumId(vsumId).stream()
-        .map(this::toResponse)
-        .toList();
+    return ruleSetRepository.findByVsumId(vsumId).stream().map(this::toResponse).toList();
   }
 
   @Transactional
@@ -143,6 +141,8 @@ public class ConstraintRuleSetService {
   }
 
   private Vsum resolveVsum(Long vsumId) {
-    return vsumRepository.findById(vsumId).orElseThrow(() -> new NotFoundException("VSUM not found"));
+    return vsumRepository
+        .findById(vsumId)
+        .orElseThrow(() -> new NotFoundException("VSUM not found"));
   }
 }

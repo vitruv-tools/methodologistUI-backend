@@ -37,8 +37,15 @@ class ConstraintRuleSetControllerTest {
   @BeforeEach
   void setUp() {
     sampleResponse =
-        new RuleSetResponse(100L, 10L, "My Rules", "#3b82f6", "desc", "context X inv: true",
-            Instant.now(), Instant.now());
+        new RuleSetResponse(
+            100L,
+            10L,
+            "My Rules",
+            "#3b82f6",
+            "desc",
+            "context X inv: true",
+            Instant.now(),
+            Instant.now());
   }
 
   private void stubEmail() {
@@ -74,7 +81,8 @@ class ConstraintRuleSetControllerTest {
   @Test
   void create_returnsCreatedWithBody() {
     stubEmail();
-    RuleSetPostRequest request = new RuleSetPostRequest("My Rules", "#3b82f6", "desc", "context X inv: true");
+    RuleSetPostRequest request =
+        new RuleSetPostRequest("My Rules", "#3b82f6", "desc", "context X inv: true");
     when(service.create("test@example.com", 10L, request)).thenReturn(sampleResponse);
 
     ResponseEntity<RuleSetResponse> response = controller.create(authentication, 10L, request);
@@ -101,12 +109,22 @@ class ConstraintRuleSetControllerTest {
   @Test
   void update_returnsOkWithUpdatedBody() {
     stubEmail();
-    RuleSetPutRequest request = new RuleSetPutRequest("Updated", "#ff0000", "new desc", "context Y inv: 1=1");
-    RuleSetResponse updated = new RuleSetResponse(100L, 10L, "Updated", "#ff0000", "new desc",
-        "context Y inv: 1=1", Instant.now(), Instant.now());
+    RuleSetPutRequest request =
+        new RuleSetPutRequest("Updated", "#ff0000", "new desc", "context Y inv: 1=1");
+    RuleSetResponse updated =
+        new RuleSetResponse(
+            100L,
+            10L,
+            "Updated",
+            "#ff0000",
+            "new desc",
+            "context Y inv: 1=1",
+            Instant.now(),
+            Instant.now());
     when(service.update("test@example.com", 10L, 100L, request)).thenReturn(updated);
 
-    ResponseEntity<RuleSetResponse> response = controller.update(authentication, 10L, 100L, request);
+    ResponseEntity<RuleSetResponse> response =
+        controller.update(authentication, 10L, 100L, request);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody().name()).isEqualTo("Updated");
@@ -117,7 +135,8 @@ class ConstraintRuleSetControllerTest {
   void update_passesEmailFromAuthentication() {
     stubEmail();
     RuleSetPutRequest request = new RuleSetPutRequest("X", null, null, null);
-    when(service.update(eq("test@example.com"), eq(10L), eq(100L), any())).thenReturn(sampleResponse);
+    when(service.update(eq("test@example.com"), eq(10L), eq(100L), any()))
+        .thenReturn(sampleResponse);
 
     controller.update(authentication, 10L, 100L, request);
 

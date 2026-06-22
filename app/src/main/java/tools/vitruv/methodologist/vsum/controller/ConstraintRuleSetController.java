@@ -61,8 +61,7 @@ public class ConstraintRuleSetController {
 
   @DeleteMapping("/{ruleSetId}")
   @PreAuthorize("isAuthenticated()")
-  public ResponseEntity<Void> delete(
-      @PathVariable Long vsumId, @PathVariable Long ruleSetId) {
+  public ResponseEntity<Void> delete(@PathVariable Long vsumId, @PathVariable Long ruleSetId) {
     service.delete(vsumId, ruleSetId);
     return ResponseEntity.noContent().build();
   }

@@ -36,9 +36,9 @@ import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.service.MetaModelService;
 
 /**
- * WebSocket handler for VitruvOCL LSP connections.
- * Sets up a temp workspace with the project's ecore metamodels and the .ocl file,
- * then bridges WebSocket messages to/from the VitruvOCL language-server.jar.
+ * WebSocket handler for VitruvOCL LSP connections. Sets up a temp workspace with the project's
+ * ecore metamodels and the .ocl file, then bridges WebSocket messages to/from the VitruvOCL
+ * language-server.jar.
  */
 @Component
 public class OclLspWebSocketHandler extends TextWebSocketHandler {
@@ -113,17 +113,20 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
 
     Process process = pb.start();
 
-    new Thread(() -> {
-      try {
-        int code = process.waitFor();
-        logger.error("OCL-LSP process exited for session {} with code {}", sessionId, code);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
-    }).start();
+    new Thread(
+            () -> {
+              try {
+                int code = process.waitFor();
+                logger.error("OCL-LSP process exited for session {} with code {}", sessionId, code);
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+              }
+            })
+        .start();
 
     BufferedWriter writer =
-        new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
+        new BufferedWriter(
+            new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
     BufferedReader reader =
         new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
 
@@ -133,19 +136,22 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
     new Thread(lspProcess::readFromLsp).start();
 
     // Notify client that workspace is ready
-    new Thread(() -> {
-      try {
-        Thread.sleep(500);
-        String rootUriMessage = String.format(
-            "{\"type\":\"workspaceReady\",\"rootUri\":\"%s\"}",
-            userProject.toUri().toString());
-        session.sendMessage(new TextMessage(rootUriMessage));
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      } catch (Exception e) {
-        logger.error("💥 Failed to send workspaceReady for OCL-LSP: {}", e.getMessage());
-      }
-    }).start();
+    new Thread(
+            () -> {
+              try {
+                Thread.sleep(500);
+                String rootUriMessage =
+                    String.format(
+                        "{\"type\":\"workspaceReady\",\"rootUri\":\"%s\"}",
+                        userProject.toUri().toString());
+                session.sendMessage(new TextMessage(rootUriMessage));
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+              } catch (Exception e) {
+                logger.error("💥 Failed to send workspaceReady for OCL-LSP: {}", e.getMessage());
+              }
+            })
+        .start();
   }
 
   @Override
@@ -200,9 +206,16 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
   private void cleanupTempDir(Path tempDir) {
     if (tempDir == null || !Files.exists(tempDir)) return;
     try (Stream<Path> paths = Files.walk(tempDir)) {
-      paths.sorted(Comparator.reverseOrder()).forEach(p -> {
-        try { Files.delete(p); } catch (IOException e) { /* ignore */ }
-      });
+      paths
+          .sorted(Comparator.reverseOrder())
+          .forEach(
+              p -> {
+                try {
+                  Files.delete(p);
+                } catch (IOException e) {
+                  /* ignore */
+                }
+              });
     } catch (IOException e) {
       logger.warn("⚠️ Failed to clean OCL-LSP temp dir {}: {}", tempDir, e.getMessage());
     }
@@ -236,7 +249,11 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
     final Path tempDir;
 
     OclLspProcess(WebSocketSession s, Process p, BufferedWriter w, BufferedReader r, Path d) {
-      session = s; process = p; writer = w; reader = r; tempDir = d;
+      session = s;
+      process = p;
+      writer = w;
+      reader = r;
+      tempDir = d;
     }
 
     void readFromLsp() {
@@ -261,13 +278,18 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
     }
 
     void sendToLsp(String json) throws IOException {
-      String msg = "Content-Length: " + json.getBytes(StandardCharsets.UTF_8).length + "\r\n\r\n" + json;
+      String msg =
+          "Content-Length: " + json.getBytes(StandardCharsets.UTF_8).length + "\r\n\r\n" + json;
       writer.write(msg);
       writer.flush();
     }
 
     void destroy() {
-      try { writer.close(); } catch (IOException e) { /* ignore */ }
+      try {
+        writer.close();
+      } catch (IOException e) {
+        /* ignore */
+      }
       process.destroy();
       try {
         if (!process.waitFor(5, TimeUnit.SECONDS)) process.destroyForcibly();
