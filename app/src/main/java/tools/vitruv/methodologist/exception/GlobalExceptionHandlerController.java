@@ -49,6 +49,7 @@ public class GlobalExceptionHandlerController {
   private static final String FORBIDDEN_ERROR = "FORBIDDEN";
   private static final String BAD_REQUEST_ERROR = "BAD_REQUEST_ERROR";
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
+  private static final String LSP_PROCESS_ERROR = "LSP_PROCESS_ERROR";
 
   /**
    * Handles {@link ValidationCodeNotExpiredYetException} thrown when a previously issued
@@ -552,6 +553,34 @@ public class GlobalExceptionHandlerController {
         ex);
     return ErrorResponse.builder()
         .error(NOT_FOUND_ERROR)
+        .message(ex.getMessage())
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link LspProcessException} thrown when managing the lifecycle of an LSP server process
+   * fails (for example while waiting for the process to terminate during session cleanup). Logs the
+   * underlying cause and responds with HTTP 500 (Internal Server Error) and a standardized {@link
+   * ErrorResponse} containing the failure message and request path.
+   *
+   * @param ex the thrown {@code LspProcessException}
+   * @param handlerMethod the controller method where the exception originated
+   * @param request the current {@link ServletWebRequest} providing request context
+   * @return an {@link ErrorResponse} describing the LSP process failure
+   */
+  @ExceptionHandler(value = LspProcessException.class)
+  @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+  @ResponseBody
+  public ErrorResponse lspProcessException(
+      LspProcessException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    log.error(
+        "LspProcessException handled in Controller: {}, message: {}, stackTrace: {}",
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage(),
+        ex);
+    return ErrorResponse.builder()
+        .error(LSP_PROCESS_ERROR)
         .message(ex.getMessage())
         .path(getPath(request))
         .build();
