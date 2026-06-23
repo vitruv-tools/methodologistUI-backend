@@ -101,4 +101,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
       @Param("callerEmail") String callerEmail,
       @Param("queryParam") String queryParam,
       Pageable pageable);
+
+  /**
+   * Finds a non-deleted user by username, ignoring case.
+   *
+   * @param email the username to search for (case-insensitive)
+   * @return an {@link java.util.Optional} containing the user if found and not removed, otherwise
+   *     empty
+   */
+  Optional<User> findByUsernameIgnoreCaseAndRemovedAtIsNull(String email);
 }

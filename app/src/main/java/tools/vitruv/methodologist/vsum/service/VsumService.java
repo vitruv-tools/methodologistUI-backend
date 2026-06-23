@@ -44,25 +44,32 @@ import tools.vitruv.methodologist.vsum.build.BuildCoordinator;
 import tools.vitruv.methodologist.vsum.build.BuildKey;
 import tools.vitruv.methodologist.vsum.build.InputsFingerprint;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.request.ViewRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelationResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
+import tools.vitruv.methodologist.vsum.mapper.VsumViewMapper;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 import tools.vitruv.methodologist.vsum.model.VsumUser;
+import tools.vitruv.methodologist.vsum.model.VsumView;
+import tools.vitruv.methodologist.vsum.model.VsumViewMetaModel;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelRelationRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumViewMetaModelRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
 
 /**
  * Service class for managing VSUM (Virtual Single Underlying Model) operations. Handles the
@@ -92,6 +99,11 @@ public class VsumService {
   VsumHistoryService vsumHistoryService;
   MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
   BuildCoordinator buildCoordinator;
+  private final VsumViewMetaModelService vsumViewMetaModelService;
+  private final VsumViewService vsumViewService;
+  private final VsumViewRepository vsumViewRepository;
+  private final VsumViewMetaModelRepository vsumViewMetaModelRepository;
+  private final VsumViewMapper vsumViewMapper;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -203,13 +215,13 @@ public class VsumService {
   }
 
   /**
-   * Fetches a VSUM owned by the caller and returns its details together with the mapped
-   * meta-models. Throws {@code NotFoundException} if the VSUM does not exist or does not belong to
+   * Fetches a VSUM owned by the caller and returns its details together with the mapped meta-models
+   * and views. Throws {@code NotFoundException} if the VSUM does not exist or does not belong to
    * the caller.
    *
    * @param callerEmail the authenticated user's email (owner of the VSUM)
    * @param id the VSUM id to fetch
-   * @return a response DTO with VSUM data and its meta-models
+   * @return a response DTO with VSUM data, meta-models, and views
    * @throws NotFoundException if no matching VSUM is found
    */
   @Transactional(readOnly = true)
@@ -246,6 +258,12 @@ public class VsumService {
                 : vsum.getMetaModelRelations())
             .stream().map(metaModelRelationMapper::toMetaModelRelationResponse).toList();
     response.setMetaModelsRelation(metaModelRelation);
+
+    List<ViewsResponse> views =
+        vsumViewRepository.findAllByVsum(vsum).stream()
+            .map(vsumViewMapper::toViewsResponse)
+            .toList();
+    response.setViews(views);
 
     return response;
   }
@@ -661,6 +679,7 @@ public class VsumService {
    * @param createHistory when {@code true}, create a history record if any modifications are made
    * @return the persisted, updated {@link Vsum}
    */
+  @Transactional
   public Vsum applySyncChanges(
       Vsum vsum,
       User user,
@@ -668,41 +687,33 @@ public class VsumService {
       boolean createHistory) {
 
     List<MetaModelRelationRequest> desiredMetaModelRelation =
-        vsumSyncChangesPutRequest.getMetaModelRelationRequests() == null
-            ? List.of()
-            : vsumSyncChangesPutRequest.getMetaModelRelationRequests().stream()
-                .filter(
-                    metaModelRelationRequest ->
-                        metaModelRelationRequest != null
-                            && metaModelRelationRequest.getSourceId() != null
-                            && metaModelRelationRequest.getTargetId() != null)
-                .toList();
+        normalizeMetaModelRelationRequests(
+            vsumSyncChangesPutRequest.getMetaModelRelationRequests());
 
     List<MetaModelRelation> existingMetaModelRelation =
         metaModelRelationRepository.findAllByVsum(vsum);
 
     Set<String> desiredMetaModelRelationPairs =
         desiredMetaModelRelation.stream()
-            .map(
-                metaModelRelationRequest ->
-                    metaModelRelationRequest.getSourceId()
-                        + ":"
-                        + metaModelRelationRequest.getTargetId())
+            .map(request -> request.getSourceId() + ":" + request.getTargetId())
             .collect(Collectors.toSet());
 
     Map<String, MetaModelRelation> existingByPair = new HashMap<>();
     for (MetaModelRelation metaModelRelation : existingMetaModelRelation) {
-      String metaModelRelationPairKey =
+      String key =
           metaModelRelation.getSource().getSource().getId()
               + ":"
               + metaModelRelation.getTarget().getSource().getId();
-      existingByPair.put(metaModelRelationPairKey, metaModelRelation);
+      existingByPair.put(key, metaModelRelation);
     }
 
     Set<String> existingMetaModelRelationPairs = new HashSet<>(existingByPair.keySet());
 
     Set<String> toRemoveMetaModelRelation = new HashSet<>(existingMetaModelRelationPairs);
     toRemoveMetaModelRelation.removeAll(desiredMetaModelRelationPairs);
+
+    Set<String> toAddMetaModelRelation = new HashSet<>(desiredMetaModelRelationPairs);
+    toAddMetaModelRelation.removeAll(existingMetaModelRelationPairs);
 
     List<Long> metaModelIds = vsumSyncChangesPutRequest.getMetaModelIds();
     List<VsumMetaModel> existingVsumMetaModel = vsumMetaModelRepository.findAllByVsum(vsum);
@@ -723,14 +734,17 @@ public class VsumService {
     Set<Long> toAddVsumMetaModelIds = new HashSet<>(desiredMetaModelIds);
     toAddVsumMetaModelIds.removeAll(existingVsumMetaModelIds);
 
-    Set<String> toAddMetaModelRelation = new HashSet<>(desiredMetaModelRelationPairs);
-    toAddMetaModelRelation.removeAll(existingMetaModelRelationPairs);
+    List<ViewRequest> desiredViewRequests =
+        normalizeViewRequests(vsumSyncChangesPutRequest.getViewRequests());
+
+    ViewSyncPlan viewSyncPlan = buildViewSyncPlan(vsum, desiredViewRequests);
 
     boolean hasAnyChanges =
         !toRemoveMetaModelRelation.isEmpty()
             || !toRemoveVsumMetaModelIds.isEmpty()
             || !toAddVsumMetaModelIds.isEmpty()
-            || !toAddMetaModelRelation.isEmpty();
+            || !toAddMetaModelRelation.isEmpty()
+            || viewSyncPlan.hasChanges();
 
     if (createHistory && hasAnyChanges) {
       vsumHistoryService.create(vsum, user);
@@ -763,20 +777,149 @@ public class VsumService {
       vsumMetaModelService.create(vsum, toAddVsumMetaModelIds);
     }
 
+    applyViewSyncPlan(vsum, viewSyncPlan);
+
     if (!toAddMetaModelRelation.isEmpty()) {
       List<MetaModelRelationRequest> creations =
           desiredMetaModelRelation.stream()
               .filter(
-                  metaModelRelationRequest ->
+                  request ->
                       toAddMetaModelRelation.contains(
-                          metaModelRelationRequest.getSourceId()
-                              + ":"
-                              + metaModelRelationRequest.getTargetId()))
+                          request.getSourceId() + ":" + request.getTargetId()))
               .toList();
       metaModelRelationService.create(vsum, creations);
     }
 
     vsumRepository.save(vsum);
     return vsum;
+  }
+
+  private List<MetaModelRelationRequest> normalizeMetaModelRelationRequests(
+      List<MetaModelRelationRequest> requests) {
+    if (requests == null) {
+      return List.of();
+    }
+
+    return requests.stream()
+        .filter(Objects::nonNull)
+        .filter(request -> request.getSourceId() != null && request.getTargetId() != null)
+        .toList();
+  }
+
+  private List<ViewRequest> normalizeViewRequests(List<ViewRequest> requests) {
+    if (requests == null) {
+      return List.of();
+    }
+
+    return requests.stream()
+        .filter(Objects::nonNull)
+        .map(this::normalizeViewRequest)
+        .filter(request -> request.getFileStorageId() != null)
+        .filter(request -> !request.getMetaModelIds().isEmpty())
+        .toList();
+  }
+
+  private ViewRequest normalizeViewRequest(ViewRequest request) {
+    List<Long> normalizedMetaModelIds =
+        request.getMetaModelIds() == null
+            ? List.of()
+            : request.getMetaModelIds().stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .sorted()
+                .toList();
+
+    return ViewRequest.builder()
+        .fileStorageId(request.getFileStorageId())
+        .metaModelIds(normalizedMetaModelIds)
+        .build();
+  }
+
+  private String toViewKey(ViewRequest request) {
+    String metaModelPart =
+        request.getMetaModelIds().stream().map(String::valueOf).collect(Collectors.joining(","));
+    return request.getFileStorageId() + "|" + metaModelPart;
+  }
+
+  private String toViewKey(VsumView vsumView, List<VsumViewMetaModel> relations) {
+    String metaModelPart =
+        relations.stream()
+            .map(VsumViewMetaModel::getMetaModel)
+            .map(
+                metaModel ->
+                    metaModel.getSource() != null
+                        ? metaModel.getSource().getId()
+                        : metaModel.getId())
+            .filter(Objects::nonNull)
+            .distinct()
+            .sorted()
+            .map(String::valueOf)
+            .collect(Collectors.joining(","));
+
+    return vsumView.getFileStorage().getId() + "|" + metaModelPart;
+  }
+
+  private ViewSyncPlan buildViewSyncPlan(Vsum vsum, List<ViewRequest> desiredViewRequests) {
+    List<VsumView> existingViews = vsumViewRepository.findAllByVsum(vsum);
+
+    Map<Long, List<VsumViewMetaModel>> relationsByViewId = new HashMap<>();
+    if (!existingViews.isEmpty()) {
+      List<VsumViewMetaModel> allRelations =
+          vsumViewMetaModelRepository.findAllByVsumViewIn(existingViews);
+      for (VsumViewMetaModel relation : allRelations) {
+        relationsByViewId
+            .computeIfAbsent(relation.getVsumView().getId(), k -> new ArrayList<>())
+            .add(relation);
+      }
+    }
+
+    Map<String, VsumView> existingByKey = new HashMap<>();
+    for (VsumView existingView : existingViews) {
+      List<VsumViewMetaModel> viewRelations =
+          relationsByViewId.getOrDefault(existingView.getId(), List.of());
+      existingByKey.put(toViewKey(existingView, viewRelations), existingView);
+    }
+
+    Set<String> existingKeys = new HashSet<>(existingByKey.keySet());
+
+    Set<String> desiredKeys =
+        desiredViewRequests.stream().map(this::toViewKey).collect(Collectors.toSet());
+
+    Set<String> toRemoveKeys = new HashSet<>(existingKeys);
+    toRemoveKeys.removeAll(desiredKeys);
+
+    Set<String> toAddKeys = new HashSet<>(desiredKeys);
+    toAddKeys.removeAll(existingKeys);
+
+    List<ViewRequest> toCreateRequests =
+        desiredViewRequests.stream()
+            .filter(request -> toAddKeys.contains(toViewKey(request)))
+            .toList();
+
+    List<VsumView> toDeleteViews = toRemoveKeys.stream().map(existingByKey::get).toList();
+
+    return new ViewSyncPlan(toDeleteViews, toCreateRequests);
+  }
+
+  private void applyViewSyncPlan(Vsum vsum, ViewSyncPlan plan) {
+    if (!plan.toDeleteViews().isEmpty()) {
+      for (VsumView vsumView : plan.toDeleteViews()) {
+        vsumViewMetaModelService.deleteByVsumView(vsumView);
+        vsumViewService.delete(vsum, vsumView);
+      }
+    }
+
+    if (!plan.toCreateRequests().isEmpty()) {
+      for (ViewRequest request : plan.toCreateRequests()) {
+        VsumView createdView = vsumViewService.create(vsum, request.getFileStorageId());
+        vsumViewMetaModelService.create(createdView, new HashSet<>(request.getMetaModelIds()));
+      }
+    }
+  }
+
+  private record ViewSyncPlan(List<VsumView> toDeleteViews, List<ViewRequest> toCreateRequests) {
+    private boolean hasChanges() {
+      return !toDeleteViews.isEmpty() || !toCreateRequests.isEmpty();
+    }
   }
 }
