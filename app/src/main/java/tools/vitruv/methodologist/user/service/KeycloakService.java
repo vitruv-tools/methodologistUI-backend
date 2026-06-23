@@ -173,7 +173,8 @@ public class KeycloakService {
   public void resetPassword(String username, String password) {
     final CredentialRepresentation credentialRepresentation =
         preparePasswordRepresentation(password, false);
-    final UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
+    final UserRepresentation userRepresentation =
+        keycloakGateway.findUser(username).orElseThrow(IndexOutOfBoundsException::new);
     keycloakGateway.resetPassword(userRepresentation.getId(), credentialRepresentation);
   }
 
@@ -185,7 +186,8 @@ public class KeycloakService {
    */
   @Transactional
   public void sendResetPasswordEmail(String username) {
-    final UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
+    final UserRepresentation userRepresentation =
+        keycloakGateway.findUser(username).orElseThrow(IndexOutOfBoundsException::new);
     keycloakGateway.executeActionsEmail(userRepresentation.getId(), List.of("UPDATE_PASSWORD"));
   }
 
@@ -213,7 +215,8 @@ public class KeycloakService {
   public void setPassword(String username, String password) {
     final CredentialRepresentation credentialRepresentation =
         preparePasswordRepresentation(password, false);
-    final UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
+    final UserRepresentation userRepresentation =
+        keycloakGateway.findUser(username).orElseThrow(IndexOutOfBoundsException::new);
     keycloakGateway.resetPassword(userRepresentation.getId(), credentialRepresentation);
   }
 

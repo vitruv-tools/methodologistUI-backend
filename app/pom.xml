@@ -15,10 +15,6 @@
     <name>Methodologist - App</name>
     <packaging>jar</packaging>
 
-    <properties>
-        <argLine></argLine>
-    </properties>
-
 
     <dependencies>
         <dependency>
@@ -236,7 +232,6 @@
                 <version>3.2.5</version>
                 <configuration>
                     <useModulePath>false</useModulePath>
-                    <argLine>${argLine} -javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/1.15.11/byte-buddy-agent-1.15.11.jar</argLine>
                     <systemPropertyVariables>
                         <spring.profiles.active>test</spring.profiles.active>
                     </systemPropertyVariables>
@@ -263,19 +258,12 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
-                <version>3.6.0</version>
                 <configuration>
-                    <configLocation>${maven.multiModuleProjectDirectory}/checkstyle.xml</configLocation>
+                    <configLocation>${basedir}/src/conf/checkstyle.xml</configLocation>
+                    <suppressionsLocation>${basedir}/src/conf/checkstyle-suppressions.xml</suppressionsLocation>
                     <enableRulesSummary>false</enableRulesSummary>
                     <includeTestSourceDirectory>true</includeTestSourceDirectory>
                 </configuration>
-                <dependencies>
-                    <dependency>
-                        <groupId>com.puppycrawl.tools</groupId>
-                        <artifactId>checkstyle</artifactId>
-                        <version>10.21.4</version>
-                    </dependency>
-                </dependencies>
             </plugin>
         </plugins>
 

@@ -57,11 +57,12 @@ public class KeycloakGatewayImpl implements KeycloakGateway {
   @Override
   public UserCreationResult createUser(UserRepresentation userRepresentation) {
     final Response response = keycloakAdmin.realm(realm).users().create(userRepresentation);
-    try {
-      return new UserCreationResult(response.getStatus(), getReasonPhrase(response));
-    } finally {
-      response.close();
+    final int status = response.getStatus();
+    if (status != Response.Status.CREATED.getStatusCode()) {
+      return new UserCreationResult(status, ((ClientResponse) response).getReasonPhrase());
     }
+    response.close();
+    return new UserCreationResult(status, null);
   }
 
   @Override
@@ -110,12 +111,5 @@ public class KeycloakGatewayImpl implements KeycloakGateway {
   @Override
   public void executeActionsEmail(String userId, List<String> actions) {
     keycloakAdmin.realm(realm).users().get(userId).executeActionsEmail(actions);
-  }
-
-  private String getReasonPhrase(Response response) {
-    if (response instanceof ClientResponse clientResponse) {
-      return clientResponse.getReasonPhrase();
-    }
-    return response.getStatusInfo().getReasonPhrase();
   }
 }

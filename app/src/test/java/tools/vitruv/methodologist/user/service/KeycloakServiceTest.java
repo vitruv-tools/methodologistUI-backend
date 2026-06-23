@@ -2,148 +2,124 @@ package tools.vitruv.methodologist.user.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.USER_WRONG_PASSWORD_ERROR;
 
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.NotAuthorizedException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UncheckedRuntimeException;
 import tools.vitruv.methodologist.user.controller.dto.KeycloakUser;
 
-@ExtendWith(MockitoExtension.class)
 class KeycloakServiceTest {
 
-  @Mock private KeycloakGateway keycloakGateway;
-
+  private FakeKeycloakGateway keycloakGateway;
   private KeycloakService keycloakService;
 
   @BeforeEach
   void setUp() {
+    keycloakGateway = new FakeKeycloakGateway();
     keycloakService = new KeycloakService(keycloakGateway);
   }
 
   @Test
   void assignUserRole_assignsRole_whenUserExists() {
-    when(keycloakGateway.findUser("alice")).thenReturn(Optional.of(userRepresentation("user-1")));
+    keycloakGateway.addUser("alice", "user-1");
 
     keycloakService.assignUserRole("alice", "USER");
 
-    verify(keycloakGateway).assignRealmRole("user-1", "USER");
+    assertThat(keycloakGateway.assignedRoleUserId).isEqualTo("user-1");
+    assertThat(keycloakGateway.assignedRole).isEqualTo("USER");
   }
 
   @Test
   void assignUserRole_throwsNotFound_whenUserDoesNotExist() {
-    when(keycloakGateway.findUser("missing")).thenReturn(Optional.empty());
-
     assertThatThrownBy(() -> keycloakService.assignUserRole("missing", "USER"))
         .isInstanceOf(NotFoundException.class);
 
-    verify(keycloakGateway, never()).assignRealmRole(anyString(), anyString());
+    assertThat(keycloakGateway.assignedRole).isNull();
   }
 
   @Test
   void createUser_createsUserAndAssignsRole_whenKeycloakCreatesUser() {
-    final UserRepresentation createdUser = userRepresentation("user-1");
-    when(keycloakGateway.createUser(any(UserRepresentation.class)))
-        .thenReturn(new KeycloakGateway.UserCreationResult(HttpStatus.CREATED.value(), "Created"));
-    when(keycloakGateway.findUser("alice")).thenReturn(Optional.of(createdUser));
-
     keycloakService.createUser(createKeycloakUser());
 
-    final ArgumentCaptor<UserRepresentation> userCaptor =
-        ArgumentCaptor.forClass(UserRepresentation.class);
-    verify(keycloakGateway).createUser(userCaptor.capture());
-    final UserRepresentation userRepresentation = userCaptor.getValue();
-    assertThat(userRepresentation.getUsername()).isEqualTo("alice");
-    assertThat(userRepresentation.getEmail()).isEqualTo("alice@example.com");
-    assertThat(userRepresentation.getFirstName()).isEqualTo("Alice");
-    assertThat(userRepresentation.getLastName()).isEqualTo("Doe");
-    assertThat(userRepresentation.isEnabled()).isTrue();
-    assertThat(userRepresentation.getAttributes())
+    final UserRepresentation createdUser = keycloakGateway.createdUserRepresentation;
+    assertThat(createdUser.getUsername()).isEqualTo("alice");
+    assertThat(createdUser.getEmail()).isEqualTo("alice@example.com");
+    assertThat(createdUser.getFirstName()).isEqualTo("Alice");
+    assertThat(createdUser.getLastName()).isEqualTo("Doe");
+    assertThat(createdUser.isEnabled()).isTrue();
+    assertThat(createdUser.getAttributes())
         .containsEntry(KeycloakService.USER_CONFIRMED, List.of("false"))
         .containsEntry(KeycloakService.ROLE_TYPE, List.of("USER"));
-    assertThat(userRepresentation.getCredentials()).hasSize(1);
-    assertThat(userRepresentation.getCredentials().get(0).getValue()).isEqualTo("p@ssw0rd");
-    assertThat(userRepresentation.getCredentials().get(0).isTemporary()).isFalse();
-    verify(keycloakGateway).assignRealmRole("user-1", "USER");
+    assertThat(createdUser.getCredentials()).hasSize(1);
+    assertThat(createdUser.getCredentials().get(0).getValue()).isEqualTo("p@ssw0rd");
+    assertThat(createdUser.getCredentials().get(0).isTemporary()).isFalse();
+    assertThat(keycloakGateway.assignedRoleUserId).isEqualTo("user-1");
+    assertThat(keycloakGateway.assignedRole).isEqualTo("USER");
   }
 
   @Test
   void createUser_throwsClientError_whenKeycloakDoesNotCreateUser() {
-    when(keycloakGateway.createUser(any(UserRepresentation.class)))
-        .thenReturn(
-            new KeycloakGateway.UserCreationResult(HttpStatus.BAD_REQUEST.value(), "Bad Request"));
+    keycloakGateway.creationResult =
+        new KeycloakGateway.UserCreationResult(HttpStatus.BAD_REQUEST.value(), "Bad Request");
 
     assertThatThrownBy(() -> keycloakService.createUser(createKeycloakUser()))
         .isInstanceOf(ClientErrorException.class);
 
-    verify(keycloakGateway, never()).findUser(anyString());
-    verify(keycloakGateway, never()).assignRealmRole(anyString(), anyString());
+    assertThat(keycloakGateway.createdUserRepresentation).isNotNull();
+    assertThat(keycloakGateway.assignedRole).isNull();
   }
 
   @Test
   void createUser_removesCreatedUser_whenRoleAssignmentFails() {
     final RuntimeException roleError = new RuntimeException("role error");
-    when(keycloakGateway.createUser(any(UserRepresentation.class)))
-        .thenReturn(new KeycloakGateway.UserCreationResult(HttpStatus.CREATED.value(), "Created"));
-    when(keycloakGateway.findUser("alice")).thenReturn(Optional.of(userRepresentation("user-1")));
-    doThrow(roleError).when(keycloakGateway).assignRealmRole("user-1", "USER");
+    keycloakGateway.assignRoleException = roleError;
 
     assertThatThrownBy(() -> keycloakService.createUser(createKeycloakUser())).isSameAs(roleError);
 
-    verify(keycloakGateway).removeUser("user-1");
+    assertThat(keycloakGateway.removedUserIds).containsExactly("user-1");
   }
 
   @Test
   void removeUser_removesUser_whenUserExists() {
-    when(keycloakGateway.findUser("alice")).thenReturn(Optional.of(userRepresentation("user-1")));
+    keycloakGateway.addUser("alice", "user-1");
 
     keycloakService.removeUser("alice");
 
-    verify(keycloakGateway).removeUser("user-1");
+    assertThat(keycloakGateway.removedUserIds).containsExactly("user-1");
   }
 
   @Test
   void removeUser_throwsNotFound_whenUserDoesNotExist() {
-    when(keycloakGateway.findUser("missing")).thenReturn(Optional.empty());
-
     assertThatThrownBy(() -> keycloakService.removeUser("missing"))
         .isInstanceOf(NotFoundException.class);
 
-    verify(keycloakGateway, never()).removeUser(anyString());
+    assertThat(keycloakGateway.removedUserIds).isEmpty();
   }
 
   @Test
   void verifyUserPasswordOrThrow_doesNotThrow_whenPasswordIsValid() {
     keycloakService.verifyUserPasswordOrThrow("alice", "correct-password");
 
-    verify(keycloakGateway).verifyPassword("alice", "correct-password");
+    assertThat(keycloakGateway.verifiedUsername).isEqualTo("alice");
+    assertThat(keycloakGateway.verifiedPassword).isEqualTo("correct-password");
   }
 
   @Test
   void verifyUserPasswordOrThrow_throwsBadRequest_whenPasswordIsWrong() {
-    doThrow(new NotAuthorizedException("Bearer"))
-        .when(keycloakGateway)
-        .verifyPassword("alice", "wrong-password");
+    keycloakGateway.verifyPasswordException = new NotAuthorizedException("Bearer");
 
     assertThatThrownBy(() -> keycloakService.verifyUserPasswordOrThrow("alice", "wrong-password"))
         .isInstanceOf(BadRequestException.class)
@@ -152,9 +128,7 @@ class KeycloakServiceTest {
 
   @Test
   void verifyUserPasswordOrThrow_throwsUncheckedRuntime_whenKeycloakFailsUnexpectedly() {
-    doThrow(new RuntimeException("server error"))
-        .when(keycloakGateway)
-        .verifyPassword("alice", "password");
+    keycloakGateway.verifyPasswordException = new RuntimeException("server error");
 
     assertThatThrownBy(() -> keycloakService.verifyUserPasswordOrThrow("alice", "password"))
         .isInstanceOf(UncheckedRuntimeException.class)
@@ -163,78 +137,69 @@ class KeycloakServiceTest {
 
   @Test
   void resetPassword_resetsPassword_whenUserExists() {
-    when(keycloakGateway.findUser("alice")).thenReturn(Optional.of(userRepresentation("user-1")));
+    keycloakGateway.addUser("alice", "user-1");
 
     keycloakService.resetPassword("alice", "new-password");
 
-    final ArgumentCaptor<CredentialRepresentation> credentialCaptor =
-        ArgumentCaptor.forClass(CredentialRepresentation.class);
-    verify(keycloakGateway).resetPassword(eq("user-1"), credentialCaptor.capture());
-    final CredentialRepresentation credentialRepresentation = credentialCaptor.getValue();
+    final CredentialRepresentation credentialRepresentation =
+        keycloakGateway.resetPasswordCredential;
+    assertThat(keycloakGateway.resetPasswordUserId).isEqualTo("user-1");
     assertThat(credentialRepresentation.getType()).isEqualTo(CredentialRepresentation.PASSWORD);
     assertThat(credentialRepresentation.getValue()).isEqualTo("new-password");
     assertThat(credentialRepresentation.isTemporary()).isFalse();
   }
 
   @Test
-  void resetPassword_throwsNotFound_whenUserDoesNotExist() {
-    when(keycloakGateway.findUser("missing")).thenReturn(Optional.empty());
-
+  void resetPassword_throwsIndexOutOfBounds_whenUserDoesNotExist() {
     assertThatThrownBy(() -> keycloakService.resetPassword("missing", "new-password"))
-        .isInstanceOf(NotFoundException.class);
+        .isInstanceOf(IndexOutOfBoundsException.class);
 
-    verify(keycloakGateway, never())
-        .resetPassword(anyString(), any(CredentialRepresentation.class));
+    assertThat(keycloakGateway.resetPasswordCredential).isNull();
   }
 
   @Test
   void sendResetPasswordEmail_sendsUpdatePasswordEmail_whenUserExists() {
-    when(keycloakGateway.findUser("alice")).thenReturn(Optional.of(userRepresentation("user-1")));
+    keycloakGateway.addUser("alice", "user-1");
 
     keycloakService.sendResetPasswordEmail("alice");
 
-    verify(keycloakGateway).executeActionsEmail("user-1", List.of("UPDATE_PASSWORD"));
+    assertThat(keycloakGateway.actionsEmailUserId).isEqualTo("user-1");
+    assertThat(keycloakGateway.actionsEmailActions).containsExactly("UPDATE_PASSWORD");
   }
 
   @Test
-  void sendResetPasswordEmail_throwsNotFound_whenUserDoesNotExist() {
-    when(keycloakGateway.findUser("missing")).thenReturn(Optional.empty());
-
+  void sendResetPasswordEmail_throwsIndexOutOfBounds_whenUserDoesNotExist() {
     assertThatThrownBy(() -> keycloakService.sendResetPasswordEmail("missing"))
-        .isInstanceOf(NotFoundException.class);
+        .isInstanceOf(IndexOutOfBoundsException.class);
 
-    verify(keycloakGateway, never()).executeActionsEmail(anyString(), any());
+    assertThat(keycloakGateway.actionsEmailActions).isEmpty();
   }
 
   @Test
   void setPassword_resetsPassword_whenUserExists() {
-    when(keycloakGateway.findUser("alice")).thenReturn(Optional.of(userRepresentation("user-1")));
+    keycloakGateway.addUser("alice", "user-1");
 
     keycloakService.setPassword("alice", "new-password");
 
-    final ArgumentCaptor<CredentialRepresentation> credentialCaptor =
-        ArgumentCaptor.forClass(CredentialRepresentation.class);
-    verify(keycloakGateway).resetPassword(eq("user-1"), credentialCaptor.capture());
-    final CredentialRepresentation credentialRepresentation = credentialCaptor.getValue();
+    final CredentialRepresentation credentialRepresentation =
+        keycloakGateway.resetPasswordCredential;
+    assertThat(keycloakGateway.resetPasswordUserId).isEqualTo("user-1");
     assertThat(credentialRepresentation.getType()).isEqualTo(CredentialRepresentation.PASSWORD);
     assertThat(credentialRepresentation.getValue()).isEqualTo("new-password");
     assertThat(credentialRepresentation.isTemporary()).isFalse();
   }
 
   @Test
-  void setPassword_throwsNotFound_whenUserDoesNotExist() {
-    when(keycloakGateway.findUser("missing")).thenReturn(Optional.empty());
-
+  void setPassword_throwsIndexOutOfBounds_whenUserDoesNotExist() {
     assertThatThrownBy(() -> keycloakService.setPassword("missing", "new-password"))
-        .isInstanceOf(NotFoundException.class);
+        .isInstanceOf(IndexOutOfBoundsException.class);
 
-    verify(keycloakGateway, never())
-        .resetPassword(anyString(), any(CredentialRepresentation.class));
+    assertThat(keycloakGateway.resetPasswordCredential).isNull();
   }
 
   @Test
   void existUser_returnsTrue_whenUserExists() {
-    when(keycloakGateway.findUser("alice")).thenReturn(Optional.of(userRepresentation("user-1")));
+    keycloakGateway.addUser("alice", "user-1");
 
     final Boolean result = keycloakService.existUser("alice");
 
@@ -243,8 +208,6 @@ class KeycloakServiceTest {
 
   @Test
   void existUser_returnsFalse_whenUserDoesNotExist() {
-    when(keycloakGateway.findUser("missing")).thenReturn(Optional.empty());
-
     final Boolean result = keycloakService.existUser("missing");
 
     assertThat(result).isFalse();
@@ -260,12 +223,6 @@ class KeycloakServiceTest {
     assertThat(credentialRepresentation.isTemporary()).isTrue();
   }
 
-  private UserRepresentation userRepresentation(String userId) {
-    final UserRepresentation userRepresentation = new UserRepresentation();
-    userRepresentation.setId(userId);
-    return userRepresentation;
-  }
-
   private KeycloakUser createKeycloakUser() {
     return KeycloakUser.builder()
         .username("alice")
@@ -275,5 +232,85 @@ class KeycloakServiceTest {
         .password("p@ssw0rd")
         .role("USER")
         .build();
+  }
+
+  private static final class FakeKeycloakGateway implements KeycloakGateway {
+
+    private final Map<String, UserRepresentation> usersByUsername = new HashMap<>();
+    private final List<String> removedUserIds = new ArrayList<>();
+    private final List<String> actionsEmailActions = new ArrayList<>();
+
+    private UserCreationResult creationResult =
+        new UserCreationResult(HttpStatus.CREATED.value(), "Created");
+    private RuntimeException assignRoleException;
+    private RuntimeException verifyPasswordException;
+    private UserRepresentation createdUserRepresentation;
+    private String assignedRoleUserId;
+    private String assignedRole;
+    private String verifiedUsername;
+    private String verifiedPassword;
+    private String resetPasswordUserId;
+    private CredentialRepresentation resetPasswordCredential;
+    private String actionsEmailUserId;
+
+    @Override
+    public UserCreationResult createUser(UserRepresentation userRepresentation) {
+      createdUserRepresentation = userRepresentation;
+      if (creationResult.status() == HttpStatus.CREATED.value()) {
+        addUser(userRepresentation.getUsername(), "user-1");
+      }
+      return creationResult;
+    }
+
+    @Override
+    public Optional<UserRepresentation> findUser(String username) {
+      return Optional.ofNullable(usersByUsername.get(username));
+    }
+
+    @Override
+    public void assignRealmRole(String userId, String role) {
+      if (assignRoleException != null) {
+        throw assignRoleException;
+      }
+      assignedRoleUserId = userId;
+      assignedRole = role;
+    }
+
+    @Override
+    public void removeUser(String userId) {
+      removedUserIds.add(userId);
+      usersByUsername
+          .values()
+          .removeIf(userRepresentation -> userId.equals(userRepresentation.getId()));
+    }
+
+    @Override
+    public void verifyPassword(String username, String password) {
+      verifiedUsername = username;
+      verifiedPassword = password;
+      if (verifyPasswordException != null) {
+        throw verifyPasswordException;
+      }
+    }
+
+    @Override
+    public void resetPassword(String userId, CredentialRepresentation credentialRepresentation) {
+      resetPasswordUserId = userId;
+      resetPasswordCredential = credentialRepresentation;
+    }
+
+    @Override
+    public void executeActionsEmail(String userId, List<String> actions) {
+      actionsEmailUserId = userId;
+      actionsEmailActions.clear();
+      actionsEmailActions.addAll(actions);
+    }
+
+    private void addUser(String username, String userId) {
+      final UserRepresentation userRepresentation = new UserRepresentation();
+      userRepresentation.setUsername(username);
+      userRepresentation.setId(userId);
+      usersByUsername.put(username, userRepresentation);
+    }
   }
 }
