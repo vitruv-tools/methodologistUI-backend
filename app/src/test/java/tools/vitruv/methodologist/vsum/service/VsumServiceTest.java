@@ -41,6 +41,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
+import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -98,6 +101,7 @@ class VsumServiceTest {
   @Mock private VsumViewRepository vsumViewRepository;
   @Mock private VsumViewMetaModelRepository vsumViewMetaModelRepository;
   @Mock private VsumViewMapper vsumViewMapper;
+  @Mock private SetupServiceApiHandler setupServiceApiHandler;
 
   private VsumService service;
 
@@ -193,7 +197,8 @@ class VsumServiceTest {
             vsumViewService,
             vsumViewRepository,
             vsumViewMetaModelRepository,
-            vsumViewMapper);
+            vsumViewMapper,
+            setupServiceApiHandler);
 
     lenient().when(vsumViewRepository.findAllByVsum(any(Vsum.class))).thenReturn(List.of());
     lenient()
@@ -1236,5 +1241,64 @@ class VsumServiceTest {
         .contains("COPY app.jar /app/app.jar")
         .contains("EXPOSE 8080")
         .contains("ENTRYPOINT");
+  }
+
+  @Test
+  void buildVsumZipViaSetupService_delegatesToApiHandler_andReturnsArtifact() {
+    List<MultipartFile> metamodelFiles =
+        List.of(new MockMultipartFile("metamodelFiles", "model.ecore", null, "ecore".getBytes()));
+    List<MultipartFile> genmodelFiles =
+        List.of(
+            new MockMultipartFile("genmodelFiles", "model.genmodel", null, "genmodel".getBytes()));
+    List<MultipartFile> reactionFiles =
+        List.of(
+            new MockMultipartFile(
+                "reactionFiles", "templateReactions.reactions", null, "reactions".getBytes()));
+    byte[] expected = {1, 2, 3};
+    when(setupServiceApiHandler.buildVsumZipOrThrow(metamodelFiles, genmodelFiles, reactionFiles))
+        .thenReturn(expected);
+
+    byte[] result =
+        service.buildVsumZipViaSetupService(metamodelFiles, genmodelFiles, reactionFiles);
+
+    assertThat(result).isEqualTo(expected);
+    verify(setupServiceApiHandler)
+        .buildVsumZipOrThrow(metamodelFiles, genmodelFiles, reactionFiles);
+  }
+
+  @Test
+  void buildVsumJarViaSetupService_delegatesToApiHandler_andReturnsArtifact() {
+    List<MultipartFile> metamodelFiles =
+        List.of(new MockMultipartFile("metamodelFiles", "model.ecore", null, "ecore".getBytes()));
+    List<MultipartFile> genmodelFiles =
+        List.of(
+            new MockMultipartFile("genmodelFiles", "model.genmodel", null, "genmodel".getBytes()));
+    List<MultipartFile> reactionFiles =
+        List.of(
+            new MockMultipartFile(
+                "reactionFiles", "templateReactions.reactions", null, "reactions".getBytes()));
+    byte[] expected = {9, 8, 7};
+    when(setupServiceApiHandler.buildVsumJarOrThrow(metamodelFiles, genmodelFiles, reactionFiles))
+        .thenReturn(expected);
+
+    byte[] result =
+        service.buildVsumJarViaSetupService(metamodelFiles, genmodelFiles, reactionFiles);
+
+    assertThat(result).isEqualTo(expected);
+    verify(setupServiceApiHandler)
+        .buildVsumJarOrThrow(metamodelFiles, genmodelFiles, reactionFiles);
+  }
+
+  @Test
+  void buildVsumZipViaSetupService_propagatesSetupServiceException() {
+    List<MultipartFile> files =
+        List.of(new MockMultipartFile("metamodelFiles", "model.ecore", null, "ecore".getBytes()));
+    when(setupServiceApiHandler.buildVsumZipOrThrow(files, files, files))
+        .thenThrow(
+            new tools.vitruv.methodologist.exception.SetupServiceException("setup-service down"));
+
+    assertThatThrownBy(() -> service.buildVsumZipViaSetupService(files, files, files))
+        .isInstanceOf(tools.vitruv.methodologist.exception.SetupServiceException.class)
+        .hasMessageContaining("setup-service down");
   }
 }

@@ -32,11 +32,14 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
 import tools.vitruv.methodologist.exception.BuildArtifactCreationException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
 import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
@@ -104,6 +107,8 @@ public class VsumService {
   private final VsumViewRepository vsumViewRepository;
   private final VsumViewMetaModelRepository vsumViewMetaModelRepository;
   private final VsumViewMapper vsumViewMapper;
+  private final SetupServiceApiHandler setupServiceApiHandler;
+  private final FileStorageRepository fileStorageRepository;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -406,6 +411,42 @@ public class VsumService {
     } catch (Exception e) {
       throw new VsumBuildingException(VITRUV_CLI_ERROR + e);
     }
+  }
+
+  /**
+   * Builds a VSUM via the external setup-service from the supplied model files and returns the
+   * generated ZIP artifact.
+   *
+   * @param metamodelFiles the metamodel (.ecore) files
+   * @param genmodelFiles the genmodel (.genmodel) files
+   * @param reactionFiles the reaction (.reactions) files
+   * @return the generated ZIP artifact as a byte array
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
+   *     fails or returns an empty artifact
+   */
+  public byte[] buildVsumZipViaSetupService(
+      List<MultipartFile> metamodelFiles,
+      List<MultipartFile> genmodelFiles,
+      List<MultipartFile> reactionFiles) {
+    return setupServiceApiHandler.buildVsumZipOrThrow(metamodelFiles, genmodelFiles, reactionFiles);
+  }
+
+  /**
+   * Builds a VSUM via the external setup-service from the supplied model files and returns the
+   * generated JAR artifact.
+   *
+   * @param metamodelFiles the metamodel (.ecore) files
+   * @param genmodelFiles the genmodel (.genmodel) files
+   * @param reactionFiles the reaction (.reactions) files
+   * @return the generated JAR artifact as a byte array
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
+   *     fails or returns an empty artifact
+   */
+  public byte[] buildVsumJarViaSetupService(
+      List<MultipartFile> metamodelFiles,
+      List<MultipartFile> genmodelFiles,
+      List<MultipartFile> reactionFiles) {
+    return setupServiceApiHandler.buildVsumJarOrThrow(metamodelFiles, genmodelFiles, reactionFiles);
   }
 
   /**
