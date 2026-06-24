@@ -3,19 +3,22 @@ package tools.vitruv.methodologist.apihandler;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
+import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
 import tools.vitruv.methodologist.exception.SetupServiceException;
+import tools.vitruv.methodologist.general.model.FileStorage;
 
 /**
  * Component responsible for handling API calls to the external setup-service. Provides
@@ -25,11 +28,15 @@ import tools.vitruv.methodologist.exception.SetupServiceException;
 @Component
 public class SetupServiceApiHandler {
   public static final int DEFAULT_RESPONSE_TIMEOUT_IN_SECONDS = 300;
-  public static final String BUILD_URL = "/setup-service/api/vsum/build";
-  public static final String JAR_URL = "/setup-service/api/vsum/jar";
+  public static final int DEFAULT_MAX_RESPONSE_SIZE_IN_BYTES = 524_288_000;
+  public static final String BUILD_URL = "/api/vsum/build";
+  public static final String JAR_URL = "/api/vsum/jar";
+  public static final String PROCESS_GENMODEL_URL = "/api/genmodel/process";
+  public static final String INSPECT_GENMODEL_URL = "/api/genmodel/inspect";
   public static final String METAMODEL_FILES_PART = "metamodelFiles";
   public static final String GENMODEL_FILES_PART = "genmodelFiles";
   public static final String REACTION_FILES_PART = "reactionFiles";
+  public static final String FILE_PART = "file";
 
   private static final MediaType APPLICATION_ZIP = MediaType.parseMediaType("application/zip");
   private static final MediaType APPLICATION_JAR =
@@ -43,12 +50,16 @@ public class SetupServiceApiHandler {
    * buffered.
    *
    * @param baseUrl the base URL of the setup-service
-   * @param payloadSize maximum size in bytes for request/response payloads
+   * @param maxResponseSize maximum size in bytes of the build artifact buffered in memory
    * @param responseTimeoutSeconds the response timeout in seconds for build requests
    */
   public SetupServiceApiHandler(
       @Value("${third_api.setup_service.base_url}") String baseUrl,
-      @Value("${http.client.payload_size}") int payloadSize,
+      @Value(
+              "${third_api.setup_service.max_response_size:"
+                  + DEFAULT_MAX_RESPONSE_SIZE_IN_BYTES
+                  + "}")
+          int maxResponseSize,
       @Value(
               "${third_api.setup_service.timeout-seconds:"
                   + DEFAULT_RESPONSE_TIMEOUT_IN_SECONDS
@@ -62,7 +73,8 @@ public class SetupServiceApiHandler {
             .baseUrl(baseUrl)
             .exchangeStrategies(
                 ExchangeStrategies.builder()
-                    .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(payloadSize))
+                    .codecs(
+                        configurer -> configurer.defaultCodecs().maxInMemorySize(maxResponseSize))
                     .build())
             .clientConnector(new ReactorClientHttpConnector(httpClient))
             .build();
@@ -78,9 +90,9 @@ public class SetupServiceApiHandler {
    * @throws SetupServiceException if the setup-service call fails or returns an empty artifact
    */
   public byte[] buildVsumZipOrThrow(
-      List<MultipartFile> metamodelFiles,
-      List<MultipartFile> genmodelFiles,
-      List<MultipartFile> reactionFiles) {
+      List<FileStorage> metamodelFiles,
+      List<FileStorage> genmodelFiles,
+      List<FileStorage> reactionFiles) {
     return requestArtifactOrThrow(
         BUILD_URL, APPLICATION_ZIP, metamodelFiles, genmodelFiles, reactionFiles);
   }
@@ -95,9 +107,9 @@ public class SetupServiceApiHandler {
    * @throws SetupServiceException if the setup-service call fails or returns an empty artifact
    */
   public byte[] buildVsumJarOrThrow(
-      List<MultipartFile> metamodelFiles,
-      List<MultipartFile> genmodelFiles,
-      List<MultipartFile> reactionFiles) {
+      List<FileStorage> metamodelFiles,
+      List<FileStorage> genmodelFiles,
+      List<FileStorage> reactionFiles) {
     return requestArtifactOrThrow(
         JAR_URL, APPLICATION_JAR, metamodelFiles, genmodelFiles, reactionFiles);
   }
@@ -105,9 +117,9 @@ public class SetupServiceApiHandler {
   private byte[] requestArtifactOrThrow(
       String uri,
       MediaType acceptType,
-      List<MultipartFile> metamodelFiles,
-      List<MultipartFile> genmodelFiles,
-      List<MultipartFile> reactionFiles) {
+      List<FileStorage> metamodelFiles,
+      List<FileStorage> genmodelFiles,
+      List<FileStorage> reactionFiles) {
     MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
     addFileParts(bodyBuilder, METAMODEL_FILES_PART, metamodelFiles);
     addFileParts(bodyBuilder, GENMODEL_FILES_PART, genmodelFiles);
@@ -155,17 +167,140 @@ public class SetupServiceApiHandler {
     return artifact;
   }
 
+  /**
+   * Sends a GenModel to the setup-service {@code /api/genmodel/process} endpoint, which fixes the
+   * GenModel and returns the processed file.
+   *
+   * @param genModelFile the GenModel (.genmodel) file to process
+   * @return the processed GenModel file as a byte array
+   * @throws SetupServiceException if the setup-service call fails or returns an empty file
+   */
+  public byte[] processGenModelOrThrow(FileStorage genModelFile) {
+    MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
+    addFilePart(bodyBuilder, FILE_PART, genModelFile);
+
+    byte[] processed;
+    try {
+      processed =
+          webClient
+              .post()
+              .uri(PROCESS_GENMODEL_URL)
+              .contentType(MediaType.MULTIPART_FORM_DATA)
+              .accept(MediaType.APPLICATION_OCTET_STREAM)
+              .body(BodyInserters.fromMultipartData(bodyBuilder.build()))
+              .retrieve()
+              .onStatus(
+                  HttpStatusCode::isError,
+                  response ->
+                      response
+                          .bodyToMono(String.class)
+                          .defaultIfEmpty("")
+                          .flatMap(
+                              body ->
+                                  Mono.error(
+                                      new SetupServiceException(
+                                          "Setup-service request to '"
+                                              + PROCESS_GENMODEL_URL
+                                              + "' failed with status "
+                                              + response.statusCode()
+                                              + ": "
+                                              + body))))
+              .bodyToMono(byte[].class)
+              .block();
+    } catch (SetupServiceException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new SetupServiceException(
+          "Failed to call setup-service '" + PROCESS_GENMODEL_URL + "': " + e.getMessage());
+    }
+
+    if (processed == null || processed.length == 0) {
+      throw new SetupServiceException(
+          "Setup-service returned an empty GenModel for '" + PROCESS_GENMODEL_URL + "'.");
+    }
+    return processed;
+  }
+
+  /**
+   * Sends a GenModel to the setup-service {@code /api/genmodel/inspect} endpoint, which validates
+   * the GenModel and returns a message describing the planned changes or the detected problem.
+   *
+   * <p>Both a successful (2xx) response and a validation failure (HTTP 422) are returned as a
+   * {@link GenModelInspectionResponse}; only other error statuses raise a {@link
+   * SetupServiceException}.
+   *
+   * @param genModelFile the GenModel (.genmodel) file to inspect
+   * @return the inspection result
+   * @throws SetupServiceException if the setup-service call fails for any reason other than a 422
+   *     validation failure
+   */
+  public GenModelInspectionResponse inspectGenModelOrThrow(FileStorage genModelFile) {
+    MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
+    addFilePart(bodyBuilder, FILE_PART, genModelFile);
+
+    try {
+      GenModelInspectionResponse inspection =
+          webClient
+              .post()
+              .uri(INSPECT_GENMODEL_URL)
+              .contentType(MediaType.MULTIPART_FORM_DATA)
+              .accept(MediaType.APPLICATION_JSON)
+              .body(BodyInserters.fromMultipartData(bodyBuilder.build()))
+              .exchangeToMono(
+                  response -> {
+                    if (response.statusCode().is2xxSuccessful()
+                        || response.statusCode().value()
+                            == HttpStatus.UNPROCESSABLE_ENTITY.value()) {
+                      return response.bodyToMono(GenModelInspectionResponse.class);
+                    }
+                    return response
+                        .bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(
+                            body ->
+                                Mono.error(
+                                    new SetupServiceException(
+                                        "Setup-service request to '"
+                                            + INSPECT_GENMODEL_URL
+                                            + "' failed with status "
+                                            + response.statusCode()
+                                            + ": "
+                                            + body)));
+                  })
+              .block();
+
+      if (inspection == null) {
+        throw new SetupServiceException(
+            "Setup-service returned an empty response for '" + INSPECT_GENMODEL_URL + "'.");
+      }
+      return inspection;
+    } catch (SetupServiceException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new SetupServiceException(
+          "Failed to call setup-service '" + INSPECT_GENMODEL_URL + "': " + e.getMessage());
+    }
+  }
+
+  private void addFilePart(MultipartBodyBuilder bodyBuilder, String partName, FileStorage file) {
+    if (file == null || file.getData() == null || file.getData().length == 0) {
+      throw new SetupServiceException("Cannot send an empty file to the setup-service.");
+    }
+    String filename = file.getFilename() == null ? partName : file.getFilename();
+    bodyBuilder.part(partName, new ByteArrayResource(file.getData())).filename(filename);
+  }
+
   private void addFileParts(
-      MultipartBodyBuilder bodyBuilder, String partName, List<MultipartFile> files) {
+      MultipartBodyBuilder bodyBuilder, String partName, List<FileStorage> files) {
     if (CollectionUtils.isEmpty(files)) {
       return;
     }
-    for (MultipartFile file : files) {
-      if (file == null || file.isEmpty()) {
+    for (FileStorage file : files) {
+      if (file == null || file.getData() == null || file.getData().length == 0) {
         continue;
       }
-      String filename = file.getOriginalFilename() == null ? partName : file.getOriginalFilename();
-      bodyBuilder.part(partName, file.getResource()).filename(filename);
+      String filename = file.getFilename() == null ? partName : file.getFilename();
+      bodyBuilder.part(partName, new ByteArrayResource(file.getData())).filename(filename);
     }
   }
 }

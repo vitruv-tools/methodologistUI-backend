@@ -12,9 +12,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.web.multipart.MultipartFile;
+import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
 import tools.vitruv.methodologist.exception.SetupServiceException;
+import tools.vitruv.methodologist.general.model.FileStorage;
 
 class SetupServiceApiHandlerTest {
 
@@ -24,9 +24,9 @@ class SetupServiceApiHandlerTest {
   private MockWebServer mockWebServer;
   private SetupServiceApiHandler setupServiceApiHandler;
 
-  private List<MultipartFile> metamodelFiles;
-  private List<MultipartFile> genmodelFiles;
-  private List<MultipartFile> reactionFiles;
+  private List<FileStorage> metamodelFiles;
+  private List<FileStorage> genmodelFiles;
+  private List<FileStorage> reactionFiles;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -37,24 +37,16 @@ class SetupServiceApiHandlerTest {
         new SetupServiceApiHandler(
             mockWebServer.url("/").toString(), PAYLOAD_SIZE, TIMEOUT_SECONDS);
 
-    metamodelFiles =
-        List.of(
-            new MockMultipartFile(
-                "metamodelFiles", "model.ecore", "application/octet-stream", "ecore".getBytes()));
-    genmodelFiles =
-        List.of(
-            new MockMultipartFile(
-                "genmodelFiles",
-                "model.genmodel",
-                "application/octet-stream",
-                "genmodel".getBytes()));
-    reactionFiles =
-        List.of(
-            new MockMultipartFile(
-                "reactionFiles",
-                "templateReactions.reactions",
-                "application/octet-stream",
-                "reactions".getBytes()));
+    metamodelFiles = List.of(fileStorage("model.ecore", "ecore".getBytes()));
+    genmodelFiles = List.of(fileStorage("model.genmodel", "genmodel".getBytes()));
+    reactionFiles = List.of(fileStorage("templateReactions.reactions", "reactions".getBytes()));
+  }
+
+  private static FileStorage fileStorage(String filename, byte[] data) {
+    FileStorage fileStorage = new FileStorage();
+    fileStorage.setFilename(filename);
+    fileStorage.setData(data);
+    return fileStorage;
   }
 
   @AfterEach
@@ -141,5 +133,94 @@ class SetupServiceApiHandlerTest {
                 setupServiceApiHandler.buildVsumZipOrThrow(
                     metamodelFiles, genmodelFiles, reactionFiles))
         .isInstanceOf(SetupServiceException.class);
+  }
+
+  @Test
+  void processGenModelOrThrow_returnsProcessedBytes_andPostsToProcessEndpoint() throws Exception {
+    byte[] expected = "fixed-genmodel".getBytes();
+    mockWebServer.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .setHeader(HttpHeaders.CONTENT_TYPE, "application/octet-stream")
+            .setBody(new Buffer().write(expected)));
+
+    byte[] result =
+        setupServiceApiHandler.processGenModelOrThrow(
+            fileStorage("model.genmodel", "genmodel".getBytes()));
+
+    assertThat(result).containsExactly(expected);
+
+    RecordedRequest recordedRequest = mockWebServer.takeRequest();
+    assertThat(recordedRequest.getMethod()).isEqualTo("POST");
+    assertThat(recordedRequest.getPath()).isEqualTo(SetupServiceApiHandler.PROCESS_GENMODEL_URL);
+    String body = recordedRequest.getBody().readUtf8();
+    assertThat(body).contains(SetupServiceApiHandler.FILE_PART);
+    assertThat(body).contains("model.genmodel");
+  }
+
+  @Test
+  void processGenModelOrThrow_throwsSetupServiceException_onErrorStatus() {
+    mockWebServer.enqueue(new MockResponse().setResponseCode(500).setBody("boom"));
+
+    assertThatThrownBy(
+            () ->
+                setupServiceApiHandler.processGenModelOrThrow(
+                    fileStorage("model.genmodel", "genmodel".getBytes())))
+        .isInstanceOf(SetupServiceException.class)
+        .hasMessageContaining("boom");
+  }
+
+  @Test
+  void inspectGenModelOrThrow_returnsMessage_onSuccess() throws Exception {
+    mockWebServer.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+            .setBody(
+                "{\"data\":[],\"message\":\"GenModel inspected successfully, showing planned"
+                    + " changes\"}"));
+
+    GenModelInspectionResponse result =
+        setupServiceApiHandler.inspectGenModelOrThrow(
+            fileStorage("model.genmodel", "genmodel".getBytes()));
+
+    assertThat(result.getMessage())
+        .isEqualTo("GenModel inspected successfully, showing planned changes");
+
+    RecordedRequest recordedRequest = mockWebServer.takeRequest();
+    assertThat(recordedRequest.getMethod()).isEqualTo("POST");
+    assertThat(recordedRequest.getPath()).isEqualTo(SetupServiceApiHandler.INSPECT_GENMODEL_URL);
+  }
+
+  @Test
+  void inspectGenModelOrThrow_returnsErrorMessage_onUnprocessableEntity() {
+    mockWebServer.enqueue(
+        new MockResponse()
+            .setResponseCode(422)
+            .setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+            .setBody(
+                "{\"errorCode\":\"MISSING_PLUGIN_ID\",\"message\":\"GenModel has missing/blank"
+                    + " modelPluginID\",\"path\":\"/api/genmodel/inspect\",\"status\":422,"
+                    + "\"timestamp\":1782314329746}"));
+
+    GenModelInspectionResponse result =
+        setupServiceApiHandler.inspectGenModelOrThrow(
+            fileStorage("model.genmodel", "genmodel".getBytes()));
+
+    assertThat(result.getErrorCode()).isEqualTo("MISSING_PLUGIN_ID");
+    assertThat(result.getMessage()).contains("missing/blank modelPluginID");
+    assertThat(result.getStatus()).isEqualTo(422);
+  }
+
+  @Test
+  void inspectGenModelOrThrow_throwsSetupServiceException_onServerError() {
+    mockWebServer.enqueue(new MockResponse().setResponseCode(500).setBody("boom"));
+
+    assertThatThrownBy(
+            () ->
+                setupServiceApiHandler.inspectGenModelOrThrow(
+                    fileStorage("model.genmodel", "genmodel".getBytes())))
+        .isInstanceOf(SetupServiceException.class)
+        .hasMessageContaining("boom");
   }
 }
