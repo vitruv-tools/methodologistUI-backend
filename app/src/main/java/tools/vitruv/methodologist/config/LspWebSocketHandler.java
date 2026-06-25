@@ -1,5 +1,7 @@
 package tools.vitruv.methodologist.config;
 
+import static tools.vitruv.methodologist.messages.Error.LSP_PROCESS_WAIT_ERROR;
+
 import jakarta.annotation.PreDestroy;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -32,6 +34,7 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import tools.vitruv.methodologist.exception.LspProcessException;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.service.MetaModelService;
 
@@ -486,7 +489,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         logger.warn("Interrupted while waiting for LSP process to exit");
         process.destroyForcibly();
       } catch (IOException e) {
-        throw new RuntimeException(e);
+        throw new LspProcessException(LSP_PROCESS_WAIT_ERROR, e);
       }
     }
   }

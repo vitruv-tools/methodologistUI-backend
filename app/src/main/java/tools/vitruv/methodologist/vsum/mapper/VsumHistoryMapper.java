@@ -9,6 +9,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.VsumHistoryRespon
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumHistory;
+import tools.vitruv.methodologist.vsum.model.VsumView;
 
 /**
  * MapStruct mapper that converts a domain {@link Vsum} aggregate into a serializable {@link
@@ -42,6 +43,7 @@ public interface VsumHistoryMapper {
                 .map(metaModel -> metaModel.getMetaModel().getSource().getId())
                 .collect(Collectors.toSet()))
         .metaModelsRealation(toMetaModelsRelation(vsum.getMetaModelRelations()))
+        .views(toView(vsum.getViews()))
         .build();
   }
 
@@ -62,6 +64,32 @@ public interface VsumHistoryMapper {
                     .sourceId(metaModelRelation.getSource().getSource().getId())
                     .targetId(metaModelRelation.getTarget().getSource().getId())
                     .relationFileStorage(metaModelRelation.getReactionFileStorage().getId())
+                    .build())
+        .collect(Collectors.toSet());
+  }
+
+  /**
+   * Maps domain {@link VsumView} entities to representation view DTOs.
+   *
+   * <p>Each mapped view contains the related meta model source IDs and its associated file storage
+   * identifier.
+   *
+   * @param views the VSUM views to transform; must not be {@code null}
+   * @return a set of mapped {@link VsumRepresentation.View} entries for history representation
+   */
+  default Set<VsumRepresentation.View> toView(Set<VsumView> views) {
+    return views.stream()
+        .map(
+            view ->
+                VsumRepresentation.View.builder()
+                    .metaModelIds(
+                        view.getViewMetaModels().stream()
+                            .map(
+                                vsumViewMetaModel ->
+                                    vsumViewMetaModel.getMetaModel().getSource().getId())
+                            .sorted()
+                            .toList())
+                    .fileStorageId(view.getFileStorage().getId())
                     .build())
         .collect(Collectors.toSet());
   }

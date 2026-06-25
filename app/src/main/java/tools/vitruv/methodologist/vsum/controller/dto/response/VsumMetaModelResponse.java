@@ -10,7 +10,7 @@ import lombok.Setter;
 
 /**
  * Response DTO representing a VsumMetaModel and its associated metadata. Contains identifying
- * information, timestamps, and the list of linked MetaModels.
+ * information, timestamps, and the list of linked MetaModels, MetaModel relations, and views.
  */
 @Builder
 @Getter
@@ -25,4 +25,5 @@ public class VsumMetaModelResponse {
   private Instant removedAt;
   private List<MetaModelResponse> metaModels;
   private List<MetaModelRelationResponse> metaModelsRelation;
+  private List<ViewsResponse> views;
 }
