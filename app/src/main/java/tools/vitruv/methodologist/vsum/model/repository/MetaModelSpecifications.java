@@ -14,6 +14,8 @@ import tools.vitruv.methodologist.vsum.model.MetaModel;
  */
 public class MetaModelSpecifications {
 
+  private MetaModelSpecifications() {}
+
   /**
    * Builds a JPA {@link Specification} for filtering {@link MetaModel} entities according to the
    * provided caller context and filter request.

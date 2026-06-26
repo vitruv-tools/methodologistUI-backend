@@ -35,7 +35,7 @@ class DockerEphemeralBuildServiceTest {
   }
 
   @Test
-  void success_whenResultJsonPresent() throws Exception {
+  void success_whenResultJsonPresent() throws IOException {
     String json =
         """
         { "success": true, "errors": 0, "warnings": 1,
@@ -60,7 +60,7 @@ class DockerEphemeralBuildServiceTest {
   }
 
   @Test
-  void timeout_returnsFailure() throws Exception {
+  void timeout_returnsFailure() {
     testableService.fake = FakeProcess.neverEnds();
     testableService.timeoutSeconds = 1;
 
@@ -80,7 +80,7 @@ class DockerEphemeralBuildServiceTest {
   }
 
   @Test
-  void noResultJson_exitZero_usesConsole() throws Exception {
+  void noResultJson_exitZero_usesConsole() {
     testableService.fake = FakeProcess.withExit(0, "console ok");
 
     MetamodelBuildInput in =
@@ -99,7 +99,7 @@ class DockerEphemeralBuildServiceTest {
   }
 
   @Test
-  void noResultJson_exitNonZero_isFailure() throws Exception {
+  void noResultJson_exitNonZero_isFailure() {
     testableService.fake = FakeProcess.withExit(7, "boom");
 
     MetamodelBuildInput in =
@@ -118,7 +118,7 @@ class DockerEphemeralBuildServiceTest {
   }
 
   @Test
-  void crash_exception_isFailure() throws Exception {
+  void crash_exception_isFailure() {
     testableService.throwOnStart = new IOException("cannot start");
     MetamodelBuildInput in =
         MetamodelBuildService.MetamodelBuildInput.builder()
@@ -152,27 +152,24 @@ class DockerEphemeralBuildServiceTest {
     private final int code;
     private final ByteArrayInputStream out;
     private final long sleepMillis;
-    private final Path resultDir;
 
-    private FakeProcess(int code, String stdout, long sleepMillis, Path resultDir) {
+    private FakeProcess(int code, String stdout, long sleepMillis) {
       this.code = code;
       this.out = new ByteArrayInputStream(stdout.getBytes(StandardCharsets.UTF_8));
       this.sleepMillis = sleepMillis;
-      this.resultDir = resultDir;
     }
 
     static FakeProcess withExit(int code, String stdout) {
-      return new FakeProcess(code, stdout, 0, null);
+      return new FakeProcess(code, stdout, 0);
     }
 
     static FakeProcess neverEnds() {
-      return new FakeProcess(0, "", Long.MAX_VALUE, null);
+      return new FakeProcess(0, "", Long.MAX_VALUE);
     }
 
     static FakeProcess withResultJson(String json, int exit, String stdout) throws IOException {
-      Path temp = Files.createTempDirectory("mm-test-out-" + Instant.now().toEpochMilli());
-      Files.createDirectories(temp);
-      return new FakeProcess(exit, stdout, 50, temp) {
+      Files.createTempDirectory("mm-test-out-" + Instant.now().toEpochMilli());
+      return new FakeProcess(exit, stdout, 50) {
         @Override
         public boolean waitFor(long timeout, java.util.concurrent.TimeUnit unit)
             throws InterruptedException {
@@ -226,6 +223,7 @@ class DockerEphemeralBuildServiceTest {
     }
 
     @Override
+    @SuppressWarnings("java:S2925")
     public boolean waitFor(long timeout, java.util.concurrent.TimeUnit unit)
         throws InterruptedException {
       if (sleepMillis == Long.MAX_VALUE) {

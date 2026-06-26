@@ -23,6 +23,7 @@ import tools.vitruv.methodologist.user.RoleType;
  * KeycloakAuthentication.ParsedToken} object for easier access.
  */
 @Getter
+@SuppressWarnings("java:S2160")
 public class KeycloakAuthentication extends JwtAuthenticationToken implements Serializable {
 
   @Serial private static final long serialVersionUID = 1L;

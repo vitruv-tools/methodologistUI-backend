@@ -6,8 +6,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +60,9 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
       List<String> cmd = buildCommand(ecore, gen, outDir);
       Process process = startProcess(cmd);
       return evaluateProcessResult(process, outDir);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return buildCrashResult(e);
     } catch (Exception e) {
       return buildCrashResult(e);
     } finally {
@@ -63,8 +70,15 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
     }
   }
 
+  @SuppressWarnings("java:S5443")
   private Path createJobDirectory(MetamodelBuildInput input) throws IOException {
-    return Files.createTempDirectory("mm-" + input.getMetaModelId() + "-");
+    try {
+      FileAttribute<Set<PosixFilePermission>> attr =
+          PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"));
+      return Files.createTempDirectory("mm-" + input.getMetaModelId() + "-", attr);
+    } catch (UnsupportedOperationException e) {
+      return Files.createTempDirectory("mm-" + input.getMetaModelId() + "-");
+    }
   }
 
   private Path createInputDirectory(Path job) throws IOException {

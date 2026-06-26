@@ -41,7 +41,7 @@ public class GenerateFromTemplate {
    */
   public Path generateMwe2(List<MetamodelLocation> models, VitruvConfiguration config)
       throws IOException {
-    List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+    List<Map<String, Object>> items = new ArrayList<>();
     for (MetamodelLocation m : models) {
       items.add(
           Map.of(

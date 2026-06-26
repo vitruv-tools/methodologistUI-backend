@@ -3,11 +3,13 @@ package tools.vitruv.methodologist.builder;
 import static java.nio.file.Files.createDirectories;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 import tools.vitruv.methodologist.builder.configuration.MetamodelLocation;
 import tools.vitruv.methodologist.builder.configuration.VitruvConfiguration;
 
@@ -18,12 +20,14 @@ import tools.vitruv.methodologist.builder.configuration.VitruvConfiguration;
  */
 public class Main {
 
+  private static final Logger logger = Logger.getLogger(Main.class.getName());
+
   /**
    * Runs the CLI application. Parses arguments, validates input metamodel files, generates workflow
    * configuration, and writes a result.json file with execution details. Exits with code 0 on
    * success or 1 on failure.
    */
-  public static void main(String[] args) throws Exception {
+  public static void main(String[] args) throws IOException {
     Map<String, String> parsedArgs = parseArgs(args);
     String out = parsedArgs.getOrDefault("--out", System.getProperty("java.io.tmpdir") + "/mm-out");
 
@@ -73,7 +77,7 @@ public class Main {
       }
       sb.append(expandPath(pg[0].trim())).append(",").append(expandPath(pg[1].trim())).append(";");
     }
-    return sb.toString().replaceAll(";+?$", "");
+    return sb.toString().replaceAll(";+$", "");
   }
 
   private static VitruvConfiguration buildAndValidateConfiguration(String out, String pairs) {
@@ -107,7 +111,7 @@ public class Main {
 
   private static void handleSuccess(
       String out, Map<String, Object> result, List<String> nsUris, VitruvConfiguration cfg)
-      throws Exception {
+      throws IOException {
     result.put("success", true);
     result.put("errors", 0);
     result.put("warnings", 0);
@@ -116,19 +120,19 @@ public class Main {
     result.put("report", "Generated " + mwe2.getFileName());
     result.put("nsUris", nsUris);
 
-    System.out.println(result);
+    logger.log(java.util.logging.Level.INFO, result::toString);
     writeResult(out, result);
   }
 
   private static void handleFailure(
-      String out, Map<String, Object> result, List<String> nsUris, Exception e) throws Exception {
+      String out, Map<String, Object> result, List<String> nsUris, Exception e) throws IOException {
     result.put("success", false);
     result.put("errors", 1);
     result.put("warnings", 0);
     result.put("report", "Build failed: " + e.getMessage());
     result.put("nsUris", nsUris);
 
-    System.out.println(result);
+    logger.log(java.util.logging.Level.INFO, result::toString);
     writeResult(out, result);
   }
 
@@ -142,7 +146,7 @@ public class Main {
     return path;
   }
 
-  private static void writeResult(String out, Map<String, Object> result) throws Exception {
+  private static void writeResult(String out, Map<String, Object> result) throws IOException {
     Path outDir = Paths.get(out);
     createDirectories(outDir);
     new ObjectMapper()

@@ -55,6 +55,11 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
   @Value("${vitruvocl.lsp.jar.path}")
   private Resource jarResource;
 
+  /**
+   * Constructs a new {@code OclLspWebSocketHandler}.
+   *
+   * @param metaModelService service for accessing metamodel data
+   */
   public OclLspWebSocketHandler(MetaModelService metaModelService) {
     this.metaModelService = metaModelService;
     cleanupScheduler.scheduleAtFixedRate(
@@ -64,15 +69,24 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
         TimeUnit.SECONDS);
   }
 
+  @SuppressWarnings("java:S5443")
   private String getJarPath() throws IOException {
     try (var in = jarResource.getInputStream()) {
-      Path tempFile = Files.createTempFile("vitruvocl-ls-", ".jar");
+      Path tempFile;
+      try {
+        FileAttribute<Set<PosixFilePermission>> attr =
+            PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------"));
+        tempFile = Files.createTempFile("vitruvocl-ls-", ".jar", attr);
+      } catch (UnsupportedOperationException e) {
+        tempFile = Files.createTempFile("vitruvocl-ls-", ".jar");
+      }
       Files.copy(in, tempFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
       return tempFile.toAbsolutePath().toString();
     }
   }
 
   @Override
+  @SuppressWarnings("java:S5443")
   public void afterConnectionEstablished(WebSocketSession session) throws Exception {
     String sessionId = session.getId();
     logger.info("🔌 OCL-LSP WebSocket connected: {}", sessionId);
@@ -204,7 +218,9 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
   }
 
   private void cleanupTempDir(Path tempDir) {
-    if (tempDir == null || !Files.exists(tempDir)) return;
+    if (tempDir == null || !Files.exists(tempDir)) {
+      return;
+    }
     try (Stream<Path> paths = Files.walk(tempDir)) {
       paths
           .sorted(Comparator.reverseOrder())
@@ -221,6 +237,7 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
     }
   }
 
+  /** Shuts down the cleanup scheduler and destroys all active OCL LSP sessions. */
   @PreDestroy
   public void shutdown() {
     cleanupScheduler.shutdown();
@@ -229,11 +246,19 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
 
   private Long extractQueryParam(WebSocketSession session, String param) {
     try {
-      String query = session.getUri().getQuery();
-      if (query == null) return null;
+      var uri = session.getUri();
+      if (uri == null) {
+        return null;
+      }
+      String query = uri.getQuery();
+      if (query == null) {
+        return null;
+      }
       for (String part : query.split("&")) {
         String[] kv = part.split("=", 2);
-        if (kv.length == 2 && kv[0].equals(param)) return Long.parseLong(kv[1]);
+        if (kv.length == 2 && kv[0].equals(param)) {
+          return Long.parseLong(kv[1]);
+        }
       }
     } catch (Exception e) {
       logger.warn("Could not extract {} from OCL-LSP WebSocket URI", param);
@@ -261,19 +286,25 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
         String line;
         while ((line = reader.readLine()) != null) {
           if (line.startsWith("Content-Length:")) {
-            try {
-              int len = Integer.parseInt(line.split(":")[1].trim());
-              String sep = reader.readLine(); // empty line
-              char[] buf = new char[len];
-              int read = reader.read(buf, 0, len);
-              session.sendMessage(new TextMessage(new String(buf, 0, read)));
-            } catch (Exception e) {
-              logger.error("OCL-LSP read error for {}: {}", session.getId(), e.getMessage());
-            }
+            processLspMessage(line);
           }
         }
       } catch (IOException e) {
         logger.debug("OCL-LSP reader closed for session {}", session.getId());
+      }
+    }
+
+    @SuppressWarnings("java:S2201")
+    private void processLspMessage(String headerLine) {
+      try {
+        int len = Integer.parseInt(headerLine.split(":")[1].trim());
+        var separator = reader.readLine(); // empty line between header and body
+        if (separator == null) return;
+        char[] buf = new char[len];
+        int read = reader.read(buf, 0, len);
+        session.sendMessage(new TextMessage(new String(buf, 0, read)));
+      } catch (Exception e) {
+        logger.error("OCL-LSP read error for {}: {}", session.getId(), e.getMessage());
       }
     }
 
@@ -292,7 +323,9 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
       }
       process.destroy();
       try {
-        if (!process.waitFor(5, TimeUnit.SECONDS)) process.destroyForcibly();
+        if (!process.waitFor(5, TimeUnit.SECONDS)) {
+          process.destroyForcibly();
+        }
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         process.destroyForcibly();

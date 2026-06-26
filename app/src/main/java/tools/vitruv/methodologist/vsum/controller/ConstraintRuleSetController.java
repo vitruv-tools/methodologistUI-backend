@@ -28,16 +28,35 @@ public class ConstraintRuleSetController {
 
   private final ConstraintRuleSetService service;
 
+  /**
+   * Constructs a new {@code ConstraintRuleSetController}.
+   *
+   * @param service the rule set service
+   */
   public ConstraintRuleSetController(ConstraintRuleSetService service) {
     this.service = service;
   }
 
+  /**
+   * Returns all rule sets for the given VSUM.
+   *
+   * @param vsumId the VSUM ID
+   * @return list of rule set responses
+   */
   @GetMapping
   @PreAuthorize("isAuthenticated()")
   public ResponseEntity<List<RuleSetResponse>> getAll(@PathVariable Long vsumId) {
     return ResponseEntity.ok(service.findAll(vsumId));
   }
 
+  /**
+   * Creates a new rule set for the given VSUM.
+   *
+   * @param authentication the current user's authentication
+   * @param vsumId the VSUM ID
+   * @param request the creation request
+   * @return the created rule set with HTTP 201
+   */
   @PostMapping
   @PreAuthorize("isAuthenticated()")
   public ResponseEntity<RuleSetResponse> create(
@@ -48,6 +67,15 @@ public class ConstraintRuleSetController {
     return ResponseEntity.status(HttpStatus.CREATED).body(service.create(email, vsumId, request));
   }
 
+  /**
+   * Updates an existing rule set.
+   *
+   * @param authentication the current user's authentication
+   * @param vsumId the VSUM ID
+   * @param ruleSetId the rule set ID
+   * @param request the update request
+   * @return the updated rule set response
+   */
   @PutMapping("/{ruleSetId}")
   @PreAuthorize("isAuthenticated()")
   public ResponseEntity<RuleSetResponse> update(
@@ -59,6 +87,13 @@ public class ConstraintRuleSetController {
     return ResponseEntity.ok(service.update(email, vsumId, ruleSetId, request));
   }
 
+  /**
+   * Deletes a rule set by ID.
+   *
+   * @param vsumId the VSUM ID
+   * @param ruleSetId the rule set ID to delete
+   * @return HTTP 204 No Content
+   */
   @DeleteMapping("/{ruleSetId}")
   @PreAuthorize("isAuthenticated()")
   public ResponseEntity<Void> delete(@PathVariable Long vsumId, @PathVariable Long ruleSetId) {

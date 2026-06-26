@@ -55,6 +55,7 @@ public class SecurityConfiguration {
    * @throws Exception on configuration errors
    */
   @Bean
+  @SuppressWarnings("java:S1874")
   public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
     return http.csrf(csrf -> csrf.disable())
         .cors(cors -> cors.configurationSource(corsConfigurationSource()))

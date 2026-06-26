@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.controller.dto.response;
 
 import java.time.Instant;
 
+/** Response DTO representing an OCL constraint rule set. */
 public record RuleSetResponse(
     Long id,
     Long vsumId,

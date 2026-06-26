@@ -3,7 +3,7 @@ package tools.vitruv.methodologist.vsum.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -211,10 +211,8 @@ class ConstraintRuleSetServiceTest {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("unknown@example.com"))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(
-            () ->
-                service.create(
-                    "unknown@example.com", 10L, new RuleSetPostRequest("X", null, null, null)))
+    var req = new RuleSetPostRequest("X", null, null, null);
+    assertThatThrownBy(() -> service.create("unknown@example.com", 10L, req))
         .isInstanceOf(UnauthorizedException.class);
   }
 
@@ -224,10 +222,8 @@ class ConstraintRuleSetServiceTest {
         .thenReturn(Optional.of(user));
     when(vsumRepository.findById(99L)).thenReturn(Optional.empty());
 
-    assertThatThrownBy(
-            () ->
-                service.create(
-                    "test@example.com", 99L, new RuleSetPostRequest("X", null, null, null)))
+    var req = new RuleSetPostRequest("X", null, null, null);
+    assertThatThrownBy(() -> service.create("test@example.com", 99L, req))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining("VSUM not found");
   }
@@ -323,10 +319,8 @@ class ConstraintRuleSetServiceTest {
         .thenReturn(Optional.of(user));
     when(ruleSetRepository.findByIdAndVsumId(999L, 10L)).thenReturn(Optional.empty());
 
-    assertThatThrownBy(
-            () ->
-                service.update(
-                    "test@example.com", 10L, 999L, new RuleSetPutRequest("X", null, null, null)))
+    var req = new RuleSetPutRequest("X", null, null, null);
+    assertThatThrownBy(() -> service.update("test@example.com", 10L, 999L, req))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining("RuleSet not found");
   }
@@ -336,10 +330,8 @@ class ConstraintRuleSetServiceTest {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("unknown@example.com"))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(
-            () ->
-                service.update(
-                    "unknown@example.com", 10L, 100L, new RuleSetPutRequest("X", null, null, null)))
+    var req = new RuleSetPutRequest("X", null, null, null);
+    assertThatThrownBy(() -> service.update("unknown@example.com", 10L, 100L, req))
         .isInstanceOf(UnauthorizedException.class);
   }
 
@@ -380,10 +372,11 @@ class ConstraintRuleSetServiceTest {
 
   @Test
   void delete_doesNotDeleteOtherRuleSets() {
+    ConstraintRuleSet otherRuleSet = new ConstraintRuleSet();
     when(ruleSetRepository.findByIdAndVsumId(100L, 10L)).thenReturn(Optional.of(ruleSet));
 
     service.delete(10L, 100L);
 
-    verify(ruleSetRepository).delete(eq(ruleSet));
+    verify(ruleSetRepository, never()).delete(otherRuleSet);
   }
 }

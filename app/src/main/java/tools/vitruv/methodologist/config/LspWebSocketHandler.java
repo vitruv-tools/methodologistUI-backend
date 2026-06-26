@@ -75,15 +75,24 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
   }
 
   /** Loads JarPath from properties File. */
+  @SuppressWarnings("java:S5443")
   private String getJarPath() throws IOException {
     try (var in = jarResource.getInputStream()) {
-      Path tempFile = Files.createTempFile("reactions-ide-", ".jar");
+      Path tempFile;
+      try {
+        FileAttribute<Set<PosixFilePermission>> attr =
+            PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------"));
+        tempFile = Files.createTempFile("reactions-ide-", ".jar", attr);
+      } catch (UnsupportedOperationException e) {
+        tempFile = Files.createTempFile("reactions-ide-", ".jar");
+      }
       Files.copy(in, tempFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
       return tempFile.toAbsolutePath().toString();
     }
   }
 
   @Override
+  @SuppressWarnings("java:S5443")
   public void afterConnectionEstablished(WebSocketSession session) throws Exception {
     String sessionId = session.getId();
     logger.info("🔌 WebSocket connection established: {}", sessionId);
@@ -346,7 +355,9 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
 
   private Long extractProjectId(WebSocketSession session) {
     try {
-      String query = session.getUri().getQuery();
+      var uri = session.getUri();
+      if (uri == null) return null;
+      String query = uri.getQuery();
       if (query != null && query.contains("vsumId=")) {
         String projectIdStr = extractQueryParam(query, "vsumId");
         if (projectIdStr != null) {

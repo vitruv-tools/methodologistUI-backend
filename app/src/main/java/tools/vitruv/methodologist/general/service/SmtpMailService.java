@@ -141,7 +141,7 @@ public class SmtpMailService {
       helper.setText(html, true); // true => HTML
       mailSender.send(msg);
     } catch (MessagingException | MailException | java.io.UnsupportedEncodingException e) {
-      throw new RuntimeException("Failed to send email via SMTP: " + e.getMessage(), e);
+      throw new IllegalStateException("Failed to send email via SMTP: " + e.getMessage(), e);
     }
   }
 
@@ -157,14 +157,12 @@ public class SmtpMailService {
     String raw = readClasspathFile(classpathPath);
     String rendered = raw;
 
-    // Simple placeholder replacement: {{key}}
     for (var entry : vars.entrySet()) {
       String key = entry.getKey();
       String value = entry.getValue() == null ? "" : entry.getValue();
       rendered = rendered.replace("{{" + key + "}}", htmlEscape(value));
     }
 
-    // If any placeholders remain, you’ll see it immediately instead of silently sending garbage.
     return rendered;
   }
 
@@ -179,7 +177,7 @@ public class SmtpMailService {
     try (var in = new ClassPathResource(classpathPath).getInputStream()) {
       return new String(in.readAllBytes(), StandardCharsets.UTF_8);
     } catch (IOException e) {
-      throw new RuntimeException(
+      throw new IllegalStateException(
           "Failed to load email template from classpath: " + classpathPath, e);
     }
   }

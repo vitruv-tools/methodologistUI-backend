@@ -46,6 +46,7 @@ public class UserPostRequest {
   private String password;
 
   @Override
+  @SuppressWarnings("java:S2068")
   public String toString() {
     return "UserPostRequest(email="
         + email

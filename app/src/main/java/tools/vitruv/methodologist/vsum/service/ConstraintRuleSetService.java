@@ -25,6 +25,7 @@ import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.repository.ConstraintRuleSetRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
 
+/** Service for managing OCL constraint rule sets associated with VSUMs. */
 @Service
 @Slf4j
 @AllArgsConstructor
@@ -35,11 +36,25 @@ public class ConstraintRuleSetService {
   VsumRepository vsumRepository;
   UserRepository userRepository;
 
+  /**
+   * Returns all rule sets for the given VSUM.
+   *
+   * @param vsumId the VSUM ID
+   * @return list of rule set responses
+   */
   @Transactional(readOnly = true)
   public List<RuleSetResponse> findAll(Long vsumId) {
     return ruleSetRepository.findByVsumId(vsumId).stream().map(this::toResponse).toList();
   }
 
+  /**
+   * Creates a new rule set for the given VSUM.
+   *
+   * @param callerEmail email of the authenticated user
+   * @param vsumId the VSUM ID
+   * @param request the creation request
+   * @return the created rule set response
+   */
   @Transactional
   public RuleSetResponse create(String callerEmail, Long vsumId, RuleSetPostRequest request) {
     User user = resolveUser(callerEmail);
@@ -60,17 +75,28 @@ public class ConstraintRuleSetService {
     return toResponse(ruleSetRepository.save(ruleSet));
   }
 
+  /**
+   * Updates an existing rule set.
+   *
+   * @param callerEmail email of the authenticated user
+   * @param vsumId the VSUM ID
+   * @param ruleSetId the rule set ID
+   * @param request the update request
+   * @return the updated rule set response
+   */
   @Transactional
   public RuleSetResponse update(
       String callerEmail, Long vsumId, Long ruleSetId, RuleSetPutRequest request) {
-    User user = resolveUser(callerEmail);
+    final User user = resolveUser(callerEmail);
     ConstraintRuleSet ruleSet =
         ruleSetRepository
             .findByIdAndVsumId(ruleSetId, vsumId)
             .orElseThrow(() -> new NotFoundException("RuleSet not found"));
 
     ruleSet.setName(request.name());
-    if (request.color() != null) ruleSet.setColor(request.color());
+    if (request.color() != null) {
+      ruleSet.setColor(request.color());
+    }
     ruleSet.setDescription(request.description());
 
     String content = request.oclContent() != null ? request.oclContent() : "";
@@ -80,6 +106,12 @@ public class ConstraintRuleSetService {
     return toResponse(ruleSetRepository.save(ruleSet));
   }
 
+  /**
+   * Deletes a rule set by ID.
+   *
+   * @param vsumId the VSUM ID
+   * @param ruleSetId the rule set ID to delete
+   */
   @Transactional
   public void delete(Long vsumId, Long ruleSetId) {
     ConstraintRuleSet ruleSet =

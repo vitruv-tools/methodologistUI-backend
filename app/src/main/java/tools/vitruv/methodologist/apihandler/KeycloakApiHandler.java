@@ -2,7 +2,7 @@ package tools.vitruv.methodologist.apihandler;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategy;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import java.time.Duration;
 import java.util.Map;
@@ -90,7 +90,7 @@ public class KeycloakApiHandler {
         .retrieve()
         .bodyToMono(KeycloakWebToken.class)
         .doOnError(
-            (exception) -> {
+            exception -> {
               throw new UncheckedRuntimeException(exception.getMessage());
             })
         .block();
@@ -107,7 +107,7 @@ public class KeycloakApiHandler {
    *     fails
    */
   public KeycloakWebToken getAccessTokenOrThrow(String username, String password) {
-    LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<String, String>();
+    LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
     formData.add("client_id", clientId);
     formData.add("grant_type", "password");
     formData.add("username", username);
@@ -150,7 +150,7 @@ public class KeycloakApiHandler {
    *     request fails
    */
   public KeycloakWebToken getAccessTokenByRefreshToken(String refreshToken) {
-    LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<String, String>();
+    LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
     formData.add("client_id", clientId);
     formData.add("grant_type", "refresh_token");
     formData.add("refresh_token", refreshToken);
@@ -182,7 +182,7 @@ public class KeycloakApiHandler {
   /** DTO for token exchange request body parameters. */
   @Setter
   @Getter
-  @JsonNaming(PropertyNamingStrategy.SnakeCaseStrategy.class)
+  @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
   public static class ExchangeTokenPostBody {
 
     /** DTO for token request body parameters. */
@@ -215,7 +215,7 @@ public class KeycloakApiHandler {
   @Getter
   @Builder
   @AllArgsConstructor
-  @JsonNaming(PropertyNamingStrategy.SnakeCaseStrategy.class)
+  @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
   public static class TokenPostBody {
     private String clientId;
     private String grantType;
