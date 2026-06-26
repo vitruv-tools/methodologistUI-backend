@@ -9,7 +9,8 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.vitruv.methodologist.builder.configuration.MetamodelLocation;
 import tools.vitruv.methodologist.builder.configuration.VitruvConfiguration;
 
@@ -19,8 +20,7 @@ import tools.vitruv.methodologist.builder.configuration.VitruvConfiguration;
  * files. Produces a result.json file containing success, error, and diagnostic information.
  */
 public class Main {
-
-  private static final Logger logger = Logger.getLogger(Main.class.getName());
+  private static final Logger log = LoggerFactory.getLogger(Main.class);
 
   /**
    * Runs the CLI application. Parses arguments, validates input metamodel files, generates workflow
@@ -120,7 +120,7 @@ public class Main {
     result.put("report", "Generated " + mwe2.getFileName());
     result.put("nsUris", nsUris);
 
-    logger.log(java.util.logging.Level.INFO, result::toString);
+    log.info("Result: {}", result);
     writeResult(out, result);
   }
 
@@ -132,7 +132,7 @@ public class Main {
     result.put("report", "Build failed: " + e.getMessage());
     result.put("nsUris", nsUris);
 
-    logger.log(java.util.logging.Level.INFO, result::toString);
+    log.info("Result: {}", result);
     writeResult(out, result);
   }
 
