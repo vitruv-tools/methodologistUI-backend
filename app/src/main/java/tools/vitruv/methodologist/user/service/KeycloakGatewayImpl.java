@@ -1,9 +1,9 @@
 package tools.vitruv.methodologist.user.service;
 
+import jakarta.annotation.PreDestroy;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 import java.util.Optional;
-import org.jboss.resteasy.client.jaxrs.internal.ClientResponse;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
@@ -54,15 +54,35 @@ public class KeycloakGatewayImpl implements KeycloakGateway {
             .build();
   }
 
+  private static void requestAccessToken(
+      String authServerUrl, String realm, String clientId, String username, String password) {
+    try (Keycloak keycloak =
+        KeycloakBuilder.builder()
+            .serverUrl(authServerUrl)
+            .grantType(OAuth2Constants.PASSWORD)
+            .realm(realm)
+            .clientId(clientId)
+            .username(username)
+            .password(password)
+            .build()) {
+      keycloak.tokenManager().getAccessTokenString();
+    }
+  }
+
+  @PreDestroy
+  void close() {
+    keycloakAdmin.close();
+  }
+
   @Override
   public UserCreationResult createUser(UserRepresentation userRepresentation) {
-    final Response response = keycloakAdmin.realm(realm).users().create(userRepresentation);
-    final int status = response.getStatus();
-    if (status != Response.Status.CREATED.getStatusCode()) {
-      return new UserCreationResult(status, ((ClientResponse) response).getReasonPhrase());
+    try (Response response = keycloakAdmin.realm(realm).users().create(userRepresentation)) {
+      final int status = response.getStatus();
+      if (status != Response.Status.CREATED.getStatusCode()) {
+        return new UserCreationResult(status, response.getStatusInfo().getReasonPhrase());
+      }
+      return new UserCreationResult(status, null);
     }
-    response.close();
-    return new UserCreationResult(status, null);
   }
 
   @Override
@@ -91,16 +111,7 @@ public class KeycloakGatewayImpl implements KeycloakGateway {
 
   @Override
   public void verifyPassword(String username, String password) {
-    KeycloakBuilder.builder()
-        .serverUrl(authServerUrl)
-        .grantType(OAuth2Constants.PASSWORD)
-        .realm(realm)
-        .clientId(clientId)
-        .username(username)
-        .password(password)
-        .build()
-        .tokenManager()
-        .getAccessTokenString();
+    requestAccessToken(authServerUrl, realm, clientId, username, password);
   }
 
   @Override

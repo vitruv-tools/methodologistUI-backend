@@ -74,8 +74,9 @@ class KeycloakServiceTest {
   void createUser_throwsClientError_whenKeycloakDoesNotCreateUser() {
     keycloakGateway.creationResult =
         new KeycloakGateway.UserCreationResult(HttpStatus.BAD_REQUEST.value(), "Bad Request");
+    final KeycloakUser keycloakUser = createKeycloakUser();
 
-    assertThatThrownBy(() -> keycloakService.createUser(createKeycloakUser()))
+    assertThatThrownBy(() -> keycloakService.createUser(keycloakUser))
         .isInstanceOf(ClientErrorException.class);
 
     assertThat(keycloakGateway.createdUserRepresentation).isNotNull();
@@ -86,8 +87,9 @@ class KeycloakServiceTest {
   void createUser_removesCreatedUser_whenRoleAssignmentFails() {
     final RuntimeException roleError = new RuntimeException("role error");
     keycloakGateway.assignRoleException = roleError;
+    final KeycloakUser keycloakUser = createKeycloakUser();
 
-    assertThatThrownBy(() -> keycloakService.createUser(createKeycloakUser())).isSameAs(roleError);
+    assertThatThrownBy(() -> keycloakService.createUser(keycloakUser)).isSameAs(roleError);
 
     assertThat(keycloakGateway.removedUserIds).containsExactly("user-1");
   }
