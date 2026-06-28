@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -80,9 +79,9 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
   }
 
   /**
-   * Creates a private subdirectory under {@code parent} with a unique name. On POSIX systems
-   * {@code rwx------} permissions are applied after creation; on non-POSIX systems the security
-   * relies on {@code parent} being a non-publicly-writable location (e.g. under {@code user.home}).
+   * Creates a private subdirectory under {@code parent} with a unique name. On POSIX systems {@code
+   * rwx------} permissions are applied after creation; on non-POSIX systems the security relies on
+   * {@code parent} being a non-publicly-writable location (e.g. under {@code user.home}).
    */
   private Path createPrivateDirectory(Path parent, String prefix) throws IOException {
     Path dir = parent.resolve(prefix + UUID.randomUUID());
