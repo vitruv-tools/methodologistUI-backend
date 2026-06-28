@@ -303,8 +303,10 @@ class MetaModelServiceTest {
             precheck(
                 GenModelPrecheckStatus.ABORTED,
                 "GENMODEL_PRECHECK_STATUS: ABORTED",
-                "Exception in thread \"main\" java.util.NoSuchElementException:"
-                    + " No line found\n\tat x.y.Z(Z.java:1)",
+                """
+                Exception in thread "main" java.util.NoSuchElementException: No line found
+                \tat x.y.Z(Z.java:1)\
+                """,
                 List.of()));
 
     assertThatThrownBy(() -> metaModelService.create(email, request))
@@ -341,8 +343,10 @@ class MetaModelServiceTest {
                             basePackage \
                             must equal modelPluginID
                             /Users/x/model.genmodel""",
-                "Exception in thread \"main\" java.util.NoSuchElementException:"
-                    + " No line found\n\tat x.y.Z(Z.java:1)",
+                """
+                Exception in thread "main" java.util.NoSuchElementException: No line found
+                \tat x.y.Z(Z.java:1)\
+                """,
                 List.of()));
 
     assertThatThrownBy(() -> metaModelService.create(email, request))
@@ -379,8 +383,11 @@ class MetaModelServiceTest {
                 .status(GenModelPrecheckStatus.CLEAN)
                 .stdout("Validation failed after CLI execution")
                 .stderr(
-                    "Exception in thread \"main\" java.lang.IllegalStateException:"
-                        + " broken\n\tat x.y.Z(Z.java:1)\n/Users/x/model.genmodel")
+                    """
+                    Exception in thread "main" java.lang.IllegalStateException: broken
+                    \tat x.y.Z(Z.java:1)
+                    /Users/x/model.genmodel\
+                    """)
                 .updatedGenModelBytes(List.of())
                 .build());
 
@@ -440,10 +447,11 @@ class MetaModelServiceTest {
   @Test
   void create_throwsNotFound_whenUserMissing() {
     final String email = "missing@ex.com";
+    final MetaModelPostRequest request = req(10L, 20L);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
+    assertThatThrownBy(() -> metaModelService.create(email, request))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(USER_EMAIL_NOT_FOUND_ERROR);
   }
@@ -451,6 +459,7 @@ class MetaModelServiceTest {
   @Test
   void create_throwsNotFound_whenEcoreMissing() {
     final String email = "u@ex.com";
+    final MetaModelPostRequest request = req(10L, 20L);
     final User user = new User();
     user.setEmail(email);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
@@ -460,7 +469,7 @@ class MetaModelServiceTest {
             10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
+    assertThatThrownBy(() -> metaModelService.create(email, request))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(ECORE_FILE_ID_NOT_FOUND_ERROR);
   }
@@ -468,6 +477,7 @@ class MetaModelServiceTest {
   @Test
   void create_throwsNotFound_whenGenModelMissing() {
     final String email = "u@ex.com";
+    final MetaModelPostRequest request = req(10L, 20L);
     final User user = new User();
     user.setEmail(email);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
@@ -482,7 +492,7 @@ class MetaModelServiceTest {
             20L, FileEnumType.GEN_MODEL, email))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
+    assertThatThrownBy(() -> metaModelService.create(email, request))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(GEN_MODEL_FILE_ID_NOT_FOUND_ERROR);
   }
@@ -490,6 +500,7 @@ class MetaModelServiceTest {
   @Test
   void create_throwsNotFound_whenEcoreBelongsToAnotherUser() {
     final String email = "u@ex.com";
+    final MetaModelPostRequest request = req(10L, 20L);
     final User user = new User();
     user.setEmail(email);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
@@ -499,7 +510,7 @@ class MetaModelServiceTest {
             10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
+    assertThatThrownBy(() -> metaModelService.create(email, request))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(ECORE_FILE_ID_NOT_FOUND_ERROR);
 
@@ -712,10 +723,11 @@ class MetaModelServiceTest {
   @Test
   void update_throwsAccessDenied_whenUserMissing() {
     String email = "missing@ex.com";
+    MetaModelPutRequest request = new MetaModelPutRequest();
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> metaModelService.update(email, 1L, new MetaModelPutRequest()))
+    assertThatThrownBy(() -> metaModelService.update(email, 1L, request))
         .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
         .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
 
@@ -736,8 +748,8 @@ class MetaModelServiceTest {
         .thenReturn(Optional.of(user));
     when(metaModelRepository.findById(99L)).thenReturn(Optional.empty());
 
-    ThrowingCallable callable =
-        () -> metaModelService.update(email, 99L, new MetaModelPutRequest());
+    MetaModelPutRequest request = new MetaModelPutRequest();
+    ThrowingCallable callable = () -> metaModelService.update(email, 99L, request);
 
     assertThatThrownBy(callable)
         .isInstanceOf(NotFoundException.class)
@@ -767,7 +779,8 @@ class MetaModelServiceTest {
         .thenReturn(Optional.of(caller));
     when(metaModelRepository.findById(10L)).thenReturn(Optional.of(metaModel));
 
-    assertThatThrownBy(() -> metaModelService.update(email, 10L, new MetaModelPutRequest()))
+    MetaModelPutRequest request = new MetaModelPutRequest();
+    assertThatThrownBy(() -> metaModelService.update(email, 10L, request))
         .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
         .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
 
@@ -905,7 +918,8 @@ class MetaModelServiceTest {
     MetaModelService spyService = org.mockito.Mockito.spy(metaModelService);
     doThrow(new RuntimeException("clone failed")).when(spyService).clone(source);
 
-    ThrowingCallable callable = () -> spyService.update(email, 200L, new MetaModelPutRequest());
+    MetaModelPutRequest request = new MetaModelPutRequest();
+    ThrowingCallable callable = () -> spyService.update(email, 200L, request);
 
     assertThatThrownBy(callable)
         .isInstanceOf(RuntimeException.class)
