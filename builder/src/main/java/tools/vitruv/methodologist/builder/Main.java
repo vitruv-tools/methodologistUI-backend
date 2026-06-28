@@ -3,14 +3,11 @@ package tools.vitruv.methodologist.builder;
 import static java.nio.file.Files.createDirectories;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import tools.vitruv.methodologist.builder.configuration.MetamodelLocation;
 import tools.vitruv.methodologist.builder.configuration.VitruvConfiguration;
 
@@ -20,14 +17,13 @@ import tools.vitruv.methodologist.builder.configuration.VitruvConfiguration;
  * files. Produces a result.json file containing success, error, and diagnostic information.
  */
 public class Main {
-  private static final Logger log = LoggerFactory.getLogger(Main.class);
 
   /**
    * Runs the CLI application. Parses arguments, validates input metamodel files, generates workflow
    * configuration, and writes a result.json file with execution details. Exits with code 0 on
    * success or 1 on failure.
    */
-  public static void main(String[] args) throws IOException {
+  public static void main(String[] args) throws Exception {
     Map<String, String> parsedArgs = parseArgs(args);
     String out = parsedArgs.getOrDefault("--out", System.getProperty("java.io.tmpdir") + "/mm-out");
 
@@ -77,7 +73,7 @@ public class Main {
       }
       sb.append(expandPath(pg[0].trim())).append(",").append(expandPath(pg[1].trim())).append(";");
     }
-    return sb.toString().replaceAll(";+$", "");
+    return sb.toString().replaceAll(";+?$", "");
   }
 
   private static VitruvConfiguration buildAndValidateConfiguration(String out, String pairs) {
@@ -111,7 +107,7 @@ public class Main {
 
   private static void handleSuccess(
       String out, Map<String, Object> result, List<String> nsUris, VitruvConfiguration cfg)
-      throws IOException {
+      throws Exception {
     result.put("success", true);
     result.put("errors", 0);
     result.put("warnings", 0);
@@ -120,19 +116,19 @@ public class Main {
     result.put("report", "Generated " + mwe2.getFileName());
     result.put("nsUris", nsUris);
 
-    log.info("Result: {}", result);
+    System.out.println(result);
     writeResult(out, result);
   }
 
   private static void handleFailure(
-      String out, Map<String, Object> result, List<String> nsUris, Exception e) throws IOException {
+      String out, Map<String, Object> result, List<String> nsUris, Exception e) throws Exception {
     result.put("success", false);
     result.put("errors", 1);
     result.put("warnings", 0);
     result.put("report", "Build failed: " + e.getMessage());
     result.put("nsUris", nsUris);
 
-    log.info("Result: {}", result);
+    System.out.println(result);
     writeResult(out, result);
   }
 
@@ -146,7 +142,7 @@ public class Main {
     return path;
   }
 
-  private static void writeResult(String out, Map<String, Object> result) throws IOException {
+  private static void writeResult(String out, Map<String, Object> result) throws Exception {
     Path outDir = Paths.get(out);
     createDirectories(outDir);
     new ObjectMapper()

@@ -166,7 +166,6 @@ public class VsumService {
    * @throws NotFoundException if the VSUM or the caller's membership is not found
    */
   @Transactional
-  @SuppressWarnings("java:S6809")
   public Vsum update(
       String callerEmail, Long id, VsumSyncChangesPutRequest vsumSyncChangesPutRequest) {
     VsumUser vsumUser =

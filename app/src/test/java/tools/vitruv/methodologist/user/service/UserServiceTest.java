@@ -236,7 +236,7 @@ class UserServiceTest {
     User result = userService.update(id, put);
 
     assertThat(result).isSameAs(existing);
-    verify(userMapper).updateByUserPutRequest(put, existing);
+    verify(userMapper).updateByUserPutRequest(eq(put), eq(existing));
     verify(userRepository).save(existing);
   }
 
@@ -244,8 +244,8 @@ class UserServiceTest {
   void update_throwsNotFound_whenUserMissing() {
     long id = 7L;
     when(userRepository.findByIdAndRemovedAtIsNull(id)).thenReturn(Optional.empty());
-    var req = UserPutRequest.builder().build();
-    assertThatThrownBy(() -> userService.update(id, req)).isInstanceOf(NotFoundException.class);
+    assertThatThrownBy(() -> userService.update(id, UserPutRequest.builder().build()))
+        .isInstanceOf(NotFoundException.class);
     verify(userRepository, never()).save(any());
   }
 

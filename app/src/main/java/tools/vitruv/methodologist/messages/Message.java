@@ -2,9 +2,6 @@ package tools.vitruv.methodologist.messages;
 
 /** Contains constant messages used throughout the application for user operations. */
 public class Message {
-
-  private Message() {}
-
   public static final String FOUND_ISSUE_IN_GEN_MODEL =
       "GenModel precheck status: ISSUES_FOUND."
           + " Validation issues were found in the GenModel file.";

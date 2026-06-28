@@ -379,10 +379,8 @@ class MetaModelServiceTest {
                 .status(GenModelPrecheckStatus.CLEAN)
                 .stdout("Validation failed after CLI execution")
                 .stderr(
-                    """
-                    Exception in thread "main" java.lang.IllegalStateException: broken
-                    \tat x.y.Z(Z.java:1)
-                    /Users/x/model.genmodel""")
+                    "Exception in thread \"main\" java.lang.IllegalStateException:"
+                        + " broken\n\tat x.y.Z(Z.java:1)\n/Users/x/model.genmodel")
                 .updatedGenModelBytes(List.of())
                 .build());
 
@@ -445,8 +443,7 @@ class MetaModelServiceTest {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.empty());
 
-    var request = req(10L, 20L);
-    assertThatThrownBy(() -> metaModelService.create(email, request))
+    assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(USER_EMAIL_NOT_FOUND_ERROR);
   }
@@ -463,8 +460,7 @@ class MetaModelServiceTest {
             10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.empty());
 
-    var request = req(10L, 20L);
-    assertThatThrownBy(() -> metaModelService.create(email, request))
+    assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(ECORE_FILE_ID_NOT_FOUND_ERROR);
   }
@@ -486,8 +482,7 @@ class MetaModelServiceTest {
             20L, FileEnumType.GEN_MODEL, email))
         .thenReturn(Optional.empty());
 
-    var request = req(10L, 20L);
-    assertThatThrownBy(() -> metaModelService.create(email, request))
+    assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(GEN_MODEL_FILE_ID_NOT_FOUND_ERROR);
   }
@@ -504,8 +499,7 @@ class MetaModelServiceTest {
             10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.empty());
 
-    var request = req(10L, 20L);
-    assertThatThrownBy(() -> metaModelService.create(email, request))
+    assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(ECORE_FILE_ID_NOT_FOUND_ERROR);
 

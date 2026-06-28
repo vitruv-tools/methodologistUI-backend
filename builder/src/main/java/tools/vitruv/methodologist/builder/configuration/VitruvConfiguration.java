@@ -32,10 +32,7 @@ public class VitruvConfiguration {
    * a package name.
    */
   public static String removeLastSegment(String s) {
-    if (s == null) {
-      return null;
-    }
-    int i = s.lastIndexOf('.');
+    int i = (s == null ? -1 : s.lastIndexOf('.'));
     return i < 0 ? s : s.substring(0, i);
   }
 

@@ -199,16 +199,17 @@ public class KeycloakService {
   @Transactional
   public void verifyUserPasswordOrThrow(String username, String password) {
     try {
-      KeycloakBuilder.builder()
-          .serverUrl(authServerUrl)
-          .grantType(OAuth2Constants.PASSWORD)
-          .realm(realm)
-          .clientId(clientId)
-          .username(username)
-          .password(password)
-          .build()
-          .tokenManager()
-          .getAccessTokenString();
+      String dummy =
+          KeycloakBuilder.builder()
+              .serverUrl(authServerUrl)
+              .grantType(OAuth2Constants.PASSWORD)
+              .realm(realm)
+              .clientId(clientId)
+              .username(username)
+              .password(password)
+              .build()
+              .tokenManager()
+              .getAccessTokenString();
     } catch (NotAuthorizedException notAuthorizedException) {
       throw new BadRequestException(USER_WRONG_PASSWORD_ERROR);
     } catch (Exception e) {
@@ -224,10 +225,6 @@ public class KeycloakService {
    */
   @Transactional
   public void resetPassword(String username, String password) {
-    doResetPassword(username, password);
-  }
-
-  private void doResetPassword(String username, String password) {
     CredentialRepresentation credentialRepresentation =
         preparePasswordRepresentation(password, false);
     keycloakAdmin
@@ -274,7 +271,13 @@ public class KeycloakService {
    */
   @Transactional
   public void setPassword(String username, String password) {
-    doResetPassword(username, password);
+    CredentialRepresentation credentialRepresentation =
+        preparePasswordRepresentation(password, false);
+    keycloakAdmin
+        .realm(realm)
+        .users()
+        .get(keycloakAdmin.realm(realm).users().search(username).get(0).getId())
+        .resetPassword(credentialRepresentation);
   }
 
   /**

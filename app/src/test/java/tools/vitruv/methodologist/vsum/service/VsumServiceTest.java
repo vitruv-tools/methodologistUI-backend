@@ -542,7 +542,6 @@ class VsumServiceTest {
   }
 
   @Test
-  @SuppressWarnings("java:S5841")
   void update_removesVsumMetaModels_notInDesiredList_andWritesHistory() {
     Vsum vsum = new Vsum();
     vsum.setId(3L);

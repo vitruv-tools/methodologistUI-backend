@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.core.convert.converter.Converter;
-import org.springframework.lang.NonNull;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -26,8 +25,7 @@ public class GrantedAuthoritiesConverter implements Converter<Jwt, Collection<Gr
    * @return a non-null collection of granted authorities
    */
   @Override
-  @SuppressWarnings("java:S2638")
-  public @NonNull Collection<GrantedAuthority> convert(Jwt source) {
+  public Collection<GrantedAuthority> convert(Jwt source) {
     if (source == null) {
       return Collections.emptyList();
     }

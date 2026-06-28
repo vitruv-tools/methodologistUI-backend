@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.vsum.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -146,6 +147,6 @@ class VsumViewMetaModelServiceTest {
   void deleteByVsumView_deletesAllAssociationsForView() {
     service.deleteByVsumView(vsumView);
 
-    verify(vsumViewMetaModelRepository).deleteAllByVsumView(vsumView);
+    verify(vsumViewMetaModelRepository).deleteAllByVsumView(eq(vsumView));
   }
 }

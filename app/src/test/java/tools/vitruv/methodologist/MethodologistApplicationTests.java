@@ -1,12 +1,11 @@
 package tools.vitruv.methodologist;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-
 import org.junit.jupiter.api.Test;
 
 class MethodologistApplicationTests {
   @Test
   void contextLoads() {
-    assertDoesNotThrow(() -> {});
+    // Simple test to verify the application can be compiled and tested
+    assert true;
   }
 }

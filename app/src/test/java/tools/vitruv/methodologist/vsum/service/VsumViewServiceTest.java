@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -197,7 +198,7 @@ class VsumViewServiceTest {
 
     verify(vsumViewRepository).findAllByVsum(vsum);
     verify(vsumViewMetaModelRepository, never()).deleteAllByVsumViewIn(anyCollection());
-    verify(vsumViewRepository).deleteAllByVsum(vsum);
+    verify(vsumViewRepository).deleteAllByVsum(eq(vsum));
     assertThat(vsum.getViews()).isNull();
   }
 

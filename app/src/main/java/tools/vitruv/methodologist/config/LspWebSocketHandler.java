@@ -12,14 +12,12 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileAttribute;
-import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -49,6 +47,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
   private final ConcurrentHashMap<String, Long> lastActivity = new ConcurrentHashMap<>();
   private final ScheduledExecutorService cleanupScheduler = Executors.newScheduledThreadPool(1);
   private final MetaModelService metaModelService;
+  private final Path appTempBase;
 
   @Value("${reactions.ide.jar.path}")
   private Resource jarResource;
@@ -57,11 +56,15 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
    * Constructs a new LspWebSocketHandler with the required metamodel service.
    *
    * @param metaModelService the service for metamodel operations
+   * @throws IOException if the private base directory cannot be created
    */
-  public LspWebSocketHandler(MetaModelService metaModelService) {
+  public LspWebSocketHandler(MetaModelService metaModelService) throws IOException {
     this.metaModelService = metaModelService;
+    Path lspHome = Path.of(System.getProperty("user.home")).resolve(".vitruvocl");
+    Files.createDirectories(lspHome);
+    this.appTempBase = lspHome.resolve("lsp-app-" + UUID.randomUUID());
+    Files.createDirectories(this.appTempBase);
 
-    // Start periodic cleanup task
     cleanupScheduler.scheduleAtFixedRate(
         this::cleanupInactiveSessions,
         CLEANUP_INTERVAL_SECONDS,
@@ -74,44 +77,46 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
         TIMEOUT_MS / 60000);
   }
 
-  /** Loads JarPath from properties File. */
-  @SuppressWarnings("java:S5443")
+  private Path createPrivateDirectory(Path parent, String prefix) throws IOException {
+    Path dir = parent.resolve(prefix + UUID.randomUUID());
+    Files.createDirectories(dir);
+    try {
+      Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwx------"));
+    } catch (UnsupportedOperationException e) {
+      // Non-POSIX system (e.g. Windows): parent under user.home is already private
+    }
+    return dir;
+  }
+
+  private Path createPrivateFile(Path parent, String prefix, String suffix) throws IOException {
+    Path file = parent.resolve(prefix + UUID.randomUUID() + suffix);
+    Files.createFile(file);
+    try {
+      Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
+    } catch (UnsupportedOperationException e) {
+      // Non-POSIX system (e.g. Windows): parent under user.home is already private
+    }
+    return file;
+  }
+
   private String getJarPath() throws IOException {
     try (var in = jarResource.getInputStream()) {
-      Path tempFile;
-      try {
-        FileAttribute<Set<PosixFilePermission>> attr =
-            PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------"));
-        tempFile = Files.createTempFile("reactions-ide-", ".jar", attr);
-      } catch (UnsupportedOperationException e) {
-        tempFile = Files.createTempFile("reactions-ide-", ".jar");
-      }
+      Path tempFile = createPrivateFile(appTempBase, "reactions-ide-", ".jar");
       Files.copy(in, tempFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
       return tempFile.toAbsolutePath().toString();
     }
   }
 
   @Override
-  @SuppressWarnings("java:S5443")
   public void afterConnectionEstablished(WebSocketSession session) throws Exception {
     String sessionId = session.getId();
     logger.info("🔌 WebSocket connection established: {}", sessionId);
 
-    // Track activity
     lastActivity.put(sessionId, System.currentTimeMillis());
 
     Long vsumId = extractProjectId(session);
 
-    FileAttribute<Set<PosixFilePermission>> attr =
-        PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"));
-    Path sessionDir;
-    try {
-      sessionDir = Files.createTempDirectory("lsp-session-" + sessionId, attr);
-    } catch (UnsupportedOperationException e) {
-      // Windows: Fall back to default temp directory security
-      sessionDir = Files.createTempDirectory("lsp-session-" + sessionId);
-      logger.debug("POSIX permissions not supported, using system defaults");
-    }
+    Path sessionDir = createPrivateDirectory(appTempBase, "lsp-session-" + sessionId + "-");
 
     Path userProject = sessionDir.resolve("UserProject");
     Path modelDir = userProject.resolve("model");
@@ -325,12 +330,12 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
     // Cleanup all remaining sessions
     logger.info("🧹 Cleaning up {} remaining sessions...", sessions.size());
 
-    // Copy keySet to avoid ConcurrentModificationException
     List<String> remainingSessions = new ArrayList<>(sessions.keySet());
     for (String sessionId : remainingSessions) {
       cleanupSession(sessionId, "application shutdown");
     }
 
+    cleanupTempDir(appTempBase);
     logger.info("✅ LSP WebSocket handler shutdown complete");
   }
 
