@@ -52,6 +52,12 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
   private final ScheduledExecutorService cleanupScheduler = Executors.newScheduledThreadPool(1);
   private final MetaModelService metaModelService;
 
+  /**
+   * Private base directory owned exclusively by this process. All temp files and session dirs are
+   * created beneath this path, so no content ever lands directly in a publicly writable directory.
+   */
+  private final Path appTempBase;
+
   @Value("${vitruvocl.lsp.jar.path}")
   private Resource jarResource;
 
@@ -59,9 +65,11 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
    * Constructs a new {@code OclLspWebSocketHandler}.
    *
    * @param metaModelService service for accessing metamodel data
+   * @throws IOException if the private base temp directory cannot be created
    */
-  public OclLspWebSocketHandler(MetaModelService metaModelService) {
+  public OclLspWebSocketHandler(MetaModelService metaModelService) throws IOException {
     this.metaModelService = metaModelService;
+    this.appTempBase = createPrivateDirectory(null, "vitruvocl-app-");
     cleanupScheduler.scheduleAtFixedRate(
         this::cleanupInactiveSessions,
         CLEANUP_INTERVAL_SECONDS,
@@ -69,24 +77,53 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
         TimeUnit.SECONDS);
   }
 
-  @SuppressWarnings("java:S5443")
+  /**
+   * falling back to a best-effort creation otherwise. The directory is placed inside {@code parent}
+   * when provided, or in the system temp root otherwise.
+   *
+   * <p>Using a private parent directory ensures that all child paths are also inaccessible to other
+   * OS users, which satisfies the S5443 requirement even on systems where POSIX attributes are not
+   * available.
+   */
+  private Path createPrivateDirectory(Path parent, String prefix) throws IOException {
+    try {
+      FileAttribute<Set<PosixFilePermission>> attr =
+          PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"));
+      return parent == null
+          ? Files.createTempDirectory(prefix, attr)
+          : Files.createTempDirectory(parent, prefix, attr);
+    } catch (UnsupportedOperationException e) {
+      // Non-POSIX system (e.g. Windows): parent already restricts access
+      return parent == null
+          ? Files.createTempDirectory(prefix)
+          : Files.createTempDirectory(parent, prefix);
+    }
+  }
+
+  /**
+   * Creates a regular file inside {@code parent} with POSIX permissions {@code rw-------} when
+   * supported.
+   */
+  private Path createPrivateFile(Path parent, String prefix, String suffix) throws IOException {
+    try {
+      FileAttribute<Set<PosixFilePermission>> attr =
+          PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------"));
+      return Files.createTempFile(parent, prefix, suffix, attr);
+    } catch (UnsupportedOperationException e) {
+      return Files.createTempFile(parent, prefix, suffix);
+    }
+  }
+
   private String getJarPath() throws IOException {
     try (var in = jarResource.getInputStream()) {
-      Path tempFile;
-      try {
-        FileAttribute<Set<PosixFilePermission>> attr =
-            PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------"));
-        tempFile = Files.createTempFile("vitruvocl-ls-", ".jar", attr);
-      } catch (UnsupportedOperationException e) {
-        tempFile = Files.createTempFile("vitruvocl-ls-", ".jar");
-      }
+      // Place the JAR copy inside the private base directory, not in /tmp directly
+      Path tempFile = createPrivateFile(appTempBase, "vitruvocl-ls-", ".jar");
       Files.copy(in, tempFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
       return tempFile.toAbsolutePath().toString();
     }
   }
 
   @Override
-  @SuppressWarnings("java:S5443")
   public void afterConnectionEstablished(WebSocketSession session) throws Exception {
     String sessionId = session.getId();
     logger.info("🔌 OCL-LSP WebSocket connected: {}", sessionId);
@@ -94,15 +131,8 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
 
     Long vsumId = extractQueryParam(session, "vsumId");
 
-    Path sessionDir;
-    try {
-      FileAttribute<Set<PosixFilePermission>> attr =
-          PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"));
-      sessionDir = Files.createTempDirectory("ocl-lsp-" + sessionId, attr);
-    } catch (UnsupportedOperationException e) {
-      sessionDir = Files.createTempDirectory("ocl-lsp-" + sessionId);
-    }
-
+    // Session dir lives inside the private app base — never directly in /tmp
+    Path sessionDir = createPrivateDirectory(appTempBase, "ocl-lsp-" + sessionId + "-");
     Path userProject = sessionDir.resolve("OclProject");
     Path ecoreDir = userProject.resolve("ecore");
     Files.createDirectories(ecoreDir);
@@ -237,11 +267,15 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
     }
   }
 
-  /** Shuts down the cleanup scheduler and destroys all active OCL LSP sessions. */
+  /**
+   * Shuts down the cleanup scheduler, destroys all active OCL LSP sessions, and removes the private
+   * application base directory.
+   */
   @PreDestroy
   public void shutdown() {
     cleanupScheduler.shutdown();
     new ArrayList<>(sessions.keySet()).forEach(id -> cleanupSession(id, "shutdown"));
+    cleanupTempDir(appTempBase);
   }
 
   private Long extractQueryParam(WebSocketSession session, String param) {
