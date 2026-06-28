@@ -324,7 +324,6 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
       }
     }
 
-    @SuppressWarnings("java:S2201")
     private void processLspMessage(String headerLine) {
       try {
         int len = Integer.parseInt(headerLine.split(":")[1].trim());
