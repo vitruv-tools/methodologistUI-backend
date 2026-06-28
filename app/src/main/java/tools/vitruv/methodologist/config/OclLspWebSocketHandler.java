@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -69,7 +70,10 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
    */
   public OclLspWebSocketHandler(MetaModelService metaModelService) throws IOException {
     this.metaModelService = metaModelService;
-    this.appTempBase = createPrivateDirectory(null, "vitruvocl-app-");
+    Path vitruvoclHome = Path.of(System.getProperty("user.home")).resolve(".vitruvocl");
+    Files.createDirectories(vitruvoclHome);
+    this.appTempBase = vitruvoclHome.resolve("app-" + UUID.randomUUID());
+    Files.createDirectories(this.appTempBase);
     cleanupScheduler.scheduleAtFixedRate(
         this::cleanupInactiveSessions,
         CLEANUP_INTERVAL_SECONDS,
@@ -78,31 +82,28 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
   }
 
   /**
-   * falling back to a best-effort creation otherwise. The directory is placed inside {@code parent}
-   * when provided, or in the system temp root otherwise.
-   *
-   * <p>Using a private parent directory ensures that all child paths are also inaccessible to other
-   * OS users, which satisfies the S5443 requirement even on systems where POSIX attributes are not
-   * available.
+   * Creates a private subdirectory under {@code parent}. On POSIX systems the directory receives
+   * {@code rwx------} permissions; on non-POSIX systems the directory is created directly inside
+   * the caller-supplied {@code parent}, which must itself be a non-publicly-writable location (e.g.
+   * under {@code user.home}).
    */
   private Path createPrivateDirectory(Path parent, String prefix) throws IOException {
     try {
       FileAttribute<Set<PosixFilePermission>> attr =
           PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"));
-      return parent == null
-          ? Files.createTempDirectory(prefix, attr)
-          : Files.createTempDirectory(parent, prefix, attr);
+      return Files.createTempDirectory(parent, prefix, attr);
     } catch (UnsupportedOperationException e) {
-      // Non-POSIX system (e.g. Windows): parent already restricts access
-      return parent == null
-          ? Files.createTempDirectory(prefix)
-          : Files.createTempDirectory(parent, prefix);
+      // Non-POSIX system (e.g. Windows): parent is under user.home, so it is already private
+      Path dir = parent.resolve(prefix + UUID.randomUUID());
+      Files.createDirectories(dir);
+      return dir;
     }
   }
 
   /**
-   * Creates a regular file inside {@code parent} with POSIX permissions {@code rw-------} when
-   * supported.
+   * Creates a private file inside {@code parent}. On POSIX systems the file receives {@code
+   * rw-------} permissions; on non-POSIX systems a uniquely named file is created directly inside
+   * the caller-supplied {@code parent}, which must itself be a non-publicly-writable location.
    */
   private Path createPrivateFile(Path parent, String prefix, String suffix) throws IOException {
     try {
@@ -110,7 +111,8 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
           PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------"));
       return Files.createTempFile(parent, prefix, suffix, attr);
     } catch (UnsupportedOperationException e) {
-      return Files.createTempFile(parent, prefix, suffix);
+      // Non-POSIX system (e.g. Windows): parent is under user.home, so it is already private
+      return Files.createFile(parent.resolve(prefix + UUID.randomUUID() + suffix));
     }
   }
 
