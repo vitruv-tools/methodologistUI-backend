@@ -34,7 +34,9 @@ import tools.vitruv.methodologist.vsum.model.MetaModel;
  */
 @ExtendWith(SpringExtension.class)
 @TestPropertySource(
-    properties = {"vitruvocl.lsp.jar.path=src/test/resources/lsp/tools.vitruv.dsls.reactions.ide.jar"})
+    properties = {
+      "vitruvocl.lsp.jar.path=src/test/resources/lsp/tools.vitruv.dsls.reactions.ide.jar"
+    })
 class OclLspWebSocketHandlerTest {
 
   private MetaModelService metaModelService;
