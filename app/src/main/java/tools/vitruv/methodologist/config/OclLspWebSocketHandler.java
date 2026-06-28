@@ -299,7 +299,9 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
       try {
         int len = Integer.parseInt(headerLine.split(":")[1].trim());
         var separator = reader.readLine(); // empty line between header and body
-        if (separator == null) return;
+        if (separator == null) {
+          return;
+        }
         char[] buf = new char[len];
         int read = reader.read(buf, 0, len);
         session.sendMessage(new TextMessage(new String(buf, 0, read)));
