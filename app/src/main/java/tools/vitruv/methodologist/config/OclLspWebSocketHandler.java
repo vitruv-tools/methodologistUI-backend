@@ -10,8 +10,6 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileAttribute;
-import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -82,38 +80,35 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
   }
 
   /**
-   * Creates a private subdirectory under {@code parent}. On POSIX systems the directory receives
-   * {@code rwx------} permissions; on non-POSIX systems the directory is created directly inside
-   * the caller-supplied {@code parent}, which must itself be a non-publicly-writable location (e.g.
-   * under {@code user.home}).
+   * Creates a private subdirectory under {@code parent} with a unique name. On POSIX systems
+   * {@code rwx------} permissions are applied after creation; on non-POSIX systems the security
+   * relies on {@code parent} being a non-publicly-writable location (e.g. under {@code user.home}).
    */
   private Path createPrivateDirectory(Path parent, String prefix) throws IOException {
+    Path dir = parent.resolve(prefix + UUID.randomUUID());
+    Files.createDirectories(dir);
     try {
-      FileAttribute<Set<PosixFilePermission>> attr =
-          PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"));
-      return Files.createTempDirectory(parent, prefix, attr);
+      Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwx------"));
     } catch (UnsupportedOperationException e) {
-      // Non-POSIX system (e.g. Windows): parent is under user.home, so it is already private
-      Path dir = parent.resolve(prefix + UUID.randomUUID());
-      Files.createDirectories(dir);
-      return dir;
+      // Non-POSIX system (e.g. Windows): parent under user.home is already private
     }
+    return dir;
   }
 
   /**
-   * Creates a private file inside {@code parent}. On POSIX systems the file receives {@code
-   * rw-------} permissions; on non-POSIX systems a uniquely named file is created directly inside
-   * the caller-supplied {@code parent}, which must itself be a non-publicly-writable location.
+   * Creates a private file inside {@code parent} with a unique name. On POSIX systems {@code
+   * rw-------} permissions are applied after creation; on non-POSIX systems the security relies on
+   * {@code parent} being a non-publicly-writable location.
    */
   private Path createPrivateFile(Path parent, String prefix, String suffix) throws IOException {
+    Path file = parent.resolve(prefix + UUID.randomUUID() + suffix);
+    Files.createFile(file);
     try {
-      FileAttribute<Set<PosixFilePermission>> attr =
-          PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------"));
-      return Files.createTempFile(parent, prefix, suffix, attr);
+      Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
     } catch (UnsupportedOperationException e) {
-      // Non-POSIX system (e.g. Windows): parent is under user.home, so it is already private
-      return Files.createFile(parent.resolve(prefix + UUID.randomUUID() + suffix));
+      // Non-POSIX system (e.g. Windows): parent under user.home is already private
     }
+    return file;
   }
 
   private String getJarPath() throws IOException {
