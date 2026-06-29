@@ -58,6 +58,7 @@ import tools.vitruv.methodologist.user.controller.dto.response.UserWebToken;
 import tools.vitruv.methodologist.user.mapper.UserMapper;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
+import tools.vitruv.methodologist.vsum.service.VsumInvitationService;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -67,6 +68,7 @@ class UserServiceTest {
   @Mock private KeycloakService keycloakService;
   @Mock private KeycloakApiHandler keycloakApiHandler;
   @Mock private SmtpMailService mailService;
+  @Mock private VsumInvitationService vsumInvitationService;
 
   private UserService userService;
 
@@ -98,6 +100,7 @@ class UserServiceTest {
             keycloakService,
             keycloakApiHandler,
             mailService,
+            vsumInvitationService,
             ttlMinutes);
   }
 
