@@ -36,4 +36,5 @@ public class Message {
       "Member successfully removed from the Vsum";
   public static final String VSUM_USER_CREATED_SUCCESSFULLY =
       "Member successfully added into the Vsum.";
+  public static final String VSUM_INVITATION_SENT_SUCCESSFULLY = "Invitation sent successfully.";
 }

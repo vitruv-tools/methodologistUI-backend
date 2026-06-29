@@ -256,6 +256,30 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
+   * Handles {@link VsumInvitationAlreadyExistsException} thrown when a pending invitation already
+   * exists for the same email and VSUM. Returns an {@link ErrorResponse} with HTTP 400 (Bad
+   * Request), including the error message and request path.
+   *
+   * @param ex the thrown {@code VsumInvitationAlreadyExistsException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the duplicate invitation
+   */
+  @ExceptionHandler(value = VsumInvitationAlreadyExistsException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse vsumInvitationAlreadyExistsException(
+      VsumInvitationAlreadyExistsException ex,
+      HandlerMethod handlerMethod,
+      ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(VsumInvitationAlreadyExistsException.MESSAGE_TEMPLATE)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles {@link OwnerRequiredException} thrown when an operation requires ownership. Returns an
    * {@link ErrorResponse} with HTTP 401 (Unauthorized) status, including the error message and
    * request path.
@@ -582,6 +606,33 @@ public class GlobalExceptionHandlerController {
     return ErrorResponse.builder()
         .error(LSP_PROCESS_ERROR)
         .message(ex.getMessage())
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link SetupServiceException} thrown when a call to the external setup-service fails
+   * (the service is unreachable, returns an error status, or responds with an empty artifact).
+   * Responds with HTTP 502 (Bad Gateway) and a standardized {@link ErrorResponse} containing the
+   * failure message and the request path.
+   *
+   * @param ex the thrown {@code SetupServiceException}
+   * @param handlerMethod the controller method where the exception originated
+   * @param request the current {@link ServletWebRequest} providing request context
+   * @return an {@link ErrorResponse} describing the setup-service failure
+   */
+  @ExceptionHandler(value = SetupServiceException.class)
+  @ResponseStatus(HttpStatus.BAD_GATEWAY)
+  @ResponseBody
+  public ErrorResponse setupServiceException(
+      SetupServiceException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    log.warn(
+        "SetupServiceException handled in Controller: {}, message: {}",
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage());
+    return ErrorResponse.builder()
+        .error(SetupServiceException.ERROR_TEMPLATE)
+        .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
         .build();
   }
