@@ -611,6 +611,33 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
+   * Handles {@link SetupServiceException} thrown when a call to the external setup-service fails
+   * (the service is unreachable, returns an error status, or responds with an empty artifact).
+   * Responds with HTTP 502 (Bad Gateway) and a standardized {@link ErrorResponse} containing the
+   * failure message and the request path.
+   *
+   * @param ex the thrown {@code SetupServiceException}
+   * @param handlerMethod the controller method where the exception originated
+   * @param request the current {@link ServletWebRequest} providing request context
+   * @return an {@link ErrorResponse} describing the setup-service failure
+   */
+  @ExceptionHandler(value = SetupServiceException.class)
+  @ResponseStatus(HttpStatus.BAD_GATEWAY)
+  @ResponseBody
+  public ErrorResponse setupServiceException(
+      SetupServiceException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    log.warn(
+        "SetupServiceException handled in Controller: {}, message: {}",
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage());
+    return ErrorResponse.builder()
+        .error(SetupServiceException.ERROR_TEMPLATE)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles uncaught runtime exceptions.
    *
    * @param ex the caught RuntimeException
