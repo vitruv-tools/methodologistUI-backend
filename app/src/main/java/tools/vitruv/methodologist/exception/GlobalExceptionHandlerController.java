@@ -256,6 +256,30 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
+   * Handles {@link VsumInvitationAlreadyExistsException} thrown when a pending invitation already
+   * exists for the same email and VSUM. Returns an {@link ErrorResponse} with HTTP 400 (Bad
+   * Request), including the error message and request path.
+   *
+   * @param ex the thrown {@code VsumInvitationAlreadyExistsException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the duplicate invitation
+   */
+  @ExceptionHandler(value = VsumInvitationAlreadyExistsException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse vsumInvitationAlreadyExistsException(
+      VsumInvitationAlreadyExistsException ex,
+      HandlerMethod handlerMethod,
+      ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(VsumInvitationAlreadyExistsException.MESSAGE_TEMPLATE)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles {@link OwnerRequiredException} thrown when an operation requires ownership. Returns an
    * {@link ErrorResponse} with HTTP 401 (Unauthorized) status, including the error message and
    * request path.

@@ -163,6 +163,10 @@ public class VsumService {
                 id, callerEmail)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
 
+    if (vsumUser.getRole() == VsumRole.VIEWER) {
+      throw new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS);
+    }
+
     return applySyncChanges(
         vsumUser.getVsum(), vsumUser.getUser(), vsumSyncChangesPutRequest, true);
   }
