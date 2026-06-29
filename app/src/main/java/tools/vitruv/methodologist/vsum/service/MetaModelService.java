@@ -5,10 +5,7 @@ import static tools.vitruv.methodologist.messages.Error.GEN_MODEL_FILE_ID_NOT_FO
 import static tools.vitruv.methodologist.messages.Error.META_MODEL_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
-import static tools.vitruv.methodologist.messages.Message.FOUND_ISSUE_IN_GEN_MODEL;
-import static tools.vitruv.methodologist.messages.Message.PRE_CHECK_GEN_MODEL_ABORTED;
-import static tools.vitruv.methodologist.messages.Message.PRE_CHECK_GEN_MODEL_FAILED;
-import static tools.vitruv.methodologist.messages.Message.PRE_CHECK_GEN_MODEL_UNKNOWN;
+import static tools.vitruv.methodologist.messages.Message.META_MODEL_CREATED_SUCCESSFULLY;
 
 import jakarta.validation.Valid;
 import java.io.File;
@@ -28,6 +25,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
+import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -37,7 +36,6 @@ import tools.vitruv.methodologist.general.model.repository.FileStorageRepository
 import tools.vitruv.methodologist.general.service.FileStorageService;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
-import tools.vitruv.methodologist.vitruvcli.GenModelPrecheckStatus;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelFilterRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPutRequest;
@@ -65,8 +63,6 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class MetaModelService {
 
-  private static final int PRECHECK_SUMMARY_MAX_LENGTH = 160;
-
   MetaModelService self;
   MetaModelMapper metaModelMapper;
   MetaModelRepository metaModelRepository;
@@ -74,7 +70,7 @@ public class MetaModelService {
   UserRepository userRepository;
   MetamodelBuildService metamodelBuildService;
   FileStorageService fileStorageService;
-  MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
+  SetupServiceApiHandler setupServiceApiHandler;
   VsumMetaModelRepository vsumMetaModelRepository;
 
   /**
@@ -87,8 +83,7 @@ public class MetaModelService {
    * @param userRepository repository for user data access
    * @param metamodelBuildService service for building metamodel artifacts
    * @param fileStorageService service for file storage management
-   * @param metaModelVitruvIntegrationService service for executing Vitruv CLI workflows on
-   *     metamodel files
+   * @param setupServiceApiHandler handler for GenModel process/inspect calls to the setup-service
    * @param vsumMetaModelRepository repository for VSUM-metamodel relationships
    */
   public MetaModelService(
@@ -99,7 +94,7 @@ public class MetaModelService {
       UserRepository userRepository,
       MetamodelBuildService metamodelBuildService,
       FileStorageService fileStorageService,
-      MetaModelVitruvIntegrationService metaModelVitruvIntegrationService,
+      SetupServiceApiHandler setupServiceApiHandler,
       VsumMetaModelRepository vsumMetaModelRepository) {
     this.self = self;
     this.metaModelMapper = metaModelMapper;
@@ -108,7 +103,7 @@ public class MetaModelService {
     this.userRepository = userRepository;
     this.metamodelBuildService = metamodelBuildService;
     this.fileStorageService = fileStorageService;
-    this.metaModelVitruvIntegrationService = metaModelVitruvIntegrationService;
+    this.setupServiceApiHandler = setupServiceApiHandler;
     this.vsumMetaModelRepository = vsumMetaModelRepository;
   }
 
@@ -150,107 +145,57 @@ public class MetaModelService {
     return metaModelRepository.save(metaModel);
   }
 
-  private void precheckGenModelOrThrow(CreateContext createContext, boolean applyGenModelFixes) {
-    MetaModelVitruvIntegrationService.GenModelPrecheckExecutionResult result =
-        metaModelVitruvIntegrationService.precheckGenModels(
-            List.of(createContext.ecoreFile()),
-            List.of(createContext.genModelFile()),
-            applyGenModelFixes);
-
-    if (!result.isSuccess()) {
-      logPrecheckFailure(result);
-      throw new CreateMwe2FileException(precheckFailureMessage(result));
-    }
-
-    if (result.shouldOverwriteGenModels()) {
-      fileStorageService.overwriteStoredContent(
-          createContext.genModelFile(), result.getUpdatedGenModelBytes().get(0));
-    }
+  /**
+   * Sends the given GenModel to the setup-service {@code /api/genmodel/process} endpoint, which
+   * fixes it, and returns the processed GenModel file.
+   *
+   * @param genModelFile the GenModel file to process
+   * @return the processed GenModel file as a byte array
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
+   *     fails
+   */
+  public byte[] processGenModel(FileStorage genModelFile) {
+    return setupServiceApiHandler.processGenModelOrThrow(genModelFile);
   }
 
-  private String precheckFailureMessage(
-      MetaModelVitruvIntegrationService.GenModelPrecheckExecutionResult result) {
-    if (result.getStatus() == GenModelPrecheckStatus.ISSUES_FOUND) {
-      return FOUND_ISSUE_IN_GEN_MODEL;
-    }
-
-    if (result.getStatus() == GenModelPrecheckStatus.ABORTED) {
-      return PRE_CHECK_GEN_MODEL_ABORTED;
-    }
-
-    String summary = extractClientSafePrecheckSummary(result);
-    String details = PRE_CHECK_GEN_MODEL_FAILED + result.getStatus();
-    if (summary != null) {
-      details += ". Summary: " + summary;
-    }
-
-    if (result.getStatus() == GenModelPrecheckStatus.UNKNOWN) {
-      return PRE_CHECK_GEN_MODEL_UNKNOWN + details;
-    }
-    return details;
+  /**
+   * Sends the given GenModel to the setup-service {@code /api/genmodel/inspect} endpoint and
+   * returns the inspection result (planned changes on success, or the detected problem).
+   *
+   * @param genModelFile the GenModel file to inspect
+   * @return the inspection result
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
+   *     fails
+   */
+  public GenModelInspectionResponse inspectGenModel(FileStorage genModelFile) {
+    return setupServiceApiHandler.inspectGenModelOrThrow(genModelFile);
   }
 
-  private void logPrecheckFailure(
-      MetaModelVitruvIntegrationService.GenModelPrecheckExecutionResult result) {
-    log.warn(
-        "GenModel precheck failed with status={}, exitCode={}, stdout={}, stderr={}",
-        result.getStatus(),
-        result.getExitCode(),
-        result.getStdout(),
-        result.getStderr());
-  }
-
-  private String extractClientSafePrecheckSummary(
-      MetaModelVitruvIntegrationService.GenModelPrecheckExecutionResult result) {
-    String stderrSummary = extractClientSafePrecheckSummary(result.getStderr());
-    if (stderrSummary != null) {
-      return stderrSummary;
-    }
-    return extractClientSafePrecheckSummary(result.getStdout());
-  }
-
-  private String extractClientSafePrecheckSummary(String output) {
-    if (output == null || output.isBlank()) {
-      return null;
-    }
-
-    return output
-        .lines()
-        .map(String::trim)
-        .filter(this::isClientSafePrecheckSummaryLine)
-        .map(this::truncatePrecheckSummary)
-        .findFirst()
-        .orElse(null);
-  }
-
-  private boolean isClientSafePrecheckSummaryLine(String line) {
-    if (line == null || line.isBlank()) {
-      return false;
-    }
-
-    return !line.startsWith("GENMODEL_PRECHECK_STATUS:")
-        && !line.startsWith("Exception in thread")
-        && !line.startsWith("Caused by:")
-        && !line.startsWith("at ")
-        && !line.startsWith("INFO:")
-        && !line.contains(".java:")
-        && !line.contains("/")
-        && !line.contains("\\");
-  }
-
-  private String truncatePrecheckSummary(String line) {
-    String normalized = line.replaceAll("\\s+", " ").trim();
-    if (normalized.length() <= PRECHECK_SUMMARY_MAX_LENGTH) {
-      return normalized;
-    }
-    return normalized.substring(0, PRECHECK_SUMMARY_MAX_LENGTH - 3) + "...";
-  }
-
-  /** Creates a metamodel, runs GenModel precheck, then headless build, and accepts/rejects it. */
+  /**
+   * Creates a metamodel from the request.
+   *
+   * <p>When {@link MetaModelPostRequest#isApplyGenModelFixes()} is {@code true}, the GenModel is
+   * sent to the setup-service {@code process} endpoint, the returned (fixed) GenModel overwrites
+   * the stored file, and the metamodel is then persisted and built. When it is {@code false}, the
+   * GenModel is only sent to the {@code inspect} endpoint and the resulting message is returned
+   * without creating the metamodel.
+   *
+   * @param callerEmail authenticated user's email
+   * @param req creation request
+   * @return the creation result holding the created metamodel (fixes applied) or the inspection
+   *     message (fixes not applied)
+   */
   @Transactional
-  public MetaModel create(String callerEmail, MetaModelPostRequest req) {
+  public MetaModelCreationResult create(String callerEmail, MetaModelPostRequest req) {
     CreateContext createContext = prepareCreateContext(callerEmail, req);
-    precheckGenModelOrThrow(createContext, req.isApplyGenModelFixes());
+
+    if (!req.isApplyGenModelFixes()) {
+      GenModelInspectionResponse inspection = inspectGenModel(createContext.genModelFile());
+      return new MetaModelCreationResult(null, inspection.getMessage());
+    }
+
+    byte[] processedGenModel = processGenModel(createContext.genModelFile());
+    fileStorageService.overwriteStoredContent(createContext.genModelFile(), processedGenModel);
 
     MetaModel metaModel = savePendingMetaModel(createContext);
 
@@ -267,7 +212,7 @@ public class MetaModelService {
       throw new CreateMwe2FileException(result.getReport());
     }
 
-    return metaModel;
+    return new MetaModelCreationResult(metaModel, META_MODEL_CREATED_SUCCESSFULLY);
   }
 
   /**
@@ -501,4 +446,13 @@ public class MetaModelService {
 
   private record CreateContext(
       User user, MetaModel metaModel, FileStorage ecoreFile, FileStorage genModelFile) {}
+
+  /**
+   * Result of {@link #create(String, MetaModelPostRequest)}.
+   *
+   * @param metaModel the created metamodel, or {@code null} when fixes were not applied and only an
+   *     inspection was performed
+   * @param message the message to return to the caller
+   */
+  public record MetaModelCreationResult(MetaModel metaModel, String message) {}
 }
