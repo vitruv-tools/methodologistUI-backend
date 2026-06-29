@@ -8,5 +8,6 @@ public enum FileEnumType {
   ECORE,
   GEN_MODEL,
   REACTION,
-  NEO_JOIN
+  NEO_JOIN,
+  OCL
 }
