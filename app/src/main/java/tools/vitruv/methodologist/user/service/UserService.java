@@ -42,6 +42,7 @@ import tools.vitruv.methodologist.user.controller.dto.response.UserWebToken;
 import tools.vitruv.methodologist.user.mapper.UserMapper;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
+import tools.vitruv.methodologist.vsum.service.VsumInvitationService;
 
 /**
  * Service class for managing user operations. Handles business logic for creating, updating,
@@ -57,6 +58,7 @@ public class UserService {
   KeycloakApiHandler keycloakApiHandler;
   int ttlMinutes;
   SmtpMailService mailService;
+  VsumInvitationService vsumInvitationService;
 
   /**
    * Constructs a UserService with required dependencies and loads the OTP mail template.
@@ -70,6 +72,7 @@ public class UserService {
       KeycloakService keycloakService,
       KeycloakApiHandler keycloakApiHandler,
       SmtpMailService mailService,
+      VsumInvitationService vsumInvitationService,
       @Value("${app.otp.ttlMinutes}") int ttlMinutes) {
     this.userMapper = userMapper;
     this.userRepository = userRepository;
@@ -77,6 +80,7 @@ public class UserService {
     this.keycloakApiHandler = keycloakApiHandler;
     this.ttlMinutes = ttlMinutes;
     this.mailService = mailService;
+    this.vsumInvitationService = vsumInvitationService;
   }
 
   /**
@@ -218,6 +222,8 @@ public class UserService {
     user.setOtpExpiresAt(otp.expiresAt());
     userRepository.save(user);
 
+    vsumInvitationService.applyPendingInvitations(user);
+
     KeycloakUser keycloakUser =
         KeycloakUser.builder()
             .firstName(user.getFirstName())
@@ -259,6 +265,7 @@ public class UserService {
 
     Optional<User> existingUser =
         userRepository.findByUsernameIgnoreCaseAndRemovedAtIsNull(username);
+    boolean isNewUser = existingUser.isEmpty();
 
     User userToSave =
         existingUser
@@ -267,6 +274,10 @@ public class UserService {
 
     userRepository.save(userToSave);
     keycloakService.assignUserRole(username, userToSave.getRoleType().getName());
+
+    if (isNewUser) {
+      vsumInvitationService.applyPendingInvitations(userToSave);
+    }
   }
 
   /**

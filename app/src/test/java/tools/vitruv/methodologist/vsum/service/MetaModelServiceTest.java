@@ -3,7 +3,6 @@ package tools.vitruv.methodologist.vsum.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -16,6 +15,7 @@ import static tools.vitruv.methodologist.messages.Error.GEN_MODEL_FILE_ID_NOT_FO
 import static tools.vitruv.methodologist.messages.Error.META_MODEL_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Message.META_MODEL_CREATED_SUCCESSFULLY;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +32,8 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
+import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -41,7 +43,6 @@ import tools.vitruv.methodologist.general.model.repository.FileStorageRepository
 import tools.vitruv.methodologist.general.service.FileStorageService;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
-import tools.vitruv.methodologist.vitruvcli.GenModelPrecheckStatus;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelFilterRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPutRequest;
@@ -62,7 +63,7 @@ class MetaModelServiceTest {
   private UserRepository userRepository;
   private MetamodelBuildService metamodelBuildService;
   private FileStorageService fileStorageService;
-  private MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
+  private SetupServiceApiHandler setupServiceApiHandler;
   private VsumMetaModelRepository vsumMetaModelRepository;
 
   private MetaModelService metaModelService;
@@ -73,20 +74,6 @@ class MetaModelServiceTest {
     metaModelPostRequest.setEcoreFileId(ecoreId);
     metaModelPostRequest.setGenModelFileId(genId);
     return metaModelPostRequest;
-  }
-
-  private static MetaModelVitruvIntegrationService.GenModelPrecheckExecutionResult precheck(
-      GenModelPrecheckStatus status, String stdout, String stderr, List<byte[]> updatedGenModels) {
-    return MetaModelVitruvIntegrationService.GenModelPrecheckExecutionResult.builder()
-        .exitCode(
-            status == GenModelPrecheckStatus.CLEAN || status == GenModelPrecheckStatus.FIXES_APPLIED
-                ? 0
-                : 1)
-        .status(status)
-        .stdout(stdout)
-        .stderr(stderr)
-        .updatedGenModelBytes(updatedGenModels)
-        .build();
   }
 
   private static FileStorage fs(long id, FileEnumType type, byte[] data) {
@@ -114,7 +101,7 @@ class MetaModelServiceTest {
     fileStorageRepository = mock(FileStorageRepository.class);
     userRepository = mock(UserRepository.class);
     metamodelBuildService = mock(MetamodelBuildService.class);
-    metaModelVitruvIntegrationService = mock(MetaModelVitruvIntegrationService.class);
+    setupServiceApiHandler = mock(SetupServiceApiHandler.class);
     vsumMetaModelRepository = mock(VsumMetaModelRepository.class);
 
     metaModelService =
@@ -126,15 +113,16 @@ class MetaModelServiceTest {
             userRepository,
             metamodelBuildService,
             fileStorageService,
-            metaModelVitruvIntegrationService,
+            setupServiceApiHandler,
             vsumMetaModelRepository);
   }
 
   @Test
-  void create_success_whenBuildOk() {
+  void create_appliesFixes_processesGenModel_andBuilds_whenApplyGenModelFixesTrue() {
     final String email = "u@ex.com";
 
     final MetaModelPostRequest request = req(10L, 20L);
+    request.setApplyGenModelFixes(true);
     final User user = new User();
     user.setEmail(email);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
@@ -150,10 +138,8 @@ class MetaModelServiceTest {
             20L, FileEnumType.GEN_MODEL, email))
         .thenReturn(Optional.of(gen));
 
-    when(metaModelVitruvIntegrationService.precheckGenModels(List.of(ecore), List.of(gen), false))
-        .thenReturn(
-            precheck(
-                GenModelPrecheckStatus.CLEAN, "GENMODEL_PRECHECK_STATUS: CLEAN", "", List.of()));
+    byte[] processed = "fixed-gen".getBytes();
+    when(setupServiceApiHandler.processGenModelOrThrow(gen)).thenReturn(processed);
 
     final MetaModel mapped = metaModel(null, ecore, gen);
     when(metaModelMapper.toMetaModel(request)).thenReturn(mapped);
@@ -171,21 +157,17 @@ class MetaModelServiceTest {
                 .discoveredNsUris("http://x")
                 .build());
 
-    final MetaModel result = metaModelService.create(email, request);
+    final MetaModelService.MetaModelCreationResult result = metaModelService.create(email, request);
 
-    assertThat(result.getId()).isEqualTo(100L);
-
-    final ArgumentCaptor<MetamodelBuildService.MetamodelBuildInput> captor =
-        ArgumentCaptor.forClass(MetamodelBuildService.MetamodelBuildInput.class);
-    verify(metamodelBuildService).buildAndValidate(captor.capture());
-    assertThat(captor.getValue().getEcoreBytes()).containsExactly(ecore.getData());
-    assertThat(captor.getValue().getGenModelBytes()).containsExactly(gen.getData());
-    assertThat(captor.getValue().isRunMwe2()).isTrue();
-    verify(fileStorageService, never()).overwriteStoredContent(any(), any());
+    assertThat(result.metaModel().getId()).isEqualTo(100L);
+    assertThat(result.message()).isEqualTo(META_MODEL_CREATED_SUCCESSFULLY);
+    verify(setupServiceApiHandler).processGenModelOrThrow(gen);
+    verify(fileStorageService).overwriteStoredContent(gen, processed);
+    verify(setupServiceApiHandler, never()).inspectGenModelOrThrow(any());
   }
 
   @Test
-  void create_overwritesGenModel_whenPrecheckAppliesFixes() {
+  void create_overwritesGenModelWithProcessedBytes_andBuildsWithThem() {
     final String email = "u@ex.com";
     final MetaModelPostRequest request = req(10L, 20L);
     request.setApplyGenModelFixes(true);
@@ -205,13 +187,7 @@ class MetaModelServiceTest {
         .thenReturn(Optional.of(gen));
 
     byte[] fixedGen = "fixed-gen".getBytes();
-    when(metaModelVitruvIntegrationService.precheckGenModels(List.of(ecore), List.of(gen), true))
-        .thenReturn(
-            precheck(
-                GenModelPrecheckStatus.FIXES_APPLIED,
-                "GENMODEL_PRECHECK_STATUS: FIXES_APPLIED",
-                "",
-                List.of(fixedGen)));
+    when(setupServiceApiHandler.processGenModelOrThrow(gen)).thenReturn(fixedGen);
     when(fileStorageService.overwriteStoredContent(gen, fixedGen))
         .thenAnswer(
             inv -> {
@@ -221,18 +197,10 @@ class MetaModelServiceTest {
 
     final MetaModel mapped = metaModel(null, ecore, gen);
     when(metaModelMapper.toMetaModel(request)).thenReturn(mapped);
-
-    final MetaModel saved = metaModel(100L, ecore, gen);
-    when(metaModelRepository.save(any(MetaModel.class))).thenReturn(saved);
+    when(metaModelRepository.save(any(MetaModel.class))).thenReturn(metaModel(100L, ecore, gen));
 
     when(metamodelBuildService.buildAndValidate(any()))
-        .thenReturn(
-            MetamodelBuildService.BuildResult.builder()
-                .success(true)
-                .errors(0)
-                .warnings(0)
-                .report("OK")
-                .build());
+        .thenReturn(MetamodelBuildService.BuildResult.builder().success(true).report("OK").build());
 
     metaModelService.create(email, request);
 
@@ -244,7 +212,7 @@ class MetaModelServiceTest {
   }
 
   @Test
-  void create_throwsCreateMwe2FileException_whenPrecheckFindsIssues() {
+  void create_inspectsAndReturnsMessage_withoutCreating_whenApplyGenModelFixesFalse() {
     final String email = "u@ex.com";
     final MetaModelPostRequest request = req(10L, 20L);
     final User user = new User();
@@ -262,25 +230,26 @@ class MetaModelServiceTest {
         .thenReturn(Optional.of(gen));
 
     when(metaModelMapper.toMetaModel(request)).thenReturn(metaModel(null, ecore, gen));
-    when(metaModelVitruvIntegrationService.precheckGenModels(List.of(ecore), List.of(gen), false))
+    when(setupServiceApiHandler.inspectGenModelOrThrow(gen))
         .thenReturn(
-            precheck(
-                GenModelPrecheckStatus.ISSUES_FOUND,
-                "GENMODEL_PRECHECK_STATUS: ISSUES_FOUND",
-                "basePackage must equal modelPluginID",
-                List.of()));
+            GenModelInspectionResponse.builder()
+                .message("GenModel inspected successfully, showing planned changes")
+                .build());
 
-    assertThatThrownBy(() -> metaModelService.create(email, request))
-        .isInstanceOf(CreateMwe2FileException.class)
-        .hasMessageContaining("GenModel precheck status: ISSUES_FOUND");
+    MetaModelService.MetaModelCreationResult result = metaModelService.create(email, request);
 
+    assertThat(result.metaModel()).isNull();
+    assertThat(result.message())
+        .isEqualTo("GenModel inspected successfully, showing planned changes");
+    verify(setupServiceApiHandler).inspectGenModelOrThrow(gen);
+    verify(setupServiceApiHandler, never()).processGenModelOrThrow(any());
     verify(metaModelRepository, never()).save(any(MetaModel.class));
     verify(metamodelBuildService, never()).buildAndValidate(any());
     verify(fileStorageService, never()).overwriteStoredContent(any(), any());
   }
 
   @Test
-  void create_throwsCreateMwe2FileException_withoutLeakingCliStackTrace_whenPrecheckAborted() {
+  void create_returnsInspectionIssueMessage_whenApplyGenModelFixesFalse() {
     final String email = "u@ex.com";
     final MetaModelPostRequest request = req(10L, 20L);
     final User user = new User();
@@ -298,7 +267,7 @@ class MetaModelServiceTest {
         .thenReturn(Optional.of(gen));
 
     when(metaModelMapper.toMetaModel(request)).thenReturn(metaModel(null, ecore, gen));
-    when(metaModelVitruvIntegrationService.precheckGenModels(List.of(ecore), List.of(gen), false))
+    when(setupServiceApiHandler.inspectGenModelOrThrow(gen))
         .thenReturn(
             precheck(
                 GenModelPrecheckStatus.ABORTED,
@@ -309,29 +278,18 @@ class MetaModelServiceTest {
                 """,
                 List.of()));
 
-    assertThatThrownBy(() -> metaModelService.create(email, request))
-        .isInstanceOf(CreateMwe2FileException.class)
-        .hasMessageContaining("GenModel precheck status: ABORTED")
-        .hasMessageNotContaining("NoSuchElementException");
+    MetaModelService.MetaModelCreationResult result = metaModelService.create(email, request);
+
+    assertThat(result.metaModel()).isNull();
+    assertThat(result.message()).isEqualTo("GenModel has missing/blank modelPluginID");
+    verify(metaModelRepository, never()).save(any(MetaModel.class));
   }
 
   @Test
-  void create_returnsSanitizedMessage_whenPrecheckStatusIsUnknown() {
-    final String email = "u@ex.com";
-    final MetaModelPostRequest request = req(10L, 20L);
-    final User user = new User();
-    user.setEmail(email);
-    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
-        .thenReturn(Optional.of(user));
-
-    final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
+  void processGenModel_delegatesToSetupServiceApiHandler() {
     final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
-    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
-            10L, FileEnumType.ECORE, email))
-        .thenReturn(Optional.of(ecore));
-    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
-            20L, FileEnumType.GEN_MODEL, email))
-        .thenReturn(Optional.of(gen));
+    byte[] processed = "fixed".getBytes();
+    when(setupServiceApiHandler.processGenModelOrThrow(gen)).thenReturn(processed);
 
     when(metaModelMapper.toMetaModel(request)).thenReturn(metaModel(null, ecore, gen));
     when(metaModelVitruvIntegrationService.precheckGenModels(List.of(ecore), List.of(gen), false))
@@ -355,25 +313,16 @@ class MetaModelServiceTest {
         .hasMessageContaining("basePackage must equal modelPluginID")
         .hasMessageNotContaining("NoSuchElementException")
         .hasMessageNotContaining("/Users/x/model.genmodel");
+    assertThat(metaModelService.processGenModel(gen)).isEqualTo(processed);
+    verify(setupServiceApiHandler).processGenModelOrThrow(gen);
   }
 
   @Test
-  void create_returnsSanitizedMessage_whenPrecheckFailsWithNonSpecialStatus() {
-    final String email = "u@ex.com";
-    final MetaModelPostRequest request = req(10L, 20L);
-    final User user = new User();
-    user.setEmail(email);
-    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
-        .thenReturn(Optional.of(user));
-
-    final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
+  void inspectGenModel_delegatesToSetupServiceApiHandler() {
     final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
-    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
-            10L, FileEnumType.ECORE, email))
-        .thenReturn(Optional.of(ecore));
-    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
-            20L, FileEnumType.GEN_MODEL, email))
-        .thenReturn(Optional.of(gen));
+    GenModelInspectionResponse response =
+        GenModelInspectionResponse.builder().message("ok").build();
+    when(setupServiceApiHandler.inspectGenModelOrThrow(gen)).thenReturn(response);
 
     when(metaModelMapper.toMetaModel(request)).thenReturn(metaModel(null, ecore, gen));
     when(metaModelVitruvIntegrationService.precheckGenModels(List.of(ecore), List.of(gen), false))
@@ -404,6 +353,7 @@ class MetaModelServiceTest {
     final String email = "u@ex.com";
 
     final MetaModelPostRequest request = req(10L, 20L);
+    request.setApplyGenModelFixes(true);
     final User user = new User();
     user.setEmail(email);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
@@ -419,10 +369,7 @@ class MetaModelServiceTest {
             20L, FileEnumType.GEN_MODEL, email))
         .thenReturn(Optional.of(gen));
 
-    when(metaModelVitruvIntegrationService.precheckGenModels(List.of(ecore), List.of(gen), false))
-        .thenReturn(
-            precheck(
-                GenModelPrecheckStatus.CLEAN, "GENMODEL_PRECHECK_STATUS: CLEAN", "", List.of()));
+    when(setupServiceApiHandler.processGenModelOrThrow(gen)).thenReturn("fixed".getBytes());
 
     final MetaModel mapped = metaModel(null, ecore, gen);
     when(metaModelMapper.toMetaModel(request)).thenReturn(mapped);
@@ -515,8 +462,8 @@ class MetaModelServiceTest {
         .hasMessageContaining(ECORE_FILE_ID_NOT_FOUND_ERROR);
 
     verify(fileStorageRepository, never()).findByIdAndType(10L, FileEnumType.ECORE);
-    verify(metaModelVitruvIntegrationService, never())
-        .precheckGenModels(any(), any(), anyBoolean());
+    verify(setupServiceApiHandler, never()).processGenModelOrThrow(any());
+    verify(setupServiceApiHandler, never()).inspectGenModelOrThrow(any());
   }
 
   @Test

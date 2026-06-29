@@ -17,20 +17,14 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,13 +35,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
-import tools.vitruv.methodologist.vsum.build.BuildCoordinator;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.ViewRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
@@ -91,27 +85,14 @@ class VsumServiceTest {
   @Mock private VsumMetaModelRepository vsumMetaModelRepository;
   @Mock private MetaModelRelationRepository metaModelRelationRepository;
   @Mock private VsumHistoryService vsumHistoryService;
-  @Mock private MetaModelVitruvIntegrationService metaModelVitruvIntegrationService;
-  @Mock private BuildCoordinator buildCoordinator;
   @Mock private VsumViewMetaModelService vsumViewMetaModelService;
   @Mock private VsumViewService vsumViewService;
   @Mock private VsumViewRepository vsumViewRepository;
   @Mock private VsumViewMetaModelRepository vsumViewMetaModelRepository;
   @Mock private VsumViewMapper vsumViewMapper;
+  @Mock private SetupServiceApiHandler setupServiceApiHandler;
 
   private VsumService service;
-
-  private static Map<String, byte[]> unzip(byte[] zipBytes) throws IOException {
-    Map<String, byte[]> entries = new LinkedHashMap<>();
-    try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
-      ZipEntry e;
-      while ((e = zis.getNextEntry()) != null) {
-        entries.put(e.getName(), zis.readAllBytes());
-        zis.closeEntry();
-      }
-    }
-    return entries;
-  }
 
   private MetaModel original(long id) {
     MetaModel m = new MetaModel();
@@ -187,13 +168,12 @@ class VsumServiceTest {
             vsumMetaModelRepository,
             metaModelRelationRepository,
             vsumHistoryService,
-            metaModelVitruvIntegrationService,
-            buildCoordinator,
             vsumViewMetaModelService,
             vsumViewService,
             vsumViewRepository,
             vsumViewMetaModelRepository,
-            vsumViewMapper);
+            vsumViewMapper,
+            setupServiceApiHandler);
 
     lenient().when(vsumViewRepository.findAllByVsum(any(Vsum.class))).thenReturn(List.of());
     lenient()
@@ -1031,19 +1011,17 @@ class VsumServiceTest {
     assertThatThrownBy(() -> service.getJarfat("x@y.com", 1L))
         .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
 
-    verify(metaModelVitruvIntegrationService, never())
-        .runVitruvAndGetFatJarBytes(anyList(), anyList(), anyList());
+    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
   }
 
   @Test
-  void getJarfat_shouldReturnZipContainingJarAndDockerfile_whenAuthorized() throws Exception {
+  void getJarfat_shouldReturnJar_fromSetupService_whenAuthorized() {
     String email = "x@y.com";
     Long id = 1L;
 
     Vsum vsum = new Vsum();
     VsumUser vu = new VsumUser();
     vu.setVsum(vsum);
-
     when(vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(id, email))
         .thenReturn(Optional.of(vu));
@@ -1054,187 +1032,86 @@ class VsumServiceTest {
     vsum.setMetaModelRelations(Set.of(rel(mm(e1, g1), null, r1)));
 
     byte[] jarBytes = "FAKEJAR".getBytes(StandardCharsets.UTF_8);
-    when(metaModelVitruvIntegrationService.runVitruvAndGetFatJarBytes(
-            anyList(), anyList(), anyList()))
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
         .thenReturn(jarBytes);
 
-    when(buildCoordinator.runOncePerKey(any(), any()))
-        .thenAnswer(
-            inv -> {
-              java.util.function.Supplier<byte[]> s = inv.getArgument(1);
-              return s.get();
-            });
-    byte[] zip = service.getJarfat(email, id);
+    byte[] jar = service.getJarfat(email, id);
 
-    verify(metaModelVitruvIntegrationService, times(1))
-        .runVitruvAndGetFatJarBytes(anyList(), anyList(), anyList());
-
-    Map<String, byte[]> entries = unzip(zip);
-    assertThat(entries)
-        .containsKeys(
-            "methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar", "Dockerfile")
-        .containsEntry(
-            "methodologisttemplate.vsum-0.1.0-SNAPSHOT-jar-with-dependencies.jar", jarBytes);
+    assertThat(jar).isEqualTo(jarBytes);
+    verify(setupServiceApiHandler).buildVsumJarOrThrow(anyList(), anyList(), anyList());
   }
 
   @Test
-  void buildOrThrow_shouldThrowNotFound_whenMetaModelRelationsNull() {
+  void getJarfat_shouldDeduplicateMetamodels_beforeCallingSetupService() {
+    String email = "x@y.com";
+    Long id = 1L;
+
     Vsum vsum = new Vsum();
-    vsum.setMetaModelRelations(null);
-
-    assertThatThrownBy(() -> service.buildOrThrow(vsum)).isInstanceOf(NotFoundException.class);
-
-    verify(metaModelVitruvIntegrationService, never())
-        .runVitruvAndGetFatJarBytes(anyList(), anyList(), anyList());
-  }
-
-  @Test
-  void buildOrThrow_shouldThrowNotFound_whenMetaModelRelationsEmpty() {
-    Vsum vsum = new Vsum();
-    vsum.setMetaModelRelations(Set.of());
-
-    assertThatThrownBy(() -> service.buildOrThrow(vsum)).isInstanceOf(NotFoundException.class);
-
-    verify(metaModelVitruvIntegrationService, never())
-        .runVitruvAndGetFatJarBytes(anyList(), anyList(), anyList());
-  }
-
-  @Test
-  void buildOrThrow_shouldThrowNotFound_whenRelationIsNull() {
-    Vsum vsum = new Vsum();
-    vsum.setMetaModelRelations(Collections.singleton(null));
-
-    assertThatThrownBy(() -> service.buildOrThrow(vsum)).isInstanceOf(NotFoundException.class);
-
-    verify(metaModelVitruvIntegrationService, never())
-        .runVitruvAndGetFatJarBytes(anyList(), anyList(), anyList());
-  }
-
-  @Test
-  void buildOrThrow_shouldThrowNotFound_whenNoMetamodelPairsCollected() {
-    Vsum vsum = new Vsum();
-
-    FileStorage e = fs(1L, "a.ecore", new byte[] {1});
-    MetaModel source = mm(e, null);
-
-    FileStorage g = fs(2L, "a.genmodel", new byte[] {2});
-    MetaModel target = mm(null, g);
-
-    vsum.setMetaModelRelations(Set.of(rel(source, target, fs(3L, "r.reactions", new byte[] {3}))));
-
-    assertThatThrownBy(() -> service.buildOrThrow(vsum)).isInstanceOf(NotFoundException.class);
-
-    verify(metaModelVitruvIntegrationService, never())
-        .runVitruvAndGetFatJarBytes(anyList(), anyList(), anyList());
-  }
-
-  @Test
-  void buildOrThrow_shouldThrowNotFound_whenNoReactions() {
-    Vsum vsum = new Vsum();
-
-    FileStorage e = fs(1L, "a.ecore", new byte[] {1});
-    FileStorage g = fs(2L, "a.genmodel", new byte[] {2});
-    vsum.setMetaModelRelations(Set.of(rel(mm(e, g), null, null)));
-
-    assertThatThrownBy(() -> service.buildOrThrow(vsum)).isInstanceOf(NotFoundException.class);
-
-    verify(metaModelVitruvIntegrationService, never())
-        .runVitruvAndGetFatJarBytes(anyList(), anyList(), anyList());
-  }
-
-  @Test
-  void buildOrThrow_shouldDeduplicateById_whenSameFilesAppearMultipleTimes() {
-    Vsum vsum = new Vsum();
+    VsumUser vu = new VsumUser();
+    vu.setVsum(vsum);
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(id, email))
+        .thenReturn(Optional.of(vu));
 
     FileStorage e1 = fs(10L, "dup.ecore", new byte[] {1});
     FileStorage g1 = fs(11L, "dup.genmodel", new byte[] {2});
     FileStorage r1 = fs(12L, "a.reactions", new byte[] {3});
-
     MetaModel m1 = mm(e1, g1);
     MetaModel m2 = mm(e1, g1);
-
     vsum.setMetaModelRelations(
         Set.of(rel(m1, m2, r1), rel(m1, null, fs(13L, "b.reactions", new byte[] {4}))));
 
     byte[] jar = "JAR".getBytes(StandardCharsets.UTF_8);
-    when(metaModelVitruvIntegrationService.runVitruvAndGetFatJarBytes(
-            anyList(), anyList(), anyList()))
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
         .thenReturn(jar);
 
-    byte[] out = service.buildOrThrow(vsum);
+    byte[] out = service.getJarfat(email, id);
     assertThat(out).isEqualTo(jar);
 
     ArgumentCaptor<List<FileStorage>> ecoresCap = ArgumentCaptor.forClass(List.class);
     ArgumentCaptor<List<FileStorage>> gensCap = ArgumentCaptor.forClass(List.class);
     ArgumentCaptor<List<FileStorage>> reactionsCap = ArgumentCaptor.forClass(List.class);
-
-    verify(metaModelVitruvIntegrationService)
-        .runVitruvAndGetFatJarBytes(ecoresCap.capture(), gensCap.capture(), reactionsCap.capture());
+    verify(setupServiceApiHandler)
+        .buildVsumJarOrThrow(ecoresCap.capture(), gensCap.capture(), reactionsCap.capture());
 
     assertThat(ecoresCap.getValue()).hasSize(1);
     assertThat(gensCap.getValue()).hasSize(1);
-
     assertThat(reactionsCap.getValue()).hasSize(2);
   }
 
   @Test
-  void buildOrThrow_shouldDeduplicateByFilename_whenIdIsNull() {
+  void getJarfat_shouldThrowNotFound_whenNoMetaModelRelations() {
+    String email = "x@y.com";
+    Long id = 1L;
+
     Vsum vsum = new Vsum();
+    vsum.setMetaModelRelations(null);
+    VsumUser vu = new VsumUser();
+    vu.setVsum(vsum);
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(id, email))
+        .thenReturn(Optional.of(vu));
 
-    FileStorage e1 = fs(null, "same.ecore", new byte[] {1});
-    FileStorage g1 = fs(null, "same.genmodel", new byte[] {2});
-    FileStorage r1 = fs(null, "a.reactions", new byte[] {3});
-
-    FileStorage e2 = fs(null, "same.ecore", new byte[] {9});
-    FileStorage g2 = fs(null, "same.genmodel", new byte[] {9});
-
-    vsum.setMetaModelRelations(
-        Set.of(
-            rel(mm(e1, g1), null, r1),
-            rel(mm(e2, g2), null, fs(null, "b.reactions", new byte[] {4}))));
-
-    when(metaModelVitruvIntegrationService.runVitruvAndGetFatJarBytes(
-            anyList(), anyList(), anyList()))
-        .thenReturn(new byte[] {7});
-
-    service.buildOrThrow(vsum);
-
-    ArgumentCaptor<List<FileStorage>> ecoresCap = ArgumentCaptor.forClass(List.class);
-    ArgumentCaptor<List<FileStorage>> gensCap = ArgumentCaptor.forClass(List.class);
-
-    verify(metaModelVitruvIntegrationService)
-        .runVitruvAndGetFatJarBytes(ecoresCap.capture(), gensCap.capture(), anyList());
-
-    assertThat(ecoresCap.getValue()).hasSize(1);
-    assertThat(gensCap.getValue()).hasSize(1);
+    assertThatThrownBy(() -> service.getJarfat(email, id)).isInstanceOf(NotFoundException.class);
+    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
   }
 
   @Test
-  void buildOrThrow_shouldPropagateVsumBuildingException_fromIntegration() {
+  void getJarfat_shouldThrowNotFound_whenNoReactions() {
+    String email = "x@y.com";
+    Long id = 1L;
+
     Vsum vsum = new Vsum();
+    FileStorage e = fs(1L, "a.ecore", new byte[] {1});
+    FileStorage g = fs(2L, "a.genmodel", new byte[] {2});
+    vsum.setMetaModelRelations(Set.of(rel(mm(e, g), null, null)));
+    VsumUser vu = new VsumUser();
+    vu.setVsum(vsum);
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(id, email))
+        .thenReturn(Optional.of(vu));
 
-    FileStorage e1 = fs(1L, "a.ecore", new byte[] {1});
-    FileStorage g1 = fs(2L, "a.genmodel", new byte[] {2});
-    FileStorage r1 = fs(3L, "a.reactions", new byte[] {3});
-    vsum.setMetaModelRelations(Set.of(rel(mm(e1, g1), null, r1)));
-
-    when(metaModelVitruvIntegrationService.runVitruvAndGetFatJarBytes(
-            anyList(), anyList(), anyList()))
-        .thenThrow(new tools.vitruv.methodologist.exception.VsumBuildingException("boom"));
-
-    assertThatThrownBy(() -> service.buildOrThrow(vsum))
-        .isInstanceOf(tools.vitruv.methodologist.exception.VsumBuildingException.class)
-        .hasMessageContaining("boom");
-  }
-
-  @Test
-  void dockerfileBytes_shouldBeDeterministicAndContainExpectedInstructions() {
-    String dockerfile = new String(service.dockerfileBytes(), StandardCharsets.UTF_8);
-    assertThat(dockerfile)
-        .contains("FROM eclipse-temurin:17-jre-alpine")
-        .contains("WORKDIR /app")
-        .contains("COPY app.jar /app/app.jar")
-        .contains("EXPOSE 8080")
-        .contains("ENTRYPOINT");
+    assertThatThrownBy(() -> service.getJarfat(email, id)).isInstanceOf(NotFoundException.class);
+    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
   }
 }
