@@ -269,14 +269,11 @@ class MetaModelServiceTest {
     when(metaModelMapper.toMetaModel(request)).thenReturn(metaModel(null, ecore, gen));
     when(setupServiceApiHandler.inspectGenModelOrThrow(gen))
         .thenReturn(
-            precheck(
-                GenModelPrecheckStatus.ABORTED,
-                "GENMODEL_PRECHECK_STATUS: ABORTED",
-                """
-                Exception in thread "main" java.util.NoSuchElementException: No line found
-                \tat x.y.Z(Z.java:1)\
-                """,
-                List.of()));
+            GenModelInspectionResponse.builder()
+                .errorCode("MISSING_PLUGIN_ID")
+                .status(422)
+                .message("GenModel has missing/blank modelPluginID")
+                .build());
 
     MetaModelService.MetaModelCreationResult result = metaModelService.create(email, request);
 
@@ -291,28 +288,6 @@ class MetaModelServiceTest {
     byte[] processed = "fixed".getBytes();
     when(setupServiceApiHandler.processGenModelOrThrow(gen)).thenReturn(processed);
 
-    when(metaModelMapper.toMetaModel(request)).thenReturn(metaModel(null, ecore, gen));
-    when(metaModelVitruvIntegrationService.precheckGenModels(List.of(ecore), List.of(gen), false))
-        .thenReturn(
-            precheck(
-                GenModelPrecheckStatus.UNKNOWN,
-                """
-                            GENMODEL_PRECHECK_STATUS: UNKNOWN
-                            basePackage \
-                            must equal modelPluginID
-                            /Users/x/model.genmodel""",
-                """
-                Exception in thread "main" java.util.NoSuchElementException: No line found
-                \tat x.y.Z(Z.java:1)\
-                """,
-                List.of()));
-
-    assertThatThrownBy(() -> metaModelService.create(email, request))
-        .isInstanceOf(CreateMwe2FileException.class)
-        .hasMessageContaining("GenModel precheck did not return a valid status.")
-        .hasMessageContaining("basePackage must equal modelPluginID")
-        .hasMessageNotContaining("NoSuchElementException")
-        .hasMessageNotContaining("/Users/x/model.genmodel");
     assertThat(metaModelService.processGenModel(gen)).isEqualTo(processed);
     verify(setupServiceApiHandler).processGenModelOrThrow(gen);
   }
@@ -324,28 +299,8 @@ class MetaModelServiceTest {
         GenModelInspectionResponse.builder().message("ok").build();
     when(setupServiceApiHandler.inspectGenModelOrThrow(gen)).thenReturn(response);
 
-    when(metaModelMapper.toMetaModel(request)).thenReturn(metaModel(null, ecore, gen));
-    when(metaModelVitruvIntegrationService.precheckGenModels(List.of(ecore), List.of(gen), false))
-        .thenReturn(
-            MetaModelVitruvIntegrationService.GenModelPrecheckExecutionResult.builder()
-                .exitCode(1)
-                .status(GenModelPrecheckStatus.CLEAN)
-                .stdout("Validation failed after CLI execution")
-                .stderr(
-                    """
-                    Exception in thread "main" java.lang.IllegalStateException: broken
-                    \tat x.y.Z(Z.java:1)
-                    /Users/x/model.genmodel\
-                    """)
-                .updatedGenModelBytes(List.of())
-                .build());
-
-    assertThatThrownBy(() -> metaModelService.create(email, request))
-        .isInstanceOf(CreateMwe2FileException.class)
-        .hasMessageContaining("GenModel precheck failed with status: CLEAN")
-        .hasMessageContaining("Validation failed after CLI execution")
-        .hasMessageNotContaining("IllegalStateException")
-        .hasMessageNotContaining("/Users/x/model.genmodel");
+    assertThat(metaModelService.inspectGenModel(gen)).isSameAs(response);
+    verify(setupServiceApiHandler).inspectGenModelOrThrow(gen);
   }
 
   @Test
