@@ -371,9 +371,11 @@ class VitruvCliServiceTest {
               when(process.getInputStream())
                   .thenReturn(
                       new ByteArrayInputStream(
-                          ("GENMODEL_PRECHECK_STATUS: ISSUES_FOUND\n"
-                                  + "details\n"
-                                  + "GENMODEL_PRECHECK_STATUS: FIXES_APPLIED")
+                          """
+                          GENMODEL_PRECHECK_STATUS: ISSUES_FOUND
+                          details
+                          GENMODEL_PRECHECK_STATUS: FIXES_APPLIED\
+                          """
                               .getBytes(StandardCharsets.UTF_8)));
               when(process.getErrorStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
             })) {
