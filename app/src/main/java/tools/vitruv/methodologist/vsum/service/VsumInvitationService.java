@@ -201,7 +201,7 @@ public class VsumInvitationService {
         frontendBaseUrl.endsWith("/")
             ? frontendBaseUrl.substring(0, frontendBaseUrl.length() - 1)
             : frontendBaseUrl;
-    return base + "/vsums/" + vsum.getId();
+    return base + "/canvas/" + vsum.getId();
   }
 
   private String normalizeEmail(String email) {
