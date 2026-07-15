@@ -400,4 +400,94 @@ class VsumHistoryServiceTest {
 
     assertThat(reqCap.getValue().getMetaModelRelationRequests()).hasSize(1);
   }
+
+  @Test
+  void revert_mapsViewsToViewRequests_whenRepresentationContainsViews() {
+    String callerEmail = "u@ex.com";
+
+    User user = new User();
+    user.setEmail(callerEmail);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
+        .thenReturn(Optional.of(user));
+
+    Vsum vsum = new Vsum();
+    vsum.setId(104L);
+
+    VsumRepresentation.View view1 =
+        VsumRepresentation.View.builder().fileStorageId(10L).metaModelIds(List.of(1L, 2L)).build();
+    VsumRepresentation.View view2 =
+        VsumRepresentation.View.builder().fileStorageId(20L).metaModelIds(List.of(3L)).build();
+
+    VsumRepresentation rep =
+        VsumRepresentation.builder()
+            .metaModels(Set.of())
+            .metaModelsRealation(Set.of())
+            .views(new HashSet<>(Set.of(view1, view2)))
+            .build();
+
+    Long historyId = 16L;
+    VsumHistory history =
+        VsumHistory.builder().id(historyId).vsum(vsum).representation(rep).build();
+    when(vsumHistoryRepository.findById(historyId)).thenReturn(Optional.of(history));
+
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                vsum.getId(), callerEmail))
+        .thenReturn(Optional.of(new VsumUser()));
+
+    service.revert(callerEmail, historyId);
+
+    ArgumentCaptor<VsumSyncChangesPutRequest> reqCap =
+        ArgumentCaptor.forClass(VsumSyncChangesPutRequest.class);
+    verify(vsumService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
+
+    VsumSyncChangesPutRequest applied = reqCap.getValue();
+    assertThat(applied.getViewRequests()).hasSize(2);
+    assertThat(applied.getViewRequests())
+        .anySatisfy(
+            v -> {
+              assertThat(v.getFileStorageId()).isEqualTo(10L);
+              assertThat(v.getMetaModelIds()).containsExactlyInAnyOrder(1L, 2L);
+            });
+    assertThat(applied.getViewRequests())
+        .anySatisfy(
+            v -> {
+              assertThat(v.getFileStorageId()).isEqualTo(20L);
+              assertThat(v.getMetaModelIds()).containsExactly(3L);
+            });
+  }
+
+  @Test
+  void revert_mapsNullViewsToEmptyViewRequests() {
+    String callerEmail = "u@ex.com";
+
+    User user = new User();
+    user.setEmail(callerEmail);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
+        .thenReturn(Optional.of(user));
+
+    Vsum vsum = new Vsum();
+    vsum.setId(105L);
+
+    VsumRepresentation rep =
+        VsumRepresentation.builder().metaModels(null).metaModelsRealation(null).views(null).build();
+
+    Long historyId = 17L;
+    VsumHistory history =
+        VsumHistory.builder().id(historyId).vsum(vsum).representation(rep).build();
+    when(vsumHistoryRepository.findById(historyId)).thenReturn(Optional.of(history));
+
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                vsum.getId(), callerEmail))
+        .thenReturn(Optional.of(new VsumUser()));
+
+    service.revert(callerEmail, historyId);
+
+    ArgumentCaptor<VsumSyncChangesPutRequest> reqCap =
+        ArgumentCaptor.forClass(VsumSyncChangesPutRequest.class);
+    verify(vsumService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
+
+    assertThat(reqCap.getValue().getViewRequests()).isNotNull().isEmpty();
+  }
 }

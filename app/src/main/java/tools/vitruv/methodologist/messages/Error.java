@@ -7,6 +7,7 @@ public class Error {
   public static final String VSUM_ID_NOT_FOUND_ERROR = "Vsum id";
   public static final String VSUM_HISTORY_ID_NOT_FOUND_ERROR = "Vsum history id";
   public static final String USER_DOSE_NOT_HAVE_ACCESS = "You don't have access";
+  public static final String VIEW_FILE_ID_NOT_FOUND_ERROR = "View file id";
   public static final String ECORE_FILE_ID_NOT_FOUND_ERROR = "Ecore file id";
   public static final String GEN_MODEL_FILE_ID_NOT_FOUND_ERROR = "Gen model file id";
   public static final String USER_EMAIL_NOT_FOUND_ERROR = "Email";
@@ -27,4 +28,5 @@ public class Error {
   public static final String FAT_JAR_NOT_FOUND_ERROR = "Fat jar not found at: ";
   public static final String VITRUV_CLI_EXECUTION_FAILED_ERROR = "Vitruv-CLI execution failed: ";
   public static final String VITRUV_CLI_ERROR = "Vitruv-CLI Error: ";
+  public static final String LSP_PROCESS_WAIT_ERROR = "Failed to wait for LSP process to exit";
 }

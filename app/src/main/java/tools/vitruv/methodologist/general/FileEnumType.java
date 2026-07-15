@@ -7,5 +7,7 @@ package tools.vitruv.methodologist.general;
 public enum FileEnumType {
   ECORE,
   GEN_MODEL,
-  REACTION
+  REACTION,
+  NEO_JOIN,
+  OCL
 }
