@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -31,10 +32,15 @@ public class VsumMetaModelService {
   VsumMetaModelRepository vsumMetaModelRepository;
   MetaModelService metaModelService;
   MetaModelRepository metaModelRepository;
+  EntityManager entityManager;
 
   /**
    * Creates {@link VsumMetaModel} links for the given vsum and metamodel IDs. Each metamodel is
    * cloned before being linked to the vsum.
+   *
+   * <p>Flushes before returning so that callers within the same transaction (for example {@link
+   * MetaModelRelationService#create}, which looks these links up immediately afterward to resolve
+   * relation endpoints) see the newly created rows rather than a stale, pre-flush view.
    *
    * @param vsum the parent vsum
    * @param metaModelIds IDs of metamodels to associate
@@ -49,6 +55,7 @@ public class VsumMetaModelService {
       links.add(VsumMetaModel.builder().vsum(vsum).metaModel(cloned).build());
     }
     vsumMetaModelRepository.saveAll(links);
+    entityManager.flush();
   }
 
   /**
