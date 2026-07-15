@@ -9,6 +9,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import jakarta.mail.internet.MimeMessage;
@@ -57,7 +58,8 @@ public class SmtpMailServiceTest {
             ssl,
             connectionTimeoutMs,
             timeoutMs,
-            writeTimeoutMs);
+            writeTimeoutMs,
+            false);
 
     mailSender = mock(JavaMailSender.class);
     ReflectionTestUtils.setField(smtpMailService, "mailSender", mailSender);
@@ -73,7 +75,18 @@ public class SmtpMailServiceTest {
         NullPointerException.class,
         () ->
             new SmtpMailService(
-                "localhost", 587, "user", "pass", null, "Name", true, false, 5000, 5000, 5000));
+                "localhost",
+                587,
+                "user",
+                "pass",
+                null,
+                "Name",
+                true,
+                false,
+                5000,
+                5000,
+                5000,
+                false));
   }
 
   @Test
@@ -92,7 +105,8 @@ public class SmtpMailServiceTest {
                 false,
                 5000,
                 5000,
-                5000));
+                5000,
+                false));
   }
 
   // sendOtpMail -> happy paths
@@ -105,6 +119,27 @@ public class SmtpMailServiceTest {
         () -> smtpMailService.sendOtpMail(recipientEmail, recipientName, "123456", 5));
 
     verify(mailSender, times(1)).send(mimeMessageMock);
+  }
+
+  @Test
+  void noProductionMode_doesNotUseSmtp() {
+    SmtpMailService nonProductionService =
+        new SmtpMailService(
+            "localhost", 587, "", "", "from@test.com", "Name", true, false, 5000, 5000, 5000, true);
+    ReflectionTestUtils.setField(nonProductionService, "mailSender", mailSender);
+
+    assertDoesNotThrow(
+        () -> nonProductionService.sendOtpMail(recipientEmail, recipientName, "123456", 5));
+    assertDoesNotThrow(
+        () ->
+            nonProductionService.sendForgotPasswordMail(
+                recipientEmail, recipientName, "new-secure-pass"));
+    assertDoesNotThrow(
+        () ->
+            nonProductionService.sendVsumInvitationMail(
+                recipientEmail, recipientName, "VSUM", "http://localhost/vsum/1"));
+
+    verifyNoInteractions(mailSender);
   }
 
   @Test

@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.MailException;
@@ -23,9 +25,12 @@ import org.springframework.stereotype.Service;
 @Service
 public class SmtpMailService {
 
+  private static final Logger LOGGER = LoggerFactory.getLogger(SmtpMailService.class);
+
   private final JavaMailSender mailSender;
   private final String fromEmail;
   private final String fromName;
+  private final boolean noProduction;
 
   /**
    * Constructs the SMTP mail service and configures the underlying JavaMail sender.
@@ -41,6 +46,7 @@ public class SmtpMailService {
    * @param connectionTimeoutMs connection timeout in milliseconds
    * @param timeoutMs read timeout in milliseconds
    * @param writeTimeoutMs write timeout in milliseconds
+   * @param noProduction whether external email delivery is disabled for non-production
    * @throws NullPointerException if {@code fromEmail} or {@code fromName} is {@code null}
    */
   public SmtpMailService(
@@ -54,9 +60,11 @@ public class SmtpMailService {
       @Value("${mail.smtp.ssl:false}") boolean ssl,
       @Value("${mail.smtp.connectionTimeoutMs:10000}") int connectionTimeoutMs,
       @Value("${mail.smtp.timeoutMs:10000}") int timeoutMs,
-      @Value("${mail.smtp.writeTimeoutMs:10000}") int writeTimeoutMs) {
+      @Value("${mail.smtp.writeTimeoutMs:10000}") int writeTimeoutMs,
+      @Value("${deploy.noProduction:false}") boolean noProduction) {
     this.fromEmail = Objects.requireNonNull(fromEmail);
     this.fromName = Objects.requireNonNull(fromName);
+    this.noProduction = noProduction;
 
     JavaMailSenderImpl impl = new JavaMailSenderImpl();
     impl.setHost(host);
@@ -89,6 +97,15 @@ public class SmtpMailService {
    * @throws RuntimeException if reading the template or sending the message fails
    */
   public void sendOtpMail(String toEmail, String toName, String otpCode, int ttlMinutes) {
+    if (noProduction) {
+      LOGGER.info(
+          "SMTP disabled in non-production; OTP for {} is {} and expires in {} minutes",
+          toEmail,
+          otpCode,
+          ttlMinutes);
+      return;
+    }
+
     String subject = "Verify your email";
     String html =
         loadAndRenderTemplate(
@@ -111,6 +128,12 @@ public class SmtpMailService {
    * @throws RuntimeException if reading the template or sending the message fails
    */
   public void sendForgotPasswordMail(String toEmail, String toName, String newPassword) {
+    if (noProduction) {
+      LOGGER.info(
+          "SMTP disabled in non-production; generated password for {} is {}", toEmail, newPassword);
+      return;
+    }
+
     String subject = "Your new password";
     String html =
         loadAndRenderTemplate(
@@ -133,6 +156,15 @@ public class SmtpMailService {
    */
   public void sendVsumInvitationMail(
       String toEmail, String toName, String vsumName, String invitationLink) {
+    if (noProduction) {
+      LOGGER.info(
+          "SMTP disabled in non-production; VSUM invitation for {} to '{}' is {}",
+          toEmail,
+          safe(vsumName),
+          safe(invitationLink));
+      return;
+    }
+
     String subject = "You have been invited to a VSUM";
     String html =
         loadAndRenderTemplate(
