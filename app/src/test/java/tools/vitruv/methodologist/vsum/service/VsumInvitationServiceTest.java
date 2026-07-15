@@ -112,7 +112,7 @@ class VsumInvitationServiceTest {
 
     verify(mailService)
         .sendVsumInvitationMail(
-            INVITEE_EMAIL, "Doe", "My VSUM", FRONTEND_BASE_URL + "/vsums/" + vsum.getId());
+            INVITEE_EMAIL, "Doe", "My VSUM", FRONTEND_BASE_URL + "/canvas/" + vsum.getId());
   }
 
   @Test
@@ -139,7 +139,7 @@ class VsumInvitationServiceTest {
 
     verify(mailService)
         .sendVsumInvitationMail(
-            INVITEE_EMAIL, null, "My VSUM", FRONTEND_BASE_URL + "/vsums/" + vsum.getId());
+            INVITEE_EMAIL, null, "My VSUM", FRONTEND_BASE_URL + "/canvas/" + vsum.getId());
   }
 
   @Test
@@ -223,7 +223,7 @@ class VsumInvitationServiceTest {
     verify(vsumUserService).create(vsum, invitee, VsumRole.VIEWER);
     verify(mailService)
         .sendVsumInvitationMail(
-            INVITEE_EMAIL, null, "My VSUM", FRONTEND_BASE_URL + "/vsums/" + vsum.getId());
+            INVITEE_EMAIL, null, "My VSUM", FRONTEND_BASE_URL + "/canvas/" + vsum.getId());
   }
 
   @Test
