@@ -30,8 +30,12 @@ public interface MetaModelRelationMapper {
    * @param metaModelRelation the source entity; may be {@code null}
    * @return the mapped response DTO, or {@code null} if input is {@code null}
    */
-  @Mapping(target = "sourceId", expression = "java(originalMetaModelId(metaModelRelation.getSource()))")
-  @Mapping(target = "targetId", expression = "java(originalMetaModelId(metaModelRelation.getTarget()))")
+  @Mapping(
+      target = "sourceId",
+      expression = "java(originalMetaModelId(metaModelRelation.getSource()))")
+  @Mapping(
+      target = "targetId",
+      expression = "java(originalMetaModelId(metaModelRelation.getTarget()))")
   @Mapping(source = "reactionFileStorage.id", target = "reactionFileStorageId")
   MetaModelRelationResponse toMetaModelRelationResponse(MetaModelRelation metaModelRelation);
 
@@ -39,8 +43,8 @@ public interface MetaModelRelationMapper {
    * Resolves the catalog metamodel id for a (possibly VSUM-scoped clone) {@link MetaModel}.
    *
    * @param metaModel a relation's source or target metamodel; may be {@code null}
-   * @return {@code metaModel.getSource().getId()} if {@code metaModel} is a clone, otherwise
-   *     {@code metaModel.getId()} itself; {@code null} if {@code metaModel} is {@code null}
+   * @return {@code metaModel.getSource().getId()} if {@code metaModel} is a clone, otherwise {@code
+   *     metaModel.getId()} itself; {@code null} if {@code metaModel} is {@code null}
    */
   default Long originalMetaModelId(MetaModel metaModel) {
     if (metaModel == null) {
