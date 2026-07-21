@@ -442,16 +442,17 @@ public class UserService {
   /**
    * Changes the password of the active user identified by the provided email.
    *
-   * <p>Looks up an active (not removed) user by email, then delegates the password update to {@code
-   * keycloakService.setPassword}. The provided {@link UserPutChangePasswordRequest} is expected to
-   * be validated before calling this method (see its {@code @Pattern} constraint for password
-   * requirements).
+   * <p>Looks up an active (not removed) user by email, verifies the provided current password
+   * against Keycloak, then delegates the password update to {@code keycloakService.setPassword}.
+   * The provided {@link UserPutChangePasswordRequest} is expected to be validated before calling
+   * this method (see its {@code @Pattern} constraint for password requirements).
    *
    * <p>The operation is executed within a transaction but does not modify the application user
    * entity in the database — only the Keycloak credential is updated.
    *
    * @param email the case-insensitive email address of the user whose password will be changed
-   * @param userPutChangePasswordRequest the validated request DTO containing the new password
+   * @param userPutChangePasswordRequest the validated request DTO containing the current and new
+   *     password
    * @throws NotFoundException if no active user is found for the given email
    */
   @Transactional
@@ -461,7 +462,9 @@ public class UserService {
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(email)
             .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
-    keycloakService.setPassword(user.getUsername(), userPutChangePasswordRequest.getPassword());
+    keycloakService.verifyUserPasswordOrThrow(
+        user.getUsername(), userPutChangePasswordRequest.getCurrentPassword());
+    keycloakService.setPassword(user.getUsername(), userPutChangePasswordRequest.getNewPassword());
   }
 
   /**

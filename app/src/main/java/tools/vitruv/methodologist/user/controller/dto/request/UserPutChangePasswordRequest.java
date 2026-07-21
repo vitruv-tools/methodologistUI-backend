@@ -13,9 +13,9 @@ import lombok.Setter;
 /**
  * Request DTO for changing a user's password.
  *
- * <p>Contains a single write-only {@code password} field. Validation enforces a strong password
- * policy: at least 8 characters, with at least one uppercase letter, one lowercase letter, one
- * digit and one special character.
+ * <p>Contains write-only current and new password fields. Validation enforces a strong password
+ * policy for the new password: at least 8 characters, with at least one uppercase letter, one
+ * lowercase letter, one digit and one special character.
  */
 @Getter
 @Setter
@@ -27,13 +27,18 @@ public class UserPutChangePasswordRequest {
   @NotNull
   @NotBlank
   @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+  private String currentPassword;
+
+  @NotNull
+  @NotBlank
+  @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
   @Pattern(
       regexp = "^(?=.{8,256}$)(?=.*\\p{Ll})(?=.*\\p{Lu})(?=.*\\p{Nd})(?=.*[^\\p{L}\\p{Nd}\\s]).*$",
       message = "The password needs to be at least 8 characters long.")
-  private String password;
+  private String newPassword;
 
   @Override
   public String toString() {
-    return "UserPutChangePasswordRequest(password=****)";
+    return "UserPutChangePasswordRequest(currentPassword=****, newPassword=****)";
   }
 }

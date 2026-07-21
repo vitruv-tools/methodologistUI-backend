@@ -20,7 +20,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.USER_WRONG_PASSWORD_ERROR;
 
+import jakarta.ws.rs.BadRequestException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -684,11 +686,13 @@ class UserServiceTest {
         .thenReturn(Optional.of(user));
 
     UserPutChangePasswordRequest req = new UserPutChangePasswordRequest();
-    req.setPassword("StrongPass#12345");
+    req.setCurrentPassword("CurrentPass#12345");
+    req.setNewPassword("StrongPass#12345");
 
     userService.changePassword(email, req);
 
-    verify(keycloakService).setPassword(user.getUsername(), req.getPassword());
+    verify(keycloakService).verifyUserPasswordOrThrow(user.getUsername(), req.getCurrentPassword());
+    verify(keycloakService).setPassword(user.getUsername(), req.getNewPassword());
   }
 
   @Test
@@ -699,12 +703,41 @@ class UserServiceTest {
         .thenReturn(Optional.empty());
 
     UserPutChangePasswordRequest req = new UserPutChangePasswordRequest();
-    req.setPassword("StrongPass#12345");
+    req.setCurrentPassword("CurrentPass#12345");
+    req.setNewPassword("StrongPass#12345");
 
     assertThatThrownBy(() -> userService.changePassword(email, req))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(USER_EMAIL_NOT_FOUND_ERROR);
 
+    verify(keycloakService, never()).verifyUserPasswordOrThrow(anyString(), anyString());
+    verify(keycloakService, never()).setPassword(anyString(), anyString());
+  }
+
+  @Test
+  void changePassword_throwsBadRequest_andDoesNotUpdatePassword_whenCurrentPasswordIsWrong() {
+    String email = "caller@example.com";
+
+    User user = new User();
+    user.setEmail(email);
+    user.setUsername("kc-user-1");
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    UserPutChangePasswordRequest req = new UserPutChangePasswordRequest();
+    req.setCurrentPassword("WrongPass#12345");
+    req.setNewPassword("StrongPass#12345");
+
+    doThrow(new BadRequestException(USER_WRONG_PASSWORD_ERROR))
+        .when(keycloakService)
+        .verifyUserPasswordOrThrow(user.getUsername(), req.getCurrentPassword());
+
+    assertThatThrownBy(() -> userService.changePassword(email, req))
+        .isInstanceOf(BadRequestException.class)
+        .hasMessageContaining(USER_WRONG_PASSWORD_ERROR);
+
+    verify(keycloakService).verifyUserPasswordOrThrow(user.getUsername(), req.getCurrentPassword());
     verify(keycloakService, never()).setPassword(anyString(), anyString());
   }
 
@@ -720,11 +753,12 @@ class UserServiceTest {
         .thenReturn(Optional.of(user));
 
     UserPutChangePasswordRequest req = new UserPutChangePasswordRequest();
-    req.setPassword("StrongPass#12345");
+    req.setCurrentPassword("CurrentPass#12345");
+    req.setNewPassword("StrongPass#12345");
 
     doThrow(new RuntimeException("Keycloak down"))
         .when(keycloakService)
-        .setPassword(user.getUsername(), req.getPassword());
+        .setPassword(user.getUsername(), req.getNewPassword());
 
     assertThatThrownBy(() -> userService.changePassword(email, req))
         .isInstanceOf(RuntimeException.class)
