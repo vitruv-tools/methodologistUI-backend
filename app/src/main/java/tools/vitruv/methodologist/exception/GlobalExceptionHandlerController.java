@@ -16,6 +16,7 @@
 
 package tools.vitruv.methodologist.exception;
 
+import jakarta.ws.rs.BadRequestException;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -492,6 +493,31 @@ public class GlobalExceptionHandlerController {
       HttpClientErrorException.BadRequest ex,
       HandlerMethod handlerMethod,
       ServletWebRequest request) {
+    log.warn(
+        BAD_REQUEST_ERROR,
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage());
+    log.debug(STACKTRACE_LOG, ex.toString());
+    return ErrorResponse.builder()
+        .error(BAD_REQUEST_ERROR)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles bad request exceptions from JAX-RS operations.
+   *
+   * @param ex the caught BadRequest exception
+   * @param handlerMethod the handler method that threw the exception
+   * @param request the current web request
+   * @return ErrorResponse with bad request details
+   */
+  @ExceptionHandler(value = BadRequestException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse badRequestException(
+      BadRequestException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     log.warn(
         BAD_REQUEST_ERROR,
         handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
