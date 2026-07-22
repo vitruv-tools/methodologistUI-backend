@@ -6,16 +6,9 @@ import static tools.vitruv.methodologist.messages.Error.USER_WRONG_PASSWORD_ERRO
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.NotAuthorizedException;
-import jakarta.ws.rs.core.Response;
 import java.util.List;
-import org.jboss.resteasy.client.jaxrs.internal.ClientResponse;
-import org.keycloak.OAuth2Constants;
-import org.keycloak.admin.client.Keycloak;
-import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.representations.idm.CredentialRepresentation;
-import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,41 +31,15 @@ public class KeycloakService {
     ROLE_TYPE = "role_type";
   }
 
-  private final Keycloak keycloakAdmin;
-  private final String authServerUrl;
-  private final String realm;
-  private final String clientId;
+  private final KeycloakGateway keycloakGateway;
 
   /**
-   * Constructs a new KeycloakService with the specified configuration parameters.
+   * Constructs a new KeycloakService with the specified Keycloak gateway.
    *
-   * @param authServerUrl the base URL of the Keycloak server
-   * @param realm the realm name
-   * @param adminUsername the admin username for Keycloak access
-   * @param adminPassword the admin password
-   * @param secret the client secret
-   * @param clientId the client ID
+   * @param keycloakGateway gateway for Keycloak operations
    */
-  public KeycloakService(
-      @Value("${keycloak.url}") String authServerUrl,
-      @Value("${keycloak.realm}") String realm,
-      @Value("${keycloak.admin.username}") String adminUsername,
-      @Value("${keycloak.admin.password}") String adminPassword,
-      @Value("${keycloak.admin.client-secret}") String secret,
-      @Value("${spring.security.oauth2.client.registration.keycloak.client-id}") String clientId) {
-    this.authServerUrl = authServerUrl;
-    this.realm = realm;
-    this.clientId = clientId;
-    this.keycloakAdmin =
-        KeycloakBuilder.builder()
-            .serverUrl(authServerUrl)
-            .realm("master")
-            .clientId("admin-cli")
-            .clientSecret(secret)
-            .username(adminUsername)
-            .password(adminPassword)
-            .grantType(OAuth2Constants.PASSWORD)
-            .build();
+  public KeycloakService(KeycloakGateway keycloakGateway) {
+    this.keycloakGateway = keycloakGateway;
   }
 
   /**
@@ -136,18 +103,8 @@ public class KeycloakService {
    * @param role the role to assign
    */
   public void assignUserRole(String username, String role) {
-    UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
-
-    RoleRepresentation roleRepresentation =
-        keycloakAdmin.realm(realm).roles().get(role).toRepresentation();
-
-    keycloakAdmin
-        .realm(realm)
-        .users()
-        .get(userRepresentation.getId())
-        .roles()
-        .realmLevel()
-        .add(List.of(roleRepresentation));
+    final UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
+    keycloakGateway.assignRealmRole(userRepresentation.getId(), role);
   }
 
   /**
@@ -158,17 +115,16 @@ public class KeycloakService {
    */
   @Transactional
   public void createUser(KeycloakUser keycloakUser) {
-    UserRepresentation userRepresentation = prepareUserRepresentation(keycloakUser);
+    final UserRepresentation userRepresentation = prepareUserRepresentation(keycloakUser);
 
-    Response response = keycloakAdmin.realm(realm).users().create(userRepresentation);
-    if (response.getStatus() != HttpStatus.CREATED.value()) {
-      throw new ClientErrorException(
-          ((ClientResponse) response).getReasonPhrase(), response.getStatus());
+    final KeycloakGateway.UserCreationResult creationResult =
+        keycloakGateway.createUser(userRepresentation);
+    if (creationResult.status() != HttpStatus.CREATED.value()) {
+      throw new ClientErrorException(creationResult.reasonPhrase(), creationResult.status());
     }
-    response.close();
 
     /* assign role user to the new user in keycloak, if not remove the created user */
-    String userName = keycloakUser.getUsername();
+    final String userName = keycloakUser.getUsername();
     try {
       assignUserRole(userName, keycloakUser.getRole());
     } catch (Exception any) {
@@ -183,8 +139,8 @@ public class KeycloakService {
    * @param username the username of the user to remove
    */
   public void removeUser(String username) {
-    UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
-    keycloakAdmin.realm(realm).users().get(userRepresentation.getId()).remove();
+    final UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
+    keycloakGateway.removeUser(userRepresentation.getId());
   }
 
   /**
@@ -199,17 +155,7 @@ public class KeycloakService {
   @Transactional
   public void verifyUserPasswordOrThrow(String username, String password) {
     try {
-      String dummy =
-          KeycloakBuilder.builder()
-              .serverUrl(authServerUrl)
-              .grantType(OAuth2Constants.PASSWORD)
-              .realm(realm)
-              .clientId(clientId)
-              .username(username)
-              .password(password)
-              .build()
-              .tokenManager()
-              .getAccessTokenString();
+      keycloakGateway.verifyPassword(username, password);
     } catch (NotAuthorizedException notAuthorizedException) {
       throw new BadRequestException(USER_WRONG_PASSWORD_ERROR);
     } catch (Exception e) {
@@ -225,13 +171,11 @@ public class KeycloakService {
    */
   @Transactional
   public void resetPassword(String username, String password) {
-    CredentialRepresentation credentialRepresentation =
+    final CredentialRepresentation credentialRepresentation =
         preparePasswordRepresentation(password, false);
-    keycloakAdmin
-        .realm(realm)
-        .users()
-        .get(keycloakAdmin.realm(realm).users().search(username).get(0).getId())
-        .resetPassword(credentialRepresentation);
+    final UserRepresentation userRepresentation =
+        keycloakGateway.findUser(username).orElseThrow(IndexOutOfBoundsException::new);
+    keycloakGateway.resetPassword(userRepresentation.getId(), credentialRepresentation);
   }
 
   /**
@@ -242,11 +186,9 @@ public class KeycloakService {
    */
   @Transactional
   public void sendResetPasswordEmail(String username) {
-    keycloakAdmin
-        .realm(realm)
-        .users()
-        .get(keycloakAdmin.realm(realm).users().search(username).get(0).getId())
-        .executeActionsEmail(List.of("UPDATE_PASSWORD"));
+    final UserRepresentation userRepresentation =
+        keycloakGateway.findUser(username).orElseThrow(IndexOutOfBoundsException::new);
+    keycloakGateway.executeActionsEmail(userRepresentation.getId(), List.of("UPDATE_PASSWORD"));
   }
 
   /**
@@ -257,8 +199,8 @@ public class KeycloakService {
    * @throws tools.vitruv.methodologist.exception.NotFoundException if the user doesn't exist
    */
   private UserRepresentation getUserRepresentationOrThrow(String username) {
-    return keycloakAdmin.realm(realm).users().search(username).stream()
-        .findFirst()
+    return keycloakGateway
+        .findUser(username)
         .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
   }
 
@@ -271,13 +213,11 @@ public class KeycloakService {
    */
   @Transactional
   public void setPassword(String username, String password) {
-    CredentialRepresentation credentialRepresentation =
+    final CredentialRepresentation credentialRepresentation =
         preparePasswordRepresentation(password, false);
-    keycloakAdmin
-        .realm(realm)
-        .users()
-        .get(keycloakAdmin.realm(realm).users().search(username).get(0).getId())
-        .resetPassword(credentialRepresentation);
+    final UserRepresentation userRepresentation =
+        keycloakGateway.findUser(username).orElseThrow(IndexOutOfBoundsException::new);
+    keycloakGateway.resetPassword(userRepresentation.getId(), credentialRepresentation);
   }
 
   /**
@@ -288,6 +228,6 @@ public class KeycloakService {
    */
   @Transactional
   public Boolean existUser(String username) {
-    return keycloakAdmin.realm(realm).users().search(username).stream().findFirst().isPresent();
+    return keycloakGateway.findUser(username).isPresent();
   }
 }
