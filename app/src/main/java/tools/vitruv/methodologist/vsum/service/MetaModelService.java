@@ -433,7 +433,7 @@ public class MetaModelService {
    * @param vsumId project/VSUM whose metamodels should be included
    * @throws IOException if file writing fails
    */
-  @Transactional(readOnly = true)
+  @Transactional(readOnly = true, noRollbackFor = IOException.class)
   public void writeMetamodelsToDirectory(File targetDir, Long vsumId) throws IOException {
     List<MetaModel> metamodels = self.findAccessibleByProject(vsumId);
 
