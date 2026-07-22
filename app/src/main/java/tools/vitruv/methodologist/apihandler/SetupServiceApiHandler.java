@@ -145,12 +145,8 @@ public class SetupServiceApiHandler {
                               body ->
                                   Mono.error(
                                       new SetupServiceException(
-                                          "Setup-service request to '"
-                                              + uri
-                                              + "' failed with status "
-                                              + response.statusCode()
-                                              + ": "
-                                              + body))))
+                                          requestFailedMessage(
+                                              uri, response.statusCode(), body)))))
               .bodyToMono(byte[].class)
               .block();
     } catch (SetupServiceException e) {
@@ -199,12 +195,10 @@ public class SetupServiceApiHandler {
                               body ->
                                   Mono.error(
                                       new SetupServiceException(
-                                          "Setup-service request to '"
-                                              + PROCESS_GENMODEL_URL
-                                              + "' failed with status "
-                                              + response.statusCode()
-                                              + ": "
-                                              + body))))
+                                          requestFailedMessage(
+                                              PROCESS_GENMODEL_URL,
+                                              response.statusCode(),
+                                              body)))))
               .bodyToMono(byte[].class)
               .block();
     } catch (SetupServiceException e) {
@@ -260,12 +254,10 @@ public class SetupServiceApiHandler {
                             body ->
                                 Mono.error(
                                     new SetupServiceException(
-                                        "Setup-service request to '"
-                                            + INSPECT_GENMODEL_URL
-                                            + "' failed with status "
-                                            + response.statusCode()
-                                            + ": "
-                                            + body)));
+                                        requestFailedMessage(
+                                            INSPECT_GENMODEL_URL,
+                                            response.statusCode(),
+                                            body))));
                   })
               .block();
 
@@ -280,6 +272,11 @@ public class SetupServiceApiHandler {
       throw new SetupServiceException(
           "Failed to call setup-service '" + INSPECT_GENMODEL_URL + "': " + e.getMessage());
     }
+  }
+
+  private static String requestFailedMessage(
+      String uri, HttpStatusCode statusCode, String body) {
+    return "Setup-service request to '" + uri + "' failed with status " + statusCode + ": " + body;
   }
 
   private void addFilePart(MultipartBodyBuilder bodyBuilder, String partName, FileStorage file) {
