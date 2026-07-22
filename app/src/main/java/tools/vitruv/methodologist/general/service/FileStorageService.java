@@ -70,7 +70,7 @@ public class FileStorageService {
    * @throws NotFoundException if the user email is not found
    * @throws IllegalArgumentException if the file is empty
    */
-  @Transactional
+  @Transactional(rollbackFor = Exception.class)
   public FileStorageResponse storeFile(
       String callerUserEmail, MultipartFile file, FileEnumType type) throws Exception {
     User user =
@@ -147,7 +147,7 @@ public class FileStorageService {
    * @throws FileAlreadyExistsException if another file with the same content already exists for the
    *     same user
    */
-  @Transactional
+  @Transactional(rollbackFor = Exception.class)
   public FileStorageResponse updateFile(String callerUserEmail, Long fileId, MultipartFile file)
       throws Exception {
     User user =
