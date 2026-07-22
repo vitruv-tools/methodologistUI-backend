@@ -20,6 +20,7 @@ import jakarta.ws.rs.BadRequestException;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -383,6 +384,34 @@ public class GlobalExceptionHandlerController {
       MetaModelUsedInVsumException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link DataIntegrityViolationException} thrown when a database operation violates a
+   * constraint — most commonly when deleting a {@code FileStorage} that is still referenced (for
+   * example by a {@code MetaModel}'s {@code ecore_file_id}/{@code gen_model_file_id}). Returns HTTP
+   * 409 (Conflict) instead of letting it fall through to the generic 500 handler.
+   *
+   * @param ex the thrown {@code DataIntegrityViolationException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return an {@code ErrorResponse} describing the conflict
+   */
+  @ExceptionHandler(value = DataIntegrityViolationException.class)
+  @ResponseStatus(HttpStatus.CONFLICT)
+  @ResponseBody
+  public ErrorResponse dataIntegrityViolationException(
+      DataIntegrityViolationException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    log.warn(
+        "DataIntegrityViolationException handled in controller: {}, message: {}",
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage());
+    log.debug(STACKTRACE_LOG, ex.toString());
+    return ErrorResponse.builder()
+        .error("CONFLICT")
+        .message("This resource is still in use and cannot be deleted.")
         .path(getPath(request))
         .build();
   }
