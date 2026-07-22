@@ -193,6 +193,23 @@ class SetupServiceApiHandlerTest {
   }
 
   @Test
+  void inspectGenModelOrThrow_deserializesData_despiteTransientField() throws Exception {
+    mockWebServer.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+            .setBody(
+                "{\"data\":[{\"type\":\"RENAME\",\"path\":\"model.genmodel\"}],"
+                    + "\"message\":\"GenModel inspected successfully\"}"));
+
+    GenModelInspectionResponse result =
+        setupServiceApiHandler.inspectGenModelOrThrow(
+            fileStorage("model.genmodel", "genmodel".getBytes()));
+
+    assertThat(result.getData()).hasSize(1);
+  }
+
+  @Test
   void inspectGenModelOrThrow_returnsErrorMessage_onUnprocessableEntity() {
     mockWebServer.enqueue(
         new MockResponse()

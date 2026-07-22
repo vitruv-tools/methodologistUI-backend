@@ -27,5 +27,5 @@ public class GenModelInspectionResponse implements Serializable {
   private String path;
   private Integer status;
   private Long timestamp;
-  private List<Object> data;
+  private transient List<Object> data;
 }
