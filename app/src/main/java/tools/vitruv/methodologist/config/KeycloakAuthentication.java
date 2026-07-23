@@ -8,7 +8,9 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -48,8 +50,23 @@ public class KeycloakAuthentication extends JwtAuthenticationToken implements Se
    * @param authorities the granted authorities for the authenticated user
    */
   public KeycloakAuthentication(Jwt jwt, Collection<? extends GrantedAuthority> authorities) {
-    super(jwt, authorities);
-    this.parsedToken = MAPPER.convertValue(jwt.getClaims(), ParsedToken.class);
+    super(Objects.requireNonNull(jwt, "jwt must not be null"), emptyIfNull(authorities));
+    this.parsedToken = MAPPER.convertValue(getToken().getClaims(), ParsedToken.class);
+  }
+
+  private static Collection<? extends GrantedAuthority> emptyIfNull(
+      Collection<? extends GrantedAuthority> authorities) {
+    return authorities == null ? Collections.emptyList() : authorities;
+  }
+
+  @Override
+  public boolean equals(Object object) {
+    return super.equals(object);
+  }
+
+  @Override
+  public int hashCode() {
+    return super.hashCode();
   }
 
   /** Strongly-typed representation of JWT claims. */
