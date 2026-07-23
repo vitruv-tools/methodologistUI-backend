@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import jakarta.persistence.EntityManager;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -23,6 +24,7 @@ class VsumMetaModelServiceTest {
   private VsumMetaModelRepository vsumMetaModelRepository;
   private MetaModelService metaModelService;
   private MetaModelRepository metaModelRepository;
+  private EntityManager entityManager;
 
   private VsumMetaModelService service;
 
@@ -31,9 +33,11 @@ class VsumMetaModelServiceTest {
     vsumMetaModelRepository = mock(VsumMetaModelRepository.class);
     metaModelService = mock(MetaModelService.class);
     metaModelRepository = mock(MetaModelRepository.class);
+    entityManager = mock(EntityManager.class);
 
     service =
-        new VsumMetaModelService(vsumMetaModelRepository, metaModelService, metaModelRepository);
+        new VsumMetaModelService(
+            vsumMetaModelRepository, metaModelService, metaModelRepository, entityManager);
   }
 
   private Vsum newVsumWithUserEmail(String email) {
@@ -85,6 +89,7 @@ class VsumMetaModelServiceTest {
     service.create(vsum, Set.of(10L, 20L));
 
     verify(vsumMetaModelRepository).saveAll(savedLinksCaptor.capture());
+    verify(entityManager).flush();
     List<VsumMetaModel> saved = savedLinksCaptor.getValue();
 
     assertThat(saved).hasSize(2);
