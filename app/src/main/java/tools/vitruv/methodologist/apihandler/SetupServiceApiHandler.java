@@ -145,8 +145,7 @@ public class SetupServiceApiHandler {
                               body ->
                                   Mono.error(
                                       new SetupServiceException(
-                                          requestFailedMessage(
-                                              uri, response.statusCode(), body)))))
+                                          requestFailedMessage(uri, response.statusCode(), body)))))
               .bodyToMono(byte[].class)
               .block();
     } catch (SetupServiceException e) {
@@ -196,9 +195,7 @@ public class SetupServiceApiHandler {
                                   Mono.error(
                                       new SetupServiceException(
                                           requestFailedMessage(
-                                              PROCESS_GENMODEL_URL,
-                                              response.statusCode(),
-                                              body)))))
+                                              PROCESS_GENMODEL_URL, response.statusCode(), body)))))
               .bodyToMono(byte[].class)
               .block();
     } catch (SetupServiceException e) {
@@ -255,9 +252,7 @@ public class SetupServiceApiHandler {
                                 Mono.error(
                                     new SetupServiceException(
                                         requestFailedMessage(
-                                            INSPECT_GENMODEL_URL,
-                                            response.statusCode(),
-                                            body))));
+                                            INSPECT_GENMODEL_URL, response.statusCode(), body))));
                   })
               .block();
 
@@ -274,8 +269,7 @@ public class SetupServiceApiHandler {
     }
   }
 
-  private static String requestFailedMessage(
-      String uri, HttpStatusCode statusCode, String body) {
+  private static String requestFailedMessage(String uri, HttpStatusCode statusCode, String body) {
     return "Setup-service request to '" + uri + "' failed with status " + statusCode + ": " + body;
   }
 
