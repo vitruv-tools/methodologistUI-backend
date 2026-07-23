@@ -144,6 +144,19 @@ public class KeycloakService {
   }
 
   /**
+   * Updates a user's editable profile names in Keycloak.
+   *
+   * @param username the username of the user to update
+   * @param firstName the first name to persist
+   * @param lastName the last name to persist
+   */
+  @Transactional
+  public void updateUserProfile(String username, String firstName, String lastName) {
+    final UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
+    keycloakGateway.updateUserProfile(userRepresentation.getId(), firstName, lastName);
+  }
+
+  /**
    * Verifies a user's password against Keycloak.
    *
    * @param username the username

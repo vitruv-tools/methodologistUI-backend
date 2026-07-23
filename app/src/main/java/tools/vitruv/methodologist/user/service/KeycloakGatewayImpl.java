@@ -110,6 +110,15 @@ public class KeycloakGatewayImpl implements KeycloakGateway {
   }
 
   @Override
+  public void updateUserProfile(String userId, String firstName, String lastName) {
+    final var userResource = keycloakAdmin.realm(realm).users().get(userId);
+    final UserRepresentation userRepresentation = userResource.toRepresentation();
+    userRepresentation.setFirstName(firstName);
+    userRepresentation.setLastName(lastName);
+    userResource.update(userRepresentation);
+  }
+
+  @Override
   public void verifyPassword(String username, String password) {
     requestAccessToken(authServerUrl, realm, clientId, username, password);
   }

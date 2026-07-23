@@ -157,6 +157,40 @@ class KeycloakGatewayImplTest {
   }
 
   @Test
+  void updateUserProfile_updatesKeycloakUser() throws Exception {
+    try (KeycloakServerFixture fixture = new KeycloakServerFixture()) {
+      fixture.enqueueTokenResponse();
+      fixture.enqueueJson(
+          """
+          {
+            "id": "user-1",
+            "username": "alice",
+            "email": "alice@example.com",
+            "firstName": "Alice",
+            "lastName": "Doe",
+            "enabled": true
+          }
+          """);
+      fixture.enqueue(new MockResponse().setResponseCode(204));
+
+      fixture.gateway.updateUserProfile("user-1", "Alicia", "Smith");
+
+      fixture.assertAdminTokenRequest(fixture.takeRequest());
+      final RecordedRequest getRequest = fixture.takeRequest();
+      assertThat(getRequest.getMethod()).isEqualTo("GET");
+      assertThat(getRequest.getPath()).isEqualTo("/admin/realms/methodologist/users/user-1");
+      final RecordedRequest updateRequest = fixture.takeRequest();
+      assertThat(updateRequest.getMethod()).isEqualTo("PUT");
+      assertThat(updateRequest.getPath()).isEqualTo("/admin/realms/methodologist/users/user-1");
+      assertThat(updateRequest.getBody().readUtf8())
+          .contains("\"username\":\"alice\"")
+          .contains("\"email\":\"alice@example.com\"")
+          .contains("\"firstName\":\"Alicia\"")
+          .contains("\"lastName\":\"Smith\"");
+    }
+  }
+
+  @Test
   void verifyPassword_requestsTokenFromConfiguredKeycloakServer() throws Exception {
     try (KeycloakServerFixture fixture = new KeycloakServerFixture()) {
       fixture.enqueueTokenResponse();
