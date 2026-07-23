@@ -40,6 +40,15 @@ public interface KeycloakGateway {
   void removeUser(String userId);
 
   /**
+   * Updates a user's editable profile names by Keycloak user ID.
+   *
+   * @param userId the Keycloak user ID
+   * @param firstName the first name to persist
+   * @param lastName the last name to persist
+   */
+  void updateUserProfile(String userId, String firstName, String lastName);
+
+  /**
    * Verifies a username and password against Keycloak.
    *
    * @param username the username to verify
