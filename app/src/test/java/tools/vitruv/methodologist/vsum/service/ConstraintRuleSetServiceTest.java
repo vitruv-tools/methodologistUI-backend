@@ -6,10 +6,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,16 +19,19 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
+import tools.vitruv.methodologist.vsum.VsumRole;
 import tools.vitruv.methodologist.vsum.controller.dto.request.RuleSetPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.RuleSetPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.RuleSetResponse;
 import tools.vitruv.methodologist.vsum.model.ConstraintRuleSet;
 import tools.vitruv.methodologist.vsum.model.Vsum;
+import tools.vitruv.methodologist.vsum.model.VsumUser;
 import tools.vitruv.methodologist.vsum.model.repository.ConstraintRuleSetRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
 
@@ -46,6 +51,8 @@ class ConstraintRuleSetServiceTest {
   void setUp() {
     user = User.builder().id(1L).email("test@example.com").build();
     vsum = Vsum.builder().id(10L).name("TestVsum").build();
+    vsum.setVsumUsers(
+        Set.of(VsumUser.builder().vsum(vsum).user(user).role(VsumRole.OWNER).build()));
 
     FileStorage oclFile =
         FileStorage.builder()
@@ -68,9 +75,10 @@ class ConstraintRuleSetServiceTest {
 
   @Test
   void findAll_returnsMappedResponses() {
+    stubAccess(10L);
     when(ruleSetRepository.findByVsumId(10L)).thenReturn(List.of(ruleSet));
 
-    List<RuleSetResponse> result = service.findAll(10L);
+    List<RuleSetResponse> result = service.findAll("test@example.com", 10L);
 
     assertThat(result).hasSize(1);
     assertThat(result.get(0).id()).isEqualTo(100L);
@@ -82,26 +90,29 @@ class ConstraintRuleSetServiceTest {
 
   @Test
   void findAll_emptyList_whenNoRuleSets() {
+    stubAccess(99L);
     when(ruleSetRepository.findByVsumId(99L)).thenReturn(List.of());
 
-    List<RuleSetResponse> result = service.findAll(99L);
+    List<RuleSetResponse> result = service.findAll("test@example.com", 99L);
 
     assertThat(result).isEmpty();
   }
 
   @Test
   void findAll_handlesNullOclFile() {
+    stubAccess(10L);
     ConstraintRuleSet noFile =
         ConstraintRuleSet.builder().id(200L).vsum(vsum).name("Empty").color("#fff").build();
     when(ruleSetRepository.findByVsumId(10L)).thenReturn(List.of(noFile));
 
-    List<RuleSetResponse> result = service.findAll(10L);
+    List<RuleSetResponse> result = service.findAll("test@example.com", 10L);
 
     assertThat(result.get(0).oclContent()).isEmpty();
   }
 
   @Test
   void findAll_handlesNullOclFileData() {
+    stubAccess(10L);
     FileStorage emptyFile = FileStorage.builder().filename("x.ocl").data(null).build();
     ConstraintRuleSet rs =
         ConstraintRuleSet.builder()
@@ -113,18 +124,30 @@ class ConstraintRuleSetServiceTest {
             .build();
     when(ruleSetRepository.findByVsumId(10L)).thenReturn(List.of(rs));
 
-    List<RuleSetResponse> result = service.findAll(10L);
+    List<RuleSetResponse> result = service.findAll("test@example.com", 10L);
 
     assertThat(result.get(0).oclContent()).isEmpty();
+  }
+
+  @Test
+  void findAll_throwsAccessDenied_whenCallerHasNoVsumAccess() {
+    Vsum inaccessible = Vsum.builder().id(10L).name("TestVsum").vsumUsers(Set.of()).build();
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
+        .thenReturn(Optional.of(user));
+    when(vsumRepository.findByIdAndRemovedAtIsNull(10L)).thenReturn(Optional.of(inaccessible));
+
+    assertThatThrownBy(() -> service.findAll("test@example.com", 10L))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+
+    verify(ruleSetRepository, never()).findByVsumId(10L);
   }
 
   // ── create ───────────────────────────────────────────────────────────────
 
   @Test
   void create_savesAndReturnsResponse() {
-    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
-        .thenReturn(Optional.of(user));
-    when(vsumRepository.findById(10L)).thenReturn(Optional.of(vsum));
+    stubAccess(10L);
     when(ruleSetRepository.save(any()))
         .thenAnswer(
             inv -> {
@@ -156,9 +179,7 @@ class ConstraintRuleSetServiceTest {
 
   @Test
   void create_usesDefaultColorWhenNull() {
-    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
-        .thenReturn(Optional.of(user));
-    when(vsumRepository.findById(10L)).thenReturn(Optional.of(vsum));
+    stubAccess(10L);
 
     ArgumentCaptor<ConstraintRuleSet> captor = ArgumentCaptor.forClass(ConstraintRuleSet.class);
     when(ruleSetRepository.save(captor.capture()))
@@ -182,9 +203,7 @@ class ConstraintRuleSetServiceTest {
 
   @Test
   void create_usesEmptyContentWhenOclContentNull() {
-    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
-        .thenReturn(Optional.of(user));
-    when(vsumRepository.findById(10L)).thenReturn(Optional.of(vsum));
+    stubAccess(10L);
 
     ArgumentCaptor<ConstraintRuleSet> captor = ArgumentCaptor.forClass(ConstraintRuleSet.class);
     when(ruleSetRepository.save(captor.capture()))
@@ -220,7 +239,7 @@ class ConstraintRuleSetServiceTest {
   void create_throwsNotFound_whenVsumNotFound() {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
         .thenReturn(Optional.of(user));
-    when(vsumRepository.findById(99L)).thenReturn(Optional.empty());
+    when(vsumRepository.findByIdAndRemovedAtIsNull(99L)).thenReturn(Optional.empty());
 
     var req = new RuleSetPostRequest("X", null, null, null);
     assertThatThrownBy(() -> service.create("test@example.com", 99L, req))
@@ -229,10 +248,23 @@ class ConstraintRuleSetServiceTest {
   }
 
   @Test
-  void create_oclFileHasCorrectFilename() {
+  void create_throwsAccessDenied_whenCallerHasNoVsumAccess() {
+    Vsum inaccessible = Vsum.builder().id(10L).name("TestVsum").vsumUsers(Set.of()).build();
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
         .thenReturn(Optional.of(user));
-    when(vsumRepository.findById(10L)).thenReturn(Optional.of(vsum));
+    when(vsumRepository.findByIdAndRemovedAtIsNull(10L)).thenReturn(Optional.of(inaccessible));
+
+    var req = new RuleSetPostRequest("X", null, null, null);
+    assertThatThrownBy(() -> service.create("test@example.com", 10L, req))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+
+    verify(ruleSetRepository, never()).save(any());
+  }
+
+  @Test
+  void create_oclFileHasCorrectFilename() {
+    stubAccess(10L);
 
     ArgumentCaptor<ConstraintRuleSet> captor = ArgumentCaptor.forClass(ConstraintRuleSet.class);
     when(ruleSetRepository.save(captor.capture()))
@@ -256,9 +288,7 @@ class ConstraintRuleSetServiceTest {
 
   @Test
   void create_oclFileHasSha256() {
-    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
-        .thenReturn(Optional.of(user));
-    when(vsumRepository.findById(10L)).thenReturn(Optional.of(vsum));
+    stubAccess(10L);
 
     ArgumentCaptor<ConstraintRuleSet> captor = ArgumentCaptor.forClass(ConstraintRuleSet.class);
     when(ruleSetRepository.save(captor.capture()))
@@ -283,8 +313,7 @@ class ConstraintRuleSetServiceTest {
 
   @Test
   void update_updatesFieldsAndReturnsResponse() {
-    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
-        .thenReturn(Optional.of(user));
+    stubAccess(10L);
     when(ruleSetRepository.findByIdAndVsumId(100L, 10L)).thenReturn(Optional.of(ruleSet));
     when(ruleSetRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -301,8 +330,7 @@ class ConstraintRuleSetServiceTest {
 
   @Test
   void update_keepsOldColor_whenRequestColorNull() {
-    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
-        .thenReturn(Optional.of(user));
+    stubAccess(10L);
     when(ruleSetRepository.findByIdAndVsumId(100L, 10L)).thenReturn(Optional.of(ruleSet));
     when(ruleSetRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -315,8 +343,7 @@ class ConstraintRuleSetServiceTest {
 
   @Test
   void update_throwsNotFound_whenRuleSetNotFound() {
-    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
-        .thenReturn(Optional.of(user));
+    stubAccess(10L);
     when(ruleSetRepository.findByIdAndVsumId(999L, 10L)).thenReturn(Optional.empty());
 
     var req = new RuleSetPutRequest("X", null, null, null);
@@ -336,9 +363,24 @@ class ConstraintRuleSetServiceTest {
   }
 
   @Test
-  void update_usesEmptyContentWhenOclContentNull() {
+  void update_throwsAccessDenied_whenCallerHasNoVsumAccess() {
+    Vsum inaccessible = Vsum.builder().id(10L).name("TestVsum").vsumUsers(Set.of()).build();
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
         .thenReturn(Optional.of(user));
+    when(vsumRepository.findByIdAndRemovedAtIsNull(10L)).thenReturn(Optional.of(inaccessible));
+
+    var req = new RuleSetPutRequest("X", null, null, null);
+    assertThatThrownBy(() -> service.update("test@example.com", 10L, 100L, req))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+
+    verify(ruleSetRepository, never()).findByIdAndVsumId(100L, 10L);
+    verify(ruleSetRepository, never()).save(any());
+  }
+
+  @Test
+  void update_usesEmptyContentWhenOclContentNull() {
+    stubAccess(10L);
     when(ruleSetRepository.findByIdAndVsumId(100L, 10L)).thenReturn(Optional.of(ruleSet));
 
     ArgumentCaptor<ConstraintRuleSet> captor = ArgumentCaptor.forClass(ConstraintRuleSet.class);
@@ -354,29 +396,53 @@ class ConstraintRuleSetServiceTest {
 
   @Test
   void delete_removesRuleSet() {
+    stubAccess(10L);
     when(ruleSetRepository.findByIdAndVsumId(100L, 10L)).thenReturn(Optional.of(ruleSet));
 
-    service.delete(10L, 100L);
+    service.delete("test@example.com", 10L, 100L);
 
     verify(ruleSetRepository).delete(ruleSet);
   }
 
   @Test
   void delete_throwsNotFound_whenRuleSetNotFound() {
+    stubAccess(10L);
     when(ruleSetRepository.findByIdAndVsumId(999L, 10L)).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> service.delete(10L, 999L))
+    assertThatThrownBy(() -> service.delete("test@example.com", 10L, 999L))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining("RuleSet not found");
   }
 
   @Test
+  void delete_throwsAccessDenied_whenCallerHasNoVsumAccess() {
+    Vsum inaccessible = Vsum.builder().id(10L).name("TestVsum").vsumUsers(Set.of()).build();
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
+        .thenReturn(Optional.of(user));
+    when(vsumRepository.findByIdAndRemovedAtIsNull(10L)).thenReturn(Optional.of(inaccessible));
+
+    assertThatThrownBy(() -> service.delete("test@example.com", 10L, 100L))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+
+    verify(ruleSetRepository, never()).findByIdAndVsumId(100L, 10L);
+    verify(ruleSetRepository, never()).delete(any());
+  }
+
+  @Test
   void delete_doesNotDeleteOtherRuleSets() {
     ConstraintRuleSet otherRuleSet = new ConstraintRuleSet();
+    stubAccess(10L);
     when(ruleSetRepository.findByIdAndVsumId(100L, 10L)).thenReturn(Optional.of(ruleSet));
 
-    service.delete(10L, 100L);
+    service.delete("test@example.com", 10L, 100L);
 
     verify(ruleSetRepository, never()).delete(otherRuleSet);
+  }
+
+  private void stubAccess(Long vsumId) {
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
+        .thenReturn(Optional.of(user));
+    when(vsumRepository.findByIdAndRemovedAtIsNull(vsumId)).thenReturn(Optional.of(vsum));
   }
 }
