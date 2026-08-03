@@ -11,6 +11,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -231,16 +232,57 @@ class UserServiceTest {
     User existing = new User();
     existing.setId(id);
     existing.setEmail("alice@example.com");
+    existing.setUsername("alice");
 
     UserPutRequest put = UserPutRequest.builder().firstName("Alicia").lastName("Doe").build();
 
     when(userRepository.findByIdAndRemovedAtIsNull(id)).thenReturn(Optional.of(existing));
+    doAnswer(
+            invocation -> {
+              User user = invocation.getArgument(1);
+              user.setFirstName(put.getFirstName());
+              user.setLastName(put.getLastName());
+              return null;
+            })
+        .when(userMapper)
+        .updateByUserPutRequest(put, existing);
 
     User result = userService.update(id, put);
 
     assertThat(result).isSameAs(existing);
     verify(userMapper).updateByUserPutRequest(eq(put), eq(existing));
+    verify(keycloakService).updateUserProfile("alice", "Alicia", "Doe");
     verify(userRepository).save(existing);
+  }
+
+  @Test
+  void update_propagatesKeycloakError_andDoesNotSave() {
+    long id = 42L;
+    User existing = new User();
+    existing.setId(id);
+    existing.setEmail("alice@example.com");
+    existing.setUsername("alice");
+    UserPutRequest put = UserPutRequest.builder().firstName("Alicia").lastName("Doe").build();
+
+    when(userRepository.findByIdAndRemovedAtIsNull(id)).thenReturn(Optional.of(existing));
+    doAnswer(
+            invocation -> {
+              User user = invocation.getArgument(1);
+              user.setFirstName(put.getFirstName());
+              user.setLastName(put.getLastName());
+              return null;
+            })
+        .when(userMapper)
+        .updateByUserPutRequest(put, existing);
+    doThrow(new RuntimeException("Keycloak service down"))
+        .when(keycloakService)
+        .updateUserProfile("alice", "Alicia", "Doe");
+
+    assertThatThrownBy(() -> userService.update(id, put))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Keycloak service down");
+
+    verify(userRepository, never()).save(any());
   }
 
   @Test
@@ -758,7 +800,7 @@ class UserServiceTest {
   }
 
   @Test
-  void syncWithKeycloak_updatesExistingUser_whenUsernameFound() {
+  void syncWithKeycloak_preservesExistingNames_whenUsernameFound() {
     User existingUser = new User();
     existingUser.setId(1L);
     existingUser.setEmail("oldemail@example.com");
@@ -773,9 +815,7 @@ class UserServiceTest {
         .thenReturn(Optional.of(existingUser));
 
     String newEmail = "updatedemail@example.com";
-    String newFirstName = "Jane";
-    String newLastName = "Smith";
-    userService.syncWithKeycloak(newEmail, username, newFirstName, newLastName);
+    userService.syncWithKeycloak(newEmail, username, "Jane", "Smith");
 
     ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
     verify(userRepository).save(savedCaptor.capture());
@@ -784,8 +824,8 @@ class UserServiceTest {
     assertThat(savedUser.getId()).isEqualTo(1L);
     assertThat(savedUser.getEmail()).isEqualTo(newEmail);
     assertThat(savedUser.getUsername()).isEqualTo(username);
-    assertThat(savedUser.getFirstName()).isEqualTo(newFirstName);
-    assertThat(savedUser.getLastName()).isEqualTo(newLastName);
+    assertThat(savedUser.getFirstName()).isEqualTo("Old");
+    assertThat(savedUser.getLastName()).isEqualTo("Name");
     assertThat(savedUser.getVerified()).isTrue();
 
     verify(keycloakService).assignUserRole(username, RoleType.USER.getName());
@@ -814,6 +854,8 @@ class UserServiceTest {
     User saved = savedCaptor.getValue();
     assertThat(saved.getId()).isEqualTo(99L);
     assertThat(saved.getVerified()).isTrue();
+    assertThat(saved.getFirstName()).isEqualTo("Old");
+    assertThat(saved.getLastName()).isEqualTo("Value");
   }
 
   @Test

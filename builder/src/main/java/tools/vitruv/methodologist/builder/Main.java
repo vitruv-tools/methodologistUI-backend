@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.builder;
 import static java.nio.file.Files.createDirectories;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
@@ -26,7 +27,7 @@ public class Main {
    * configuration, and writes a result.json file with execution details. Exits with code 0 on
    * success or 1 on failure.
    */
-  public static void main(String[] args) throws Exception {
+  public static void main(String[] args) {
     Map<String, String> parsedArgs = parseArgs(args);
     String out = parsedArgs.getOrDefault("--out", System.getProperty("java.io.tmpdir") + "/mm-out");
 
@@ -40,8 +41,12 @@ public class Main {
 
       handleSuccess(out, result, nsUris, cfg);
       System.exit(0);
-    } catch (Exception e) {
-      handleFailure(out, result, nsUris, e);
+    } catch (IOException | RuntimeException e) {
+      try {
+        handleFailure(out, result, nsUris, e);
+      } catch (IOException writeFailure) {
+        log.error("Failed to write build failure result: {}", writeFailure.getMessage());
+      }
       System.exit(1);
     }
   }
@@ -76,7 +81,7 @@ public class Main {
       }
       sb.append(expandPath(pg[0].trim())).append(",").append(expandPath(pg[1].trim())).append(";");
     }
-    return sb.toString().replaceAll(";+?$", "");
+    return sb.toString().replaceAll(";+$", "");
   }
 
   private static VitruvConfiguration buildAndValidateConfiguration(String out, String pairs) {
@@ -110,7 +115,7 @@ public class Main {
 
   private static void handleSuccess(
       String out, Map<String, Object> result, List<String> nsUris, VitruvConfiguration cfg)
-      throws Exception {
+      throws IOException {
     result.put("success", true);
     result.put("errors", 0);
     result.put("warnings", 0);
@@ -124,7 +129,7 @@ public class Main {
   }
 
   private static void handleFailure(
-      String out, Map<String, Object> result, List<String> nsUris, Exception e) throws Exception {
+      String out, Map<String, Object> result, List<String> nsUris, Exception e) throws IOException {
     result.put("success", false);
     result.put("errors", 1);
     result.put("warnings", 0);
@@ -145,7 +150,7 @@ public class Main {
     return path;
   }
 
-  private static void writeResult(String out, Map<String, Object> result) throws Exception {
+  private static void writeResult(String out, Map<String, Object> result) throws IOException {
     Path outDir = Paths.get(out);
     createDirectories(outDir);
     new ObjectMapper()
