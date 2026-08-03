@@ -12,6 +12,7 @@
 
 # Package Files #
 *.jar
+!app/src/main/resources/lsp/vitruvocl-language-server.jar
 *.war
 *.nar
 *.ear
