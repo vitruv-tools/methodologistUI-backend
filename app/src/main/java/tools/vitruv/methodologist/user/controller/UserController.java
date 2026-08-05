@@ -158,7 +158,8 @@ public class UserController {
    *
    * @param authentication the {@link KeycloakAuthentication} containing the caller's parsed token
    *     and email
-   * @param userPutChangePasswordRequest validated request DTO containing the new password
+   * @param userPutChangePasswordRequest validated request DTO containing the current and new
+   *     password
    * @return a {@link ResponseTemplateDto} with no payload and a success message
    * @throws RuntimeException if the service fails to change the password (underlying exceptions
    *     will propagate)

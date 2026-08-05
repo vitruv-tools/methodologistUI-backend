@@ -40,6 +40,7 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
   private static final Set<String> SENSITIVE_KEYS =
       Set.of(
           "password",
+          "currentpassword",
           "newpassword",
           "oldpassword",
           "confirmpassword",
@@ -305,14 +306,17 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
   private String redactWithRegex(String raw) {
     return raw.replaceAll("(?i)(\"password\"\\s*:\\s*\")[^\"]*(\")", "$1" + MASK + "$2")
         .replaceAll(
-            "(?i)(\"(newPassword|oldPassword|confirmPassword)\"\\s*:\\s*\")[^\"]*(\")",
+            "(?i)(\"(currentPassword|newPassword|oldPassword|confirmPassword)"
+                + "\"\\s*:\\s*\")[^\"]*(\")",
             "$1" + MASK + "$3")
         .replaceAll(
             "(?i)(\"(accessToken|refreshToken|token|access_token|refresh_token|id_token)"
                 + "\"\\s*:\\s*\")[^\"]*(\")",
             "$1" + MASK + "$3")
         .replaceAll(
-            "(?i)(password|accessToken|refreshToken|access_token|refresh_token)=\\S+", "$1=" + MASK)
+            "(?i)(currentPassword|newPassword|oldPassword|confirmPassword|password|accessToken"
+                + "|refreshToken|access_token|refresh_token)=[^\\s&]+",
+            "$1=" + MASK)
         .replaceAll("(?i)(Authorization\\s*:\\s*Bearer\\s+)[A-Z0-9._~-]+", "$1" + MASK);
   }
 }
