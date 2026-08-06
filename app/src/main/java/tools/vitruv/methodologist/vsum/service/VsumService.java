@@ -12,6 +12,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
@@ -102,12 +103,28 @@ public class VsumService {
       ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX + BUNDLE_RESOURCE_ROOT + "/";
   private static final String BUNDLE_CONTENT_PATTERN = BUNDLE_ROOT_PATTERN + "**";
 
+  /**
+   * Permissions of the launcher scripts inside the bundle: executable for the user who extracts the
+   * archive, no access at all for group and others.
+   */
   private static final Set<PosixFilePermission> EXECUTABLE_PERMISSIONS =
-      PosixFilePermissions.fromString("rwxr-xr-x");
+      PosixFilePermissions.fromString("rwx------");
+
   private static final Set<String> EXECUTABLE_SUFFIXES = Set.of(".sh", ".command", ".bash");
 
   private static final Map<String, String> ZIP_FILE_SYSTEM_ENV =
       Map.of("create", "true", "enablePosixFileAttributes", "true");
+
+  private static final String POSIX_FILE_ATTRIBUTE_VIEW = "posix";
+  private static final String BUNDLE_FILE_NAME = "bundle.zip";
+  private static final String WORK_DIRECTORY_PREFIX = "vsum-deployment-";
+
+  /**
+   * Attributes making the temporary work directory accessible to the owner only, so that no other
+   * local user can read the artifact or plant entries in it while it is being written. Empty on
+   * file systems without POSIX support, which then apply their own default permissions.
+   */
+  private static final FileAttribute<?>[] OWNER_ONLY_DIRECTORY = ownerOnlyDirectoryAttributes();
 
   VsumMapper vsumMapper;
   VsumRepository vsumRepository;
@@ -483,20 +500,38 @@ public class VsumService {
   public byte[] createDeploymentBundle(String callerEmail, Long id) {
     byte[] jar = getJarfat(callerEmail, id);
 
-    Path bundle = null;
+    Path workDirectory = null;
     try {
-      bundle = Files.createTempFile("vsum-deployment-", ".zip");
-      // The ZIP file system creates the archive itself and rejects an existing empty file.
-      Files.delete(bundle);
+      // The archive is assembled in a private directory instead of directly in the shared
+      // temporary directory, so that no other local user can read or replace it meanwhile.
+      workDirectory = Files.createTempDirectory(WORK_DIRECTORY_PREFIX, OWNER_ONLY_DIRECTORY);
 
+      Path bundle = workDirectory.resolve(BUNDLE_FILE_NAME);
       writeBundle(bundle, jar);
       return Files.readAllBytes(bundle);
     } catch (IOException e) {
       log.error("Failed to assemble the deployment bundle for VSUM {}", id, e);
       throw new BuildArtifactCreationException(e.getMessage());
     } finally {
-      deleteQuietly(bundle);
+      deleteQuietly(workDirectory);
     }
+  }
+
+  /**
+   * Builds the attributes restricting the temporary work directory to its owner.
+   *
+   * @return the owner-only attributes, or an empty array if the default file system has no POSIX
+   *     support
+   */
+  private static FileAttribute<?>[] ownerOnlyDirectoryAttributes() {
+    if (!FileSystems.getDefault()
+        .supportedFileAttributeViews()
+        .contains(POSIX_FILE_ATTRIBUTE_VIEW)) {
+      return new FileAttribute<?>[0];
+    }
+    return new FileAttribute<?>[] {
+      PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"))
+    };
   }
 
   /**
@@ -567,18 +602,14 @@ public class VsumService {
 
     List<BundleEntry> entries = new ArrayList<>();
     for (Resource resource : resolver.getResources(BUNDLE_CONTENT_PATTERN)) {
-      if (!resource.isReadable()) {
-        continue;
-      }
+      String name = resource.isReadable() ? relativeBundleName(resource, roots) : null;
 
-      String name = relativeBundleName(resource, roots);
       if (name == null || name.isEmpty()) {
         log.debug(
-            "Skipping resource outside of the '{}' package: {}", BUNDLE_RESOURCE_ROOT, resource);
-        continue;
+            "Skipping non-file resource of the '{}' package: {}", BUNDLE_RESOURCE_ROOT, resource);
+      } else {
+        entries.add(new BundleEntry(name, resource));
       }
-
-      entries.add(new BundleEntry(name, resource));
     }
 
     entries.sort(Comparator.comparing(BundleEntry::name));
@@ -615,18 +646,20 @@ public class VsumService {
   }
 
   /**
-   * Removes the temporary archive, logging instead of failing when it cannot be deleted.
+   * Removes the temporary work directory and the archive it holds, logging instead of failing when
+   * they cannot be deleted.
    *
-   * @param path the file to delete; may be {@code null}
+   * @param workDirectory the directory to delete; may be {@code null}
    */
-  private void deleteQuietly(Path path) {
-    if (path == null) {
+  private void deleteQuietly(Path workDirectory) {
+    if (workDirectory == null) {
       return;
     }
     try {
-      Files.deleteIfExists(path);
+      Files.deleteIfExists(workDirectory.resolve(BUNDLE_FILE_NAME));
+      Files.deleteIfExists(workDirectory);
     } catch (IOException e) {
-      log.warn("Could not delete the temporary deployment bundle {}", path, e);
+      log.warn("Could not delete the temporary deployment work directory {}", workDirectory, e);
     }
   }
 

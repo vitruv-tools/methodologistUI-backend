@@ -26,6 +26,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
@@ -1164,11 +1165,12 @@ class VsumServiceTest {
     Path archive = writeToTempFile(bundle);
     Map<String, String> env = new HashMap<>();
     env.put("enablePosixFileAttributes", "true");
+    Set<PosixFilePermission> ownerOnly = PosixFilePermissions.fromString("rwx------");
     try (FileSystem zip = FileSystems.newFileSystem(archive, env)) {
       assertThat(Files.getPosixFilePermissions(zip.getPath("run.sh")))
-          .contains(PosixFilePermission.OWNER_EXECUTE);
+          .containsExactlyInAnyOrderElementsOf(ownerOnly);
       assertThat(Files.getPosixFilePermissions(zip.getPath("run.command")))
-          .contains(PosixFilePermission.OWNER_EXECUTE);
+          .containsExactlyInAnyOrderElementsOf(ownerOnly);
     }
   }
 
