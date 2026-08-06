@@ -3,6 +3,21 @@
 Instructions for AI coding agents and human contributors working in this repository.
 Read this file before making any change.
 
+## Agent Behavior
+
+Before writing code:
+
+- Read the relevant classes.
+- Understand existing patterns.
+- Follow the project's conventions.
+- Do not rewrite working code unnecessarily.
+
+When uncertain:
+
+- Prefer consistency over cleverness.
+- Match the surrounding implementation style.
+- Avoid speculative improvements.
+
 ## Project Overview
 
 **Methodologist Backend** is a Spring Boot service that validates EMF metamodels, manages VSUM
@@ -64,6 +79,37 @@ MapStruct mappers between entities and DTOs.
 - Add Javadoc to public classes and non-trivial public methods, matching surrounding density.
 - Do not suppress warnings unless genuinely necessary, and justify each suppression with a comment.
 
+## Architecture
+
+- Follow the existing package structure.
+- Business logic belongs in services.
+- Controllers should only validate requests and delegate.
+- Repositories must not contain business logic.
+- MapStruct mappers are responsible only for mapping.
+- Do not introduce circular dependencies between packages.
+- Keep domain boundaries intact.
+
+## Dependencies
+
+- Reuse existing libraries whenever possible.
+- Do not introduce a new dependency if the project already provides equivalent functionality.
+- Discuss adding new dependencies before modifying pom.xml.
+
+## Database
+
+- Never modify an applied Flyway migration.
+- Always create a new migration.
+- Keep entity mappings compatible with existing schema.
+- Prefer repository queries over native SQL.
+- Native SQL requires justification.
+
+## REST API
+
+- Preserve backward compatibility.
+- Do not change request or response DTOs unless required.
+- Keep endpoint URLs stable.
+- Document API changes.
+
 ## Java Guidelines
 
 - Target Java 21 language level. Do not use language features beyond Java 21.
@@ -93,6 +139,15 @@ MapStruct mappers between entities and DTOs.
   fix the query or the transactional scope instead.
 - Keep configuration in the existing `application-*.properties` profiles; do not hardcode
   environment-specific values.
+
+## Test Priority
+
+When changing code:
+
+1. Update existing tests if behavior changed.
+2. Add unit tests for new logic.
+3. Add integration tests only when required.
+4. Never remove a failing test simply to make CI pass.
 
 ## Testing
 
@@ -130,6 +185,18 @@ MapStruct mappers between entities and DTOs.
 - Do not mix refactoring with functional changes in the same PR.
 - Explain *why* the change was made, not only what changed; link the related issue.
 - Target `develop` unless instructed otherwise; CI runs on `main` and `develop`.
+
+## Self Review Checklist
+
+Before finishing:
+
+- Does the code compile?
+- Are all tests passing?
+- Is formatting correct?
+- Are Sonar issues introduced?
+- Is the implementation minimal?
+- Is backward compatibility preserved?
+- Is documentation updated if needed?
 
 ## Before Finishing
 
