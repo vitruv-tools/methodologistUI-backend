@@ -5,13 +5,24 @@ import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -21,12 +32,17 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
+import org.springframework.core.io.support.ResourcePatternResolver;
+import org.springframework.core.io.support.ResourcePatternUtils;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
+import tools.vitruv.methodologist.exception.BuildArtifactCreationException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -75,6 +91,24 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumService {
+
+  /** Classpath package whose whole content is copied into every deployment bundle. */
+  static final String BUNDLE_RESOURCE_ROOT = "deployment";
+
+  /** Name under which the built fat JAR is stored in a deployment bundle. */
+  static final String JAR_ENTRY_NAME = "vsum.jar";
+
+  private static final String BUNDLE_ROOT_PATTERN =
+      ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX + BUNDLE_RESOURCE_ROOT + "/";
+  private static final String BUNDLE_CONTENT_PATTERN = BUNDLE_ROOT_PATTERN + "**";
+
+  private static final Set<PosixFilePermission> EXECUTABLE_PERMISSIONS =
+      PosixFilePermissions.fromString("rwxr-xr-x");
+  private static final Set<String> EXECUTABLE_SUFFIXES = Set.of(".sh", ".command", ".bash");
+
+  private static final Map<String, String> ZIP_FILE_SYSTEM_ENV =
+      Map.of("create", "true", "enablePosixFileAttributes", "true");
+
   VsumMapper vsumMapper;
   VsumRepository vsumRepository;
   MetaModelMapper metaModelMapper;
@@ -93,6 +127,7 @@ public class VsumService {
   private final VsumViewMetaModelRepository vsumViewMetaModelRepository;
   private final VsumViewMapper vsumViewMapper;
   private final SetupServiceApiHandler setupServiceApiHandler;
+  private final ResourceLoader resourceLoader;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -426,6 +461,182 @@ public class VsumService {
     return setupServiceApiHandler.buildVsumJarOrThrow(
         new ArrayList<>(ecores.values()), new ArrayList<>(genmodels.values()), reactions);
   }
+
+  /**
+   * Builds the VSUM and packages the resulting fat JAR together with the {@code deployment}
+   * resource package into a single ZIP archive that the user can run locally.
+   *
+   * <p>The {@code deployment} package holds the launcher scripts and documentation needed to start
+   * the application; adding a file there is enough to have it shipped in the bundle, no code change
+   * is required. Launcher scripts are stored with the POSIX executable bit set so that they can be
+   * started directly after extraction on macOS and Linux.
+   *
+   * <p>Access to the VSUM is validated by {@link #getJarfat(String, Long)}, whose exceptions are
+   * propagated unchanged.
+   *
+   * @param callerEmail email address of the requesting user
+   * @param id the VSUM identifier
+   * @return the deployment bundle as ZIP bytes
+   * @throws AccessDeniedException if the user is not authorized for this VSUM
+   * @throws BuildArtifactCreationException if the archive cannot be assembled
+   */
+  public byte[] createDeploymentBundle(String callerEmail, Long id) {
+    byte[] jar = getJarfat(callerEmail, id);
+
+    Path bundle = null;
+    try {
+      bundle = Files.createTempFile("vsum-deployment-", ".zip");
+      // The ZIP file system creates the archive itself and rejects an existing empty file.
+      Files.delete(bundle);
+
+      writeBundle(bundle, jar);
+      return Files.readAllBytes(bundle);
+    } catch (IOException e) {
+      log.error("Failed to assemble the deployment bundle for VSUM {}", id, e);
+      throw new BuildArtifactCreationException(e.getMessage());
+    } finally {
+      deleteQuietly(bundle);
+    }
+  }
+
+  /**
+   * Writes the fat JAR and the {@code deployment} resources into the given archive.
+   *
+   * @param bundle path of the archive to create
+   * @param jar the built fat JAR bytes
+   * @throws IOException if the archive cannot be written
+   */
+  private void writeBundle(Path bundle, byte[] jar) throws IOException {
+    try (FileSystem zip = FileSystems.newFileSystem(bundle, ZIP_FILE_SYSTEM_ENV)) {
+      Files.write(zip.getPath(JAR_ENTRY_NAME), jar);
+      for (BundleEntry entry : readBundleResources()) {
+        addBundleEntry(zip, entry);
+      }
+    }
+  }
+
+  /**
+   * Copies a single resource into the archive, preserving its path inside the {@code deployment}
+   * package and marking launcher scripts as executable.
+   *
+   * @param zip the archive file system to write into
+   * @param entry the resource and the name it gets in the archive
+   * @throws IOException if the entry cannot be written
+   */
+  private void addBundleEntry(FileSystem zip, BundleEntry entry) throws IOException {
+    Path target = zip.getPath(entry.name());
+    Path parent = target.getParent();
+    if (parent != null) {
+      Files.createDirectories(parent);
+    }
+
+    try (InputStream source = entry.resource().getInputStream()) {
+      Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    if (isExecutableBundleEntry(entry.name())) {
+      Files.setPosixFilePermissions(target, EXECUTABLE_PERMISSIONS);
+    }
+  }
+
+  /**
+   * Collects every readable file of the {@code deployment} resource package.
+   *
+   * <p>Entries are sorted by name so that the produced archive is reproducible.
+   *
+   * @return the resources to add, each paired with its name inside the archive
+   * @throws IOException if the classpath cannot be scanned
+   */
+  private List<BundleEntry> readBundleResources() throws IOException {
+    ResourcePatternResolver resolver =
+        ResourcePatternUtils.getResourcePatternResolver(resourceLoader);
+
+    List<String> roots = new ArrayList<>();
+    for (Resource root : resolver.getResources(BUNDLE_ROOT_PATTERN)) {
+      String url = root.getURL().toString();
+      roots.add(url.endsWith("/") ? url : url + "/");
+    }
+
+    if (roots.isEmpty()) {
+      log.warn(
+          "No '{}' resource package found on the classpath, the bundle will contain only {}",
+          BUNDLE_RESOURCE_ROOT,
+          JAR_ENTRY_NAME);
+      return List.of();
+    }
+
+    List<BundleEntry> entries = new ArrayList<>();
+    for (Resource resource : resolver.getResources(BUNDLE_CONTENT_PATTERN)) {
+      if (!resource.isReadable()) {
+        continue;
+      }
+
+      String name = relativeBundleName(resource, roots);
+      if (name == null || name.isEmpty()) {
+        log.debug(
+            "Skipping resource outside of the '{}' package: {}", BUNDLE_RESOURCE_ROOT, resource);
+        continue;
+      }
+
+      entries.add(new BundleEntry(name, resource));
+    }
+
+    entries.sort(Comparator.comparing(BundleEntry::name));
+    return entries;
+  }
+
+  /**
+   * Determines the archive name of a resource relative to the {@code deployment} package.
+   *
+   * @param resource the resource to name
+   * @param roots the URLs of the {@code deployment} package roots, each ending with a slash
+   * @return the relative name, or {@code null} if the resource belongs to no known root
+   * @throws IOException if the resource URL cannot be resolved
+   */
+  private String relativeBundleName(Resource resource, List<String> roots) throws IOException {
+    String url = resource.getURL().toString();
+    for (String root : roots) {
+      if (url.startsWith(root)) {
+        return url.substring(root.length());
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Tells whether an archive entry is a launcher script that must stay executable.
+   *
+   * @param name the entry name inside the archive
+   * @return {@code true} if the executable bit has to be set
+   */
+  private boolean isExecutableBundleEntry(String name) {
+    String lowerCaseName = name.toLowerCase(Locale.ROOT);
+    return EXECUTABLE_SUFFIXES.stream().anyMatch(lowerCaseName::endsWith);
+  }
+
+  /**
+   * Removes the temporary archive, logging instead of failing when it cannot be deleted.
+   *
+   * @param path the file to delete; may be {@code null}
+   */
+  private void deleteQuietly(Path path) {
+    if (path == null) {
+      return;
+    }
+    try {
+      Files.deleteIfExists(path);
+    } catch (IOException e) {
+      log.warn("Could not delete the temporary deployment bundle {}", path, e);
+    }
+  }
+
+  /**
+   * A single file of the {@code deployment} package together with its name inside the archive.
+   *
+   * @param name the entry name inside the archive
+   * @param resource the classpath resource holding the content
+   */
+  private record BundleEntry(String name, Resource resource) {}
 
   /**
    * Associates an Ecore/GenModel pair into the provided maps using stable keys.
