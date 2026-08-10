@@ -148,6 +148,15 @@ class KeycloakServiceTest {
   }
 
   @Test
+  void verifyUserPasswordOrThrow_throwsBadRequest_whenKeycloakReturnsInvalidGrant() {
+    keycloakGateway.verifyPasswordException = new BadRequestException("invalid_grant");
+
+    assertThatThrownBy(() -> keycloakService.verifyUserPasswordOrThrow("alice", "wrong-password"))
+        .isInstanceOf(BadRequestException.class)
+        .hasMessageContaining(USER_WRONG_PASSWORD_ERROR);
+  }
+
+  @Test
   void verifyUserPasswordOrThrow_throwsUncheckedRuntime_whenKeycloakFailsUnexpectedly() {
     keycloakGateway.verifyPasswordException = new RuntimeException("server error");
 

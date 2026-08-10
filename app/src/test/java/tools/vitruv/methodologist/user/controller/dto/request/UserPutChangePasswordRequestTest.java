@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.user.controller.dto.request;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
@@ -63,5 +64,22 @@ class UserPutChangePasswordRequestTest {
             .build();
 
     assertThat(validator.validate(request)).isEmpty();
+  }
+
+  @Test
+  void deserialize_mapsLegacyPasswordFieldToNewPassword() throws Exception {
+    UserPutChangePasswordRequest request =
+        new ObjectMapper()
+            .readValue(
+                """
+                {
+                  "currentPassword": "CurrentPass#12345",
+                  "password": "StrongPass#12345"
+                }
+                """,
+                UserPutChangePasswordRequest.class);
+
+    assertThat(request.getCurrentPassword()).isEqualTo("CurrentPass#12345");
+    assertThat(request.getNewPassword()).isEqualTo("StrongPass#12345");
   }
 }

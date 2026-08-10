@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.user.controller.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -31,6 +32,7 @@ public class UserPutChangePasswordRequest {
 
   @NotNull
   @NotBlank
+  @JsonAlias("password")
   @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
   @Pattern(
       regexp = "^(?=.{8,256}$)(?=.*\\p{Ll})(?=.*\\p{Lu})(?=.*\\p{Nd})(?=.*[^\\p{L}\\p{Nd}\\s]).*$",
