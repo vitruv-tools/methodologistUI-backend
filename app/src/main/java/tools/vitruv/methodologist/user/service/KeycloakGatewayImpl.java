@@ -39,7 +39,8 @@ public class KeycloakGatewayImpl implements KeycloakGateway {
       @Value("${keycloak.admin.password}") String adminPassword,
       @Value("${keycloak.admin.client-secret}") String secret,
       @Value(
-              "${methodologist.keycloak.client-id:${spring.security.oauth2.client.registration.keycloak.client-id}}")
+              "${methodologist.keycloak.client-id:"
+                  + "${spring.security.oauth2.client.registration.keycloak.client-id}}")
           String clientId) {
     this.authServerUrl = authServerUrl;
     this.realm = realm;
