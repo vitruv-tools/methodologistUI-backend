@@ -18,9 +18,12 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.AccessDeniedException;
@@ -72,7 +75,7 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
  */
 @Service
 @Slf4j
-@AllArgsConstructor
+@RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumService {
   VsumMapper vsumMapper;
@@ -93,6 +96,12 @@ public class VsumService {
   private final VsumViewMetaModelRepository vsumViewMetaModelRepository;
   private final VsumViewMapper vsumViewMapper;
   private final SetupServiceApiHandler setupServiceApiHandler;
+  @NonFinal private VsumService self;
+
+  @Autowired
+  void setSelf(@Lazy VsumService self) {
+    this.self = self;
+  }
 
   /**
    * Creates a new VSUM with the specified details.
@@ -167,7 +176,7 @@ public class VsumService {
       throw new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS);
     }
 
-    return applySyncChanges(
+    return self.applySyncChanges(
         vsumUser.getVsum(), vsumUser.getUser(), vsumSyncChangesPutRequest, true);
   }
 

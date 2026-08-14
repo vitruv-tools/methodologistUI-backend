@@ -174,6 +174,7 @@ class VsumServiceTest {
             vsumViewMetaModelRepository,
             vsumViewMapper,
             setupServiceApiHandler);
+    service.setSelf(service);
 
     lenient().when(vsumViewRepository.findAllByVsum(any(Vsum.class))).thenReturn(List.of());
     lenient()
