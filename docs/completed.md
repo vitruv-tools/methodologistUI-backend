@@ -6,11 +6,11 @@ Tracks progress against [`low-code-integration-plan.md`](low-code-integration-pl
 |---|---|
 | 0 — scaffolding | **done** |
 | 1 — persistence | **done** |
-| 2 — low-code engine | not started |
+| 2 — low-code engine | **done** |
 | 3 — sync-changes integration | not started |
 | 4 — details + history | not started |
 | 5 — build path (setup-service) | not started |
-| 6 — tests | not started (Phase 0 unit test only) |
+| 6 — tests | not started (Phase 0 + Phase 2 unit tests only) |
 | 7 — quality gates | not started |
 
 ---
@@ -74,3 +74,49 @@ Branch: `low-code`
 
 - DTOs, mappers, template engine, sync-changes, history JSON, build path
 - Service still requires a coarse `reactionFileId` (Phase 3 will allow FG-only relations)
+
+---
+
+## Phase 2 — low-code engine (done)
+
+Date: 2026-08-16  
+Branch: `low-code`
+
+| Plan item | Result |
+|---|---|
+| `annotation/ReactionMetadata.java` | Done |
+| `vsum/lowcode/reactions/template/**` (controller, DTOs, services, `.ftl`) | Done |
+| `LowCodeReactionRequestMapper` | Done |
+| `ReactionParserUtil` | Done (private constructor) |
+| `FileStorageService` byte[] `storeFile` / `updateFile` overloads | Done; MultipartFile APIs unchanged (still throw on duplicate) |
+| Register template request beans for metadata injection | Done (`@Component` on request DTOs) |
+| Exclude `CompositeReactionsRequest` from public metadata | Done (`@ReactionMetadata(hide = true)` + filter in metadata service) |
+| Domain exceptions instead of raw `RuntimeException` | Done: `LowCodeTemplateException` + HTTP 400 handler |
+
+Also added focused unit tests for template render, metadata filtering, reaction parsing, and byte[] file storage.
+
+### Endpoint
+
+- `GET /api/lowcode-metadata` (role `user`)
+
+### Files (new)
+
+- `app/src/main/java/tools/vitruv/methodologist/annotation/ReactionMetadata.java`
+- `app/src/main/java/tools/vitruv/methodologist/exception/LowCodeTemplateException.java`
+- `app/src/main/java/tools/vitruv/methodologist/vsum/lowcode/**`
+- `app/src/main/java/tools/vitruv/methodologist/vsum/mapper/LowCodeReactionRequestMapper.java`
+- `app/src/main/java/tools/vitruv/methodologist/vsum/reaction/ReactionParserUtil.java`
+- `app/src/main/resources/lowcode/reactions/template/*.ftl`
+- tests under `app/src/test/java/.../lowcode/` and `.../reaction/ReactionParserUtilTest.java`
+
+### Files (modified)
+
+- `FileStorageService.java` / `FileStorageServiceTest.java`
+- `Error.java` (`LOWCODE_TEMPLATE_APPLY_ERROR`)
+- `GlobalExceptionHandlerController.java`
+
+### Not in this phase
+
+- Wiring into sync-changes / FG create
+- History / details DTOs
+- Setup-service composite build

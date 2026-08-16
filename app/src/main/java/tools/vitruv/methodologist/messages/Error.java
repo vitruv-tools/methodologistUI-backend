@@ -27,6 +27,8 @@ public class Error {
       "MetaModel Ids not found in this VSUM";
   public static final String NO_TEMPLATE_PROVIDED_ERROR =
       "No template provided for fine-granular reaction.";
+  public static final String LOWCODE_TEMPLATE_APPLY_ERROR =
+      "Failed to apply low-code reaction template";
   public static final String REACTION_FILE_REQUIRED_ERROR =
       "At least one reactions file must be provided";
   public static final String FAT_JAR_NOT_FOUND_ERROR = "Fat jar not found at: ";

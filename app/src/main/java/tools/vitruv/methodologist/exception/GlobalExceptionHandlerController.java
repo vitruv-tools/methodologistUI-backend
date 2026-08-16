@@ -415,6 +415,29 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
+   * Handles {@link LowCodeTemplateException} thrown when a FreeMarker reaction template cannot be
+   * loaded or applied.
+   *
+   * <p>Responds with HTTP 400 (Bad Request) and returns an {@link ErrorResponse} containing the
+   * exception message and the request path.
+   *
+   * @param ex the thrown {@code LowCodeTemplateException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the template failure
+   */
+  @ExceptionHandler(value = LowCodeTemplateException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse lowCodeTemplateException(
+      LowCodeTemplateException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles {@link DataIntegrityViolationException} thrown when a database operation violates a
    * constraint — most commonly when deleting a {@code FileStorage} that is still referenced (for
    * example by a {@code MetaModel}'s {@code ecore_file_id}/{@code gen_model_file_id}). Returns HTTP
