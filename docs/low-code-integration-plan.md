@@ -11,15 +11,19 @@
 
 ---
 
+
+
 ## 1. Recommendation
 
 Do **not** merge `menof36go/internship-reinbold` into current `develop`.
 
 A dry-run merge against HEAD already reports **8 content conflicts**. More important are **semantic conflicts** Git would auto-merge incorrectly: views in sync-changes, invitations/roles, OCL rule sets, Flyway V8/V9 already used, and JAR builds now going through **setup-service** instead of the local Vitruv CLI.
 
-**Port the low-code feature by re-implementing it on current `develop`**, using PR #225 as the behavior spec. Copy new files, surgically patch existing ones, and skip unrelated internship-branch extras.
+**Port the low-code feature by re-implementing it on current** `develop`, using PR #225 as the behavior spec. Copy new files, surgically patch existing ones, and skip unrelated internship-branch extras.
 
 ---
+
+
 
 ## 2. What PR #225 actually delivered
 
@@ -29,12 +33,14 @@ The internship work is three tightly coupled features, all driven from `PUT /api
 
 A coarse `MetaModelRelation` (source MM ↔ target MM) can own many element-level mappings:
 
-| Field | Meaning |
-|---|---|
-| `sourceId` / `targetId` | **Strings** (Ecore class / element names), not numeric MM ids |
-| `reactionFileStorage` | Generated or uploaded `.reactions` file |
-| `lowCodeReactionTemplate` | Template name, e.g. `create_corresponding_root_on_insert_root` |
-| `lowCodeReactionTemplateParams` | JSONB map of FreeMarker variables |
+
+| Field                           | Meaning                                                        |
+| ------------------------------- | -------------------------------------------------------------- |
+| `sourceId` / `targetId`         | **Strings** (Ecore class / element names), not numeric MM ids  |
+| `reactionFileStorage`           | Generated or uploaded `.reactions` file                        |
+| `lowCodeReactionTemplate`       | Template name, e.g. `create_corresponding_root_on_insert_root` |
+| `lowCodeReactionTemplateParams` | JSONB map of FreeMarker variables                              |
+
 
 DB (PR `V9__FINE_GRANULAR_META_MODEL_RELATION.sql`):
 
@@ -48,11 +54,13 @@ Coarse `meta_model_relation.reaction_file_id` became **nullable** (PR `V8`), so 
 
 FreeMarker templates under `app/src/main/resources/lowcode/reactions/template/`:
 
-| Template | Role |
-|---|---|
+
+| Template                                       | Role                                                                                     |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `create_corresponding_root_on_insert_root.ftl` | Real user-facing template: insert root in model A → create corresponding root in model B |
-| `composite_reactions.ftl` | Internal: wrap several reaction files into one `import …` reactions file for the build |
-| `ExampleRequest` | Sample DTO; **not** registered in `@JsonSubTypes` |
+| `composite_reactions.ftl`                      | Internal: wrap several reaction files into one `import …` reactions file for the build   |
+| `ExampleRequest`                               | Sample DTO; **not** registered in `@JsonSubTypes`                                        |
+
 
 Flow:
 
@@ -60,6 +68,8 @@ Flow:
 2. `LowCodeReactionService.applyTemplate()` renders `{name}.ftl`.
 3. Result is stored as `FileEnumType.REACTION`.
 4. Fine-granular row stores template name + params so the UI can re-open the form.
+
+
 
 ### 2.3 Annotation-based metadata API
 
@@ -70,6 +80,8 @@ Flow:
 - `MetaModelRelationRequest` gained optional `id`, optional `reactionFileId`, and `fineGranularMetaModelRelationSet`.
 - Relation add/update/delete (including fine-granular) moved into `MetaModelRelationService.update(...)` with a memoized history snapshot.
 - Build collected **all** reaction files on a pair (coarse + fine-granular). If more than one, it generated a **composite** reaction file via `ReactionParserUtil` + `composite_reactions.ftl`.
+
+
 
 ### 2.5 Known unfinished items in the original PR
 
@@ -84,31 +96,39 @@ These were already TODOs / gaps at close:
 
 ---
 
+
+
 ## 3. What current `develop` already has
 
 **None of the low-code / fine-granular code exists.** Grep for `LowCode`, `FineGranular`, `ReactionMetadata`, and the `.ftl` templates returns nothing.
 
 What *does* exist, and must be preserved:
 
-| Area | Current behavior |
-|---|---|
-| Coarse relations | `MetaModelRelation` + V5 schema; `reaction_file_id` **NOT NULL** |
-| Sync-changes | Full-state MM + **relations** + **views**; history snapshot if anything changes |
-| Relation diff key | `sourceId:targetId` only (changing the reaction file on the same pair does **not** update) |
-| JAR build | `VsumService.getJarfat` → `SetupServiceApiHandler.buildVsumJarOrThrow` (multipart ecores/genmodels/reactions) |
-| Local Vitruv CLI | Still used for **GenModel precheck**, not for VSUM JAR |
-| Views | V8/V9 (`vsum_view`) already part of sync-changes |
-| Invitations | V10; VIEWER cannot sync-changes |
-| OCL rule sets | V11; separate CRUD, not in sync-changes |
-| Files | `FileStorageService.updateFile(email, id, MultipartFile)` — reaction-only |
-| Auth | Method security via `@PreAuthorize`; HTTP layer is `permitAll` |
-| JSONB | `hibernate-types-60` already in `app/pom.xml` |
-| FreeMarker | Only in **builder** module, not in `app` |
-| Flyway | Next free version is **V12** |
+
+| Area              | Current behavior                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------- |
+| Coarse relations  | `MetaModelRelation` + V5 schema; `reaction_file_id` **NOT NULL**                                              |
+| Sync-changes      | Full-state MM + **relations** + **views**; history snapshot if anything changes                               |
+| Relation diff key | `sourceId:targetId` only (changing the reaction file on the same pair does **not** update)                    |
+| JAR build         | `VsumService.getJarfat` → `SetupServiceApiHandler.buildVsumJarOrThrow` (multipart ecores/genmodels/reactions) |
+| Local Vitruv CLI  | Still used for **GenModel precheck**, not for VSUM JAR                                                        |
+| Views             | V8/V9 (`vsum_view`) already part of sync-changes                                                              |
+| Invitations       | V10; VIEWER cannot sync-changes                                                                               |
+| OCL rule sets     | V11; separate CRUD, not in sync-changes                                                                       |
+| Files             | `FileStorageService.updateFile(email, id, MultipartFile)` — reaction-only                                     |
+| Auth              | Method security via `@PreAuthorize`; HTTP layer is `permitAll`                                                |
+| JSONB             | `hibernate-types-60` already in `app/pom.xml`                                                                 |
+| FreeMarker        | Only in **builder** module, not in `app`                                                                      |
+| Flyway            | Next free version is **V12**                                                                                  |
+
 
 ---
 
+
+
 ## 4. Gap analysis
+
+
 
 ### Already in develop (do not re-port)
 
@@ -118,6 +138,8 @@ What *does* exist, and must be preserved:
 - Setup-service JAR build for coarse reaction files
 - GenModel precheck
 - Docker/Keycloak, mail, OTP, password verification, invitations, rule sets
+
+
 
 ### Missing (must implement)
 
@@ -132,19 +154,27 @@ What *does* exist, and must be preserved:
 9. Tests: `FineGranularMetaModelRelationServiceTest` + updates to `VsumServiceTest` / `MetaModelRelationServiceTest`
 10. **History/revert for FG relations** (missing in original PR; should be done this time)
 
+
+
 ### Present in the old branch but **out of scope** (do not port)
 
-| Item | Why skip |
-|---|---|
-| `DevTokenController` + no-auth Swagger profile | Security-sensitive, unrelated |
-| `docker-compose.yaml` profiles, `opt/*/README.md` | Unrelated ops docs |
-| `.vscode/settings.json`, CI/CD workflow edits | Unrelated |
-| AssertJ 3.27.3 → 3.27.7 | Dependabot already handled later |
+
+| Item                                                   | Why skip                           |
+| ------------------------------------------------------ | ---------------------------------- |
+| `DevTokenController` + no-auth Swagger profile         | Security-sensitive, unrelated      |
+| `docker-compose.yaml` profiles, `opt/*/README.md`      | Unrelated ops docs                 |
+| `.vscode/settings.json`, CI/CD workflow edits          | Unrelated                          |
+| AssertJ 3.27.3 → 3.27.7                                | Dependabot already handled later   |
 | Early internship FileStorage / VitruvCli Windows fixes | Already on `develop` in other form |
+
 
 ---
 
+
+
 ## 5. Conflicts
+
+
 
 ### 5.1 Git content conflicts (merge-tree vs HEAD)
 
@@ -159,18 +189,24 @@ These files changed on both sides:
 7. `VsumService.java` — **highest risk**; must keep views + setup-service build
 8. `VsumServiceTest.java` — rewrite tests against current fixtures
 
+
+
 ### 5.2 Semantic conflicts Git would hide
 
-| Current develop | Old PR | Port strategy |
-|---|---|---|
-| `applySyncChanges` also syncs **views** | Relation sync moved into `MetaModelRelationService.update` | Keep view logic in `VsumService`; delegate relation+FG sync to `MetaModelRelationService` **without** dropping views |
-| `getJarfat` uses setup-service | Build used `MetaModelVitruvIntegrationService.getBuildParameters` | Collect FG + composite files in `VsumService.getJarfat` (or a shared helper) and pass them to setup-service. Keep CLI path for precheck. |
-| Flyway **V8 = views**, **V9 = view constraints** | PR **V8 = drop reaction NOT NULL**, **V9 = FG table** | New migrations: `V12__META_MODEL_RELATION_NULLABLE_REACTION.sql` and `V13__FINE_GRANULAR_META_MODEL_RELATION.sql` |
-| `MetaModelRelation.reactionFileStorage` is `@NotNull` | Became optional | Entity + DB + `create()` must allow null when FG set is non-empty |
-| `updateFile(MultipartFile)` only | PR added `updateFile(..., byte[], filename, contentType)` | Add overload used by template generation |
-| `VsumRepresentation` has `views` | PR had no views and a FG TODO | Keep views; **add** FG snapshot fields |
-| `Error` has private constructor (PR #321) | PR added constants | Add constants only; keep constructor |
-| Relation create requires `reactionFileId` | Allowed template-only / FG-only | Validate: coarse file **or** non-empty FG set |
+
+| Current develop                                       | Old PR                                                            | Port strategy                                                                                                                            |
+| ----------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `applySyncChanges` also syncs **views**               | Relation sync moved into `MetaModelRelationService.update`        | Keep view logic in `VsumService`; delegate relation+FG sync to `MetaModelRelationService` **without** dropping views                     |
+| `getJarfat` uses setup-service                        | Build used `MetaModelVitruvIntegrationService.getBuildParameters` | Collect FG + composite files in `VsumService.getJarfat` (or a shared helper) and pass them to setup-service. Keep CLI path for precheck. |
+| Flyway **V8 = views**, **V9 = view constraints**      | PR **V8 = drop reaction NOT NULL**, **V9 = FG table**             | New migrations: `V12__META_MODEL_RELATION_NULLABLE_REACTION.sql` and `V13__FINE_GRANULAR_META_MODEL_RELATION.sql`                        |
+| `MetaModelRelation.reactionFileStorage` is `@NotNull` | Became optional                                                   | Entity + DB + `create()` must allow null when FG set is non-empty                                                                        |
+| `updateFile(MultipartFile)` only                      | PR added `updateFile(..., byte[], filename, contentType)`         | Add overload used by template generation                                                                                                 |
+| `VsumRepresentation` has `views`                      | PR had no views and a FG TODO                                     | Keep views; **add** FG snapshot fields                                                                                                   |
+| `Error` has private constructor (PR #321)             | PR added constants                                                | Add constants only; keep constructor                                                                                                     |
+| Relation create requires `reactionFileId`             | Allowed template-only / FG-only                                   | Validate: coarse file **or** non-empty FG set                                                                                            |
+
+
+
 
 ### 5.3 Unique-constraint / nullability pitfall
 
@@ -180,12 +216,18 @@ PostgreSQL unique indexes treat `NULL` as distinct. After making `reaction_file_
 
 ---
 
+
+
 ## 6. Target API (compatible with UI PR #236)
+
+
 
 ### Unchanged
 
 - `PUT /api/v1/vsums/{id}/sync-changes`
 - `GET /api/v1/vsums/{id}/details` (`metaModelsRelation`)
+
+
 
 ### Extended payload
 
@@ -218,6 +260,8 @@ PostgreSQL unique indexes treat `NULL` as distinct. After making `reaction_file_
 }
 ```
 
+
+
 ### New
 
 - `GET /api/lowcode-metadata` → form schema for the UI
@@ -225,6 +269,8 @@ PostgreSQL unique indexes treat `NULL` as distinct. After making `reaction_file_
 Jackson discriminator on `lowCodeReactionRequestBase.name`. Hide `composite_reactions` from the metadata list (internal build helper).
 
 ---
+
+
 
 ## 7. Implementation plan
 
@@ -238,6 +284,8 @@ Work on branch `low-code`. Do not merge the old branch. Treat `a4e6d7f` as a ref
 - Add `MemoizedSupplier` (used to snapshot history at most once per sync).
 - Add `MetaModelRelationCreationException` + handler in `GlobalExceptionHandlerController`.
 
+
+
 ### Phase 1 — persistence
 
 - `FineGranularMetaModelRelation` + repository.
@@ -246,6 +294,8 @@ Work on branch `low-code`. Do not merge the old branch. Treat `a4e6d7f` as a ref
   - `V12`: drop NOT NULL on `meta_model_relation.reaction_file_id`; add pair uniqueness that works with nulls.
   - `V13`: create `fine_granular_meta_model_relation` (same columns as PR V9).
 - Do not reuse version numbers V8/V9.
+
+
 
 ### Phase 2 — low-code engine (mostly copy from PR)
 
@@ -262,6 +312,8 @@ Adaptations:
 - Register template request beans so `LowCodeReactionMetadataService` can inject `List<LowCodeReactionRequestBase>`.
 - Exclude `CompositeReactionsRequest` from public metadata.
 - Use current exception / message style (`Error` constants, no `new RuntimeException(message)` in service APIs).
+
+
 
 ### Phase 3 — sync-changes integration
 
@@ -281,6 +333,8 @@ Do **not** let a null `viewRequests` wipe views. Keep today’s `normalizeViewRe
 - Mapper: map FG children; prefer **original** MM ids (`source.source.id`) for coarse `sourceId`/`targetId` so request and response use the same convention (today’s mapper uses clone PKs).
 - `VsumRepresentation.MetaModelRelation`: add FG list; update `VsumHistoryMapper` so revert restores FG mappings.
 
+
+
 ### Phase 5 — build path (setup-service)
 
 In `VsumService.getJarfat`:
@@ -289,6 +343,8 @@ In `VsumService.getJarfat`:
 - If a pair has >1 file, generate composite content (same as PR `getBuildParameters`) and send **imports + composite** as `reactionFiles` to setup-service.
 - Allow a pair with **only** FG files (nullable coarse reaction).
 - Keep `MetaModelVitruvIntegrationService` for precheck; optionally extract composite helper so CLI and setup-service share it.
+
+
 
 ### Phase 6 — tests
 
@@ -301,6 +357,8 @@ Port and update:
 - `FileStorageServiceTest` for byte[] update overload
 - `getJarfat` / setup-service mock: multiple reaction files + composite
 
+
+
 ### Phase 7 — quality gates
 
 - `./mvnw -pl app test`
@@ -310,7 +368,11 @@ Port and update:
 
 ---
 
+
+
 ## 8. File checklist
+
+
 
 ### Add (from PR, then adapt)
 
@@ -331,6 +393,8 @@ Port and update:
 - `app/src/main/resources/db/migration/V13__*.sql`
 - `app/src/test/java/.../FineGranularMetaModelRelationServiceTest.java`
 
+
+
 ### Modify (surgical)
 
 - `app/pom.xml` — FreeMarker
@@ -342,12 +406,16 @@ Port and update:
 - `Error.java` / `Message.java` / `GlobalExceptionHandlerController.java`
 - Tests listed in Phase 6
 
+
+
 ### Do not touch from the old branch
 
 - `SecurityConfiguration` no-auth / `DevTokenController`
 - Docker compose, README, `.github/workflows`, `.vscode`
 
 ---
+
+
 
 ## 9. Risks
 
@@ -358,6 +426,8 @@ Port and update:
 5. **Generated vs uploaded reactions** — updating a generated file via `/upload/{id}/update-reaction` can desync stored template params unless `regenerate` is used. Keep PR behavior; document it.
 
 ---
+
+
 
 ## 10. Suggested implementation order
 

@@ -6,8 +6,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
 /**
- * Exception thrown when a fine-granular relation is created or updated without a reaction file or
- * a low-code template.
+ * Exception thrown when a fine-granular relation is created or updated without a reaction file or a
+ * low-code template.
  */
 @ResponseStatus(HttpStatus.BAD_REQUEST)
 public class NoTemplateProvidedException extends MetaModelRelationCreationException {

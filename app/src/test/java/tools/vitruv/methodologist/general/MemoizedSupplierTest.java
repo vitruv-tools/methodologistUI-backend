@@ -11,8 +11,7 @@ class MemoizedSupplierTest {
   @Test
   void getComputesValueOnceAndReturnsTheSameResult() {
     AtomicInteger calls = new AtomicInteger();
-    MemoizedSupplier<Integer> supplier =
-        new MemoizedSupplier<>(() -> calls.incrementAndGet() + 10);
+    MemoizedSupplier<Integer> supplier = new MemoizedSupplier<>(() -> calls.incrementAndGet() + 10);
 
     assertThat(supplier.wasComputed()).isFalse();
     assertThat(supplier.get()).isEqualTo(11);
