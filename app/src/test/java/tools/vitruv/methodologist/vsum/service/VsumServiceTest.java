@@ -23,6 +23,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +52,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse
 import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
+import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
@@ -90,6 +92,8 @@ class VsumServiceTest {
   @Mock private VsumViewRepository vsumViewRepository;
   @Mock private VsumViewMetaModelRepository vsumViewMetaModelRepository;
   @Mock private VsumViewMapper vsumViewMapper;
+  @Mock private FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
+  @Mock private LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
   @Mock private SetupServiceApiHandler setupServiceApiHandler;
 
   private VsumService service;
@@ -108,10 +112,20 @@ class VsumServiceTest {
   }
 
   private MetaModelRelation metaModelRelation(Vsum vsum, MetaModel src, MetaModel tgt) {
+    return metaModelRelation(vsum, src, tgt, null);
+  }
+
+  private MetaModelRelation metaModelRelation(
+      Vsum vsum, MetaModel src, MetaModel tgt, Long reactionFileId) {
     MetaModelRelation metaModelRelation = new MetaModelRelation();
     metaModelRelation.setVsum(vsum);
     metaModelRelation.setSource(src);
     metaModelRelation.setTarget(tgt);
+    if (reactionFileId != null) {
+      FileStorage reaction = new FileStorage();
+      reaction.setId(reactionFileId);
+      metaModelRelation.setReactionFileStorage(reaction);
+    }
     return metaModelRelation;
   }
 
@@ -173,8 +187,12 @@ class VsumServiceTest {
             vsumViewRepository,
             vsumViewMetaModelRepository,
             vsumViewMapper,
+            fineGranularMetaModelRelationService,
+            lowCodeReactionRequestMapper,
             setupServiceApiHandler);
 
+    lenient().when(metaModelRelationService.create(any(), any())).thenReturn(Map.of());
+    lenient().when(metaModelRelationService.update(any(), any())).thenReturn(Map.of());
     lenient().when(vsumViewRepository.findAllByVsum(any(Vsum.class))).thenReturn(List.of());
     lenient()
         .when(vsumViewMetaModelRepository.findAllByVsumViewIn(anyList()))
@@ -474,7 +492,7 @@ class VsumServiceTest {
     MetaModel c = clonedMetaModel(30L, 300L);
     MetaModel d = clonedMetaModel(40L, 400L);
 
-    MetaModelRelation relAB = metaModelRelation(vsum, a, b);
+    MetaModelRelation relAB = metaModelRelation(vsum, a, b, 999L);
     MetaModelRelation relCD = metaModelRelation(vsum, c, d);
     when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(relAB, relCD));
     when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
@@ -607,7 +625,7 @@ class VsumServiceTest {
     MetaModel t20 = clonedMetaModel(20L, 20L);
     MetaModel s30 = clonedMetaModel(30L, 30L);
     MetaModel t40 = clonedMetaModel(40L, 40L);
-    MetaModelRelation r10And20 = metaModelRelation(vsum, s10, t20);
+    MetaModelRelation r10And20 = metaModelRelation(vsum, s10, t20, 111L);
     MetaModelRelation r30And40 = metaModelRelation(vsum, s30, t40);
     when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r10And20, r30And40));
 
@@ -649,7 +667,7 @@ class VsumServiceTest {
 
     MetaModel s1 = clonedMetaModel(1L, 1L);
     MetaModel t2 = clonedMetaModel(2L, 2L);
-    MetaModelRelation r12 = metaModelRelation(vsum, s1, t2);
+    MetaModelRelation r12 = metaModelRelation(vsum, s1, t2, 555L);
     when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r12));
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
@@ -662,8 +680,45 @@ class VsumServiceTest {
     verify(vsumMetaModelService, never()).create(any(), any());
     verify(metaModelRelationService, never()).delete(any());
     verify(metaModelRelationService, never()).create(any(), any());
+    verify(metaModelRelationService, never()).update(any(), any());
     verify(vsumHistoryService, never()).create(any(), any());
     verify(vsumRepository).save(vsum);
+  }
+
+  @Test
+  void update_updatesRelation_whenSamePairHasDifferentReactionFile_andWritesHistory() {
+    Vsum vsum = new Vsum();
+    vsum.setId(61L);
+    vsum.setMetaModelRelations(new java.util.HashSet<>());
+    vsum.setVsumMetaModels(new java.util.HashSet<>());
+    User owner = new User();
+    String email = "u@ex.com";
+    owner.setEmail(email);
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(61L, email))
+        .thenReturn(Optional.of(vsumUser(vsum, owner)));
+
+    MetaModel s1 = clonedMetaModel(1L, 1L);
+    MetaModel t2 = clonedMetaModel(2L, 2L);
+    MetaModelRelation r12 = metaModelRelation(vsum, s1, t2, 555L);
+    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r12));
+    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
+
+    MetaModelRelationRequest updated = new MetaModelRelationRequest(1L, 2L, 777L);
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    put.setMetaModelRelationRequests(List.of(updated));
+
+    when(metaModelRelationService.update(eq(vsum), any()))
+        .thenReturn(Map.of(updated, r12));
+
+    service.update(email, 61L, put);
+
+    verify(metaModelRelationService, never()).delete(any());
+    verify(metaModelRelationService, never()).create(any(), any());
+    verify(metaModelRelationService).update(eq(vsum), eq(Map.of(updated, r12)));
+    verify(vsumHistoryService).create(vsum, owner);
+    verify(fineGranularMetaModelRelationService)
+        .update(eq(email), eq(Map.of(updated, r12)), any());
   }
 
   @Test

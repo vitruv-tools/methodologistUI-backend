@@ -7,7 +7,7 @@ Tracks progress against [`low-code-integration-plan.md`](low-code-integration-pl
 | 0 — scaffolding | **done** |
 | 1 — persistence | **done** |
 | 2 — low-code engine | **done** |
-| 3 — sync-changes integration | not started |
+| 3 — sync-changes integration | **done** |
 | 4 — details + history | not started |
 | 5 — build path (setup-service) | not started |
 | 6 — tests | not started (Phase 0 + Phase 2 unit tests only) |
@@ -119,4 +119,64 @@ Also added focused unit tests for template render, metadata filtering, reaction 
 
 - Wiring into sync-changes / FG create
 - History / details DTOs
+- Setup-service composite build
+
+---
+
+## Phase 3 — sync-changes integration (done)
+
+Date: 2026-08-16  
+Branch: `low-code`
+
+| Plan item | Result |
+|---|---|
+| Keep `applySyncChanges` MM + views flow | Done; null `viewRequests` still does not wipe views |
+| Detect in-place relation updates (same pair, different reaction/FG) | Done via `MetaModelRelationRequest.equals` |
+| Snapshot history once (`MemoizedSupplier`) | Done; FG-only changes also snapshot |
+| Order: delete relations → delete MMs → add MMs → views → add/update relations → FG | Done |
+| `create` accepts null `reactionFileId` when FG set is present | Done; otherwise `MetaModelRelationCreationException` |
+
+### Endpoint contract
+
+`PUT /api/v1/vsums/{id}/sync-changes` now accepts:
+
+```json
+{
+  "sourceId": 10,
+  "targetId": 20,
+  "reactionFileId": null,
+  "fineGranularMetaModelRelationSet": [
+    {
+      "sourceId": "Component",
+      "targetId": "Class",
+      "lowCodeReactionRequestBase": {
+        "name": "create_corresponding_root_on_insert_root",
+        "regenerate": true
+      }
+    }
+  ]
+}
+```
+
+A coarse relation needs a reaction file **or** a non-empty fine-granular set. Template-only FG rows generate a `.reactions` file via `LowCodeReactionService`.
+
+### Files (new)
+
+- `FineGranularMetaModelRelationRequest.java`
+- `FineGranularMetaModelRelationService.java`
+- `FineGranularMetaModelRelationServiceTest.java`
+
+### Files (modified)
+
+- `MetaModelRelationRequest.java` (optional `id` / `reactionFileId`, nested FG set)
+- `VsumSyncChangesPutRequest.java` (`@Valid` on relation list)
+- `MetaModelRelationService.java`
+- `VsumService.java`
+- `Error.java`
+- `MetaModelRelationServiceTest.java` / `VsumServiceTest.java`
+
+### Not in this phase
+
+- Details response FG list / original MM id mapping
+- History snapshot of FG children (revert still drops FG until Phase 4)
 - Setup-service composite build
