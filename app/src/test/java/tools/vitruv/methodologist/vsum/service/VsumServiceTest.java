@@ -373,7 +373,7 @@ class VsumServiceTest {
     when(metaModelMapper.toMetaModelResponse(mm)).thenReturn(mmResp);
 
     MetaModelRelationResponse relResp = new MetaModelRelationResponse();
-    when(metaModelRelationMapper.toMetaModelRelationResponse(rel)).thenReturn(relResp);
+    when(metaModelRelationMapper.toMetaModelRelationResponse(eq(rel), any())).thenReturn(relResp);
 
     ViewsResponse viewResp = new ViewsResponse();
     viewResp.setId(901L);

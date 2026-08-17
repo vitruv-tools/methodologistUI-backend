@@ -1,11 +1,14 @@
 package tools.vitruv.methodologist.vsum.mapper;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.mapstruct.Mapper;
 import org.mapstruct.ReportingPolicy;
 import tools.vitruv.methodologist.vsum.VsumRepresentation;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumHistoryResponse;
+import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumHistory;
@@ -57,15 +60,54 @@ public interface VsumHistoryMapper {
    */
   default Set<VsumRepresentation.MetaModelRelation> toMetaModelsRelation(
       Set<MetaModelRelation> metaModelRelations) {
+    if (metaModelRelations == null) {
+      return Set.of();
+    }
     return metaModelRelations.stream()
         .map(
             metaModelRelation ->
                 VsumRepresentation.MetaModelRelation.builder()
                     .sourceId(metaModelRelation.getSource().getSource().getId())
                     .targetId(metaModelRelation.getTarget().getSource().getId())
-                    .relationFileStorage(metaModelRelation.getReactionFileStorage().getId())
+                    .relationFileStorage(
+                        metaModelRelation.getReactionFileStorage() == null
+                            ? null
+                            : metaModelRelation.getReactionFileStorage().getId())
+                    .fineGranularMetaModelRelationSet(
+                        toFineGranularMetaModelRelations(
+                            metaModelRelation.getFineGranularMetaModelRelationSet()))
                     .build())
         .collect(Collectors.toSet());
+  }
+
+  /**
+   * Maps domain fine-granular relations to history representation DTOs.
+   *
+   * @param relations the fine-granular relations; may be {@code null}
+   * @return a set of fine-granular DTOs for the representation
+   */
+  default Set<VsumRepresentation.FineGranularMetaModelRelation> toFineGranularMetaModelRelations(
+      Set<FineGranularMetaModelRelation> relations) {
+    if (relations == null || relations.isEmpty()) {
+      return Set.of();
+    }
+    return relations.stream()
+        .map(
+            relation ->
+                VsumRepresentation.FineGranularMetaModelRelation.builder()
+                    .sourceId(relation.getSourceId())
+                    .targetId(relation.getTargetId())
+                    .reactionFileStorageId(
+                        relation.getReactionFileStorage() == null
+                            ? null
+                            : relation.getReactionFileStorage().getId())
+                    .lowCodeReactionTemplate(relation.getLowCodeReactionTemplate())
+                    .lowCodeReactionTemplateParams(
+                        relation.getLowCodeReactionTemplateParams() == null
+                            ? null
+                            : new HashMap<>(relation.getLowCodeReactionTemplateParams()))
+                    .build())
+        .collect(Collectors.toCollection(HashSet::new));
   }
 
   /**

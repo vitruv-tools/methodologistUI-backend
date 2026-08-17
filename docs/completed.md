@@ -8,7 +8,7 @@ Tracks progress against [`low-code-integration-plan.md`](low-code-integration-pl
 | 1 — persistence | **done** |
 | 2 — low-code engine | **done** |
 | 3 — sync-changes integration | **done** |
-| 4 — details + history | not started |
+| 4 — details + history | **done** |
 | 5 — build path (setup-service) | not started |
 | 6 — tests | not started (Phase 0 + Phase 2 unit tests only) |
 | 7 — quality gates | not started |
@@ -179,4 +179,36 @@ A coarse relation needs a reaction file **or** a non-empty fine-granular set. Te
 
 - Details response FG list / original MM id mapping
 - History snapshot of FG children (revert still drops FG until Phase 4)
+- Setup-service composite build
+
+---
+
+## Phase 4 — details + history (done)
+
+Date: 2026-08-17  
+Branch: `low-code`
+
+| Plan item | Result |
+|---|---|
+| `MetaModelRelationResponse` includes `fineGranularMetaModelRelationSet` | Done |
+| Mapper uses original MM ids (`source.source.id`) | Done |
+| Null-safe history snapshot of coarse reaction file | Done (unblocks FG-only save) |
+| `VsumRepresentation` stores FG children; revert restores them | Done |
+
+### Files (new)
+
+- `FineGranularMetaModelRelationResponse.java`
+- `FineGranularMetaModelRelationMapper.java`
+- `VsumHistoryMapperTest.java`
+
+### Files (modified)
+
+- `MetaModelRelationResponse.java` / `MetaModelRelationMapper.java`
+- `VsumRepresentation.java`
+- `VsumHistoryMapper.java` / `VsumHistoryService.java`
+- `VsumService.java` (details mapping)
+- `VsumServiceTest.java` / `VsumHistoryServiceTest.java`
+
+### Not in this phase
+
 - Setup-service composite build

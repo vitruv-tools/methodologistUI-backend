@@ -253,7 +253,12 @@ public class VsumService {
         (vsum.getMetaModelRelations() == null
                 ? List.<MetaModelRelation>of()
                 : vsum.getMetaModelRelations())
-            .stream().map(metaModelRelationMapper::toMetaModelRelationResponse).toList();
+            .stream()
+                .map(
+                    relation ->
+                        metaModelRelationMapper.toMetaModelRelationResponse(
+                            relation, lowCodeReactionRequestMapper))
+                .toList();
     response.setMetaModelsRelation(metaModelRelation);
 
     List<ViewsResponse> views =
