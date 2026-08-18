@@ -21,6 +21,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import tools.vitruv.methodologist.exception.FileAlreadyExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
@@ -312,6 +313,25 @@ class FileStorageServiceTest {
                         && "text/plain".equals(file.getContentType())
                         && file.getType() == FileEnumType.REACTION
                         && Arrays.equals(file.getData(), data)));
+  }
+
+  @Test
+  void storeFile_bytes_duplicateHash_throwsFileAlreadyExistsException() {
+    byte[] data = "generated-reaction".getBytes();
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
+        .thenReturn(Optional.of(testUser));
+    when(fileStorageRepository.existsByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
+        .thenReturn(true);
+
+    assertThrows(
+        FileAlreadyExistsException.class,
+        () ->
+            fileStorageService.storeFile(
+                "test@example.com",
+                data,
+                "generated.reactions",
+                "text/plain",
+                FileEnumType.REACTION));
   }
 
   @Test

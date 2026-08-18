@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.CompositeReactionsRequest;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.CreateCorrespondingRootOnInsertRootRequest;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.ExampleRequest;
+import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.response.LowCodeReactionFieldMetadata;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.response.LowCodeReactionMetadataResponse;
 
 /** Unit tests for {@link LowCodeReactionMetadataService}. */
@@ -32,5 +33,14 @@ class LowCodeReactionMetadataServiceTest {
                 .get("create_corresponding_root_on_insert_root")
                 .getName())
         .isEqualTo("Create Corresponding Root");
+    assertThat(
+            response
+                .getReactionMetadataMap()
+                .get("create_corresponding_root_on_insert_root")
+                .getFields())
+        .filteredOn(field -> "name".equals(field.getName()))
+        .singleElement()
+        .extracting(LowCodeReactionFieldMetadata::isDisplayHide)
+        .isEqualTo(true);
   }
 }

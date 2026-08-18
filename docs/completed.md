@@ -10,7 +10,7 @@ Tracks progress against [`low-code-integration-plan.md`](low-code-integration-pl
 | 3 — sync-changes integration | **done** |
 | 4 — details + history | **done** |
 | 5 — build path (setup-service) | **done** |
-| 6 — tests | not started (earlier phases already have unit tests; remaining coverage in Phase 6) |
+| 6 — tests | **done** |
 | 7 — quality gates | not started |
 
 ---
@@ -239,3 +239,39 @@ Branch: `low-code`
 - `VsumServiceTest.java`
 
 Mismatching aliases/URIs or duplicate reaction names throw `VsumBuildingException` (HTTP 400), not raw `RuntimeException`.
+
+---
+
+## Phase 6 — tests (done)
+
+Date: 2026-08-18  
+Branch: `low-code`
+
+| Plan item | Result |
+|---|---|
+| `FineGranularMetaModelRelationServiceTest` | Expanded: existing-file create, template generate, no-template 400, create-with-id rejected, regenerate update, keep file when `regenerate=false`, empty map no-op |
+| `MetaModelRelationServiceTest` (nullable reaction, FG nested set) | Create coverage from Phase 3; added FG-only **update**, missing mapped relation, id mismatch |
+| `VsumServiceTest` (sync FG + views together; history includes FG) | Added one sync that changes FG on an existing pair **and** creates a view; history once. Composite `getJarfat` already in Phase 5 |
+| Metadata controller/service test | New controller unit test; metadata service now also asserts the discriminator `name` field is hidden |
+| Template render snapshot for `create_corresponding_root_on_insert_root.ftl` | Full expected `.reactions` text in `LowCodeReactionServiceTest`; also `generateAndSaveReaction` store/update |
+| `FileStorageServiceTest` for byte[] update overload | Phase 2 already covered store/update bytes; added duplicate-hash throws `FileAlreadyExistsException` |
+| `getJarfat` / setup-service mock: multiple reaction files + composite | Already done in Phase 5 |
+
+### Files (new)
+
+- `app/src/test/java/tools/vitruv/methodologist/vsum/lowcode/reactions/template/controller/LowCodeReactionControllerTest.java`
+- `app/src/test/java/tools/vitruv/methodologist/vsum/mapper/LowCodeReactionRequestMapperTest.java`
+- `app/src/test/java/tools/vitruv/methodologist/vsum/controller/dto/request/FineGranularMetaModelRelationRequestTest.java`
+
+### Files (modified)
+
+- `FineGranularMetaModelRelationServiceTest.java`
+- `MetaModelRelationServiceTest.java`
+- `VsumServiceTest.java`
+- `LowCodeReactionServiceTest.java`
+- `LowCodeReactionMetadataServiceTest.java`
+- `FileStorageServiceTest.java`
+
+### Not in this phase
+
+- Full `./mvnw -pl app test`, Spotless/Checkstyle, Swagger review (Phase 7)

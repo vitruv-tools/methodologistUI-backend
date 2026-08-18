@@ -43,6 +43,7 @@ import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
+import tools.vitruv.methodologist.vsum.controller.dto.request.FineGranularMetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.ViewRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
@@ -725,6 +726,52 @@ class VsumServiceTest {
     verify(vsumHistoryService).create(vsum, owner);
     verify(fineGranularMetaModelRelationService)
         .update(eq(email), eq(Map.of(updated, r12)), any());
+  }
+
+  @Test
+  void update_syncsFineGranularAndViewsTogether_andWritesHistoryOnce() {
+    Vsum vsum = new Vsum();
+    vsum.setId(80L);
+    vsum.setMetaModelRelations(new java.util.HashSet<>());
+    vsum.setVsumMetaModels(new java.util.HashSet<>());
+    User owner = new User();
+    String email = "u@ex.com";
+    owner.setEmail(email);
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(80L, email))
+        .thenReturn(Optional.of(vsumUser(vsum, owner)));
+
+    MetaModel s1 = clonedMetaModel(1L, 1L);
+    MetaModel t2 = clonedMetaModel(2L, 2L);
+    MetaModelRelation r12 = metaModelRelation(vsum, s1, t2, 555L);
+    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r12));
+    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
+    when(vsumViewRepository.findAllByVsum(vsum)).thenReturn(List.of());
+
+    FineGranularMetaModelRelationRequest fgReq =
+        new FineGranularMetaModelRelationRequest(null, "Component", "Class", 14L, null);
+    MetaModelRelationRequest updated = new MetaModelRelationRequest(1L, 2L, 555L);
+    updated.getFineGranularMetaModelRelationSet().add(fgReq);
+
+    VsumView createdView = new VsumView();
+    createdView.setId(991L);
+    when(vsumViewService.create(vsum, 90L)).thenReturn(createdView);
+    when(metaModelRelationService.update(eq(vsum), any())).thenReturn(Map.of(updated, r12));
+
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    put.setMetaModelRelationRequests(List.of(updated));
+    put.setViewRequests(
+        List.of(
+            ViewRequest.builder().fileStorageId(90L).metaModelIds(List.of(1L, 2L)).build()));
+
+    service.update(email, 80L, put);
+
+    verify(metaModelRelationService).update(eq(vsum), eq(Map.of(updated, r12)));
+    verify(fineGranularMetaModelRelationService)
+        .update(eq(email), eq(Map.of(updated, r12)), any());
+    verify(vsumViewService).create(vsum, 90L);
+    verify(vsumHistoryService, times(1)).create(vsum, owner);
+    verify(vsumRepository).save(vsum);
   }
 
   @Test
