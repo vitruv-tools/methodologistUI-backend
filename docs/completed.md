@@ -9,8 +9,8 @@ Tracks progress against [`low-code-integration-plan.md`](low-code-integration-pl
 | 2 — low-code engine | **done** |
 | 3 — sync-changes integration | **done** |
 | 4 — details + history | **done** |
-| 5 — build path (setup-service) | not started |
-| 6 — tests | not started (Phase 0 + Phase 2 unit tests only) |
+| 5 — build path (setup-service) | **done** |
+| 6 — tests | not started (earlier phases already have unit tests; remaining coverage in Phase 6) |
 | 7 — quality gates | not started |
 
 ---
@@ -212,3 +212,30 @@ Branch: `low-code`
 ### Not in this phase
 
 - Setup-service composite build
+
+---
+
+## Phase 5 — build path (done)
+
+Date: 2026-08-17  
+Branch: `low-code`
+
+| Plan item | Result |
+|---|---|
+| Collect coarse + FG reaction files per pair in `getJarfat` | Done via `ReactionBuildCollector` |
+| Generate composite when a pair has >1 file (`ReactionParserUtil` + `composite_reactions.ftl`) | Done; composite filename is `compositeReaction{id}.reactions` so multiple pairs do not collide |
+| Allow FG-only pairs (nullable coarse reaction) | Done |
+| Keep CLI for GenModel precheck only | Done; collector is shared and not wired into `MetaModelVitruvIntegrationService` |
+| `getJarfat` / setup-service mock: multiple reaction files + composite | Done in `VsumServiceTest` and `ReactionBuildCollectorTest` |
+
+### Files (new)
+
+- `ReactionBuildCollector.java`
+- `ReactionBuildCollectorTest.java`
+
+### Files (modified)
+
+- `VsumService.java` (`getJarfat` uses the collector)
+- `VsumServiceTest.java`
+
+Mismatching aliases/URIs or duplicate reaction names throw `VsumBuildingException` (HTTP 400), not raw `RuntimeException`.

@@ -56,7 +56,9 @@ import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
+import tools.vitruv.methodologist.vsum.lowcode.reactions.template.service.LowCodeReactionService;
 import tools.vitruv.methodologist.vsum.mapper.VsumViewMapper;
+import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
@@ -95,6 +97,9 @@ class VsumServiceTest {
   @Mock private FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
   @Mock private LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
   @Mock private SetupServiceApiHandler setupServiceApiHandler;
+
+  private final ReactionBuildCollector reactionBuildCollector =
+      new ReactionBuildCollector(new LowCodeReactionService(null));
 
   private VsumService service;
 
@@ -189,6 +194,7 @@ class VsumServiceTest {
             vsumViewMapper,
             fineGranularMetaModelRelationService,
             lowCodeReactionRequestMapper,
+            reactionBuildCollector,
             setupServiceApiHandler);
 
     lenient().when(metaModelRelationService.create(any(), any())).thenReturn(Map.of());
@@ -1168,5 +1174,99 @@ class VsumServiceTest {
 
     assertThatThrownBy(() -> service.getJarfat(email, id)).isInstanceOf(NotFoundException.class);
     verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
+  }
+
+  @Test
+  void getJarfat_shouldIncludeFineGranularReaction_whenCoarseReactionMissing() {
+    String email = "x@y.com";
+    Long id = 1L;
+
+    Vsum vsum = new Vsum();
+    VsumUser vu = new VsumUser();
+    vu.setVsum(vsum);
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(id, email))
+        .thenReturn(Optional.of(vu));
+
+    FileStorage e = fs(1L, "a.ecore", new byte[] {1});
+    FileStorage g = fs(2L, "a.genmodel", new byte[] {2});
+    FileStorage fgReaction = fs(3L, "fg.reactions", new byte[] {3});
+    MetaModelRelation relation = rel(mm(e, g), null, null);
+    relation.getFineGranularMetaModelRelationSet().add(fg("Component", "Class", fgReaction));
+    vsum.setMetaModelRelations(Set.of(relation));
+
+    byte[] jarBytes = "FAKEJAR".getBytes(StandardCharsets.UTF_8);
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
+        .thenReturn(jarBytes);
+
+    byte[] jar = service.getJarfat(email, id);
+
+    assertThat(jar).isEqualTo(jarBytes);
+    ArgumentCaptor<List<FileStorage>> reactionsCap = ArgumentCaptor.forClass(List.class);
+    verify(setupServiceApiHandler)
+        .buildVsumJarOrThrow(anyList(), anyList(), reactionsCap.capture());
+    assertThat(reactionsCap.getValue()).containsExactly(fgReaction);
+  }
+
+  @Test
+  void getJarfat_shouldSendCompositeAndImports_whenPairHasMultipleReactions() {
+    String email = "x@y.com";
+    Long id = 1L;
+
+    Vsum vsum = new Vsum();
+    VsumUser vu = new VsumUser();
+    vu.setVsum(vsum);
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(id, email))
+        .thenReturn(Optional.of(vu));
+
+    FileStorage e = fs(1L, "a.ecore", new byte[] {1});
+    FileStorage g = fs(2L, "a.genmodel", new byte[] {2});
+    FileStorage first = fs(3L, "first.reactions", reactionBytes("firstReaction"));
+    FileStorage second = fs(4L, "second.reactions", reactionBytes("secondReaction"));
+    MetaModelRelation relation = rel(mm(e, g), null, null);
+    relation.setId(5L);
+    relation.getFineGranularMetaModelRelationSet().add(fg("Component", "Class", first));
+    relation.getFineGranularMetaModelRelationSet().add(fg("Interface", "Type", second));
+    vsum.setMetaModelRelations(Set.of(relation));
+
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
+        .thenReturn("JAR".getBytes(StandardCharsets.UTF_8));
+
+    service.getJarfat(email, id);
+
+    ArgumentCaptor<List<FileStorage>> reactionsCap = ArgumentCaptor.forClass(List.class);
+    verify(setupServiceApiHandler)
+        .buildVsumJarOrThrow(anyList(), anyList(), reactionsCap.capture());
+
+    List<FileStorage> sent = reactionsCap.getValue();
+    assertThat(sent).hasSize(3);
+    assertThat(sent.get(0).getFilename()).isEqualTo("compositeReaction5.reactions");
+    String composite = new String(sent.get(0).getData(), StandardCharsets.UTF_8);
+    assertThat(composite).contains("reactions: compositeReaction5");
+    assertThat(composite).contains("import firstReaction");
+    assertThat(composite).contains("import secondReaction");
+    assertThat(sent.subList(1, sent.size())).containsExactlyInAnyOrder(first, second);
+  }
+
+  private FineGranularMetaModelRelation fg(String source, String target, FileStorage reaction) {
+    return FineGranularMetaModelRelation.builder()
+        .sourceId(source)
+        .targetId(target)
+        .reactionFileStorage(reaction)
+        .build();
+  }
+
+  private byte[] reactionBytes(String reactionName) {
+    return """
+        import "http://pcm" as pcm
+        import "http://uml" as uml
+
+        reactions: %s
+        in reaction to changes in pcm
+        execute actions in uml
+        """
+        .formatted(reactionName)
+        .getBytes(StandardCharsets.UTF_8);
   }
 }

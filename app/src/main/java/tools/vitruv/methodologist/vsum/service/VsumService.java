@@ -96,6 +96,7 @@ public class VsumService {
   private final VsumViewMapper vsumViewMapper;
   FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
   LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
+  ReactionBuildCollector reactionBuildCollector;
   private final SetupServiceApiHandler setupServiceApiHandler;
 
   /**
@@ -376,7 +377,8 @@ public class VsumService {
    *
    * <p>The metamodel, genmodel and reaction files referenced by the VSUM are collected and
    * deduplicated from the resolved {@link VsumUser}, then sent to the setup-service which performs
-   * the build and returns the JAR.
+   * the build and returns the JAR. Fine-granular reaction files are included. A pair with more than
+   * one reaction file is wrapped in a generated composite that imports each file.
    *
    * @param callerEmail email address of the requesting user
    * @param id the VSUM identifier
@@ -384,6 +386,8 @@ public class VsumService {
    * @throws AccessDeniedException if the user is not authorized for this VSUM
    * @throws tools.vitruv.methodologist.exception.NotFoundException if required files (meta-models
    *     or reactions) are missing
+   * @throws tools.vitruv.methodologist.exception.VsumBuildingException if reaction files on a pair
+   *     cannot be composed
    * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
    *     fails or returns an empty artifact
    */
@@ -419,10 +423,7 @@ public class VsumService {
         putPair(ecores, genmodels, target.getEcoreFile(), target.getGenModelFile());
       }
 
-      FileStorage reaction = relation.getReactionFileStorage();
-      if (reaction != null) {
-        reactions.add(reaction);
-      }
+      reactions.addAll(reactionBuildCollector.collectForRelation(relation));
     }
 
     if (ecores.isEmpty() || genmodels.isEmpty()) {
