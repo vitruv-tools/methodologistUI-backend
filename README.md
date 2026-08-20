@@ -1,6 +1,6 @@
 # Methodologist — Backend Service
 
-![Java](https://img.shields.io/badge/Java-17-blue.svg)
+![Java](https://img.shields.io/badge/Java-21-blue.svg)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen.svg)
 ![Maven](https://img.shields.io/badge/Maven-Build-blue)
 ![Status](https://img.shields.io/badge/Status-Active-success.svg)
@@ -42,7 +42,7 @@ and role-based access control.
 
 ## Requirements
 
-- Java 17
+- Java 21
 - Maven (recommended to use the included Maven Wrapper `./mvnw`)
 - Docker & Docker Compose (for Keycloak and integration testing)
 - Git (for cloning the repository)
