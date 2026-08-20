@@ -43,6 +43,8 @@ import tools.vitruv.methodologist.vsum.service.VsumService;
 @RequestMapping("/api/")
 @Validated
 public class VsumController {
+  private static final MediaType APPLICATION_ZIP = MediaType.parseMediaType("application/zip");
+
   private final VsumService vsumService;
 
   /**
@@ -281,5 +283,36 @@ public class VsumController {
     headers.setContentDisposition(ContentDisposition.attachment().filename("vsum.jar").build());
 
     return ResponseEntity.ok().headers(headers).body(jar);
+  }
+
+  /**
+   * Builds the VSUM and returns a ready-to-run deployment bundle as a downloadable ZIP archive.
+   *
+   * <p>The archive contains the generated fat JAR together with the launcher scripts and
+   * documentation of the {@code deployment} resource package, so that the user can start the
+   * application locally right after extracting it.
+   *
+   * @param authentication the authenticated Keycloak principal
+   * @param id the identifier of the VSUM to build
+   * @return the deployment bundle as a ZIP archive
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
+   *     fails
+   * @throws tools.vitruv.methodologist.exception.BuildArtifactCreationException if the archive
+   *     cannot be assembled
+   */
+  @GetMapping("/v1/vsums/{id}/build/bundle")
+  @PreAuthorize("hasRole('user')")
+  public ResponseEntity<byte[]> buildAndDownloadBundle(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+
+    byte[] bundle = vsumService.createDeploymentBundle(callerEmail, id);
+
+    HttpHeaders headers = new HttpHeaders();
+    headers.setContentType(APPLICATION_ZIP);
+    headers.setContentDisposition(
+        ContentDisposition.attachment().filename("vsum-deployment.zip").build());
+
+    return ResponseEntity.ok().headers(headers).body(bundle);
   }
 }
