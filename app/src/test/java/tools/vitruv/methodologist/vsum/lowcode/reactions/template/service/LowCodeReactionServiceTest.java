@@ -151,11 +151,7 @@ class LowCodeReactionServiceTest {
     existing.setContentType("text/plain");
     FileStorageResponse updated = FileStorageResponse.builder().id(13L).build();
     when(fileStorageService.updateFile(
-            eq("u@ex.com"),
-            eq(13L),
-            any(byte[].class),
-            eq("existing.reactions"),
-            eq("text/plain")))
+            eq("u@ex.com"), eq(13L), any(byte[].class), eq("existing.reactions"), eq("text/plain")))
         .thenReturn(updated);
     when(fileStorageService.getFile(13L)).thenReturn(existing);
 
@@ -164,11 +160,7 @@ class LowCodeReactionServiceTest {
     assertThat(result).isSameAs(existing);
     verify(fileStorageService)
         .updateFile(
-            eq("u@ex.com"),
-            eq(13L),
-            any(byte[].class),
-            eq("existing.reactions"),
-            eq("text/plain"));
+            eq("u@ex.com"), eq(13L), any(byte[].class), eq("existing.reactions"), eq("text/plain"));
   }
 
   private CreateCorrespondingRootOnInsertRootRequest createCorrespondingRootRequest() {

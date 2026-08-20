@@ -1,8 +1,6 @@
 package tools.vitruv.methodologist.exception;
 
-/**
- * Thrown when a FreeMarker low-code reaction template cannot be loaded or applied.
- */
+/** Thrown when a FreeMarker low-code reaction template cannot be loaded or applied. */
 public class LowCodeTemplateException extends RuntimeException {
 
   /**

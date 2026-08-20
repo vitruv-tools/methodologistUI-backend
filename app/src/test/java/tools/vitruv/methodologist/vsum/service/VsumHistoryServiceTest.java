@@ -528,8 +528,7 @@ class VsumHistoryServiceTest {
             .metaModelsRealation(Set.of(rel))
             .build();
 
-    when(lowCodeReactionRequestMapper.map(
-            eq("create_corresponding_root_on_insert_root"), any()))
+    when(lowCodeReactionRequestMapper.map(eq("create_corresponding_root_on_insert_root"), any()))
         .thenReturn(null);
 
     Long historyId = 18L;

@@ -67,11 +67,11 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse
 import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
+import tools.vitruv.methodologist.vsum.lowcode.reactions.template.service.LowCodeReactionService;
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
-import tools.vitruv.methodologist.vsum.lowcode.reactions.template.service.LowCodeReactionService;
 import tools.vitruv.methodologist.vsum.mapper.VsumViewMapper;
 import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
@@ -735,8 +735,7 @@ class VsumServiceTest {
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelRelationRequests(List.of(updated));
 
-    when(metaModelRelationService.update(eq(vsum), any()))
-        .thenReturn(Map.of(updated, r12));
+    when(metaModelRelationService.update(eq(vsum), any())).thenReturn(Map.of(updated, r12));
 
     service.update(email, 61L, put);
 
@@ -744,8 +743,7 @@ class VsumServiceTest {
     verify(metaModelRelationService, never()).create(any(), any());
     verify(metaModelRelationService).update(eq(vsum), eq(Map.of(updated, r12)));
     verify(vsumHistoryService).create(vsum, owner);
-    verify(fineGranularMetaModelRelationService)
-        .update(eq(email), eq(Map.of(updated, r12)), any());
+    verify(fineGranularMetaModelRelationService).update(eq(email), eq(Map.of(updated, r12)), any());
   }
 
   @Test
@@ -781,14 +779,12 @@ class VsumServiceTest {
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelRelationRequests(List.of(updated));
     put.setViewRequests(
-        List.of(
-            ViewRequest.builder().fileStorageId(90L).metaModelIds(List.of(1L, 2L)).build()));
+        List.of(ViewRequest.builder().fileStorageId(90L).metaModelIds(List.of(1L, 2L)).build()));
 
     service.update(email, 80L, put);
 
     verify(metaModelRelationService).update(eq(vsum), eq(Map.of(updated, r12)));
-    verify(fineGranularMetaModelRelationService)
-        .update(eq(email), eq(Map.of(updated, r12)), any());
+    verify(fineGranularMetaModelRelationService).update(eq(email), eq(Map.of(updated, r12)), any());
     verify(vsumViewService).create(vsum, 90L);
     verify(vsumHistoryService, times(1)).create(vsum, owner);
     verify(vsumRepository).save(vsum);

@@ -195,19 +195,13 @@ public class ReactionBuildCollector {
         String.format(
             "All reaction files must be between the same pair of models. Found %s %s in"
                 + " reaction %s, but %s %s in reaction %s!",
-            fieldLabel,
-            expected,
-            expectedReactionName,
-            fieldLabel,
-            actual,
-            actualReactionName));
+            fieldLabel, expected, expectedReactionName, fieldLabel, actual, actualReactionName));
   }
 
   private static ReactionParserUtil.ReactionFileInfo parseOrThrow(FileStorage fileStorage) {
     byte[] data = fileStorage.getData();
     if (data == null || data.length == 0) {
-      throw new VsumBuildingException(
-          "Reaction file is empty: " + fileStorage.getFilename());
+      throw new VsumBuildingException("Reaction file is empty: " + fileStorage.getFilename());
     }
     ReactionParserUtil.ReactionFileInfo info =
         ReactionParserUtil.parse(new String(data, StandardCharsets.UTF_8));
