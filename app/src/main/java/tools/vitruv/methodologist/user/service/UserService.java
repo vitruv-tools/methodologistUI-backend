@@ -241,9 +241,9 @@ public class UserService {
   /**
    * Synchronizes a user account with Keycloak, creating or updating the user as needed.
    *
-   * <p>Searches for an existing, non-removed user by username. If found, updates the user's email,
-   * first name, and last name with the provided values. If not found, creates a new user with the
-   * provided credentials, marking them as verified by default with the USER role.
+   * <p>Searches for an existing, non-removed user by username. If found, updates the user's email.
+   * If not found, creates a new user with the provided credentials, marking them as verified by
+   * default with the USER role.
    *
    * <p>After the user is persisted, the Keycloak user role is assigned or updated for the given
    * username to synchronize role information across systems.
@@ -269,7 +269,7 @@ public class UserService {
 
     User userToSave =
         existingUser
-            .map(user -> updateExistingUser(user, email, firstName, lastName))
+            .map(user -> updateExistingUser(user, email))
             .orElseGet(() -> createNewUser(email, username, firstName, lastName));
 
     userRepository.save(userToSave);
@@ -306,18 +306,14 @@ public class UserService {
   }
 
   /**
-   * Updates an existing user with the provided information.
+   * Updates an existing user with Keycloak-owned identity information.
    *
    * @param user the existing user to update
    * @param email the new email address
-   * @param firstName the new first name
-   * @param lastName the new last name
    * @return the updated user entity
    */
-  private User updateExistingUser(User user, String email, String firstName, String lastName) {
+  private User updateExistingUser(User user, String email) {
     user.setEmail(email);
-    user.setFirstName(firstName);
-    user.setLastName(lastName);
     return user;
   }
 
@@ -392,6 +388,7 @@ public class UserService {
             .findByIdAndRemovedAtIsNull(id)
             .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
     userMapper.updateByUserPutRequest(userPutRequest, user);
+    keycloakService.updateUserProfile(user.getUsername(), user.getFirstName(), user.getLastName());
     userRepository.save(user);
     return user;
   }
@@ -442,16 +439,17 @@ public class UserService {
   /**
    * Changes the password of the active user identified by the provided email.
    *
-   * <p>Looks up an active (not removed) user by email, then delegates the password update to {@code
-   * keycloakService.setPassword}. The provided {@link UserPutChangePasswordRequest} is expected to
-   * be validated before calling this method (see its {@code @Pattern} constraint for password
-   * requirements).
+   * <p>Looks up an active (not removed) user by email, verifies the provided current password
+   * against Keycloak, then delegates the password update to {@code keycloakService.setPassword}.
+   * The provided {@link UserPutChangePasswordRequest} is expected to be validated before calling
+   * this method (see its {@code @Pattern} constraint for password requirements).
    *
    * <p>The operation is executed within a transaction but does not modify the application user
    * entity in the database — only the Keycloak credential is updated.
    *
    * @param email the case-insensitive email address of the user whose password will be changed
-   * @param userPutChangePasswordRequest the validated request DTO containing the new password
+   * @param userPutChangePasswordRequest the validated request DTO containing the current and new
+   *     password
    * @throws NotFoundException if no active user is found for the given email
    */
   @Transactional
@@ -461,7 +459,9 @@ public class UserService {
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(email)
             .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
-    keycloakService.setPassword(user.getUsername(), userPutChangePasswordRequest.getPassword());
+    keycloakService.verifyUserPasswordOrThrow(
+        user.getUsername(), userPutChangePasswordRequest.getCurrentPassword());
+    keycloakService.setPassword(user.getUsername(), userPutChangePasswordRequest.getNewPassword());
   }
 
   /**

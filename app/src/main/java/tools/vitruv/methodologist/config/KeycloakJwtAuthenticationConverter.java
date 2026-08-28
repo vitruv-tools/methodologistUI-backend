@@ -1,6 +1,8 @@
 package tools.vitruv.methodologist.config;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Objects;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
@@ -28,7 +30,10 @@ public class KeycloakJwtAuthenticationConverter
    */
   @Override
   public AbstractAuthenticationToken convert(Jwt jwt) {
-    Collection<? extends GrantedAuthority> authorities = authoritiesConverter.convert(jwt);
-    return new KeycloakAuthentication(jwt, authorities);
+    Jwt requiredJwt = Objects.requireNonNull(jwt, "jwt must not be null");
+    Collection<? extends GrantedAuthority> authorities =
+        Objects.requireNonNullElse(
+            authoritiesConverter.convert(requiredJwt), Collections.emptyList());
+    return new KeycloakAuthentication(requiredJwt, authorities);
   }
 }
