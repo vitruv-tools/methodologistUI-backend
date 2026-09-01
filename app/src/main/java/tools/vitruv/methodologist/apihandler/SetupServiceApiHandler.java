@@ -38,6 +38,7 @@ public class SetupServiceApiHandler {
   public static final String REACTION_FILES_PART = "reactionFiles";
   public static final String FILE_PART = "file";
 
+  private static final String FAILED_WITH_STATUS = "' failed with status ";
   private static final String SETUP_SERVICE_REQUEST_TO = "Setup-service request to '";
   private static final MediaType APPLICATION_ZIP = MediaType.parseMediaType("application/zip");
   private static final MediaType APPLICATION_JAR =
@@ -148,7 +149,7 @@ public class SetupServiceApiHandler {
                                       new SetupServiceException(
                                           SETUP_SERVICE_REQUEST_TO
                                               + uri
-                                              + "' failed with status "
+                                              + FAILED_WITH_STATUS
                                               + response.statusCode()
                                               + ": "
                                               + body))))
@@ -202,7 +203,7 @@ public class SetupServiceApiHandler {
                                       new SetupServiceException(
                                           SETUP_SERVICE_REQUEST_TO
                                               + PROCESS_GENMODEL_URL
-                                              + "' failed with status "
+                                              + FAILED_WITH_STATUS
                                               + response.statusCode()
                                               + ": "
                                               + body))))
@@ -263,7 +264,7 @@ public class SetupServiceApiHandler {
                                     new SetupServiceException(
                                         SETUP_SERVICE_REQUEST_TO
                                             + INSPECT_GENMODEL_URL
-                                            + "' failed with status "
+                                            + FAILED_WITH_STATUS
                                             + response.statusCode()
                                             + ": "
                                             + body)));
