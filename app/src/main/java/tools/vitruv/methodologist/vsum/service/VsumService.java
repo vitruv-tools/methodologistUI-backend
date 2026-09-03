@@ -153,7 +153,7 @@ public class VsumService {
   void setSelf(@Lazy VsumService self) {
     this.self = self;
   }
-  
+
   private final ResourceLoader resourceLoader;
 
   /**
