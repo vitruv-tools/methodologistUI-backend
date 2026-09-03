@@ -731,9 +731,12 @@ class UserServiceTest {
     req.setCurrentPassword("CurrentPass#12345");
     req.setNewPassword("StrongPass#12345");
 
+    when(keycloakApiHandler.getAccessTokenOrThrow(user.getUsername(), req.getCurrentPassword()))
+        .thenReturn(new KeycloakWebToken());
+
     userService.changePassword(email, req);
 
-    verify(keycloakService).verifyUserPasswordOrThrow(user.getUsername(), req.getCurrentPassword());
+    verify(keycloakApiHandler).getAccessTokenOrThrow(user.getUsername(), req.getCurrentPassword());
     verify(keycloakService).setPassword(user.getUsername(), req.getNewPassword());
   }
 
@@ -752,7 +755,7 @@ class UserServiceTest {
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(USER_EMAIL_NOT_FOUND_ERROR);
 
-    verify(keycloakService, never()).verifyUserPasswordOrThrow(anyString(), anyString());
+    verify(keycloakApiHandler, never()).getAccessTokenOrThrow(anyString(), anyString());
     verify(keycloakService, never()).setPassword(anyString(), anyString());
   }
 
@@ -771,15 +774,15 @@ class UserServiceTest {
     req.setCurrentPassword("WrongPass#12345");
     req.setNewPassword("StrongPass#12345");
 
-    doThrow(new BadRequestException(USER_WRONG_PASSWORD_ERROR))
-        .when(keycloakService)
-        .verifyUserPasswordOrThrow(user.getUsername(), req.getCurrentPassword());
+    doThrow(new RuntimeException("invalid credentials"))
+        .when(keycloakApiHandler)
+        .getAccessTokenOrThrow(user.getUsername(), req.getCurrentPassword());
 
     assertThatThrownBy(() -> userService.changePassword(email, req))
         .isInstanceOf(BadRequestException.class)
         .hasMessageContaining(USER_WRONG_PASSWORD_ERROR);
 
-    verify(keycloakService).verifyUserPasswordOrThrow(user.getUsername(), req.getCurrentPassword());
+    verify(keycloakApiHandler).getAccessTokenOrThrow(user.getUsername(), req.getCurrentPassword());
     verify(keycloakService, never()).setPassword(anyString(), anyString());
   }
 

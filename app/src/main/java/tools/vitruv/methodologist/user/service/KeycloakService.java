@@ -169,7 +169,7 @@ public class KeycloakService {
   public void verifyUserPasswordOrThrow(String username, String password) {
     try {
       keycloakGateway.verifyPassword(username, password);
-    } catch (NotAuthorizedException notAuthorizedException) {
+    } catch (NotAuthorizedException | BadRequestException wrongPasswordException) {
       throw new BadRequestException(USER_WRONG_PASSWORD_ERROR);
     } catch (Exception e) {
       throw new UncheckedRuntimeException(e.getMessage());

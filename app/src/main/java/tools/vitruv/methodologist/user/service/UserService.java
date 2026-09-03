@@ -3,7 +3,9 @@ package tools.vitruv.methodologist.user.service;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.USER_WRONG_PASSWORD_ERROR;
 
+import jakarta.ws.rs.BadRequestException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -459,8 +461,12 @@ public class UserService {
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(email)
             .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
-    keycloakService.verifyUserPasswordOrThrow(
-        user.getUsername(), userPutChangePasswordRequest.getCurrentPassword());
+    try {
+      keycloakApiHandler.getAccessTokenOrThrow(
+          user.getUsername(), userPutChangePasswordRequest.getCurrentPassword());
+    } catch (Exception exception) {
+      throw new BadRequestException(USER_WRONG_PASSWORD_ERROR);
+    }
     keycloakService.setPassword(user.getUsername(), userPutChangePasswordRequest.getNewPassword());
   }
 
