@@ -195,6 +195,7 @@ class VsumServiceTest {
             vsumViewMapper,
             setupServiceApiHandler,
             new PathMatchingResourcePatternResolver());
+    service.setSelf(service);
 
     lenient().when(vsumViewRepository.findAllByVsum(any(Vsum.class))).thenReturn(List.of());
     lenient()
