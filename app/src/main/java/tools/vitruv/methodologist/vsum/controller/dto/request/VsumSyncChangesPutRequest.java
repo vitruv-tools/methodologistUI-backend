@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.controller.dto.request;
 
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,6 +19,6 @@ import lombok.Setter;
 @NoArgsConstructor
 public class VsumSyncChangesPutRequest {
   private List<Long> metaModelIds;
-  private List<MetaModelRelationRequest> metaModelRelationRequests;
+  @Valid private List<MetaModelRelationRequest> metaModelRelationRequests;
   private List<ViewRequest> viewRequests;
 }

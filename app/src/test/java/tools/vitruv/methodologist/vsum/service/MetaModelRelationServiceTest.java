@@ -9,7 +9,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,10 +22,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import tools.vitruv.methodologist.exception.MetaModelRelationCreationException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
+import tools.vitruv.methodologist.vsum.controller.dto.request.FineGranularMetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
@@ -154,5 +160,176 @@ class MetaModelRelationServiceTest {
     List<MetaModelRelation> rels = List.of(new MetaModelRelation(), new MetaModelRelation());
     service.delete(rels);
     verify(metaModelRelationRepository).deleteAll(rels);
+  }
+
+  @Test
+  void create_savesRelation_whenReactionFileNullAndFineGranularPresent() {
+    MetaModel sourceMM =
+        MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
+    MetaModel targetMM =
+        MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
+    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, null, null, null);
+    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, null, null, null);
+
+    FineGranularMetaModelRelationRequest fgReq =
+        FineGranularMetaModelRelationRequest.builder()
+            .sourceId("Component")
+            .targetId("Class")
+            .reactionFileStorageId(14L)
+            .build();
+    MetaModelRelationRequest req =
+        MetaModelRelationRequest.builder()
+            .sourceId(100L)
+            .targetId(200L)
+            .fineGranularMetaModelRelationSet(new HashSet<>(Set.of(fgReq)))
+            .build();
+
+    when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
+        .thenReturn(List.of(vmm1, vmm2));
+
+    service.create(vsum, List.of(req));
+
+    ArgumentCaptor<List<MetaModelRelation>> captor = ArgumentCaptor.forClass(List.class);
+    verify(metaModelRelationRepository).saveAll(captor.capture());
+    verifyNoInteractions(fileStorageRepository);
+
+    List<MetaModelRelation> saved = captor.getValue();
+    assertThat(saved).hasSize(1);
+    assertThat(saved.get(0).getReactionFileStorage()).isNull();
+    assertThat(saved.get(0).getSource()).isEqualTo(sourceMM);
+    assertThat(saved.get(0).getTarget()).isEqualTo(targetMM);
+  }
+
+  @Test
+  void create_throws_whenReactionFileNullAndFineGranularEmpty() {
+    MetaModel sourceMM =
+        MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
+    MetaModel targetMM =
+        MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
+    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, null, null, null);
+    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, null, null, null);
+
+    MetaModelRelationRequest req = new MetaModelRelationRequest(100L, 200L, null);
+
+    when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
+        .thenReturn(List.of(vmm1, vmm2));
+
+    List<MetaModelRelationRequest> requests = List.of(req);
+    assertThrows(MetaModelRelationCreationException.class, () -> service.create(vsum, requests));
+    verifyNoInteractions(metaModelRelationRepository);
+  }
+
+  @Test
+  void update_savesRelation_whenReactionFileNullAndFineGranularPresent() {
+    MetaModel sourceMM =
+        MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
+    MetaModel targetMM =
+        MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
+    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, null, null, null);
+    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, null, null, null);
+
+    FineGranularMetaModelRelationRequest fgReq =
+        FineGranularMetaModelRelationRequest.builder()
+            .sourceId("Component")
+            .targetId("Class")
+            .reactionFileStorageId(14L)
+            .build();
+    MetaModelRelationRequest req =
+        MetaModelRelationRequest.builder()
+            .sourceId(100L)
+            .targetId(200L)
+            .fineGranularMetaModelRelationSet(new HashSet<>(Set.of(fgReq)))
+            .build();
+    MetaModelRelation existing =
+        MetaModelRelation.builder()
+            .id(5L)
+            .vsum(vsum)
+            .fineGranularMetaModelRelationSet(new HashSet<>())
+            .build();
+
+    when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
+        .thenReturn(List.of(vmm1, vmm2));
+
+    service.update(vsum, Map.of(req, existing));
+
+    ArgumentCaptor<List<MetaModelRelation>> captor = ArgumentCaptor.forClass(List.class);
+    verify(metaModelRelationRepository).saveAll(captor.capture());
+    verifyNoInteractions(fileStorageRepository);
+
+    List<MetaModelRelation> saved = captor.getValue();
+    assertThat(saved).containsExactly(existing);
+    assertThat(existing.getReactionFileStorage()).isNull();
+    assertThat(existing.getSource()).isEqualTo(sourceMM);
+    assertThat(existing.getTarget()).isEqualTo(targetMM);
+  }
+
+  @Test
+  void update_throws_whenMappedRelationMissing() {
+    MetaModel sourceMM =
+        MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
+    MetaModel targetMM =
+        MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
+    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, null, null, null);
+    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, null, null, null);
+
+    FineGranularMetaModelRelationRequest fgReq =
+        FineGranularMetaModelRelationRequest.builder()
+            .sourceId("Component")
+            .targetId("Class")
+            .reactionFileStorageId(14L)
+            .build();
+    MetaModelRelationRequest req =
+        MetaModelRelationRequest.builder()
+            .sourceId(100L)
+            .targetId(200L)
+            .fineGranularMetaModelRelationSet(new HashSet<>(Set.of(fgReq)))
+            .build();
+    Map<MetaModelRelationRequest, MetaModelRelation> requestToRelation = new HashMap<>();
+    requestToRelation.put(req, null);
+
+    when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
+        .thenReturn(List.of(vmm1, vmm2));
+
+    assertThrows(
+        MetaModelRelationCreationException.class, () -> service.update(vsum, requestToRelation));
+    verifyNoInteractions(metaModelRelationRepository);
+  }
+
+  @Test
+  void update_throws_whenRequestIdDoesNotMatchExisting() {
+    MetaModel sourceMM =
+        MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
+    MetaModel targetMM =
+        MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
+    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, null, null, null);
+    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, null, null, null);
+
+    FineGranularMetaModelRelationRequest fgReq =
+        FineGranularMetaModelRelationRequest.builder()
+            .sourceId("Component")
+            .targetId("Class")
+            .reactionFileStorageId(14L)
+            .build();
+    MetaModelRelationRequest req =
+        MetaModelRelationRequest.builder()
+            .id(99L)
+            .sourceId(100L)
+            .targetId(200L)
+            .fineGranularMetaModelRelationSet(new HashSet<>(Set.of(fgReq)))
+            .build();
+    MetaModelRelation existing =
+        MetaModelRelation.builder()
+            .id(5L)
+            .vsum(vsum)
+            .fineGranularMetaModelRelationSet(new HashSet<>())
+            .build();
+
+    when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
+        .thenReturn(List.of(vmm1, vmm2));
+
+    Map<MetaModelRelationRequest, MetaModelRelation> requestToRelation = Map.of(req, existing);
+    assertThrows(
+        MetaModelRelationCreationException.class, () -> service.update(vsum, requestToRelation));
+    verifyNoInteractions(metaModelRelationRepository);
   }
 }

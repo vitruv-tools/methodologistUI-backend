@@ -25,6 +25,19 @@ public class Error {
       "At least one metamodel (Ecore/GenModel pair) must be provided.";
   public static final String METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR =
       "MetaModel Ids not found in this VSUM";
+  public static final String NO_TEMPLATE_PROVIDED_ERROR =
+      "No template provided for fine-granular reaction.";
+  public static final String METAMODEL_RELATION_REACTION_OR_FG_REQUIRED_ERROR =
+      "Metamodel relation must have a reaction file or at least one fine-grained meta-model"
+          + " relation.";
+  public static final String FINE_GRANULAR_RELATION_ID_NOT_FOUND_ERROR =
+      "Fine-granular meta-model relation";
+  public static final String METAMODEL_RELATION_UPDATE_NOT_ALLOWED_ERROR =
+      "Not allowed to update metamodel relation with the given id";
+  public static final String FINE_GRANULAR_RELATION_UPDATE_NOT_ALLOWED_ERROR =
+      "Not allowed to update fine-granular relation with the given id";
+  public static final String LOWCODE_TEMPLATE_APPLY_ERROR =
+      "Failed to apply low-code reaction template";
   public static final String REACTION_FILE_REQUIRED_ERROR =
       "At least one reactions file must be provided";
   public static final String FAT_JAR_NOT_FOUND_ERROR = "Fat jar not found at: ";

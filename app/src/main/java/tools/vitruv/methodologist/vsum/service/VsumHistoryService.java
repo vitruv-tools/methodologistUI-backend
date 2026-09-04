@@ -3,8 +3,10 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_HISTORY_ID_NOT_FOUND_ERROR;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -15,10 +17,12 @@ import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRepresentation;
+import tools.vitruv.methodologist.vsum.controller.dto.request.FineGranularMetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.ViewRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumHistoryResponse;
+import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumHistoryMapper;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumHistory;
@@ -40,6 +44,7 @@ public class VsumHistoryService {
   private final UserRepository userRepository;
   private final VsumUserRepository vsumUserRepository;
   private final VsumService vsumService;
+  private final LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
 
   /**
    * Constructs a {@link VsumHistoryService} with required dependencies.
@@ -54,13 +59,15 @@ public class VsumHistoryService {
       @Value("${vsum.history.limit}") Long historyLimit,
       UserRepository userRepository,
       VsumUserRepository vsumUserRepository,
-      @Lazy VsumService vsumService) {
+      @Lazy VsumService vsumService,
+      LowCodeReactionRequestMapper lowCodeReactionRequestMapper) {
     this.vsumHistoryRepository = vsumHistoryRepository;
     this.vsumHistoryMapper = vsumHistoryMapper;
     this.historyLimit = historyLimit;
     this.userRepository = userRepository;
     this.vsumUserRepository = vsumUserRepository;
     this.vsumService = vsumService;
+    this.lowCodeReactionRequestMapper = lowCodeReactionRequestMapper;
   }
 
   /**
@@ -196,6 +203,8 @@ public class VsumHistoryService {
                     metaModelRelationRequest.setTargetId(metaModelRelation.getTargetId());
                     metaModelRelationRequest.setReactionFileId(
                         metaModelRelation.getRelationFileStorage());
+                    metaModelRelationRequest.setFineGranularMetaModelRelationSet(
+                        toFineGranularRequests(metaModelRelation));
                     return metaModelRelationRequest;
                   })
               .toList();
@@ -223,5 +232,30 @@ public class VsumHistoryService {
     }
 
     return vsumSyncChangesPutRequest;
+  }
+
+  private Set<FineGranularMetaModelRelationRequest> toFineGranularRequests(
+      VsumRepresentation.MetaModelRelation metaModelRelation) {
+    if (metaModelRelation.getFineGranularMetaModelRelationSet() == null
+        || metaModelRelation.getFineGranularMetaModelRelationSet().isEmpty()) {
+      return new HashSet<>();
+    }
+    Set<FineGranularMetaModelRelationRequest> requests = new HashSet<>();
+    for (VsumRepresentation.FineGranularMetaModelRelation fg :
+        metaModelRelation.getFineGranularMetaModelRelationSet()) {
+      if (fg == null) {
+        continue;
+      }
+      requests.add(
+          FineGranularMetaModelRelationRequest.builder()
+              .sourceId(fg.getSourceId())
+              .targetId(fg.getTargetId())
+              .reactionFileStorageId(fg.getReactionFileStorageId())
+              .lowCodeReactionRequestBase(
+                  lowCodeReactionRequestMapper.map(
+                      fg.getLowCodeReactionTemplate(), fg.getLowCodeReactionTemplateParams()))
+              .build());
+    }
+    return requests;
   }
 }

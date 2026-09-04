@@ -73,15 +73,35 @@ public class FileStorageService {
   @Transactional(rollbackFor = Exception.class)
   public FileStorageResponse storeFile(
       String callerUserEmail, MultipartFile file, FileEnumType type) throws Exception {
+    return storeFile(
+        callerUserEmail, file.getBytes(), file.getOriginalFilename(), file.getContentType(), type);
+  }
+
+  /**
+   * Stores raw bytes as a file with the same SHA-256 deduplication rules as {@link
+   * #storeFile(String, MultipartFile, FileEnumType)}.
+   *
+   * @param callerUserEmail email of the user storing the file
+   * @param data the file contents
+   * @param fileName the name of the file
+   * @param contentType the MIME type of the file
+   * @param type the type of file being stored
+   * @return FileStorageResponse containing the stored file's ID
+   * @throws NotFoundException if the user email is not found
+   * @throws IllegalArgumentException if the file is empty
+   * @throws FileAlreadyExistsException if a file with the same content already exists for the user
+   */
+  @Transactional(rollbackFor = Exception.class)
+  public FileStorageResponse storeFile(
+      String callerUserEmail, byte[] data, String fileName, String contentType, FileEnumType type) {
     User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
             .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
-    if (file.isEmpty()) {
+    if (data == null || data.length == 0) {
       throw new IllegalArgumentException("File is empty");
     }
 
-    byte[] data = file.getBytes();
     String sha = sha256Hex(data);
 
     if (fileStorageRepository.existsByUserAndSha256AndSizeBytes(user, sha, data.length)) {
@@ -89,10 +109,9 @@ public class FileStorageService {
     }
 
     FileStorage fileStorage = new FileStorage();
-    fileStorage.setFilename(file.getOriginalFilename());
+    fileStorage.setFilename(fileName);
     fileStorage.setType(type);
-    fileStorage.setContentType(
-        file.getContentType() == null ? "application/octet-stream" : file.getContentType());
+    fileStorage.setContentType(contentType == null ? "application/octet-stream" : contentType);
     fileStorage.setSizeBytes(data.length);
     fileStorage.setSha256(sha);
     fileStorage.setData(data);
@@ -150,6 +169,30 @@ public class FileStorageService {
   @Transactional(rollbackFor = Exception.class)
   public FileStorageResponse updateFile(String callerUserEmail, Long fileId, MultipartFile file)
       throws Exception {
+    return updateFile(
+        callerUserEmail,
+        fileId,
+        file.getBytes(),
+        file.getOriginalFilename(),
+        file.getContentType());
+  }
+
+  /**
+   * Updates an existing reaction file from raw bytes. Ownership and type checks match {@link
+   * #updateFile(String, Long, MultipartFile)}.
+   *
+   * @param callerUserEmail email of the user requesting the update
+   * @param fileId the ID of the existing file to update
+   * @param data the replacement file contents
+   * @param fileName the name of the file
+   * @param contentType the MIME type of the file
+   * @return FileStorageResponse containing the updated file's ID
+   * @throws NotFoundException if the user email or file is not found
+   * @throws IllegalArgumentException if the file is empty or does not belong to the caller
+   */
+  @Transactional(rollbackFor = Exception.class)
+  public FileStorageResponse updateFile(
+      String callerUserEmail, Long fileId, byte[] data, String fileName, String contentType) {
     User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
@@ -166,17 +209,15 @@ public class FileStorageService {
       throw new IllegalArgumentException("File does not belong to the requesting user");
     }
 
-    if (file.isEmpty()) {
+    if (data == null || data.length == 0) {
       throw new IllegalArgumentException("File is empty");
     }
 
-    byte[] data = file.getBytes();
     String sha = sha256Hex(data);
 
-    existing.setFilename(file.getOriginalFilename());
+    existing.setFilename(fileName);
     existing.setType(FileEnumType.REACTION);
-    existing.setContentType(
-        file.getContentType() == null ? "application/octet-stream" : file.getContentType());
+    existing.setContentType(contentType == null ? "application/octet-stream" : contentType);
     existing.setSizeBytes(data.length);
     existing.setSha256(sha);
     existing.setData(data);

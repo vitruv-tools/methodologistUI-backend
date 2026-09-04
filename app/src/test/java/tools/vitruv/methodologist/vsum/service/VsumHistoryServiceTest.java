@@ -28,6 +28,7 @@ import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRepresentation;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumHistoryResponse;
+import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumHistoryMapper;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumHistory;
@@ -43,6 +44,7 @@ class VsumHistoryServiceTest {
   @Mock UserRepository userRepository;
   @Mock VsumUserRepository vsumUserRepository;
   @Mock VsumService vsumService;
+  @Mock LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
 
   private VsumHistoryService service;
 
@@ -55,7 +57,8 @@ class VsumHistoryServiceTest {
             5L,
             userRepository,
             vsumUserRepository,
-            vsumService);
+            vsumService,
+            lowCodeReactionRequestMapper);
   }
 
   @Test
@@ -141,7 +144,8 @@ class VsumHistoryServiceTest {
   @Test
   void create_withZeroLimit_deletesNewestWhenAnyExists_thenSaves() {
     service =
-        new VsumHistoryService(vsumHistoryRepository, vsumHistoryMapper, 0L, null, null, null);
+        new VsumHistoryService(
+            vsumHistoryRepository, vsumHistoryMapper, 0L, null, null, null, null);
 
     Vsum vsum = new Vsum();
     vsum.setId(4L);
@@ -489,5 +493,71 @@ class VsumHistoryServiceTest {
     verify(vsumService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
 
     assertThat(reqCap.getValue().getViewRequests()).isNotNull().isEmpty();
+  }
+
+  @Test
+  void revert_mapsFineGranularRelations_andAllowsNullCoarseReactionFile() {
+    String callerEmail = "u@ex.com";
+
+    User user = new User();
+    user.setEmail(callerEmail);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
+        .thenReturn(Optional.of(user));
+
+    Vsum vsum = new Vsum();
+    vsum.setId(106L);
+
+    VsumRepresentation.FineGranularMetaModelRelation fg =
+        VsumRepresentation.FineGranularMetaModelRelation.builder()
+            .sourceId("Component")
+            .targetId("Class")
+            .reactionFileStorageId(44L)
+            .lowCodeReactionTemplate("create_corresponding_root_on_insert_root")
+            .lowCodeReactionTemplateParams(java.util.Map.of("model1Alias", "pcm"))
+            .build();
+    VsumRepresentation.MetaModelRelation rel =
+        VsumRepresentation.MetaModelRelation.builder()
+            .sourceId(19L)
+            .targetId(20L)
+            .relationFileStorage(null)
+            .fineGranularMetaModelRelationSet(Set.of(fg))
+            .build();
+    VsumRepresentation rep =
+        VsumRepresentation.builder()
+            .metaModels(Set.of(19L, 20L))
+            .metaModelsRealation(Set.of(rel))
+            .build();
+
+    when(lowCodeReactionRequestMapper.map(eq("create_corresponding_root_on_insert_root"), any()))
+        .thenReturn(null);
+
+    Long historyId = 18L;
+    VsumHistory history =
+        VsumHistory.builder().id(historyId).vsum(vsum).representation(rep).build();
+    when(vsumHistoryRepository.findById(historyId)).thenReturn(Optional.of(history));
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                vsum.getId(), callerEmail))
+        .thenReturn(Optional.of(new VsumUser()));
+
+    service.revert(callerEmail, historyId);
+
+    ArgumentCaptor<VsumSyncChangesPutRequest> reqCap =
+        ArgumentCaptor.forClass(VsumSyncChangesPutRequest.class);
+    verify(vsumService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
+
+    VsumSyncChangesPutRequest applied = reqCap.getValue();
+    assertThat(applied.getMetaModelRelationRequests())
+        .hasSize(1)
+        .first()
+        .satisfies(
+            r -> {
+              assertThat(r.getSourceId()).isEqualTo(19L);
+              assertThat(r.getTargetId()).isEqualTo(20L);
+              assertThat(r.getReactionFileId()).isNull();
+              assertThat(r.getFineGranularMetaModelRelationSet()).hasSize(1);
+              assertThat(r.getFineGranularMetaModelRelationSet().iterator().next().getSourceId())
+                  .isEqualTo("Component");
+            });
   }
 }
