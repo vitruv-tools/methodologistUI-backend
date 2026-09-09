@@ -276,6 +276,36 @@ class VsumServiceTest {
   }
 
   @Test
+  void updateMetaModelName_updatesOnlyTheProjectSpecificName() {
+    String email = "u@ex.com";
+    User user = new User();
+    user.setEmail(email);
+    Vsum vsum = new Vsum();
+    VsumUser vsumUser = vsumUser(vsum, user);
+    vsumUser.setRole(VsumRole.MEMBER);
+    MetaModel libraryMetaModel = original(10L);
+    libraryMetaModel.setName("Library name");
+    MetaModel projectMetaModel = new MetaModel();
+    projectMetaModel.setId(101L);
+    projectMetaModel.setSource(libraryMetaModel);
+    VsumMetaModel vsumMetaModel = vsumMetaModel(vsum, projectMetaModel);
+    vsumMetaModel.setName("Original project name");
+
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(1L, email))
+        .thenReturn(Optional.of(vsumUser));
+    when(vsumMetaModelRepository.findByVsumAndMetaModel_Source_Id(vsum, 10L))
+        .thenReturn(Optional.of(vsumMetaModel));
+
+    service.updateMetaModelName(email, 1L, 10L, "Renamed in project");
+
+    assertThat(vsumMetaModel.getName()).isEqualTo("Renamed in project");
+    assertThat(libraryMetaModel.getName()).isEqualTo("Library name");
+    verify(vsumHistoryService).create(vsum, user);
+    verify(vsumMetaModelRepository).save(vsumMetaModel);
+  }
+
+  @Test
   void findById_returnsMapped_whenOwned() {
     String email = "u@ex.com";
     Vsum entity = new Vsum();
@@ -380,6 +410,7 @@ class VsumServiceTest {
 
     MetaModel mm = clonedMetaModel(101L, 1L);
     VsumMetaModel vmm = vsumMetaModel(vsum, mm);
+    vmm.setName("Project model name");
     vsum.setVsumMetaModels(Set.of(vmm));
 
     MetaModelRelation rel =
@@ -411,6 +442,9 @@ class VsumServiceTest {
     VsumMetaModelResponse result = service.findVsumWithDetails(email, 78L);
 
     assertThat(result.getMetaModels()).containsExactly(mmResp);
+    assertThat(result.getMetaModels())
+        .extracting(MetaModelResponse::getName)
+        .containsExactly("Project model name");
     assertThat(result.getMetaModelsRelation()).containsExactly(relResp);
     assertThat(result.getViews()).containsExactly(viewResp);
     assertThat(result.getViews().get(0).getAssignedModels()).containsExactly(mmResp);

@@ -45,6 +45,17 @@ public interface VsumHistoryMapper {
             vsum.getVsumMetaModels().stream()
                 .map(metaModel -> metaModel.getMetaModel().getSource().getId())
                 .collect(Collectors.toSet()))
+        .metaModelNames(
+            vsum.getVsumMetaModels().stream()
+                .collect(
+                    Collectors.toMap(
+                        metaModel -> metaModel.getMetaModel().getSource().getId(),
+                        metaModel ->
+                            metaModel.getName() == null
+                                ? metaModel.getMetaModel().getName()
+                                : metaModel.getName(),
+                        (first, second) -> first,
+                        HashMap::new)))
         .metaModelsRealation(toMetaModelsRelation(vsum.getMetaModelRelations()))
         .views(toView(vsum.getViews()))
         .build();
