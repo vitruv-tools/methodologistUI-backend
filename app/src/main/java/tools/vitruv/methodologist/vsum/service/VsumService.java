@@ -959,7 +959,11 @@ public class VsumService {
     }
 
     if (!toAddVsumMetaModelIds.isEmpty()) {
-      vsumMetaModelService.create(vsum, toAddVsumMetaModelIds, desiredMetaModelNames);
+      if (desiredMetaModelNames.isEmpty()) {
+        vsumMetaModelService.create(vsum, toAddVsumMetaModelIds);
+      } else {
+        vsumMetaModelService.create(vsum, toAddVsumMetaModelIds, desiredMetaModelNames);
+      }
     }
 
     if (!renamedVsumMetaModels.isEmpty()) {
