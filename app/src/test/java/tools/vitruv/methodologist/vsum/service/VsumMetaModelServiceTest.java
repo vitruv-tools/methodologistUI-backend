@@ -71,7 +71,7 @@ class VsumMetaModelServiceTest {
 
   @Test
   void create_clonesEachOriginal_andSavesAllLinks() {
-    Vsum vsum = newVsumWithUserEmail("alice@example.com");
+    final Vsum vsum = newVsumWithUserEmail("alice@example.com");
 
     MetaModel originalA = newOriginalMetaModel(10L);
     MetaModel originalB = newOriginalMetaModel(20L);
