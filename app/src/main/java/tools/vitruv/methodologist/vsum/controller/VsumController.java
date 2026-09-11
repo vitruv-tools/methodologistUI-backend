@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
+import tools.vitruv.methodologist.vsum.controller.dto.request.VsumMetaModelNamePutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
@@ -127,6 +128,27 @@ public class VsumController {
       @Valid @RequestBody VsumSyncChangesPutRequest vsumSyncChangesPutRequest) {
     String callerEmail = authentication.getParsedToken().getEmail();
     vsumService.update(callerEmail, id, vsumSyncChangesPutRequest);
+    return ResponseTemplateDto.<Void>builder().message(VSUM_UPDATED_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Renames a meta model within a VSUM without changing the name of its model-library entry.
+   *
+   * @param authentication the authenticated VSUM member
+   * @param vsumId the VSUM containing the meta model
+   * @param metaModelId the source meta-model ID from the model library
+   * @param request the project-specific name to assign
+   * @return a response indicating the project was updated
+   */
+  @PutMapping("/v1/vsums/{vsumId}/meta-models/{metaModelId}/name")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> updateMetaModelName(
+      KeycloakAuthentication authentication,
+      @PathVariable Long vsumId,
+      @PathVariable Long metaModelId,
+      @Valid @RequestBody VsumMetaModelNamePutRequest request) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    vsumService.updateMetaModelName(callerEmail, vsumId, metaModelId, request.name());
     return ResponseTemplateDto.<Void>builder().message(VSUM_UPDATED_SUCCESSFULLY).build();
   }
 

@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.vsum.service;
 import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -47,12 +48,32 @@ public class VsumMetaModelService {
    */
   @Transactional
   public void create(Vsum vsum, Set<Long> metaModelIds) {
+    create(vsum, metaModelIds, Map.of());
+  }
+
+  /**
+   * Creates {@link VsumMetaModel} links for the given VSUM and metamodel IDs with optional
+   * project-specific names.
+   *
+   * <p>When no project-specific name is supplied, the library meta-model name is used.
+   *
+   * @param vsum the parent VSUM
+   * @param metaModelIds IDs of metamodels to associate
+   * @param metaModelNames project-specific names keyed by library meta-model ID
+   */
+  @Transactional
+  public void create(Vsum vsum, Set<Long> metaModelIds, Map<Long, String> metaModelNames) {
     List<MetaModel> metaModels = metaModelRepository.findAllByIdInAndSourceIsNull(metaModelIds);
+    Map<Long, String> names = metaModelNames == null ? Map.of() : metaModelNames;
 
     List<VsumMetaModel> links = new ArrayList<>();
     for (MetaModel metaModel : metaModels) {
       MetaModel cloned = metaModelService.clone(metaModel);
-      links.add(VsumMetaModel.builder().vsum(vsum).metaModel(cloned).build());
+      String name = names.get(metaModel.getId());
+      if (name == null || name.isBlank()) {
+        name = metaModel.getName();
+      }
+      links.add(VsumMetaModel.builder().vsum(vsum).metaModel(cloned).name(name).build());
     }
     vsumMetaModelRepository.saveAll(links);
     entityManager.flush();

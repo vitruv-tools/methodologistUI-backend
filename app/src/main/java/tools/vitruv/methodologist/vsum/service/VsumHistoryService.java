@@ -3,8 +3,10 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_HISTORY_ID_NOT_FOUND_ERROR;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
@@ -188,6 +190,10 @@ public class VsumHistoryService {
         representation.getMetaModels() == null
             ? List.of()
             : List.copyOf(representation.getMetaModels()));
+    vsumSyncChangesPutRequest.setMetaModelNames(
+        representation.getMetaModelNames() == null
+            ? Map.of()
+            : new HashMap<>(representation.getMetaModelNames()));
 
     if (representation.getMetaModelsRealation() == null) {
       vsumSyncChangesPutRequest.setMetaModelRelationRequests(List.of());
