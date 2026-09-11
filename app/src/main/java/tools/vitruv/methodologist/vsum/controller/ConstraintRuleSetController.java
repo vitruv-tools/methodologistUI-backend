@@ -40,13 +40,16 @@ public class ConstraintRuleSetController {
   /**
    * Returns all rule sets for the given VSUM.
    *
+   * @param authentication the current user's authentication
    * @param vsumId the VSUM ID
    * @return list of rule set responses
    */
   @GetMapping
   @PreAuthorize("isAuthenticated()")
-  public ResponseEntity<List<RuleSetResponse>> getAll(@PathVariable Long vsumId) {
-    return ResponseEntity.ok(service.findAll(vsumId));
+  public ResponseEntity<List<RuleSetResponse>> getAll(
+      KeycloakAuthentication authentication, @PathVariable Long vsumId) {
+    String email = authentication.getParsedToken().getEmail();
+    return ResponseEntity.ok(service.findAll(email, vsumId));
   }
 
   /**
@@ -90,14 +93,19 @@ public class ConstraintRuleSetController {
   /**
    * Deletes a rule set by ID.
    *
+   * @param authentication the current user's authentication
    * @param vsumId the VSUM ID
    * @param ruleSetId the rule set ID to delete
    * @return HTTP 204 No Content
    */
   @DeleteMapping("/{ruleSetId}")
   @PreAuthorize("isAuthenticated()")
-  public ResponseEntity<Void> delete(@PathVariable Long vsumId, @PathVariable Long ruleSetId) {
-    service.delete(vsumId, ruleSetId);
+  public ResponseEntity<Void> delete(
+      KeycloakAuthentication authentication,
+      @PathVariable Long vsumId,
+      @PathVariable Long ruleSetId) {
+    String email = authentication.getParsedToken().getEmail();
+    service.delete(email, vsumId, ruleSetId);
     return ResponseEntity.noContent().build();
   }
 }

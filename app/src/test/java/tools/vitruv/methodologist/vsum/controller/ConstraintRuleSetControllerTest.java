@@ -57,9 +57,10 @@ class ConstraintRuleSetControllerTest {
 
   @Test
   void getAll_returnsOkWithList() {
-    when(service.findAll(10L)).thenReturn(List.of(sampleResponse));
+    stubEmail();
+    when(service.findAll("test@example.com", 10L)).thenReturn(List.of(sampleResponse));
 
-    ResponseEntity<List<RuleSetResponse>> response = controller.getAll(10L);
+    ResponseEntity<List<RuleSetResponse>> response = controller.getAll(authentication, 10L);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).hasSize(1);
@@ -68,12 +69,23 @@ class ConstraintRuleSetControllerTest {
 
   @Test
   void getAll_returnsEmptyList() {
-    when(service.findAll(10L)).thenReturn(List.of());
+    stubEmail();
+    when(service.findAll("test@example.com", 10L)).thenReturn(List.of());
 
-    ResponseEntity<List<RuleSetResponse>> response = controller.getAll(10L);
+    ResponseEntity<List<RuleSetResponse>> response = controller.getAll(authentication, 10L);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).isEmpty();
+  }
+
+  @Test
+  void getAll_passesEmailFromAuthentication() {
+    stubEmail();
+    when(service.findAll("test@example.com", 10L)).thenReturn(List.of(sampleResponse));
+
+    controller.getAll(authentication, 10L);
+
+    verify(service).findAll("test@example.com", 10L);
   }
 
   // ── POST /vsums/{vsumId}/rule-sets ────────────────────────────────────
@@ -159,7 +171,9 @@ class ConstraintRuleSetControllerTest {
 
   @Test
   void delete_returnsNoContent() {
-    ResponseEntity<Void> response = controller.delete(10L, 100L);
+    stubEmail();
+
+    ResponseEntity<Void> response = controller.delete(authentication, 10L, 100L);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
     assertThat(response.getBody()).isNull();
@@ -167,16 +181,22 @@ class ConstraintRuleSetControllerTest {
 
   @Test
   void delete_callsServiceWithCorrectIds() {
-    controller.delete(10L, 100L);
+    stubEmail();
 
-    verify(service).delete(10L, 100L);
+    controller.delete(authentication, 10L, 100L);
+
+    verify(service).delete("test@example.com", 10L, 100L);
   }
 
   @Test
   void delete_propagatesNotFoundException() {
-    doThrow(new NotFoundException("RuleSet not found")).when(service).delete(10L, 999L);
+    stubEmail();
+    doThrow(new NotFoundException("RuleSet not found"))
+        .when(service)
+        .delete("test@example.com", 10L, 999L);
 
-    org.assertj.core.api.Assertions.assertThatThrownBy(() -> controller.delete(10L, 999L))
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> controller.delete(authentication, 10L, 999L))
         .isInstanceOf(NotFoundException.class);
   }
 }
