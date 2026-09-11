@@ -5,6 +5,7 @@ import static tools.vitruv.methodologist.messages.Error.GEN_MODEL_FILE_ID_NOT_FO
 import static tools.vitruv.methodologist.messages.Error.META_MODEL_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Message.META_MODEL_CREATED_SUCCESSFULLY;
 
 import jakarta.validation.Valid;
 import java.io.File;
@@ -24,6 +25,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
+import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -44,7 +47,6 @@ import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelSpecifications;
 import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
-import tools.vitruv.methodologist.vsum.service.MetamodelBuildService.BuildResult;
 
 /**
  * Service class for managing metamodel operations including creation and retrieval. Handles the
@@ -68,6 +70,7 @@ public class MetaModelService {
   UserRepository userRepository;
   MetamodelBuildService metamodelBuildService;
   FileStorageService fileStorageService;
+  SetupServiceApiHandler setupServiceApiHandler;
   VsumMetaModelRepository vsumMetaModelRepository;
 
   /**
@@ -80,6 +83,7 @@ public class MetaModelService {
    * @param userRepository repository for user data access
    * @param metamodelBuildService service for building metamodel artifacts
    * @param fileStorageService service for file storage management
+   * @param setupServiceApiHandler handler for GenModel process/inspect calls to the setup-service
    * @param vsumMetaModelRepository repository for VSUM-metamodel relationships
    */
   public MetaModelService(
@@ -90,6 +94,7 @@ public class MetaModelService {
       UserRepository userRepository,
       MetamodelBuildService metamodelBuildService,
       FileStorageService fileStorageService,
+      SetupServiceApiHandler setupServiceApiHandler,
       VsumMetaModelRepository vsumMetaModelRepository) {
     this.self = self;
     this.metaModelMapper = metaModelMapper;
@@ -98,15 +103,18 @@ public class MetaModelService {
     this.userRepository = userRepository;
     this.metamodelBuildService = metamodelBuildService;
     this.fileStorageService = fileStorageService;
+    this.setupServiceApiHandler = setupServiceApiHandler;
     this.vsumMetaModelRepository = vsumMetaModelRepository;
   }
 
   /**
-   * Saves a new MetaModel linked to the given user and the uploaded Ecore/GenModel files. Persists
-   * the MetaModel and returns it together with the raw file data. Throws NotFoundException if the
-   * user or files cannot be found.
+   * Loads the user, mapped metamodel, and referenced files required to create a metamodel.
+   *
+   * @param callerEmail authenticated user's email
+   * @param req creation request
+   * @return the fully prepared create context
    */
-  protected PairAndModel savePendingAndLoad(String callerEmail, MetaModelPostRequest req) {
+  private CreateContext prepareCreateContext(String callerEmail, MetaModelPostRequest req) {
     User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
@@ -116,31 +124,82 @@ public class MetaModelService {
 
     FileStorage ecoreFile =
         fileStorageRepository
-            .findByIdAndType(req.getEcoreFileId(), FileEnumType.ECORE)
+            .findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+                req.getEcoreFileId(), FileEnumType.ECORE, callerEmail)
             .orElseThrow(() -> new NotFoundException(ECORE_FILE_ID_NOT_FOUND_ERROR));
 
     FileStorage genModelFile =
         fileStorageRepository
-            .findByIdAndType(req.getGenModelFileId(), FileEnumType.GEN_MODEL)
+            .findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+                req.getGenModelFileId(), FileEnumType.GEN_MODEL, callerEmail)
             .orElseThrow(() -> new NotFoundException(GEN_MODEL_FILE_ID_NOT_FOUND_ERROR));
 
-    metaModel.setUser(user);
-    metaModel.setEcoreFile(ecoreFile);
-    metaModel.setGenModelFile(genModelFile);
-
-    metaModel = metaModelRepository.save(metaModel);
-
-    FilePair files = new FilePair(ecoreFile.getData(), genModelFile.getData());
-    return new PairAndModel(metaModel, files);
+    return new CreateContext(user, metaModel, ecoreFile, genModelFile);
   }
 
-  /** Creates a metamodel, runs headless build, and accepts/rejects it. */
-  @Transactional
-  public MetaModel create(String callerEmail, MetaModelPostRequest req) {
-    PairAndModel pairAndModel = savePendingAndLoad(callerEmail, req);
-    MetaModel metaModel = pairAndModel.metaModel;
+  private MetaModel savePendingMetaModel(CreateContext createContext) {
+    MetaModel metaModel = createContext.metaModel();
+    metaModel.setUser(createContext.user());
+    metaModel.setEcoreFile(createContext.ecoreFile());
+    metaModel.setGenModelFile(createContext.genModelFile());
+    return metaModelRepository.save(metaModel);
+  }
 
-    BuildResult result =
+  /**
+   * Sends the given GenModel to the setup-service {@code /api/genmodel/process} endpoint, which
+   * fixes it, and returns the processed GenModel file.
+   *
+   * @param genModelFile the GenModel file to process
+   * @return the processed GenModel file as a byte array
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
+   *     fails
+   */
+  public byte[] processGenModel(FileStorage genModelFile) {
+    return setupServiceApiHandler.processGenModelOrThrow(genModelFile);
+  }
+
+  /**
+   * Sends the given GenModel to the setup-service {@code /api/genmodel/inspect} endpoint and
+   * returns the inspection result (planned changes on success, or the detected problem).
+   *
+   * @param genModelFile the GenModel file to inspect
+   * @return the inspection result
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
+   *     fails
+   */
+  public GenModelInspectionResponse inspectGenModel(FileStorage genModelFile) {
+    return setupServiceApiHandler.inspectGenModelOrThrow(genModelFile);
+  }
+
+  /**
+   * Creates a metamodel from the request.
+   *
+   * <p>When {@link MetaModelPostRequest#isApplyGenModelFixes()} is {@code true}, the GenModel is
+   * sent to the setup-service {@code process} endpoint, the returned (fixed) GenModel overwrites
+   * the stored file, and the metamodel is then persisted and built. When it is {@code false}, the
+   * GenModel is only sent to the {@code inspect} endpoint and the resulting message is returned
+   * without creating the metamodel.
+   *
+   * @param callerEmail authenticated user's email
+   * @param req creation request
+   * @return the creation result holding the created metamodel (fixes applied) or the inspection
+   *     message (fixes not applied)
+   */
+  @Transactional
+  public MetaModelCreationResult create(String callerEmail, MetaModelPostRequest req) {
+    CreateContext createContext = prepareCreateContext(callerEmail, req);
+
+    if (!req.isApplyGenModelFixes()) {
+      GenModelInspectionResponse inspection = inspectGenModel(createContext.genModelFile());
+      return new MetaModelCreationResult(null, inspection.getMessage());
+    }
+
+    byte[] processedGenModel = processGenModel(createContext.genModelFile());
+    fileStorageService.overwriteStoredContent(createContext.genModelFile(), processedGenModel);
+
+    MetaModel metaModel = savePendingMetaModel(createContext);
+
+    MetamodelBuildService.BuildResult result =
         metamodelBuildService.buildAndValidate(
             MetamodelBuildService.MetamodelBuildInput.builder()
                 .metaModelId(metaModel.getId())
@@ -153,7 +212,7 @@ public class MetaModelService {
       throw new CreateMwe2FileException(result.getReport());
     }
 
-    return metaModel;
+    return new MetaModelCreationResult(metaModel, META_MODEL_CREATED_SUCCESSFULLY);
   }
 
   /**
@@ -318,21 +377,6 @@ public class MetaModelService {
     return metaModel.getUser().equals(user);
   }
 
-  /** Holds a MetaModel and its associated file pair. */
-  @Transactional
-  public static class PairAndModel {
-    final MetaModel metaModel;
-    final FilePair files;
-
-    PairAndModel(MetaModel metaModel, FilePair files) {
-      this.metaModel = metaModel;
-      this.files = files;
-    }
-  }
-
-  /** Pair of raw Ecore and GenModel file data. */
-  private record FilePair(byte[] ecore, byte[] gen) {}
-
   /**
    * Finds all metamodels accessible by a given project.
    *
@@ -399,4 +443,16 @@ public class MetaModelService {
       Files.write(ecoreFile.toPath(), mm.getEcoreFile().getData());
     }
   }
+
+  private record CreateContext(
+      User user, MetaModel metaModel, FileStorage ecoreFile, FileStorage genModelFile) {}
+
+  /**
+   * Result of {@link #create(String, MetaModelPostRequest)}.
+   *
+   * @param metaModel the created metamodel, or {@code null} when fixes were not applied and only an
+   *     inspection was performed
+   * @param message the message to return to the caller
+   */
+  public record MetaModelCreationResult(MetaModel metaModel, String message) {}
 }

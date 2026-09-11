@@ -8,7 +8,8 @@ import lombok.Getter;
  */
 public enum VsumRole {
   OWNER("Owner"),
-  MEMBER("Member");
+  MEMBER("Member"),
+  VIEWER("Viewer");
 
   @Getter private final String name;
 

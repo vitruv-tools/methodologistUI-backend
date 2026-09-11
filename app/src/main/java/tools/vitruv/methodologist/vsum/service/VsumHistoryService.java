@@ -16,6 +16,7 @@ import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRepresentation;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.request.ViewRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumHistoryResponse;
 import tools.vitruv.methodologist.vsum.mapper.VsumHistoryMapper;
@@ -200,6 +201,25 @@ public class VsumHistoryService {
               .toList();
 
       vsumSyncChangesPutRequest.setMetaModelRelationRequests(metaModelRelationRequests);
+    }
+
+    if (representation.getViews() == null) {
+      vsumSyncChangesPutRequest.setViewRequests(List.of());
+    } else {
+      List<ViewRequest> viewRequests =
+          representation.getViews().stream()
+              .filter(Objects::nonNull)
+              .map(
+                  view ->
+                      ViewRequest.builder()
+                          .fileStorageId(view.getFileStorageId())
+                          .metaModelIds(
+                              view.getMetaModelIds() == null
+                                  ? List.of()
+                                  : List.copyOf(view.getMetaModelIds()))
+                          .build())
+              .toList();
+      vsumSyncChangesPutRequest.setViewRequests(viewRequests);
     }
 
     return vsumSyncChangesPutRequest;

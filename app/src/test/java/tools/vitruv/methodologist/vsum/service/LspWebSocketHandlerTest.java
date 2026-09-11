@@ -58,7 +58,7 @@ class LspWebSocketHandlerTest {
    * handler using reflection.
    */
   @BeforeEach
-  void setUp() {
+  void setUp() throws Exception {
     metaModelService = mock(MetaModelService.class);
 
     // Nutze die injizierte Property

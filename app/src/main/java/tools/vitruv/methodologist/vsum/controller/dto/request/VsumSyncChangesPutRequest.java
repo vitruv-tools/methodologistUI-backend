@@ -19,4 +19,5 @@ import lombok.Setter;
 public class VsumSyncChangesPutRequest {
   private List<Long> metaModelIds;
   private List<MetaModelRelationRequest> metaModelRelationRequests;
+  private List<ViewRequest> viewRequests;
 }

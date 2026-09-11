@@ -120,6 +120,31 @@ public class SmtpMailService {
   }
 
   /**
+   * Sends a VSUM invitation email containing a link to the invited VSUM.
+   *
+   * <p>Renders a small HTML template from the classpath and sends it via the configured SMTP
+   * server.
+   *
+   * @param toEmail recipient email address
+   * @param toName recipient display name (may be {@code null} or blank)
+   * @param vsumName the name of the VSUM the recipient was invited to
+   * @param invitationLink the link that opens the VSUM
+   * @throws RuntimeException if reading the template or sending the message fails
+   */
+  public void sendVsumInvitationMail(
+      String toEmail, String toName, String vsumName, String invitationLink) {
+    String subject = "You have been invited to a VSUM";
+    String html =
+        loadAndRenderTemplate(
+            "templates/mail/send_vsum_invitation.txt",
+            Map.of(
+                "recipient_name", safe(toName),
+                "vsum_name", safe(vsumName),
+                "invitation_link", safe(invitationLink)));
+    sendHtml(toEmail, toName, subject, html);
+  }
+
+  /**
    * Sends an HTML email using the configured {@link JavaMailSender}.
    *
    * @param toEmail recipient email address

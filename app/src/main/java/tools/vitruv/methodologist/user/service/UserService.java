@@ -7,6 +7,7 @@ import static tools.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
@@ -27,6 +28,7 @@ import tools.vitruv.methodologist.exception.ValidationCodeExpiredException;
 import tools.vitruv.methodologist.exception.ValidationCodeNotExpiredYetException;
 import tools.vitruv.methodologist.exception.VerificationCodeException;
 import tools.vitruv.methodologist.general.service.SmtpMailService;
+import tools.vitruv.methodologist.user.RoleType;
 import tools.vitruv.methodologist.user.controller.dto.KeycloakUser;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenByRefreshTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenRequest;
@@ -40,6 +42,7 @@ import tools.vitruv.methodologist.user.controller.dto.response.UserWebToken;
 import tools.vitruv.methodologist.user.mapper.UserMapper;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
+import tools.vitruv.methodologist.vsum.service.VsumInvitationService;
 
 /**
  * Service class for managing user operations. Handles business logic for creating, updating,
@@ -55,6 +58,7 @@ public class UserService {
   KeycloakApiHandler keycloakApiHandler;
   int ttlMinutes;
   SmtpMailService mailService;
+  VsumInvitationService vsumInvitationService;
 
   /**
    * Constructs a UserService with required dependencies and loads the OTP mail template.
@@ -68,6 +72,7 @@ public class UserService {
       KeycloakService keycloakService,
       KeycloakApiHandler keycloakApiHandler,
       SmtpMailService mailService,
+      VsumInvitationService vsumInvitationService,
       @Value("${app.otp.ttlMinutes}") int ttlMinutes) {
     this.userMapper = userMapper;
     this.userRepository = userRepository;
@@ -75,6 +80,7 @@ public class UserService {
     this.keycloakApiHandler = keycloakApiHandler;
     this.ttlMinutes = ttlMinutes;
     this.mailService = mailService;
+    this.vsumInvitationService = vsumInvitationService;
   }
 
   /**
@@ -216,6 +222,8 @@ public class UserService {
     user.setOtpExpiresAt(otp.expiresAt());
     userRepository.save(user);
 
+    vsumInvitationService.applyPendingInvitations(user);
+
     KeycloakUser keycloakUser =
         KeycloakUser.builder()
             .firstName(user.getFirstName())
@@ -228,6 +236,109 @@ public class UserService {
             .build();
     keycloakService.createUser(keycloakUser);
     return user;
+  }
+
+  /**
+   * Synchronizes a user account with Keycloak, creating or updating the user as needed.
+   *
+   * <p>Searches for an existing, non-removed user by username. If found, updates the user's email,
+   * first name, and last name with the provided values. If not found, creates a new user with the
+   * provided credentials, marking them as verified by default with the USER role.
+   *
+   * <p>After the user is persisted, the Keycloak user role is assigned or updated for the given
+   * username to synchronize role information across systems.
+   *
+   * <p>This method is transactional and ensures atomic creation/update of the user entity and role
+   * assignment.
+   *
+   * @param email the email address of the user to sync or create
+   * @param username the unique username of the user to sync or create (used for lookup and role
+   *     assignment)
+   * @param firstName the first name of the user
+   * @param lastName the last name of the user
+   * @throws IllegalArgumentException if any parameter is null
+   * @see KeycloakService#assignUserRole(String, String)
+   */
+  @Transactional
+  public void syncWithKeycloak(String email, String username, String firstName, String lastName) {
+    validateSyncParameters(email, username, firstName, lastName);
+
+    Optional<User> existingUser =
+        userRepository.findByUsernameIgnoreCaseAndRemovedAtIsNull(username);
+    boolean isNewUser = existingUser.isEmpty();
+
+    User userToSave =
+        existingUser
+            .map(user -> updateExistingUser(user, email, firstName, lastName))
+            .orElseGet(() -> createNewUser(email, username, firstName, lastName));
+
+    userRepository.save(userToSave);
+    keycloakService.assignUserRole(username, userToSave.getRoleType().getName());
+
+    if (isNewUser) {
+      vsumInvitationService.applyPendingInvitations(userToSave);
+    }
+  }
+
+  /**
+   * Validates the required parameters for the sync with Keycloak operation.
+   *
+   * @param email the email address to validate
+   * @param username the username to validate
+   * @param firstName the first name to validate
+   * @param lastName the last name to validate
+   * @throws IllegalArgumentException if any parameter is null or blank
+   */
+  private void validateSyncParameters(
+      String email, String username, String firstName, String lastName) {
+    if (email == null || email.isBlank()) {
+      throw new IllegalArgumentException("Email cannot be null or blank");
+    }
+    if (username == null || username.isBlank()) {
+      throw new IllegalArgumentException("Username cannot be null or blank");
+    }
+    if (firstName == null || firstName.isBlank()) {
+      throw new IllegalArgumentException("FirstName cannot be null or blank");
+    }
+    if (lastName == null || lastName.isBlank()) {
+      throw new IllegalArgumentException("LastName cannot be null or blank");
+    }
+  }
+
+  /**
+   * Updates an existing user with the provided information.
+   *
+   * @param user the existing user to update
+   * @param email the new email address
+   * @param firstName the new first name
+   * @param lastName the new last name
+   * @return the updated user entity
+   */
+  private User updateExistingUser(User user, String email, String firstName, String lastName) {
+    user.setEmail(email);
+    user.setFirstName(firstName);
+    user.setLastName(lastName);
+    return user;
+  }
+
+  /**
+   * Creates a new user with the provided information, marked as verified by default with USER role.
+   *
+   * @param email the email address for the new user
+   * @param username the username for the new user
+   * @param firstName the first name for the new user
+   * @param lastName the last name for the new user
+   * @return a new user entity (not yet persisted)
+   */
+  private User createNewUser(String email, String username, String firstName, String lastName) {
+    return User.builder()
+        .email(email)
+        .firstName(firstName)
+        .lastName(lastName)
+        .username(username)
+        .verified(Boolean.TRUE)
+        .roleType(RoleType.USER)
+        .build();
   }
 
   /**

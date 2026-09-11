@@ -19,6 +19,7 @@ package tools.vitruv.methodologist.exception;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -49,6 +50,7 @@ public class GlobalExceptionHandlerController {
   private static final String FORBIDDEN_ERROR = "FORBIDDEN";
   private static final String BAD_REQUEST_ERROR = "BAD_REQUEST_ERROR";
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
+  private static final String LSP_PROCESS_ERROR = "LSP_PROCESS_ERROR";
 
   /**
    * Handles {@link ValidationCodeNotExpiredYetException} thrown when a previously issued
@@ -255,6 +257,30 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
+   * Handles {@link VsumInvitationAlreadyExistsException} thrown when a pending invitation already
+   * exists for the same email and VSUM. Returns an {@link ErrorResponse} with HTTP 400 (Bad
+   * Request), including the error message and request path.
+   *
+   * @param ex the thrown {@code VsumInvitationAlreadyExistsException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the duplicate invitation
+   */
+  @ExceptionHandler(value = VsumInvitationAlreadyExistsException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse vsumInvitationAlreadyExistsException(
+      VsumInvitationAlreadyExistsException ex,
+      HandlerMethod handlerMethod,
+      ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(VsumInvitationAlreadyExistsException.MESSAGE_TEMPLATE)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles {@link OwnerRequiredException} thrown when an operation requires ownership. Returns an
    * {@link ErrorResponse} with HTTP 401 (Unauthorized) status, including the error message and
    * request path.
@@ -357,6 +383,34 @@ public class GlobalExceptionHandlerController {
       MetaModelUsedInVsumException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link DataIntegrityViolationException} thrown when a database operation violates a
+   * constraint — most commonly when deleting a {@code FileStorage} that is still referenced (for
+   * example by a {@code MetaModel}'s {@code ecore_file_id}/{@code gen_model_file_id}). Returns HTTP
+   * 409 (Conflict) instead of letting it fall through to the generic 500 handler.
+   *
+   * @param ex the thrown {@code DataIntegrityViolationException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return an {@code ErrorResponse} describing the conflict
+   */
+  @ExceptionHandler(value = DataIntegrityViolationException.class)
+  @ResponseStatus(HttpStatus.CONFLICT)
+  @ResponseBody
+  public ErrorResponse dataIntegrityViolationException(
+      DataIntegrityViolationException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    log.warn(
+        "DataIntegrityViolationException handled in controller: {}, message: {}",
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage());
+    log.debug(STACKTRACE_LOG, ex.toString());
+    return ErrorResponse.builder()
+        .error("CONFLICT")
+        .message("This resource is still in use and cannot be deleted.")
         .path(getPath(request))
         .build();
   }
@@ -553,6 +607,61 @@ public class GlobalExceptionHandlerController {
     return ErrorResponse.builder()
         .error(NOT_FOUND_ERROR)
         .message(ex.getMessage())
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link LspProcessException} thrown when managing the lifecycle of an LSP server process
+   * fails (for example while waiting for the process to terminate during session cleanup). Logs the
+   * underlying cause and responds with HTTP 500 (Internal Server Error) and a standardized {@link
+   * ErrorResponse} containing the failure message and request path.
+   *
+   * @param ex the thrown {@code LspProcessException}
+   * @param handlerMethod the controller method where the exception originated
+   * @param request the current {@link ServletWebRequest} providing request context
+   * @return an {@link ErrorResponse} describing the LSP process failure
+   */
+  @ExceptionHandler(value = LspProcessException.class)
+  @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+  @ResponseBody
+  public ErrorResponse lspProcessException(
+      LspProcessException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    log.error(
+        "LspProcessException handled in Controller: {}, message: {}, stackTrace: {}",
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage(),
+        ex);
+    return ErrorResponse.builder()
+        .error(LSP_PROCESS_ERROR)
+        .message(ex.getMessage())
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link SetupServiceException} thrown when a call to the external setup-service fails
+   * (the service is unreachable, returns an error status, or responds with an empty artifact).
+   * Responds with HTTP 502 (Bad Gateway) and a standardized {@link ErrorResponse} containing the
+   * failure message and the request path.
+   *
+   * @param ex the thrown {@code SetupServiceException}
+   * @param handlerMethod the controller method where the exception originated
+   * @param request the current {@link ServletWebRequest} providing request context
+   * @return an {@link ErrorResponse} describing the setup-service failure
+   */
+  @ExceptionHandler(value = SetupServiceException.class)
+  @ResponseStatus(HttpStatus.BAD_GATEWAY)
+  @ResponseBody
+  public ErrorResponse setupServiceException(
+      SetupServiceException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    log.warn(
+        "SetupServiceException handled in Controller: {}, message: {}",
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage());
+    return ErrorResponse.builder()
+        .error(SetupServiceException.ERROR_TEMPLATE)
+        .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
         .build();
   }

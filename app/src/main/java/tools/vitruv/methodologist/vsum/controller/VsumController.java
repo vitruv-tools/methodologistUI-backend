@@ -261,36 +261,25 @@ public class VsumController {
   }
 
   /**
-   * Builds the VSUM and returns the generated build artifact as a downloadable ZIP file.
-   *
-   * <p>The returned ZIP contains:
-   *
-   * <ul>
-   *   <li>The VSUM fat JAR (with dependencies)
-   *   <li>A Dockerfile for containerizing the VSUM
-   * </ul>
-   *
-   * <p>If the VSUM was already built and no relevant inputs have changed, the existing artifact may
-   * be reused.
+   * Builds the VSUM via the setup-service and returns the generated fat JAR as a downloadable file.
    *
    * @param authentication the authenticated Keycloak principal
    * @param id the identifier of the VSUM to build
-   * @return a ZIP archive containing the VSUM build artifact
-   * @throws AccessDeniedException if the caller has no access to the VSUM
-   * @throws VsumBuildingException if the build or artifact packaging fails
+   * @return the VSUM fat JAR build artifact
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
+   *     fails
    */
   @GetMapping("/v1/vsums/{id}/build/artifact")
   public ResponseEntity<byte[]> buildAndDownload(
       KeycloakAuthentication authentication, @PathVariable Long id) {
     String callerEmail = authentication.getParsedToken().getEmail();
 
-    byte[] zip = vsumService.getJarfat(callerEmail, id);
+    byte[] jar = vsumService.getJarfat(callerEmail, id);
 
     HttpHeaders headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-    headers.setContentDisposition(
-        ContentDisposition.attachment().filename("vsum-artifact.zip").build());
+    headers.setContentDisposition(ContentDisposition.attachment().filename("vsum.jar").build());
 
-    return ResponseEntity.ok().headers(headers).body(zip);
+    return ResponseEntity.ok().headers(headers).body(jar);
   }
 }

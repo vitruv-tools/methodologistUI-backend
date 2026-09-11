@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.List;
 import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,6 +27,7 @@ public class VsumRepresentation implements Serializable {
   private Set<Long> metaModels;
   private Set<MetaModelRelation> metaModelsRealation;
   private Set<Long> vsumUsers;
+  private Set<View> views;
 
   /** Describes a relation between two meta models and its backing file. */
   @Getter
@@ -38,5 +40,17 @@ public class VsumRepresentation implements Serializable {
     private Long sourceId;
     private Long targetId;
     private Long relationFileStorage;
+  }
+
+  /** Describes The View. */
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  @AllArgsConstructor
+  @Builder
+  public static class View implements Serializable {
+    @Serial private static final long serialVersionUID = 1L;
+    private List<Long> metaModelIds;
+    private Long fileStorageId;
   }
 }

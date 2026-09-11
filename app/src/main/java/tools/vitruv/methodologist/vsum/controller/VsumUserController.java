@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.controller;
 
+import static tools.vitruv.methodologist.messages.Message.VSUM_INVITATION_SENT_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_USER_CREATED_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_USER_DELETED_SUCCESSFULLY;
 
@@ -19,8 +20,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
+import tools.vitruv.methodologist.vsum.controller.dto.request.VsumInvitationPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumUserPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumUserResponse;
+import tools.vitruv.methodologist.vsum.service.VsumInvitationService;
 import tools.vitruv.methodologist.vsum.service.VsumUserService;
 
 /**
@@ -34,6 +37,27 @@ import tools.vitruv.methodologist.vsum.service.VsumUserService;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumUserController {
   VsumUserService vsumUserService;
+  VsumInvitationService vsumInvitationService;
+
+  /**
+   * Invites an email address to a VSUM as a read-only viewer. The VSUM owner or a member can invite
+   * (viewers cannot). If the email belongs to a registered user, viewer access is granted
+   * immediately; otherwise a pending invitation is stored and applied when that user registers. An
+   * invitation email is always sent.
+   *
+   * @param authentication the Keycloak authentication token containing caller information
+   * @param vsumInvitationPostRequest the request payload with the VSUM id and invitee email
+   * @return a response template with a success message
+   */
+  @PostMapping("/v1/vsum-users/invite")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> invite(
+      KeycloakAuthentication authentication,
+      @Valid @RequestBody VsumInvitationPostRequest vsumInvitationPostRequest) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    vsumInvitationService.invite(callerEmail, vsumInvitationPostRequest);
+    return ResponseTemplateDto.<Void>builder().message(VSUM_INVITATION_SENT_SUCCESSFULLY).build();
+  }
 
   /**
    * Adds a new member to a VSUM. Only authenticated users with the 'user' role can access this

@@ -3,7 +3,6 @@ package tools.vitruv.methodologist.vsum.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -16,6 +15,7 @@ import static tools.vitruv.methodologist.messages.Error.GEN_MODEL_FILE_ID_NOT_FO
 import static tools.vitruv.methodologist.messages.Error.META_MODEL_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Message.META_MODEL_CREATED_SUCCESSFULLY;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +32,8 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
+import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -61,6 +63,7 @@ class MetaModelServiceTest {
   private UserRepository userRepository;
   private MetamodelBuildService metamodelBuildService;
   private FileStorageService fileStorageService;
+  private SetupServiceApiHandler setupServiceApiHandler;
   private VsumMetaModelRepository vsumMetaModelRepository;
 
   private MetaModelService metaModelService;
@@ -98,6 +101,7 @@ class MetaModelServiceTest {
     fileStorageRepository = mock(FileStorageRepository.class);
     userRepository = mock(UserRepository.class);
     metamodelBuildService = mock(MetamodelBuildService.class);
+    setupServiceApiHandler = mock(SetupServiceApiHandler.class);
     vsumMetaModelRepository = mock(VsumMetaModelRepository.class);
 
     metaModelService =
@@ -109,26 +113,33 @@ class MetaModelServiceTest {
             userRepository,
             metamodelBuildService,
             fileStorageService,
+            setupServiceApiHandler,
             vsumMetaModelRepository);
   }
 
   @Test
-  void create_success_whenBuildOk() {
+  void create_appliesFixes_processesGenModel_andBuilds_whenApplyGenModelFixesTrue() {
     final String email = "u@ex.com";
 
     final MetaModelPostRequest request = req(10L, 20L);
+    request.setApplyGenModelFixes(true);
     final User user = new User();
     user.setEmail(email);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.of(user));
 
     final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
-    when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.of(ecore));
 
     final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
-    when(fileStorageRepository.findByIdAndType(20L, FileEnumType.GEN_MODEL))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
         .thenReturn(Optional.of(gen));
+
+    byte[] processed = "fixed-gen".getBytes();
+    when(setupServiceApiHandler.processGenModelOrThrow(gen)).thenReturn(processed);
 
     final MetaModel mapped = metaModel(null, ecore, gen);
     when(metaModelMapper.toMetaModel(request)).thenReturn(mapped);
@@ -146,22 +157,63 @@ class MetaModelServiceTest {
                 .discoveredNsUris("http://x")
                 .build());
 
-    final MetaModel result = metaModelService.create(email, request);
+    final MetaModelService.MetaModelCreationResult result = metaModelService.create(email, request);
 
-    assertThat(result.getId()).isEqualTo(100L);
-
-    final ArgumentCaptor<MetamodelBuildService.MetamodelBuildInput> captor =
-        ArgumentCaptor.forClass(MetamodelBuildService.MetamodelBuildInput.class);
-    verify(metamodelBuildService).buildAndValidate(captor.capture());
-    assertThat(captor.getValue().getEcoreBytes()).containsExactly(ecore.getData());
-    assertThat(captor.getValue().getGenModelBytes()).containsExactly(gen.getData());
-    assertThat(captor.getValue().isRunMwe2()).isTrue();
+    assertThat(result.metaModel().getId()).isEqualTo(100L);
+    assertThat(result.message()).isEqualTo(META_MODEL_CREATED_SUCCESSFULLY);
+    verify(setupServiceApiHandler).processGenModelOrThrow(gen);
+    verify(fileStorageService).overwriteStoredContent(gen, processed);
+    verify(setupServiceApiHandler, never()).inspectGenModelOrThrow(any());
   }
 
   @Test
-  void create_throwsCreateMwe2FileException_whenBuildFails() {
+  void create_overwritesGenModelWithProcessedBytes_andBuildsWithThem() {
     final String email = "u@ex.com";
+    final MetaModelPostRequest request = req(10L, 20L);
+    request.setApplyGenModelFixes(true);
 
+    final User user = new User();
+    user.setEmail(email);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
+    final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "old-gen".getBytes());
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
+        .thenReturn(Optional.of(ecore));
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
+        .thenReturn(Optional.of(gen));
+
+    byte[] fixedGen = "fixed-gen".getBytes();
+    when(setupServiceApiHandler.processGenModelOrThrow(gen)).thenReturn(fixedGen);
+    when(fileStorageService.overwriteStoredContent(gen, fixedGen))
+        .thenAnswer(
+            inv -> {
+              gen.setData(fixedGen);
+              return gen;
+            });
+
+    final MetaModel mapped = metaModel(null, ecore, gen);
+    when(metaModelMapper.toMetaModel(request)).thenReturn(mapped);
+    when(metaModelRepository.save(any(MetaModel.class))).thenReturn(metaModel(100L, ecore, gen));
+
+    when(metamodelBuildService.buildAndValidate(any()))
+        .thenReturn(MetamodelBuildService.BuildResult.builder().success(true).report("OK").build());
+
+    metaModelService.create(email, request);
+
+    verify(fileStorageService).overwriteStoredContent(gen, fixedGen);
+    ArgumentCaptor<MetamodelBuildService.MetamodelBuildInput> captor =
+        ArgumentCaptor.forClass(MetamodelBuildService.MetamodelBuildInput.class);
+    verify(metamodelBuildService).buildAndValidate(captor.capture());
+    assertThat(captor.getValue().getGenModelBytes()).containsExactly(fixedGen);
+  }
+
+  @Test
+  void create_inspectsAndReturnsMessage_withoutCreating_whenApplyGenModelFixesFalse() {
+    final String email = "u@ex.com";
     final MetaModelPostRequest request = req(10L, 20L);
     final User user = new User();
     user.setEmail(email);
@@ -169,12 +221,110 @@ class MetaModelServiceTest {
         .thenReturn(Optional.of(user));
 
     final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
-    when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
+    final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
+        .thenReturn(Optional.of(ecore));
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
+        .thenReturn(Optional.of(gen));
+
+    when(metaModelMapper.toMetaModel(request)).thenReturn(metaModel(null, ecore, gen));
+    when(setupServiceApiHandler.inspectGenModelOrThrow(gen))
+        .thenReturn(
+            GenModelInspectionResponse.builder()
+                .message("GenModel inspected successfully, showing planned changes")
+                .build());
+
+    MetaModelService.MetaModelCreationResult result = metaModelService.create(email, request);
+
+    assertThat(result.metaModel()).isNull();
+    assertThat(result.message())
+        .isEqualTo("GenModel inspected successfully, showing planned changes");
+    verify(setupServiceApiHandler).inspectGenModelOrThrow(gen);
+    verify(setupServiceApiHandler, never()).processGenModelOrThrow(any());
+    verify(metaModelRepository, never()).save(any(MetaModel.class));
+    verify(metamodelBuildService, never()).buildAndValidate(any());
+    verify(fileStorageService, never()).overwriteStoredContent(any(), any());
+  }
+
+  @Test
+  void create_returnsInspectionIssueMessage_whenApplyGenModelFixesFalse() {
+    final String email = "u@ex.com";
+    final MetaModelPostRequest request = req(10L, 20L);
+    final User user = new User();
+    user.setEmail(email);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
+    final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
+        .thenReturn(Optional.of(ecore));
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
+        .thenReturn(Optional.of(gen));
+
+    when(metaModelMapper.toMetaModel(request)).thenReturn(metaModel(null, ecore, gen));
+    when(setupServiceApiHandler.inspectGenModelOrThrow(gen))
+        .thenReturn(
+            GenModelInspectionResponse.builder()
+                .errorCode("MISSING_PLUGIN_ID")
+                .status(422)
+                .message("GenModel has missing/blank modelPluginID")
+                .build());
+
+    MetaModelService.MetaModelCreationResult result = metaModelService.create(email, request);
+
+    assertThat(result.metaModel()).isNull();
+    assertThat(result.message()).isEqualTo("GenModel has missing/blank modelPluginID");
+    verify(metaModelRepository, never()).save(any(MetaModel.class));
+  }
+
+  @Test
+  void processGenModel_delegatesToSetupServiceApiHandler() {
+    final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
+    byte[] processed = "fixed".getBytes();
+    when(setupServiceApiHandler.processGenModelOrThrow(gen)).thenReturn(processed);
+
+    assertThat(metaModelService.processGenModel(gen)).isEqualTo(processed);
+    verify(setupServiceApiHandler).processGenModelOrThrow(gen);
+  }
+
+  @Test
+  void inspectGenModel_delegatesToSetupServiceApiHandler() {
+    final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
+    GenModelInspectionResponse response =
+        GenModelInspectionResponse.builder().message("ok").build();
+    when(setupServiceApiHandler.inspectGenModelOrThrow(gen)).thenReturn(response);
+
+    assertThat(metaModelService.inspectGenModel(gen)).isSameAs(response);
+    verify(setupServiceApiHandler).inspectGenModelOrThrow(gen);
+  }
+
+  @Test
+  void create_throwsCreateMwe2FileException_whenBuildFails() {
+    final String email = "u@ex.com";
+
+    final MetaModelPostRequest request = req(10L, 20L);
+    request.setApplyGenModelFixes(true);
+    final User user = new User();
+    user.setEmail(email);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.of(ecore));
 
     final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
-    when(fileStorageRepository.findByIdAndType(20L, FileEnumType.GEN_MODEL))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
         .thenReturn(Optional.of(gen));
+
+    when(setupServiceApiHandler.processGenModelOrThrow(gen)).thenReturn("fixed".getBytes());
 
     final MetaModel mapped = metaModel(null, ecore, gen);
     when(metaModelMapper.toMetaModel(request)).thenReturn(mapped);
@@ -199,10 +349,11 @@ class MetaModelServiceTest {
   @Test
   void create_throwsNotFound_whenUserMissing() {
     final String email = "missing@ex.com";
+    final MetaModelPostRequest request = req(10L, 20L);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
+    assertThatThrownBy(() -> metaModelService.create(email, request))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(USER_EMAIL_NOT_FOUND_ERROR);
   }
@@ -210,15 +361,17 @@ class MetaModelServiceTest {
   @Test
   void create_throwsNotFound_whenEcoreMissing() {
     final String email = "u@ex.com";
+    final MetaModelPostRequest request = req(10L, 20L);
     final User user = new User();
     user.setEmail(email);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.of(user));
 
-    when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
+    assertThatThrownBy(() -> metaModelService.create(email, request))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(ECORE_FILE_ID_NOT_FOUND_ERROR);
   }
@@ -226,21 +379,46 @@ class MetaModelServiceTest {
   @Test
   void create_throwsNotFound_whenGenModelMissing() {
     final String email = "u@ex.com";
+    final MetaModelPostRequest request = req(10L, 20L);
     final User user = new User();
     user.setEmail(email);
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.of(user));
 
     final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
-    when(fileStorageRepository.findByIdAndType(10L, FileEnumType.ECORE))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
         .thenReturn(Optional.of(ecore));
 
-    when(fileStorageRepository.findByIdAndType(20L, FileEnumType.GEN_MODEL))
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> metaModelService.create(email, req(10L, 20L)))
+    assertThatThrownBy(() -> metaModelService.create(email, request))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(GEN_MODEL_FILE_ID_NOT_FOUND_ERROR);
+  }
+
+  @Test
+  void create_throwsNotFound_whenEcoreBelongsToAnotherUser() {
+    final String email = "u@ex.com";
+    final MetaModelPostRequest request = req(10L, 20L);
+    final User user = new User();
+    user.setEmail(email);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> metaModelService.create(email, request))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(ECORE_FILE_ID_NOT_FOUND_ERROR);
+
+    verify(fileStorageRepository, never()).findByIdAndType(10L, FileEnumType.ECORE);
+    verify(setupServiceApiHandler, never()).processGenModelOrThrow(any());
+    verify(setupServiceApiHandler, never()).inspectGenModelOrThrow(any());
   }
 
   @Test
@@ -447,10 +625,11 @@ class MetaModelServiceTest {
   @Test
   void update_throwsAccessDenied_whenUserMissing() {
     String email = "missing@ex.com";
+    MetaModelPutRequest request = new MetaModelPutRequest();
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> metaModelService.update(email, 1L, new MetaModelPutRequest()))
+    assertThatThrownBy(() -> metaModelService.update(email, 1L, request))
         .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
         .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
 
@@ -471,8 +650,8 @@ class MetaModelServiceTest {
         .thenReturn(Optional.of(user));
     when(metaModelRepository.findById(99L)).thenReturn(Optional.empty());
 
-    ThrowingCallable callable =
-        () -> metaModelService.update(email, 99L, new MetaModelPutRequest());
+    MetaModelPutRequest request = new MetaModelPutRequest();
+    ThrowingCallable callable = () -> metaModelService.update(email, 99L, request);
 
     assertThatThrownBy(callable)
         .isInstanceOf(NotFoundException.class)
@@ -502,7 +681,8 @@ class MetaModelServiceTest {
         .thenReturn(Optional.of(caller));
     when(metaModelRepository.findById(10L)).thenReturn(Optional.of(metaModel));
 
-    assertThatThrownBy(() -> metaModelService.update(email, 10L, new MetaModelPutRequest()))
+    MetaModelPutRequest request = new MetaModelPutRequest();
+    assertThatThrownBy(() -> metaModelService.update(email, 10L, request))
         .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
         .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
 
@@ -640,7 +820,8 @@ class MetaModelServiceTest {
     MetaModelService spyService = org.mockito.Mockito.spy(metaModelService);
     doThrow(new RuntimeException("clone failed")).when(spyService).clone(source);
 
-    ThrowingCallable callable = () -> spyService.update(email, 200L, new MetaModelPutRequest());
+    MetaModelPutRequest request = new MetaModelPutRequest();
+    ThrowingCallable callable = () -> spyService.update(email, 200L, request);
 
     assertThatThrownBy(callable)
         .isInstanceOf(RuntimeException.class)

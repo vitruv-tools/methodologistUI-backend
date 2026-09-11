@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.model.repository;
 
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
@@ -38,6 +39,19 @@ public interface VsumHistoryRepository extends CrudRepository<VsumHistory, Long>
    *     if none found
    */
   Optional<VsumHistory> findTopByVsumOrderByCreatedAtDesc(Vsum vsum);
+
+  /**
+   * Finds a {@link VsumHistory} record by ID with eager loading of related associations.
+   *
+   * <p>This method uses an entity graph to eagerly load the following associations to avoid N+1
+   * query problems:
+   *
+   * @param id the history record ID to retrieve
+   * @return an {@link java.util.Optional} containing the {@link VsumHistory} with all related
+   *     associations loaded, or empty if no record found
+   */
+  @EntityGraph(attributePaths = {"vsum", "vsum.user", "vsum.views", "vsum.views.viewMetaModels"})
+  Optional<VsumHistory> findById(Long id);
 
   /**
    * Deletes all {@link VsumHistory} entities associated with the specified {@link Vsum}.

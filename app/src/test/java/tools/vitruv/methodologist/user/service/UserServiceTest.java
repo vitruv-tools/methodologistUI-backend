@@ -44,6 +44,7 @@ import tools.vitruv.methodologist.exception.ValidationCodeExpiredException;
 import tools.vitruv.methodologist.exception.ValidationCodeNotExpiredYetException;
 import tools.vitruv.methodologist.exception.VerificationCodeException;
 import tools.vitruv.methodologist.general.service.SmtpMailService;
+import tools.vitruv.methodologist.user.RoleType;
 import tools.vitruv.methodologist.user.controller.dto.KeycloakUser;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenByRefreshTokenRequest;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenRequest;
@@ -57,6 +58,7 @@ import tools.vitruv.methodologist.user.controller.dto.response.UserWebToken;
 import tools.vitruv.methodologist.user.mapper.UserMapper;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
+import tools.vitruv.methodologist.vsum.service.VsumInvitationService;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -66,6 +68,7 @@ class UserServiceTest {
   @Mock private KeycloakService keycloakService;
   @Mock private KeycloakApiHandler keycloakApiHandler;
   @Mock private SmtpMailService mailService;
+  @Mock private VsumInvitationService vsumInvitationService;
 
   private UserService userService;
 
@@ -97,6 +100,7 @@ class UserServiceTest {
             keycloakService,
             keycloakApiHandler,
             mailService,
+            vsumInvitationService,
             ttlMinutes);
   }
 
@@ -725,5 +729,276 @@ class UserServiceTest {
     assertThatThrownBy(() -> userService.changePassword(email, req))
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining("Keycloak down");
+  }
+
+  @Test
+  void syncWithKeycloak_createsNewUser_whenUsernameNotFound() {
+    String email = "newuser@example.com";
+    String username = "newuser";
+    String firstName = "John";
+    String lastName = "Doe";
+
+    when(userRepository.findByUsernameIgnoreCaseAndRemovedAtIsNull(username))
+        .thenReturn(Optional.empty());
+
+    userService.syncWithKeycloak(email, username, firstName, lastName);
+
+    ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
+    verify(userRepository).save(savedCaptor.capture());
+
+    User savedUser = savedCaptor.getValue();
+    assertThat(savedUser.getEmail()).isEqualTo(email);
+    assertThat(savedUser.getUsername()).isEqualTo(username);
+    assertThat(savedUser.getFirstName()).isEqualTo(firstName);
+    assertThat(savedUser.getLastName()).isEqualTo(lastName);
+    assertThat(savedUser.getVerified()).isTrue();
+    assertThat(savedUser.getRoleType()).isEqualTo(RoleType.USER);
+
+    verify(keycloakService).assignUserRole(username, RoleType.USER.getName());
+  }
+
+  @Test
+  void syncWithKeycloak_updatesExistingUser_whenUsernameFound() {
+    User existingUser = new User();
+    existingUser.setId(1L);
+    existingUser.setEmail("oldemail@example.com");
+    String username = "existinguser";
+    existingUser.setUsername(username);
+    existingUser.setFirstName("Old");
+    existingUser.setLastName("Name");
+    existingUser.setVerified(true);
+    existingUser.setRoleType(RoleType.USER);
+
+    when(userRepository.findByUsernameIgnoreCaseAndRemovedAtIsNull(username))
+        .thenReturn(Optional.of(existingUser));
+
+    String newEmail = "updatedemail@example.com";
+    String newFirstName = "Jane";
+    String newLastName = "Smith";
+    userService.syncWithKeycloak(newEmail, username, newFirstName, newLastName);
+
+    ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
+    verify(userRepository).save(savedCaptor.capture());
+
+    User savedUser = savedCaptor.getValue();
+    assertThat(savedUser.getId()).isEqualTo(1L);
+    assertThat(savedUser.getEmail()).isEqualTo(newEmail);
+    assertThat(savedUser.getUsername()).isEqualTo(username);
+    assertThat(savedUser.getFirstName()).isEqualTo(newFirstName);
+    assertThat(savedUser.getLastName()).isEqualTo(newLastName);
+    assertThat(savedUser.getVerified()).isTrue();
+
+    verify(keycloakService).assignUserRole(username, RoleType.USER.getName());
+  }
+
+  @Test
+  void syncWithKeycloak_preservesUserIdAndVerifiedStatus_whenUpdating() {
+    String username = "user123";
+    User existingUser = new User();
+    existingUser.setId(99L);
+    existingUser.setVerified(true);
+    existingUser.setEmail("old@example.com");
+    existingUser.setUsername(username);
+    existingUser.setFirstName("Old");
+    existingUser.setLastName("Value");
+    existingUser.setRoleType(RoleType.USER);
+
+    when(userRepository.findByUsernameIgnoreCaseAndRemovedAtIsNull(username))
+        .thenReturn(Optional.of(existingUser));
+
+    userService.syncWithKeycloak("new@example.com", username, "New", "Value");
+
+    ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
+    verify(userRepository).save(savedCaptor.capture());
+
+    User saved = savedCaptor.getValue();
+    assertThat(saved.getId()).isEqualTo(99L);
+    assertThat(saved.getVerified()).isTrue();
+  }
+
+  @Test
+  void syncWithKeycloak_callsKeycloakRoleAssignment_forNewUser() {
+    String username = "newuser";
+    when(userRepository.findByUsernameIgnoreCaseAndRemovedAtIsNull(username))
+        .thenReturn(Optional.empty());
+
+    userService.syncWithKeycloak("new@example.com", username, "John", "Doe");
+
+    verify(keycloakService).assignUserRole(username, "user");
+  }
+
+  @Test
+  void syncWithKeycloak_callsKeycloakRoleAssignment_forExistingUser() {
+    String username = "existinguser";
+    User existing = new User();
+    existing.setId(1L);
+    existing.setEmail("old@example.com");
+    existing.setUsername(username);
+    existing.setFirstName("Old");
+    existing.setLastName("Name");
+    existing.setRoleType(RoleType.USER);
+
+    when(userRepository.findByUsernameIgnoreCaseAndRemovedAtIsNull(username))
+        .thenReturn(Optional.of(existing));
+
+    userService.syncWithKeycloak("new@example.com", username, "John", "Doe");
+
+    verify(keycloakService).assignUserRole(username, "user");
+  }
+
+  @Test
+  void syncWithKeycloak_throwsIllegalArgumentException_whenEmailNull() {
+    assertThatThrownBy(() -> userService.syncWithKeycloak(null, "username", "John", "Doe"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Email cannot be null or blank");
+
+    verify(userRepository, never()).findByUsernameIgnoreCaseAndRemovedAtIsNull(anyString());
+    verify(userRepository, never()).save(any());
+    verify(keycloakService, never()).assignUserRole(anyString(), anyString());
+  }
+
+  @Test
+  void syncWithKeycloak_throwsIllegalArgumentException_whenEmailBlank() {
+    assertThatThrownBy(() -> userService.syncWithKeycloak("  ", "username", "John", "Doe"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Email cannot be null or blank");
+
+    verify(userRepository, never()).findByUsernameIgnoreCaseAndRemovedAtIsNull(anyString());
+    verify(userRepository, never()).save(any());
+  }
+
+  @Test
+  void syncWithKeycloak_throwsIllegalArgumentException_whenUsernameNull() {
+    assertThatThrownBy(() -> userService.syncWithKeycloak("john@example.com", null, "John", "Doe"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Username cannot be null or blank");
+
+    verify(userRepository, never()).save(any());
+    verify(keycloakService, never()).assignUserRole(anyString(), anyString());
+  }
+
+  @Test
+  void syncWithKeycloak_throwsIllegalArgumentException_whenUsernameBlank() {
+    assertThatThrownBy(() -> userService.syncWithKeycloak("john@example.com", "   ", "John", "Doe"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Username cannot be null or blank");
+
+    verify(userRepository, never()).save(any());
+  }
+
+  @Test
+  void syncWithKeycloak_throwsIllegalArgumentException_whenFirstNameNull() {
+    assertThatThrownBy(() -> userService.syncWithKeycloak("john@example.com", "john", null, "Doe"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("FirstName cannot be null or blank");
+
+    verify(userRepository, never()).save(any());
+    verify(keycloakService, never()).assignUserRole(anyString(), anyString());
+  }
+
+  @Test
+  void syncWithKeycloak_throwsIllegalArgumentException_whenFirstNameBlank() {
+    assertThatThrownBy(() -> userService.syncWithKeycloak("john@example.com", "john", "  ", "Doe"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("FirstName cannot be null or blank");
+
+    verify(userRepository, never()).save(any());
+  }
+
+  @Test
+  void syncWithKeycloak_throwsIllegalArgumentException_whenLastNameNull() {
+    assertThatThrownBy(() -> userService.syncWithKeycloak("john@example.com", "john", "John", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("LastName cannot be null or blank");
+
+    verify(userRepository, never()).save(any());
+    verify(keycloakService, never()).assignUserRole(anyString(), anyString());
+  }
+
+  @Test
+  void syncWithKeycloak_throwsIllegalArgumentException_whenLastNameBlank() {
+    assertThatThrownBy(() -> userService.syncWithKeycloak("john@example.com", "john", "John", "  "))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("LastName cannot be null or blank");
+
+    verify(userRepository, never()).save(any());
+  }
+
+  @Test
+  void syncWithKeycloak_usernameSearchIsCaseInsensitive() {
+    User existing = new User();
+    existing.setId(1L);
+    existing.setEmail("john@example.com");
+    existing.setUsername("johndoe");
+    existing.setFirstName("John");
+    existing.setLastName("Doe");
+    existing.setRoleType(RoleType.USER);
+
+    String username = "JohnDoe";
+    when(userRepository.findByUsernameIgnoreCaseAndRemovedAtIsNull(username))
+        .thenReturn(Optional.of(existing));
+
+    userService.syncWithKeycloak("newemail@example.com", username, "John", "Doe");
+
+    verify(userRepository).findByUsernameIgnoreCaseAndRemovedAtIsNull(username);
+    verify(keycloakService).assignUserRole(username, "user");
+  }
+
+  @Test
+  void syncWithKeycloak_doesNotUpdateRemovedUsers() {
+    String username = "removeduser";
+    when(userRepository.findByUsernameIgnoreCaseAndRemovedAtIsNull(username))
+        .thenReturn(Optional.empty());
+
+    userService.syncWithKeycloak("new@example.com", username, "John", "Doe");
+
+    ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
+    verify(userRepository).save(savedCaptor.capture());
+
+    User savedUser = savedCaptor.getValue();
+    assertThat(savedUser.getRemovedAt()).isNull();
+  }
+
+  @Test
+  void syncWithKeycloak_newUserHasUserRoleByDefault() {
+    when(userRepository.findByUsernameIgnoreCaseAndRemovedAtIsNull("newuser"))
+        .thenReturn(Optional.empty());
+
+    userService.syncWithKeycloak("user@example.com", "newuser", "Test", "User");
+
+    ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
+    verify(userRepository).save(savedCaptor.capture());
+
+    assertThat(savedCaptor.getValue().getRoleType()).isEqualTo(RoleType.USER);
+  }
+
+  @Test
+  void syncWithKeycloak_propagatesRepositorySaveException() {
+    String username = "erroruser";
+    when(userRepository.findByUsernameIgnoreCaseAndRemovedAtIsNull(username))
+        .thenReturn(Optional.empty());
+    doThrow(new RuntimeException("Database error")).when(userRepository).save(any());
+
+    assertThatThrownBy(
+            () -> userService.syncWithKeycloak("error@example.com", username, "John", "Doe"))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Database error");
+
+    verify(keycloakService, never()).assignUserRole(anyString(), anyString());
+  }
+
+  @Test
+  void syncWithKeycloak_propagatesKeycloakRoleAssignmentException() {
+    String username = "keycloakerror";
+    when(userRepository.findByUsernameIgnoreCaseAndRemovedAtIsNull(username))
+        .thenReturn(Optional.empty());
+    doThrow(new RuntimeException("Keycloak service down"))
+        .when(keycloakService)
+        .assignUserRole(username, "user");
+
+    assertThatThrownBy(
+            () -> userService.syncWithKeycloak("error@example.com", username, "John", "Doe"))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Keycloak service down");
   }
 }
