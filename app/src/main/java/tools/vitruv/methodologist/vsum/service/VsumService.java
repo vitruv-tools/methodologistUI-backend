@@ -239,6 +239,45 @@ public class VsumService {
   }
 
   /**
+   * Updates the name of a meta model within a VSUM without changing the corresponding model-library
+   * entry.
+   *
+   * @param callerEmail the email of the VSUM member requesting the change
+   * @param vsumId the VSUM containing the meta model
+   * @param sourceMetaModelId the ID of the source meta model in the model library
+   * @param name the new project-specific name
+   * @throws NotFoundException if the VSUM membership or meta model link does not exist
+   * @throws AccessDeniedException if the caller is a VSUM viewer
+   */
+  @Transactional
+  public void updateMetaModelName(
+      String callerEmail, Long vsumId, Long sourceMetaModelId, String name) {
+    VsumUser vsumUser =
+        vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                vsumId, callerEmail)
+            .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
+
+    if (vsumUser.getRole() == VsumRole.VIEWER) {
+      throw new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS);
+    }
+
+    VsumMetaModel vsumMetaModel =
+        vsumMetaModelRepository
+            .findByVsumAndMetaModel_Source_Id(vsumUser.getVsum(), sourceMetaModelId)
+            .orElseThrow(
+                () -> new NotFoundException(METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR));
+
+    if (Objects.equals(vsumMetaModel.getName(), name)) {
+      return;
+    }
+
+    vsumHistoryService.create(vsumUser.getVsum(), vsumUser.getUser());
+    vsumMetaModel.setName(name);
+    vsumMetaModelRepository.save(vsumMetaModel);
+  }
+
+  /**
    * Retrieves a VSUM by its ID.
    *
    * @param id the ID of the VSUM to retrieve
@@ -303,13 +342,18 @@ public class VsumService {
 
     VsumMetaModelResponse response = vsumMapper.toVsumMetaModelResponse(vsum);
 
+    List<VsumMetaModel> vsumMetaModels =
+        vsum.getVsumMetaModels() == null ? List.of() : List.copyOf(vsum.getVsumMetaModels());
+    Map<Long, String> projectMetaModelNames =
+        vsumMetaModels.stream()
+            .collect(
+                Collectors.toMap(
+                    vsumMetaModel -> vsumMetaModel.getMetaModel().getId(),
+                    this::projectMetaModelName,
+                    (first, second) -> first));
+
     List<MetaModelResponse> metaModels =
-        (vsum.getVsumMetaModels() == null
-                ? List.<tools.vitruv.methodologist.vsum.model.VsumMetaModel>of()
-                : vsum.getVsumMetaModels())
-            .stream()
-                .map(metaModel -> metaModelMapper.toMetaModelResponse(metaModel.getMetaModel()))
-                .toList();
+        vsumMetaModels.stream().map(this::toProjectMetaModelResponse).toList();
     response.setMetaModels(metaModels);
 
     List<MetaModelRelationResponse> metaModelRelation =
@@ -328,9 +372,37 @@ public class VsumService {
         vsumViewRepository.findAllByVsum(vsum).stream()
             .map(vsumViewMapper::toViewsResponse)
             .toList();
+    applyProjectMetaModelNames(views, projectMetaModelNames);
     response.setViews(views);
 
     return response;
+  }
+
+  private MetaModelResponse toProjectMetaModelResponse(VsumMetaModel vsumMetaModel) {
+    MetaModelResponse response = metaModelMapper.toMetaModelResponse(vsumMetaModel.getMetaModel());
+    response.setName(projectMetaModelName(vsumMetaModel));
+    return response;
+  }
+
+  private String projectMetaModelName(VsumMetaModel vsumMetaModel) {
+    return vsumMetaModel.getName() == null
+        ? vsumMetaModel.getMetaModel().getName()
+        : vsumMetaModel.getName();
+  }
+
+  private void applyProjectMetaModelNames(
+      List<ViewsResponse> views, Map<Long, String> projectMetaModelNames) {
+    for (ViewsResponse view : views) {
+      if (view.getAssignedModels() == null) {
+        continue;
+      }
+      for (MetaModelResponse assignedModel : view.getAssignedModels()) {
+        String projectMetaModelName = projectMetaModelNames.get(assignedModel.getId());
+        if (projectMetaModelName != null) {
+          assignedModel.setName(projectMetaModelName);
+        }
+      }
+    }
   }
 
   /**
@@ -805,6 +877,8 @@ public class VsumService {
 
     List<Long> metaModelIds = vsumSyncChangesPutRequest.getMetaModelIds();
     List<VsumMetaModel> existingVsumMetaModel = vsumMetaModelRepository.findAllByVsum(vsum);
+    Map<Long, String> desiredMetaModelNames =
+        normalizeMetaModelNames(vsumSyncChangesPutRequest.getMetaModelNames());
 
     Set<Long> existingVsumMetaModelIds =
         existingVsumMetaModel.stream()
@@ -822,6 +896,18 @@ public class VsumService {
     Set<Long> toAddVsumMetaModelIds = new HashSet<>(desiredMetaModelIds);
     toAddVsumMetaModelIds.removeAll(existingVsumMetaModelIds);
 
+    List<VsumMetaModel> renamedVsumMetaModels =
+        existingVsumMetaModel.stream()
+            .filter(
+                vsumMetaModel -> {
+                  Long sourceId = vsumMetaModel.getMetaModel().getSource().getId();
+                  String name = desiredMetaModelNames.get(sourceId);
+                  return desiredMetaModelIds.contains(sourceId)
+                      && name != null
+                      && !name.equals(projectMetaModelName(vsumMetaModel));
+                })
+            .toList();
+
     List<ViewRequest> desiredViewRequests =
         normalizeViewRequests(vsumSyncChangesPutRequest.getViewRequests());
 
@@ -831,6 +917,7 @@ public class VsumService {
         !toRemoveMetaModelRelation.isEmpty()
             || !toRemoveVsumMetaModelIds.isEmpty()
             || !toAddVsumMetaModelIds.isEmpty()
+            || !renamedVsumMetaModels.isEmpty()
             || !toAddMetaModelRelation.isEmpty()
             || !toUpdateMetaModelRelation.isEmpty()
             || viewSyncPlan.hasChanges();
@@ -872,7 +959,19 @@ public class VsumService {
     }
 
     if (!toAddVsumMetaModelIds.isEmpty()) {
-      vsumMetaModelService.create(vsum, toAddVsumMetaModelIds);
+      if (desiredMetaModelNames.isEmpty()) {
+        vsumMetaModelService.create(vsum, toAddVsumMetaModelIds);
+      } else {
+        vsumMetaModelService.create(vsum, toAddVsumMetaModelIds, desiredMetaModelNames);
+      }
+    }
+
+    if (!renamedVsumMetaModels.isEmpty()) {
+      renamedVsumMetaModels.forEach(
+          vsumMetaModel ->
+              vsumMetaModel.setName(
+                  desiredMetaModelNames.get(vsumMetaModel.getMetaModel().getSource().getId())));
+      vsumMetaModelRepository.saveAll(renamedVsumMetaModels);
     }
 
     applyViewSyncPlan(vsum, viewSyncPlan);
@@ -920,6 +1019,16 @@ public class VsumService {
         .filter(Objects::nonNull)
         .filter(request -> request.getSourceId() != null && request.getTargetId() != null)
         .toList();
+  }
+
+  private Map<Long, String> normalizeMetaModelNames(Map<Long, String> metaModelNames) {
+    if (metaModelNames == null || metaModelNames.isEmpty()) {
+      return Map.of();
+    }
+
+    return metaModelNames.entrySet().stream()
+        .filter(entry -> entry.getKey() != null && entry.getValue() != null)
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
   private List<ViewRequest> normalizeViewRequests(List<ViewRequest> requests) {

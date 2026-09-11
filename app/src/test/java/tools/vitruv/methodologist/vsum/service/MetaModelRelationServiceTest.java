@@ -62,8 +62,8 @@ class MetaModelRelationServiceTest {
     MetaModel targetMM =
         MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
 
-    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, null, null, null);
-    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, null, null, null);
+    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, "source", null, null, null);
+    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, "target", null, null, null);
 
     FileStorage file = FileStorage.builder().id(300L).type(FileEnumType.REACTION).build();
 
@@ -103,7 +103,7 @@ class MetaModelRelationServiceTest {
   @Test
   void create_throwsNotFound_whenReactionFileMissing() {
     MetaModel mm = MetaModel.builder().id(10L).source(MetaModel.builder().id(111L).build()).build();
-    VsumMetaModel vmm = new VsumMetaModel(null, vsum, mm, null, null, null);
+    VsumMetaModel vmm = new VsumMetaModel(null, vsum, mm, "model", null, null, null);
 
     MetaModelRelationRequest req = new MetaModelRelationRequest(111L, 222L, 333L);
 
@@ -124,8 +124,8 @@ class MetaModelRelationServiceTest {
         MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
     MetaModel tgt =
         MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
-    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, src, null, null, null);
-    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, tgt, null, null, null);
+    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, src, "source", null, null, null);
+    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, tgt, "target", null, null, null);
     FileStorage file = FileStorage.builder().id(300L).type(FileEnumType.REACTION).build();
 
     MetaModelRelationRequest r1 = new MetaModelRelationRequest(100L, 200L, 300L);
@@ -168,8 +168,8 @@ class MetaModelRelationServiceTest {
         MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
     MetaModel targetMM =
         MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
-    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, null, null, null);
-    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, null, null, null);
+    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, "source", null, null, null);
+    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, "target", null, null, null);
 
     FineGranularMetaModelRelationRequest fgReq =
         FineGranularMetaModelRelationRequest.builder()
@@ -206,8 +206,8 @@ class MetaModelRelationServiceTest {
         MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
     MetaModel targetMM =
         MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
-    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, null, null, null);
-    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, null, null, null);
+    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, "source", null, null, null);
+    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, "target", null, null, null);
 
     MetaModelRelationRequest req = new MetaModelRelationRequest(100L, 200L, null);
 
@@ -225,8 +225,8 @@ class MetaModelRelationServiceTest {
         MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
     MetaModel targetMM =
         MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
-    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, null, null, null);
-    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, null, null, null);
+    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, "source", null, null, null);
+    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, "target", null, null, null);
 
     FineGranularMetaModelRelationRequest fgReq =
         FineGranularMetaModelRelationRequest.builder()
@@ -269,8 +269,8 @@ class MetaModelRelationServiceTest {
         MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
     MetaModel targetMM =
         MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
-    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, null, null, null);
-    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, null, null, null);
+    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, "source", null, null, null);
+    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, "target", null, null, null);
 
     FineGranularMetaModelRelationRequest fgReq =
         FineGranularMetaModelRelationRequest.builder()
@@ -301,8 +301,8 @@ class MetaModelRelationServiceTest {
         MetaModel.builder().id(10L).source(MetaModel.builder().id(100L).build()).build();
     MetaModel targetMM =
         MetaModel.builder().id(20L).source(MetaModel.builder().id(200L).build()).build();
-    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, null, null, null);
-    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, null, null, null);
+    VsumMetaModel vmm1 = new VsumMetaModel(null, vsum, sourceMM, "source", null, null, null);
+    VsumMetaModel vmm2 = new VsumMetaModel(null, vsum, targetMM, "target", null, null, null);
 
     FineGranularMetaModelRelationRequest fgReq =
         FineGranularMetaModelRelationRequest.builder()

@@ -11,7 +11,9 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.VsumHistoryRespon
 import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
+import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumHistory;
+import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 
 /** Unit tests for {@link VsumHistoryMapper} relation snapshot mapping. */
 class VsumHistoryMapperTest {
@@ -66,5 +68,21 @@ class VsumHistoryMapperTest {
   @Test
   void toMetaModelsRelation_returnsEmpty_whenNull() {
     assertThat(mapper.toMetaModelsRelation(null)).isEmpty();
+  }
+
+  @Test
+  void toVsumRepresentation_preservesProjectSpecificMetaModelNames() {
+    MetaModel source = MetaModel.builder().id(19L).name("Library name").build();
+    MetaModel cloned = MetaModel.builder().id(11L).source(source).name("Library name").build();
+    Vsum vsum = new Vsum();
+    vsum.setVsumUsers(Set.of());
+    vsum.setMetaModelRelations(Set.of());
+    vsum.setViews(Set.of());
+    vsum.setVsumMetaModels(
+        Set.of(VsumMetaModel.builder().vsum(vsum).metaModel(cloned).name("Project name").build()));
+
+    VsumRepresentation result = mapper.toVsumRepresentation(vsum);
+
+    assertThat(result.getMetaModelNames()).containsEntry(19L, "Project name");
   }
 }
