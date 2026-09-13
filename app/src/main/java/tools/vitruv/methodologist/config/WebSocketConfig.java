@@ -35,8 +35,8 @@ public class WebSocketConfig implements WebSocketConfigurer {
   }
 
   /**
-   * Configures the servlet WebSocket container's text and binary message buffer sizes, so large
-   * LSP payloads (e.g. Reactions DSL, VitruvOCL) don't exceed Tomcat's 8 KB default.
+   * Configures the servlet WebSocket container's text and binary message buffer sizes, so large LSP
+   * payloads (e.g. Reactions DSL, VitruvOCL) don't exceed Tomcat's 8 KB default.
    *
    * @param maxBufferSize the maximum message buffer size in bytes
    * @return the configured container factory bean
