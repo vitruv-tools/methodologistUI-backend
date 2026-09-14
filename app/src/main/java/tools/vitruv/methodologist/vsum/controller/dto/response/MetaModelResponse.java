@@ -23,6 +23,7 @@ import lombok.Setter;
 public class MetaModelResponse {
   private Long id;
   private String name;
+  private String version;
   private String description;
   private String domain;
   private Long sourceId;

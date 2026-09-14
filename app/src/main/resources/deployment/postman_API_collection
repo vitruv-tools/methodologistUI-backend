@@ -1,0 +1,301 @@
+{
+  "info": {
+    "_postman_id": "019fbdc2-d14c-4755-a1d6-ab151cd6f85c",
+    "name": "vitruv-server",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "19888285",
+    "_collection_link": "https://go.postman.co/collection/19888285-019fbdc2-d14c-4755-a1d6-ab151cd6f85c?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/health",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "view-types",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/view/types",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "view",
+            "types"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "meta-model",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/view/types/default",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "view",
+            "types",
+            "default"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "selector",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "View-Type",
+            "value": "default",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/view/selector",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "view",
+            "selector"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "open-view",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Selector-uuid",
+            "value": "{{selector-uuid}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "[\n    \"{{select-id-1}}\",\n    \"{{select-id-2}}\"\n]\n",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseVitru}}/vsum/view",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "view"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "refresh-view",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "view-uuid",
+            "value": "{{view-uuid}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/view",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "view"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "first-update",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "view-uuid",
+            "value": "{{view-uuid}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "[\n  {\n    \"uri\": \"/example.model\",\n    \"content\": {\n      \"eClass\": \"http://vitruv.tools/methodologisttemplate/model#//System\",\n      \"_id\": \"/\",\n      \"components\": [\n        {\n          \"name\": \"First Component\"\n        },\n        {\n          \"name\": \"Second Component\"\n        }\n      ]\n    }\n  },\n  {\n    \"uri\": \"/example.model2\",\n    \"content\": {\n      \"eClass\": \"http://vitruv.tools/methodologisttemplate/model2#//Root\",\n      \"_id\": \"/\"\n    }\n  }\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseVitru}}/vsum/view/derive-changes",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "view",
+            "derive-changes"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "second-update",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "view-uuid",
+            "value": "{{view-uuid}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "[\n    {\n        \"uri\": \"/example.model\",\n        \"content\": {\n            \"eClass\": \"http://vitruv.tools/methodologisttemplate/model#//System\",\n            \"_id\": \"/\",\n            \"components\": [\n                {\n                    \"_id\": \"//@components.0\",\n                    \"name\": \"Modified First Component\"\n                },\n                {\n                    \"_id\": \"//@components.1\",\n                    \"name\": \"Second Component\"\n                }\n            ]\n        }\n    },\n    {\n        \"uri\": \"/example.model2\",\n        \"content\": {\n            \"eClass\": \"http://vitruv.tools/methodologisttemplate/model2#//Root\",\n            \"_id\": \"/\",\n            \"entities\": [\n                {\n                    \"_id\": \"//@entities.0\",\n                    \"name\": \"First Component\"\n                },\n                {\n                    \"_id\": \"//@entities.1\",\n                    \"name\": \"Second Component\"\n                }\n            ]\n        }\n    }\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseVitru}}/vsum/view/derive-changes",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "view",
+            "derive-changes"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "second-update alternative",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "view-uuid",
+            "value": "{{view-uuid}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "[\n    {\n        \"uri\": \"/example.model\",\n        \"content\": {\n            \"eClass\": \"http://vitruv.tools/methodologisttemplate/model#//System\",\n            \"_id\": \"/\",\n            \"components\": [\n                {\n                    \"_id\": \"//@components.0\",\n                    \"name\": \"Modified Component Name\"\n                },\n                {\n                    \"_id\": \"//@components.1\",\n                    \"name\": \"Second Component\"\n                }\n            ]\n        }\n    },\n    {\n        \"uri\": \"/example.model2\",\n        \"content\": {\n            \"eClass\": \"http://vitruv.tools/methodologisttemplate/model2#//Root\",\n            \"_id\": \"/\",\n            \"entities\": [\n                {\n                    \"_id\": \"//@entities.0\",\n                    \"name\": \"First Component\"\n                },\n                {\n                    \"_id\": \"//@entities.1\",\n                    \"name\": \"Second Component\"\n                }\n            ]\n        }\n    }\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseVitru}}/vsum/view/derive-changes",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "view",
+            "derive-changes"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseVitru",
+      "value": ""
+    },
+    {
+      "key": "baseVapp",
+      "value": ""
+    },
+    {
+      "key": "selector-uuid",
+      "value": ""
+    },
+    {
+      "key": "select-id-1",
+      "value": ""
+    },
+    {
+      "key": "select-id-2",
+      "value": ""
+    },
+    {
+      "key": "view-uuid",
+      "value": ""
+    }
+  ]
+}

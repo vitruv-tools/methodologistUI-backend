@@ -6,8 +6,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import jakarta.persistence.EntityManager;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +25,7 @@ class VsumMetaModelServiceTest {
   private VsumMetaModelRepository vsumMetaModelRepository;
   private MetaModelService metaModelService;
   private MetaModelRepository metaModelRepository;
+  private EntityManager entityManager;
 
   private VsumMetaModelService service;
 
@@ -31,9 +34,11 @@ class VsumMetaModelServiceTest {
     vsumMetaModelRepository = mock(VsumMetaModelRepository.class);
     metaModelService = mock(MetaModelService.class);
     metaModelRepository = mock(MetaModelRepository.class);
+    entityManager = mock(EntityManager.class);
 
     service =
-        new VsumMetaModelService(vsumMetaModelRepository, metaModelService, metaModelRepository);
+        new VsumMetaModelService(
+            vsumMetaModelRepository, metaModelService, metaModelRepository, entityManager);
   }
 
   private Vsum newVsumWithUserEmail(String email) {
@@ -66,10 +71,12 @@ class VsumMetaModelServiceTest {
 
   @Test
   void create_clonesEachOriginal_andSavesAllLinks() {
-    Vsum vsum = newVsumWithUserEmail("alice@example.com");
+    final Vsum vsum = newVsumWithUserEmail("alice@example.com");
 
     MetaModel originalA = newOriginalMetaModel(10L);
     MetaModel originalB = newOriginalMetaModel(20L);
+    originalA.setName("Library A");
+    originalB.setName("Library B");
 
     when(metaModelRepository.findAllByIdInAndSourceIsNull(Set.of(10L, 20L)))
         .thenReturn(List.of(originalA, originalB));
@@ -85,6 +92,7 @@ class VsumMetaModelServiceTest {
     service.create(vsum, Set.of(10L, 20L));
 
     verify(vsumMetaModelRepository).saveAll(savedLinksCaptor.capture());
+    verify(entityManager).flush();
     List<VsumMetaModel> saved = savedLinksCaptor.getValue();
 
     assertThat(saved).hasSize(2);
@@ -93,6 +101,31 @@ class VsumMetaModelServiceTest {
     assertThat(saved)
         .extracting(l -> l.getMetaModel().getSource().getId())
         .containsExactlyInAnyOrder(10L, 20L);
+    assertThat(saved)
+        .extracting(VsumMetaModel::getName)
+        .containsExactlyInAnyOrder("Library A", "Library B");
+  }
+
+  @Test
+  void create_usesProvidedProjectSpecificName() {
+    Vsum vsum = newVsumWithUserEmail("alice@example.com");
+    MetaModel original = newOriginalMetaModel(10L);
+    original.setName("Library name");
+    MetaModel cloned = newClonedMetaModel(101L, original);
+
+    when(metaModelRepository.findAllByIdInAndSourceIsNull(Set.of(10L)))
+        .thenReturn(List.of(original));
+    when(metaModelService.clone(original)).thenReturn(cloned);
+
+    ArgumentCaptor<List<VsumMetaModel>> savedLinksCaptor = ArgumentCaptor.forClass(List.class);
+
+    service.create(vsum, Set.of(10L), Map.of(10L, "Project name"));
+
+    verify(vsumMetaModelRepository).saveAll(savedLinksCaptor.capture());
+    assertThat(savedLinksCaptor.getValue())
+        .singleElement()
+        .extracting(VsumMetaModel::getName)
+        .isEqualTo("Project name");
   }
 
   @Test
