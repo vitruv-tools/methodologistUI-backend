@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
@@ -32,6 +33,16 @@ public interface VsumMetaModelRepository extends CrudRepository<VsumMetaModel, L
    * @return list of VsumMetaModel entities linked to the given Vsum
    */
   List<VsumMetaModel> findAllByVsum(Vsum vsum);
+
+  /**
+   * Finds the project-specific link for a library meta model source within a VSUM.
+   *
+   * @param vsum the VSUM containing the meta model
+   * @param sourceId the ID of the source meta model in the model library
+   * @return the matching project meta model link, if one exists
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  Optional<VsumMetaModel> findByVsumAndMetaModel_Source_Id(Vsum vsum, Long sourceId);
 
   /**
    * Retrieves all VsumMetaModel entries where the given MetaModel is used as a source.

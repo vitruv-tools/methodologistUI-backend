@@ -37,4 +37,8 @@ public class Message {
   public static final String VSUM_USER_CREATED_SUCCESSFULLY =
       "Member successfully added into the Vsum.";
   public static final String VSUM_INVITATION_SENT_SUCCESSFULLY = "Invitation sent successfully.";
+  public static final String LOWCODE_REACTION_CREATED_SUCCESSFULLY =
+      "Low-code reaction created successfully";
+  public static final String LOWCODE_REACTIONS_METADATA_LOADED_SUCCESSFULLY =
+      "Low-code reactions metadata loaded successfully";
 }

@@ -112,6 +112,25 @@ class KeycloakServiceTest {
   }
 
   @Test
+  void updateUserProfile_updatesNames_whenUserExists() {
+    keycloakGateway.addUser("alice", "user-1");
+
+    keycloakService.updateUserProfile("alice", "Alicia", "Smith");
+
+    assertThat(keycloakGateway.updatedUserId).isEqualTo("user-1");
+    assertThat(keycloakGateway.updatedFirstName).isEqualTo("Alicia");
+    assertThat(keycloakGateway.updatedLastName).isEqualTo("Smith");
+  }
+
+  @Test
+  void updateUserProfile_throwsNotFound_whenUserDoesNotExist() {
+    assertThatThrownBy(() -> keycloakService.updateUserProfile("missing", "Alicia", "Smith"))
+        .isInstanceOf(NotFoundException.class);
+
+    assertThat(keycloakGateway.updatedUserId).isNull();
+  }
+
+  @Test
   void verifyUserPasswordOrThrow_doesNotThrow_whenPasswordIsValid() {
     keycloakService.verifyUserPasswordOrThrow("alice", "correct-password");
 
@@ -122,6 +141,15 @@ class KeycloakServiceTest {
   @Test
   void verifyUserPasswordOrThrow_throwsBadRequest_whenPasswordIsWrong() {
     keycloakGateway.verifyPasswordException = new NotAuthorizedException("Bearer");
+
+    assertThatThrownBy(() -> keycloakService.verifyUserPasswordOrThrow("alice", "wrong-password"))
+        .isInstanceOf(BadRequestException.class)
+        .hasMessageContaining(USER_WRONG_PASSWORD_ERROR);
+  }
+
+  @Test
+  void verifyUserPasswordOrThrow_throwsBadRequest_whenKeycloakReturnsInvalidGrant() {
+    keycloakGateway.verifyPasswordException = new BadRequestException("invalid_grant");
 
     assertThatThrownBy(() -> keycloakService.verifyUserPasswordOrThrow("alice", "wrong-password"))
         .isInstanceOf(BadRequestException.class)
@@ -247,6 +275,9 @@ class KeycloakServiceTest {
     private RuntimeException assignRoleException;
     private RuntimeException verifyPasswordException;
     private UserRepresentation createdUserRepresentation;
+    private String updatedUserId;
+    private String updatedFirstName;
+    private String updatedLastName;
     private String assignedRoleUserId;
     private String assignedRole;
     private String verifiedUsername;
@@ -284,6 +315,13 @@ class KeycloakServiceTest {
       usersByUsername
           .values()
           .removeIf(userRepresentation -> userId.equals(userRepresentation.getId()));
+    }
+
+    @Override
+    public void updateUserProfile(String userId, String firstName, String lastName) {
+      updatedUserId = userId;
+      updatedFirstName = firstName;
+      updatedLastName = lastName;
     }
 
     @Override

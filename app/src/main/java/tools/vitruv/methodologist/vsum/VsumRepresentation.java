@@ -3,6 +3,7 @@ package tools.vitruv.methodologist.vsum;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,6 +26,7 @@ import lombok.Setter;
 public class VsumRepresentation implements Serializable {
   @Serial private static final long serialVersionUID = 1L;
   private Set<Long> metaModels;
+  private Map<Long, String> metaModelNames;
   private Set<MetaModelRelation> metaModelsRealation;
   private Set<Long> vsumUsers;
   private Set<View> views;
@@ -40,6 +42,22 @@ public class VsumRepresentation implements Serializable {
     private Long sourceId;
     private Long targetId;
     private Long relationFileStorage;
+    private Set<FineGranularMetaModelRelation> fineGranularMetaModelRelationSet;
+  }
+
+  /** Describes an element-level mapping under a coarse meta-model relation. */
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  @AllArgsConstructor
+  @Builder
+  public static class FineGranularMetaModelRelation implements Serializable {
+    @Serial private static final long serialVersionUID = 1L;
+    private String sourceId;
+    private String targetId;
+    private Long reactionFileStorageId;
+    private String lowCodeReactionTemplate;
+    private Map<String, Object> lowCodeReactionTemplateParams;
   }
 
   /** Describes The View. */

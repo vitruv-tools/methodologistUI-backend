@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.mapper;
 
+import org.mapstruct.Context;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
@@ -12,9 +13,12 @@ import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
  * MetaModelRelationResponse} DTOs.
  *
  * <p>Uses {@code componentModel\="spring"} for Spring DI and {@link ReportingPolicy#IGNORE} to
- * ignore unmapped targets.
+ * ignore unmapped targets. Coarse {@code sourceId}/{@code targetId} are original meta-model ids.
  */
-@Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE, componentModel = "spring")
+@Mapper(
+    unmappedTargetPolicy = ReportingPolicy.IGNORE,
+    componentModel = "spring",
+    uses = FineGranularMetaModelRelationMapper.class)
 public interface MetaModelRelationMapper {
   /**
    * Maps a {@link MetaModelRelation} to its {@link MetaModelRelationResponse} representation.
@@ -28,6 +32,7 @@ public interface MetaModelRelationMapper {
    * and {@code sync-changes} request payloads use elsewhere in the API.
    *
    * @param metaModelRelation the source entity; may be {@code null}
+   * @param lowCodeReactionRequestMapper mapper used to rebuild stored template params
    * @return the mapped response DTO, or {@code null} if input is {@code null}
    */
   @Mapping(
@@ -37,7 +42,10 @@ public interface MetaModelRelationMapper {
       target = "targetId",
       expression = "java(originalMetaModelId(metaModelRelation.getTarget()))")
   @Mapping(source = "reactionFileStorage.id", target = "reactionFileStorageId")
-  MetaModelRelationResponse toMetaModelRelationResponse(MetaModelRelation metaModelRelation);
+  @Mapping(source = "fineGranularMetaModelRelationSet", target = "fineGranularMetaModelRelationSet")
+  MetaModelRelationResponse toMetaModelRelationResponse(
+      MetaModelRelation metaModelRelation,
+      @Context LowCodeReactionRequestMapper lowCodeReactionRequestMapper);
 
   /**
    * Resolves the catalog metamodel id for a (possibly VSUM-scoped clone) {@link MetaModel}.
