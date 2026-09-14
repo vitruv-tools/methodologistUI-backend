@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -193,7 +194,7 @@ class SetupServiceApiHandlerTest {
   }
 
   @Test
-  void inspectGenModelOrThrow_deserializesData_despiteTransientField() throws Exception {
+  void inspectGenModelOrThrow_deserializesDataEntriesAsUntypedJson() {
     mockWebServer.enqueue(
         new MockResponse()
             .setResponseCode(200)
@@ -206,7 +207,9 @@ class SetupServiceApiHandlerTest {
         setupServiceApiHandler.inspectGenModelOrThrow(
             fileStorage("model.genmodel", "genmodel".getBytes()));
 
-    assertThat(result.getData()).hasSize(1);
+    assertThat(result.getData())
+        .singleElement()
+        .isEqualTo(Map.of("type", "RENAME", "path", "model.genmodel"));
   }
 
   @Test
