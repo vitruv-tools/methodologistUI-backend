@@ -20,6 +20,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class MetaModelPostRequest {
   @NotNull @NotBlank private String name;
+  @Builder.Default @NotNull @NotBlank private String version = "1.0";
   @NotNull @NotBlank private String description;
   @NotNull @NotBlank private String domain;
   @NotNull private List<String> keyword;

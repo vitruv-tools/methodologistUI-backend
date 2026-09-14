@@ -21,6 +21,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import tools.vitruv.methodologist.exception.FileAlreadyExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
@@ -288,6 +289,82 @@ class FileStorageServiceTest {
         .thenReturn(Optional.empty());
 
     assertThrows(NotFoundException.class, () -> fileStorageService.remove(email, id));
+  }
+
+  @Test
+  void storeFile_bytes_newFile_success() {
+    byte[] data = "generated-reaction".getBytes();
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
+        .thenReturn(Optional.of(testUser));
+    when(fileStorageRepository.existsByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
+        .thenReturn(false);
+    when(fileStorageRepository.save(any(FileStorage.class))).thenReturn(testFileStorage);
+
+    FileStorageResponse response =
+        fileStorageService.storeFile(
+            "test@example.com", data, "generated.reactions", "text/plain", FileEnumType.REACTION);
+
+    assertNotNull(response);
+    verify(fileStorageRepository)
+        .save(
+            argThat(
+                file ->
+                    "generated.reactions".equals(file.getFilename())
+                        && "text/plain".equals(file.getContentType())
+                        && file.getType() == FileEnumType.REACTION
+                        && Arrays.equals(file.getData(), data)));
+  }
+
+  @Test
+  void storeFile_bytes_duplicateHash_throwsFileAlreadyExistsException() {
+    byte[] data = "generated-reaction".getBytes();
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
+        .thenReturn(Optional.of(testUser));
+    when(fileStorageRepository.existsByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
+        .thenReturn(true);
+
+    assertThrows(
+        FileAlreadyExistsException.class,
+        () ->
+            fileStorageService.storeFile(
+                "test@example.com",
+                data,
+                "generated.reactions",
+                "text/plain",
+                FileEnumType.REACTION));
+  }
+
+  @Test
+  void updateFile_bytes_validRequest_updatesAndReturnsId() {
+    String email = "test@example.com";
+    Long fileId = 10L;
+    byte[] data = "generated-update".getBytes();
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(testUser));
+
+    FileStorage existing = new FileStorage();
+    existing.setId(fileId);
+    existing.setUser(testUser);
+    existing.setType(FileEnumType.REACTION);
+
+    when(fileStorageRepository.findByIdAndType(fileId, FileEnumType.REACTION))
+        .thenReturn(Optional.of(existing));
+    when(fileStorageRepository.save(any(FileStorage.class))).thenAnswer(inv -> inv.getArgument(0));
+
+    FileStorageResponse response =
+        fileStorageService.updateFile(email, fileId, data, "generated.reactions", "text/plain");
+
+    assertNotNull(response);
+    assertEquals(fileId, response.getId());
+    verify(fileStorageRepository)
+        .save(
+            argThat(
+                fs ->
+                    fs.getId().equals(fileId)
+                        && "generated.reactions".equals(fs.getFilename())
+                        && "text/plain".equals(fs.getContentType())
+                        && Arrays.equals(fs.getData(), data)));
   }
 
   @Test

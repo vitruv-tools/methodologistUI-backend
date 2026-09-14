@@ -36,6 +36,13 @@ public class MetaModel {
   private Long id;
 
   @NotNull @NotBlank private String name;
+
+  /**
+   * Identifies the version of this metamodel. Separate versions are stored as independent library
+   * entries so they can be used and tested side by side.
+   */
+  @Builder.Default @NotNull @NotBlank private String version = "1.0";
+
   @NotNull @NotBlank private String description;
   @NotNull @NotBlank private String domain;
   @NotNull private List<String> keyword;
