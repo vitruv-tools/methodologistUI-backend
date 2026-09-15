@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -190,6 +191,25 @@ class SetupServiceApiHandlerTest {
     RecordedRequest recordedRequest = mockWebServer.takeRequest();
     assertThat(recordedRequest.getMethod()).isEqualTo("POST");
     assertThat(recordedRequest.getPath()).isEqualTo(SetupServiceApiHandler.INSPECT_GENMODEL_URL);
+  }
+
+  @Test
+  void inspectGenModelOrThrow_deserializesDataEntriesAsUntypedJson() {
+    mockWebServer.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+            .setBody(
+                "{\"data\":[{\"type\":\"RENAME\",\"path\":\"model.genmodel\"}],"
+                    + "\"message\":\"GenModel inspected successfully\"}"));
+
+    GenModelInspectionResponse result =
+        setupServiceApiHandler.inspectGenModelOrThrow(
+            fileStorage("model.genmodel", "genmodel".getBytes()));
+
+    assertThat(result.getData())
+        .singleElement()
+        .isEqualTo(Map.of("type", "RENAME", "path", "model.genmodel"));
   }
 
   @Test

@@ -11,12 +11,17 @@ Contents
   run.sh                   Start the application on Linux.
   run.bat                  Start the application on Windows (double-click).
   postman_API_collection   Postman collection for the application's REST API.
+  Dockerfile               Image definition to run the application in Docker.
+  docker-compose.yaml      Starts that image with one command (see below).
   README.txt               This file.
 
 Requirements
 ------------
   Java 17 or newer. If it is not installed yet, get it from
   https://adoptium.net and install it before starting the application.
+
+  Alternatively run the application in Docker (see "Run in Docker" below);
+  then only Docker is needed, no local Java installation.
 
 How to start
 ------------
@@ -28,6 +33,36 @@ How to start
 The launcher checks that Java is available and then starts vsum.jar.
 Keep all files together in the same folder - the launchers expect vsum.jar
 to sit next to them.
+
+Run in Docker
+-------------
+  With Docker (including Compose v2) installed, run from this folder:
+
+    docker compose up --build -d
+
+  This builds an image from the Dockerfile, starts the application as a
+  container and publishes it on http://localhost:8080 - check with
+
+    curl http://localhost:8080/health
+
+  Useful commands:
+
+    docker compose logs -f          follow the application log
+    docker compose down             stop the container
+    docker compose down -v          stop it and delete the stored models
+
+  The application keeps its models in the Docker volume "vsum-data", so they
+  survive restarts and image rebuilds.
+
+  To use another host port, set VSUM_PORT; JVM options go into
+  JAVA_TOOL_OPTIONS (default -Xmx1g):
+
+    VSUM_PORT=9000 JAVA_TOOL_OPTIONS="-Xmx2g" docker compose up --build -d
+
+  Without Compose:
+
+    docker build -t my-vsum .
+    docker run -d -p 8080:8080 -v vsum-data:/data my-vsum
 
 API collection (Postman)
 ------------------------
