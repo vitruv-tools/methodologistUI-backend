@@ -15,6 +15,12 @@ import lombok.NoArgsConstructor;
  * problem the service responds with HTTP 422 and an error payload ({@code errorCode}, {@code
  * message}, {@code path}, {@code status}, {@code timestamp}). All fields are mapped into this
  * single DTO so the caller can surface the {@code message} either way.
+ *
+ * <p>{@code data} is an opaque JSON array whose element shape is owned by the setup-service. It is
+ * typed as {@link Serializable} rather than {@link Object} so the field takes part in Java
+ * serialization like the rest of the payload: Jackson binds a {@code Serializable} target the same
+ * way it binds {@code Object} (untyped JSON values), and every value it produces for untyped JSON
+ * is itself {@code Serializable}.
  */
 @Data
 @Builder
@@ -27,5 +33,5 @@ public class GenModelInspectionResponse implements Serializable {
   private String path;
   private Integer status;
   private Long timestamp;
-  private transient List<Object> data;
+  private List<Serializable> data;
 }

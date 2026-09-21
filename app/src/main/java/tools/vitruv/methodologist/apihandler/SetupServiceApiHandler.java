@@ -38,8 +38,6 @@ public class SetupServiceApiHandler {
   public static final String REACTION_FILES_PART = "reactionFiles";
   public static final String FILE_PART = "file";
 
-  private static final String FAILED_WITH_STATUS = "' failed with status ";
-  private static final String SETUP_SERVICE_REQUEST_TO = "Setup-service request to '";
   private static final MediaType APPLICATION_ZIP = MediaType.parseMediaType("application/zip");
   private static final MediaType APPLICATION_JAR =
       MediaType.parseMediaType("application/java-archive");
@@ -147,12 +145,7 @@ public class SetupServiceApiHandler {
                               body ->
                                   Mono.error(
                                       new SetupServiceException(
-                                          SETUP_SERVICE_REQUEST_TO
-                                              + uri
-                                              + FAILED_WITH_STATUS
-                                              + response.statusCode()
-                                              + ": "
-                                              + body))))
+                                          requestFailedMessage(uri, response.statusCode(), body)))))
               .bodyToMono(byte[].class)
               .block();
     } catch (SetupServiceException e) {
@@ -201,12 +194,8 @@ public class SetupServiceApiHandler {
                               body ->
                                   Mono.error(
                                       new SetupServiceException(
-                                          SETUP_SERVICE_REQUEST_TO
-                                              + PROCESS_GENMODEL_URL
-                                              + FAILED_WITH_STATUS
-                                              + response.statusCode()
-                                              + ": "
-                                              + body))))
+                                          requestFailedMessage(
+                                              PROCESS_GENMODEL_URL, response.statusCode(), body)))))
               .bodyToMono(byte[].class)
               .block();
     } catch (SetupServiceException e) {
@@ -262,12 +251,8 @@ public class SetupServiceApiHandler {
                             body ->
                                 Mono.error(
                                     new SetupServiceException(
-                                        SETUP_SERVICE_REQUEST_TO
-                                            + INSPECT_GENMODEL_URL
-                                            + FAILED_WITH_STATUS
-                                            + response.statusCode()
-                                            + ": "
-                                            + body)));
+                                        requestFailedMessage(
+                                            INSPECT_GENMODEL_URL, response.statusCode(), body))));
                   })
               .block();
 
@@ -282,6 +267,10 @@ public class SetupServiceApiHandler {
       throw new SetupServiceException(
           "Failed to call setup-service '" + INSPECT_GENMODEL_URL + "': " + e.getMessage());
     }
+  }
+
+  private static String requestFailedMessage(String uri, HttpStatusCode statusCode, String body) {
+    return "Setup-service request to '" + uri + "' failed with status " + statusCode + ": " + body;
   }
 
   private void addFilePart(MultipartBodyBuilder bodyBuilder, String partName, FileStorage file) {

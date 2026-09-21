@@ -1386,6 +1386,28 @@ class VsumServiceTest {
   }
 
   @Test
+  void createDeploymentBundle_shouldShipDockerFilesThatRunTheJarEntry() throws IOException {
+    authorizeBuildableVsum();
+
+    Map<String, byte[]> entries = entriesOf(service.createDeploymentBundle(BUILD_EMAIL, BUILD_ID));
+
+    String dockerfile = new String(entries.get("Dockerfile"), StandardCharsets.UTF_8);
+    String compose = new String(entries.get("docker-compose.yaml"), StandardCharsets.UTF_8);
+
+    // `docker build` fails if COPY names a file that is not in the archive next to the Dockerfile.
+    assertThat(dockerfile).contains("COPY " + JAR_ENTRY_NAME + " /app/" + JAR_ENTRY_NAME);
+    assertThat(dockerfile)
+        .contains("ENTRYPOINT [\"java\", \"-jar\", \"/app/" + JAR_ENTRY_NAME + "\"]");
+    // Without this the server binds to localhost inside the container and the port mapping is dead.
+    assertThat(dockerfile).contains("VITRUV_SERVER_HOST=0.0.0.0");
+    assertThat(compose).contains("build: .");
+    assertThat(compose).contains(":8080\"");
+    // Both files are consumed on Linux; a CRLF checkout must not leak into them.
+    assertThat(dockerfile).doesNotContain("\r");
+    assertThat(compose).doesNotContain("\r");
+  }
+
+  @Test
   void createDeploymentBundle_shouldThrowAccessDenied_whenUserNotMember() {
     when(vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
