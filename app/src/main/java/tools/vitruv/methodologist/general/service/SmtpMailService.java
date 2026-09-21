@@ -69,7 +69,7 @@ public class SmtpMailService {
 
     var props = impl.getJavaMailProperties();
     props.put("mail.transport.protocol", "smtp");
-    props.put("mail.smtp.auth", "true");
+    props.put("mail.smtp.auth", String.valueOf(username != null && !username.isBlank()));
     props.put("mail.smtp.starttls.enable", String.valueOf(startTls));
     props.put("mail.smtp.ssl.enable", String.valueOf(ssl));
     props.put("mail.smtp.connectiontimeout", String.valueOf(connectionTimeoutMs));
