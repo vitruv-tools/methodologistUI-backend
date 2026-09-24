@@ -84,6 +84,19 @@ public class VsumBuildService {
   /** One lock per VSUM so that two builds of the same VSUM never run at the same time. */
   private final ConcurrentMap<Long, ReentrantLock> vsumLocks = new ConcurrentHashMap<>();
 
+  /**
+   * Creates the build service.
+   *
+   * @param vsumUserRepository resolves the caller's VSUM membership
+   * @param vsumBuildRepository stores the builds
+   * @param fileStorageRepository stores the built JARs
+   * @param inputCollector collects and fingerprints the files a VSUM is built from
+   * @param setupServiceApiHandler runs the actual build
+   * @param vsumBuildMapper converts builds into responses
+   * @param properties pool, queue, retention and wait settings
+   * @param executor runs builds in the background
+   * @param transactionManager used for the explicit transactions around each build step
+   */
   public VsumBuildService(
       VsumUserRepository vsumUserRepository,
       VsumBuildRepository vsumBuildRepository,

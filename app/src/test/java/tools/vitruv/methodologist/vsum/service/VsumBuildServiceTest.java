@@ -346,9 +346,9 @@ class VsumBuildServiceTest {
 
   @Test
   void failBuildsInterruptedByRestart_failsEveryQueuedOrRunningBuild() {
-    VsumBuild queued = save(build(inputs.fingerprint(), VsumBuildStatus.QUEUED, false));
-    VsumBuild running = save(build(inputs.fingerprint(), VsumBuildStatus.RUNNING, false));
-    VsumBuild done = succeeded(inputs.fingerprint(), Instant.now());
+    final VsumBuild queued = save(build(inputs.fingerprint(), VsumBuildStatus.QUEUED, false));
+    final VsumBuild running = save(build(inputs.fingerprint(), VsumBuildStatus.RUNNING, false));
+    final VsumBuild done = succeeded(inputs.fingerprint(), Instant.now());
 
     service.failBuildsInterruptedByRestart();
 

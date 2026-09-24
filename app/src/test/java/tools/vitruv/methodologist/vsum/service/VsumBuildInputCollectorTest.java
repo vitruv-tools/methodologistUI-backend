@@ -83,7 +83,6 @@ class VsumBuildInputCollectorTest {
 
   @Test
   void collect_shouldSendCompositeAndImports_whenPairHasMultipleReactions() {
-    Vsum vsum = new Vsum();
     FileStorage e = fs(1L, "a.ecore", new byte[] {1});
     FileStorage g = fs(2L, "a.genmodel", new byte[] {2});
     FileStorage first = fs(3L, "first.reactions", reactionBytes("firstReaction"));
@@ -92,6 +91,7 @@ class VsumBuildInputCollectorTest {
     relation.setId(5L);
     relation.getFineGranularMetaModelRelationSet().add(fg("Component", "Class", first));
     relation.getFineGranularMetaModelRelationSet().add(fg("Interface", "Type", second));
+    Vsum vsum = new Vsum();
     vsum.setMetaModelRelations(Set.of(relation));
 
     List<FileStorage> sent = collector.collect(vsum).reactions();
