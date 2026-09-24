@@ -3,7 +3,6 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
-import static tools.vitruv.methodologist.messages.Error.VITRUV_CLI_ERROR;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
@@ -30,7 +29,6 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
-import tools.vitruv.methodologist.exception.VsumBuildingException;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
