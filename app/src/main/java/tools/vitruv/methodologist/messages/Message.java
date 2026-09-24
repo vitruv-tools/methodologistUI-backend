@@ -30,6 +30,8 @@ public class Message {
   public static final String META_MODEL_UPDATED_SUCCESSFULLY = "Meta model successfully updated";
   public static final String VSUM_RECOVERY_WAS_SUCCESSFULLY = "Recovery was successful";
   public static final String VSUM_BUILD_WAS_SUCCESSFULLY = "The build was successful.";
+  public static final String VSUM_BUILD_STARTED = "The build was started.";
+  public static final String VSUM_BUILD_REUSED = "An up-to-date build already exists.";
   public static final String VSUM_HISTORY_REVERT_WAS_SUCCESSFULLY =
       "The vsum history was reverted.";
   public static final String VSUM_USER_DELETED_SUCCESSFULLY =
