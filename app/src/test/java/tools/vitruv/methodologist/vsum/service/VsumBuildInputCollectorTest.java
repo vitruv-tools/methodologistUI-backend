@@ -99,9 +99,10 @@ class VsumBuildInputCollectorTest {
     assertThat(sent).hasSize(3);
     assertThat(sent.get(0).getFilename()).isEqualTo("compositeReaction5.reactions");
     String composite = new String(sent.get(0).getData(), StandardCharsets.UTF_8);
-    assertThat(composite).contains("reactions: compositeReaction5");
-    assertThat(composite).contains("import firstReaction");
-    assertThat(composite).contains("import secondReaction");
+    assertThat(composite)
+        .contains("reactions: compositeReaction5")
+        .contains("import firstReaction")
+        .contains("import secondReaction");
     assertThat(sent.subList(1, sent.size())).containsExactlyInAnyOrder(first, second);
   }
 

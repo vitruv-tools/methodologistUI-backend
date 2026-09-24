@@ -325,9 +325,12 @@ class VsumBuildServiceTest {
     foreign.setVsum(other);
     VsumBuild withoutArtifact = save(build(inputs.fingerprint(), VsumBuildStatus.FAILED, false));
 
-    assertThatThrownBy(() -> service.getArtifact(EMAIL, VSUM_ID, foreign.getId()))
+    Long foreignId = foreign.getId();
+    Long withoutArtifactId = withoutArtifact.getId();
+
+    assertThatThrownBy(() -> service.getArtifact(EMAIL, VSUM_ID, foreignId))
         .isInstanceOf(NotFoundException.class);
-    assertThatThrownBy(() -> service.getArtifact(EMAIL, VSUM_ID, withoutArtifact.getId()))
+    assertThatThrownBy(() -> service.getArtifact(EMAIL, VSUM_ID, withoutArtifactId))
         .isInstanceOf(NotFoundException.class);
   }
 
@@ -338,8 +341,7 @@ class VsumBuildServiceTest {
 
     List<VsumBuildResponse> all = service.findAll(EMAIL, VSUM_ID, PageRequest.of(0, 20));
 
-    assertThat(all).hasSize(2);
-    assertThat(all).allSatisfy(b -> assertThat(b.getVsumId()).isEqualTo(VSUM_ID));
+    assertThat(all).hasSize(2).allSatisfy(b -> assertThat(b.getVsumId()).isEqualTo(VSUM_ID));
   }
 
   @Test

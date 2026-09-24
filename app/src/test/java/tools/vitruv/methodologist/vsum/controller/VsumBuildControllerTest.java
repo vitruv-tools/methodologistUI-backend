@@ -95,8 +95,7 @@ class VsumBuildControllerTest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).isEqualTo(jar);
-    assertThat(response.getHeaders().getContentType().toString())
-        .isEqualTo("application/java-archive");
+    assertThat(response.getHeaders().getContentType()).hasToString("application/java-archive");
     assertThat(response.getHeaders().getContentDisposition().getFilename()).isEqualTo("vsum.jar");
   }
 
@@ -110,7 +109,7 @@ class VsumBuildControllerTest {
     ResponseEntity<byte[]> response = controller.downloadBundle(authentication, 7L, 42L);
 
     assertThat(response.getBody()).isEqualTo(zip);
-    assertThat(response.getHeaders().getContentType().toString()).isEqualTo("application/zip");
+    assertThat(response.getHeaders().getContentType()).hasToString("application/zip");
     assertThat(response.getHeaders().getContentDisposition().getFilename())
         .isEqualTo("vsum-deployment.zip");
   }
