@@ -386,7 +386,6 @@ public class VsumService {
             .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
 
     Vsum vsum = vsumUser.getVsum();
-
     if (vsum.getMetaModelRelations() == null || vsum.getMetaModelRelations().isEmpty()) {
       throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
     }
