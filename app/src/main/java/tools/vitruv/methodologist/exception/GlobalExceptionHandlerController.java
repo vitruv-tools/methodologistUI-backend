@@ -345,6 +345,29 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
+   * Handles creation or update of a library metamodel whose name and version are already used by
+   * the same user. Returns a BAD_REQUEST (400) response.
+   *
+   * @param ex the exception describing the duplicate name and version
+   * @param handlerMethod the handler method where the exception occurred
+   * @param request the current web request
+   * @return an ErrorResponse containing the error message and request path
+   */
+  @ExceptionHandler(value = MetaModelVersionAlreadyExistsException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse metaModelVersionAlreadyExistsException(
+      MetaModelVersionAlreadyExistsException ex,
+      HandlerMethod handlerMethod,
+      ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(MetaModelVersionAlreadyExistsException.MESSAGE_TEMPLATE)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles exceptions when attempting to add a user to a VSUM with a role they already have.
    * Returns a BAD_REQUEST (400) response with details about the duplicate user-role assignment.
    *

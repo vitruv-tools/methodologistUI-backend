@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -69,8 +70,6 @@ class FileStorageServiceTest {
   void storeFile_newFile_success() throws Exception {
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(anyString()))
         .thenReturn(Optional.of(testUser));
-    when(fileStorageRepository.existsByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
-        .thenReturn(false);
     when(fileStorageRepository.save(any(FileStorage.class))).thenReturn(testFileStorage);
 
     FileStorageResponse response =
@@ -312,6 +311,63 @@ class FileStorageServiceTest {
                     "generated.reactions".equals(file.getFilename())
                         && "text/plain".equals(file.getContentType())
                         && file.getType() == FileEnumType.REACTION
+                        && Arrays.equals(file.getData(), data)));
+  }
+
+  @Test
+  void storeFile_bytes_duplicateEcore_storesIndependentCopy() {
+    byte[] data = "same-ecore".getBytes();
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
+        .thenReturn(Optional.of(testUser));
+    when(fileStorageRepository.save(any(FileStorage.class)))
+        .thenAnswer(
+            invocation -> {
+              FileStorage saved = invocation.getArgument(0);
+              saved.setId(42L);
+              return saved;
+            });
+
+    FileStorageResponse response =
+        fileStorageService.storeFile(
+            "test@example.com", data, "model.ecore", "application/xml", FileEnumType.ECORE);
+
+    assertEquals(42L, response.getId());
+    verify(fileStorageRepository, never())
+        .existsByUserAndSha256AndSizeBytes(any(), any(), anyLong());
+    verify(fileStorageRepository)
+        .save(
+            argThat(
+                file ->
+                    file.getType() == FileEnumType.ECORE
+                        && "model.ecore".equals(file.getFilename())
+                        && Arrays.equals(file.getData(), data)));
+  }
+
+  @Test
+  void storeFile_bytes_duplicateGenModel_storesIndependentCopy() {
+    byte[] data = "same-genmodel".getBytes();
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
+        .thenReturn(Optional.of(testUser));
+    when(fileStorageRepository.save(any(FileStorage.class)))
+        .thenAnswer(
+            invocation -> {
+              FileStorage saved = invocation.getArgument(0);
+              saved.setId(43L);
+              return saved;
+            });
+
+    FileStorageResponse response =
+        fileStorageService.storeFile(
+            "test@example.com", data, "model.genmodel", "application/xml", FileEnumType.GEN_MODEL);
+
+    assertEquals(43L, response.getId());
+    verify(fileStorageRepository, never())
+        .existsByUserAndSha256AndSizeBytes(any(), any(), anyLong());
+    verify(fileStorageRepository)
+        .save(
+            argThat(
+                file ->
+                    file.getType() == FileEnumType.GEN_MODEL
                         && Arrays.equals(file.getData(), data)));
   }
 

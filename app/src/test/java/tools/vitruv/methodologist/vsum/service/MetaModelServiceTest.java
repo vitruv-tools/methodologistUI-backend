@@ -36,6 +36,7 @@ import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
 import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
+import tools.vitruv.methodologist.exception.MetaModelVersionAlreadyExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -164,6 +165,84 @@ class MetaModelServiceTest {
     verify(setupServiceApiHandler).processGenModelOrThrow(gen);
     verify(fileStorageService).overwriteStoredContent(gen, processed);
     verify(setupServiceApiHandler, never()).inspectGenModelOrThrow(any());
+  }
+
+  @Test
+  void create_rejectsSameNameAndVersion() {
+    final String email = "u@ex.com";
+    final MetaModelPostRequest request = req(10L, 20L);
+    request.setVersion("1.0");
+    request.setApplyGenModelFixes(true);
+
+    final User user = new User();
+    user.setEmail(email);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
+        .thenReturn(Optional.of(ecore));
+    final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
+        .thenReturn(Optional.of(gen));
+
+    final MetaModel mapped = metaModel(null, ecore, gen);
+    mapped.setVersion("1.0");
+    when(metaModelMapper.toMetaModel(request)).thenReturn(mapped);
+    when(metaModelRepository.existsLibraryMetamodel(user, "mm1", "1.0")).thenReturn(true);
+
+    assertThatThrownBy(() -> metaModelService.create(email, request))
+        .isInstanceOf(MetaModelVersionAlreadyExistsException.class)
+        .hasMessage("A metamodel with this name and version already exists.");
+
+    verify(setupServiceApiHandler, never()).processGenModelOrThrow(any());
+    verify(setupServiceApiHandler, never()).inspectGenModelOrThrow(any());
+    verify(metaModelRepository, never()).save(any());
+  }
+
+  @Test
+  void create_allowsSameNameWhenVersionDiffers() {
+    final String email = "u@ex.com";
+    final MetaModelPostRequest request = req(10L, 20L);
+    request.setVersion("2.0");
+    request.setApplyGenModelFixes(true);
+
+    final User user = new User();
+    user.setEmail(email);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    final FileStorage ecore = fs(10L, FileEnumType.ECORE, "E".getBytes());
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            10L, FileEnumType.ECORE, email))
+        .thenReturn(Optional.of(ecore));
+    final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            20L, FileEnumType.GEN_MODEL, email))
+        .thenReturn(Optional.of(gen));
+
+    final MetaModel mapped = metaModel(null, ecore, gen);
+    mapped.setVersion("2.0");
+    when(metaModelMapper.toMetaModel(request)).thenReturn(mapped);
+    when(metaModelRepository.existsLibraryMetamodel(user, "mm1", "2.0")).thenReturn(false);
+    when(setupServiceApiHandler.processGenModelOrThrow(gen)).thenReturn("fixed".getBytes());
+    when(metaModelRepository.save(any(MetaModel.class))).thenReturn(metaModel(100L, ecore, gen));
+    when(metamodelBuildService.buildAndValidate(any()))
+        .thenReturn(
+            MetamodelBuildService.BuildResult.builder()
+                .success(true)
+                .errors(0)
+                .warnings(0)
+                .report("OK")
+                .build());
+
+    MetaModelService.MetaModelCreationResult result = metaModelService.create(email, request);
+
+    assertThat(result.metaModel().getId()).isEqualTo(100L);
+    verify(metaModelRepository).existsLibraryMetamodel(user, "mm1", "2.0");
+    verify(metaModelRepository).save(any(MetaModel.class));
   }
 
   @Test
@@ -714,6 +793,33 @@ class MetaModelServiceTest {
     verify(metaModelMapper, times(1)).updateByMetaModelPutRequest(req, metaModel);
     verify(metaModelRepository, times(1)).save(metaModel);
     verify(metaModelRepository, never()).saveAll(any());
+  }
+
+  @Test
+  void update_rejectsNameThatCollidesWithSameVersion() {
+    String email = "u@ex.com";
+    User caller = new User();
+    caller.setId(1L);
+    caller.setEmail(email);
+
+    MetaModel metaModel = new MetaModel();
+    metaModel.setId(10L);
+    metaModel.setName("Model 3");
+    metaModel.setVersion("1.0");
+    metaModel.setSource(null);
+    metaModel.setUser(caller);
+
+    MetaModelPutRequest req = new MetaModelPutRequest();
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(caller));
+    when(metaModelRepository.findById(10L)).thenReturn(Optional.of(metaModel));
+    when(metaModelRepository.existsOtherLibraryMetamodel(caller, "Model 3", "1.0", 10L))
+        .thenReturn(true);
+
+    assertThatThrownBy(() -> metaModelService.update(email, 10L, req))
+        .isInstanceOf(MetaModelVersionAlreadyExistsException.class);
+
+    verify(metaModelRepository, never()).save(any());
   }
 
   @Test
