@@ -5,7 +5,9 @@ import java.util.Optional;
 import java.util.Set;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
@@ -54,4 +56,52 @@ public interface MetaModelRepository extends CrudRepository<MetaModel, Long> {
    */
   @SuppressWarnings("checkstyle:MethodName")
   Optional<MetaModel> findByIdAndUser_Email(Long id, String callerEmail);
+
+  /**
+   * Returns whether the user already has an active library metamodel with this name and version.
+   * Cloned metamodels are ignored.
+   *
+   * @param user the owning user
+   * @param name the metamodel name
+   * @param version the metamodel version
+   * @return {@code true} when a matching library metamodel exists
+   */
+  @Query(
+      """
+      SELECT CASE WHEN COUNT(m) > 0 THEN true ELSE false END
+      FROM MetaModel m
+      WHERE m.user = :user
+        AND m.name = :name
+        AND m.version = :version
+        AND m.source IS NULL
+        AND m.removedAt IS NULL
+      """)
+  boolean existsLibraryMetamodel(
+      @Param("user") User user, @Param("name") String name, @Param("version") String version);
+
+  /**
+   * Returns whether another active library metamodel of the user has this name and version.
+   *
+   * @param user the owning user
+   * @param name the metamodel name
+   * @param version the metamodel version
+   * @param excludedId the metamodel id to ignore, typically the one being updated
+   * @return {@code true} when a different matching library metamodel exists
+   */
+  @Query(
+      """
+      SELECT CASE WHEN COUNT(m) > 0 THEN true ELSE false END
+      FROM MetaModel m
+      WHERE m.user = :user
+        AND m.name = :name
+        AND m.version = :version
+        AND m.source IS NULL
+        AND m.removedAt IS NULL
+        AND m.id <> :excludedId
+      """)
+  boolean existsOtherLibraryMetamodel(
+      @Param("user") User user,
+      @Param("name") String name,
+      @Param("version") String version,
+      @Param("excludedId") Long excludedId);
 }
