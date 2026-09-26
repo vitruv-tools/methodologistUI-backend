@@ -717,6 +717,65 @@ class MetaModelServiceTest {
   }
 
   @Test
+  void update_relinksOwnedEcoreRevision_whenOriginalMetaModelOwned() {
+    String email = "u@ex.com";
+    User caller = new User();
+    caller.setId(1L);
+    caller.setEmail(email);
+
+    FileStorage originalEcore = fs(10L, FileEnumType.ECORE, "old".getBytes());
+    FileStorage newEcore = fs(11L, FileEnumType.ECORE, "new".getBytes());
+    FileStorage genModel = fs(20L, FileEnumType.GEN_MODEL, "gen".getBytes());
+    MetaModel metaModel = metaModel(1L, originalEcore, genModel);
+    metaModel.setUser(caller);
+
+    MetaModelPutRequest request = new MetaModelPutRequest();
+    request.setEcoreFileId(newEcore.getId());
+    request.setGenModelFileId(genModel.getId());
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(caller));
+    when(metaModelRepository.findById(metaModel.getId())).thenReturn(Optional.of(metaModel));
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            newEcore.getId(), FileEnumType.ECORE, email))
+        .thenReturn(Optional.of(newEcore));
+
+    metaModelService.update(email, metaModel.getId(), request);
+
+    assertThat(metaModel.getEcoreFile()).isSameAs(newEcore);
+    assertThat(metaModel.getGenModelFile()).isSameAs(genModel);
+    verify(metaModelRepository).save(metaModel);
+  }
+
+  @Test
+  void update_rejectsEcoreRevisionNotOwnedByCaller() {
+    String email = "u@ex.com";
+    User caller = new User();
+    caller.setId(1L);
+    caller.setEmail(email);
+
+    FileStorage originalEcore = fs(10L, FileEnumType.ECORE, "old".getBytes());
+    FileStorage genModel = fs(20L, FileEnumType.GEN_MODEL, "gen".getBytes());
+    MetaModel metaModel = metaModel(1L, originalEcore, genModel);
+    metaModel.setUser(caller);
+
+    MetaModelPutRequest request = new MetaModelPutRequest();
+    request.setEcoreFileId(11L);
+    request.setGenModelFileId(genModel.getId());
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(caller));
+    when(metaModelRepository.findById(metaModel.getId())).thenReturn(Optional.of(metaModel));
+
+    assertThatThrownBy(() -> metaModelService.update(email, metaModel.getId(), request))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(ECORE_FILE_ID_NOT_FOUND_ERROR);
+
+    assertThat(metaModel.getEcoreFile()).isSameAs(originalEcore);
+    verify(metaModelRepository, never()).save(any());
+  }
+
+  @Test
   void update_updatesBothAndSaveAll_whenDerivedAndSourceOwned() {
     String email = "u@ex.com";
     User caller = new User();
@@ -726,22 +785,31 @@ class MetaModelServiceTest {
     MetaModel source = new MetaModel();
     source.setId(1L);
     source.setUser(caller);
+    source.setEcoreFile(fs(10L, FileEnumType.ECORE, "old".getBytes()));
 
     MetaModel derived = new MetaModel();
     derived.setId(2L);
     derived.setUser(new User());
     derived.setSource(source);
+    derived.setEcoreFile(source.getEcoreFile());
 
     MetaModelPutRequest req = new MetaModelPutRequest();
+    FileStorage newEcore = fs(11L, FileEnumType.ECORE, "new".getBytes());
+    req.setEcoreFileId(newEcore.getId());
 
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.of(caller));
     when(metaModelRepository.findById(2L)).thenReturn(Optional.of(derived));
+    when(fileStorageRepository.findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            newEcore.getId(), FileEnumType.ECORE, email))
+        .thenReturn(Optional.of(newEcore));
 
     metaModelService.update(email, 2L, req);
 
     verify(metaModelMapper).updateByMetaModelPutRequest(req, source);
     verify(metaModelMapper).updateByMetaModelPutRequest(req, derived);
+    assertThat(source.getEcoreFile()).isSameAs(newEcore);
+    assertThat(derived.getEcoreFile()).isSameAs(newEcore);
 
     ArgumentCaptor<List<MetaModel>> captor = ArgumentCaptor.forClass(List.class);
     verify(metaModelRepository, times(1)).saveAll(captor.capture());
