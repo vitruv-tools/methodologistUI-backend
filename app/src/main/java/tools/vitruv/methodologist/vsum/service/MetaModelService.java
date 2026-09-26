@@ -364,7 +364,8 @@ public class MetaModelService {
       return;
     }
 
-    FileStorage updatedEcore = resolveUpdatedEcore(callerEmail, metaModel, metaModelPutRequest);
+    final FileStorage updatedEcore =
+        resolveUpdatedEcore(callerEmail, metaModel, metaModelPutRequest);
     MetaModel newSource = clone(source);
     newSource.setUser(user);
     newSource.setSource(null);
