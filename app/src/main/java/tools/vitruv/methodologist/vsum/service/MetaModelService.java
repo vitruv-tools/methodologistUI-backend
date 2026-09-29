@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
@@ -339,7 +340,11 @@ public class MetaModelService {
         throw new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS);
       }
 
+      FileStorage updatedEcore = resolveUpdatedEcore(callerEmail, metaModel, metaModelPutRequest);
       metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, metaModel);
+      if (updatedEcore != null) {
+        metaModel.setEcoreFile(updatedEcore);
+      }
       metaModelRepository.save(metaModel);
       return;
     }
@@ -347,24 +352,49 @@ public class MetaModelService {
     MetaModel source = metaModel.getSource();
 
     if (isOwnedBy(source, user)) {
+      FileStorage updatedEcore = resolveUpdatedEcore(callerEmail, metaModel, metaModelPutRequest);
       metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, source);
       metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, metaModel);
+      if (updatedEcore != null) {
+        source.setEcoreFile(updatedEcore);
+        metaModel.setEcoreFile(updatedEcore);
+      }
 
       metaModelRepository.saveAll(List.of(source, metaModel));
       return;
     }
 
+    final FileStorage updatedEcore =
+        resolveUpdatedEcore(callerEmail, metaModel, metaModelPutRequest);
     MetaModel newSource = clone(source);
     newSource.setUser(user);
     newSource.setSource(null);
 
     metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, newSource);
     metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, metaModel);
+    if (updatedEcore != null) {
+      newSource.setEcoreFile(updatedEcore);
+      metaModel.setEcoreFile(updatedEcore);
+    }
 
     metaModelRepository.save(newSource);
 
     metaModel.setSource(newSource);
     metaModelRepository.save(metaModel);
+  }
+
+  private FileStorage resolveUpdatedEcore(
+      String callerEmail, MetaModel metaModel, MetaModelPutRequest request) {
+    Long requestedId = request.getEcoreFileId();
+    FileStorage currentFile = metaModel.getEcoreFile();
+    if (requestedId == null
+        || Objects.equals(requestedId, currentFile == null ? null : currentFile.getId())) {
+      return null;
+    }
+    return fileStorageRepository
+        .findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            requestedId, FileEnumType.ECORE, callerEmail)
+        .orElseThrow(() -> new NotFoundException(ECORE_FILE_ID_NOT_FOUND_ERROR));
   }
 
   boolean isOwnedBy(MetaModel metaModel, User user) {
