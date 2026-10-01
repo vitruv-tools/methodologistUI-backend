@@ -16,8 +16,17 @@ services:
         -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
     volumes:
       - ${PWD}/app/log:/app/log
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:$${SERVER_PORT:-8080}/actuator/health/liveness || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
     depends_on:
-      - methodologist-postgresdb
+      methodologist-postgresdb:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
 
   methodologist-flyway:
     image: flyway/flyway
@@ -35,6 +44,11 @@ services:
       POSTGRES_USER: methodologist
       POSTGRES_PASSWORD: methodologist
       POSTGRES_DB: methodologist
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U methodologist -d methodologist"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   mock-server:
     image: mockserver/mockserver:5.14.0
@@ -73,8 +87,23 @@ services:
     command:
       - start-dev
       - --import-realm
+    healthcheck:
+      # The image ships neither curl nor wget; bash's /dev/tcp reaches the management port
+      # (9000, enabled by KC_HEALTH_ENABLED) from inside the container. /health/ready answers
+      # 200 when ready and 503 otherwise, so the status line is what counts.
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q 'HTTP/1.1 200' <&3
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 10
     depends_on:
-      - keycloak-db
+      keycloak-db:
+        condition: service_healthy
     volumes:
       - ./docker/keycloak:/tmp
       - ./docker/keycloak/themes/test:/opt/jboss/keycloak/themes/test
@@ -87,3 +116,8 @@ services:
       POSTGRES_USER: keycloak
       POSTGRES_PASSWORD: keycloak
       POSTGRES_DB: keycloak
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
