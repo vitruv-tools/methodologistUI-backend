@@ -30,6 +30,7 @@ import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
 import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
+import tools.vitruv.methodologist.exception.MetaModelVersionAlreadyExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -138,6 +139,26 @@ public class MetaModelService {
     return new CreateContext(user, metaModel, ecoreFile, genModelFile);
   }
 
+  /**
+   * Rejects a library metamodel when this user already has the same name and version. A different
+   * version of the same name is allowed. Cloned metamodels are not part of the check.
+   *
+   * @param user the owning user
+   * @param name the metamodel name
+   * @param version the metamodel version
+   * @param excludedId the metamodel id to ignore when updating, or {@code null} when creating
+   */
+  private void rejectDuplicateLibraryVersion(
+      User user, String name, String version, Long excludedId) {
+    boolean duplicate =
+        excludedId == null
+            ? metaModelRepository.existsLibraryMetamodel(user, name, version)
+            : metaModelRepository.existsOtherLibraryMetamodel(user, name, version, excludedId);
+    if (duplicate) {
+      throw new MetaModelVersionAlreadyExistsException();
+    }
+  }
+
   private MetaModel savePendingMetaModel(CreateContext createContext) {
     MetaModel metaModel = createContext.metaModel();
     metaModel.setUser(createContext.user());
@@ -189,6 +210,11 @@ public class MetaModelService {
   @Transactional
   public MetaModelCreationResult create(String callerEmail, MetaModelPostRequest req) {
     CreateContext createContext = prepareCreateContext(callerEmail, req);
+    rejectDuplicateLibraryVersion(
+        createContext.user(),
+        createContext.metaModel().getName(),
+        createContext.metaModel().getVersion(),
+        null);
 
     if (!req.isApplyGenModelFixes()) {
       GenModelInspectionResponse inspection = inspectGenModel(createContext.genModelFile());
@@ -345,6 +371,8 @@ public class MetaModelService {
       if (updatedEcore != null) {
         metaModel.setEcoreFile(updatedEcore);
       }
+      rejectDuplicateLibraryVersion(
+          metaModel.getUser(), metaModel.getName(), metaModel.getVersion(), metaModel.getId());
       metaModelRepository.save(metaModel);
       return;
     }
@@ -359,6 +387,8 @@ public class MetaModelService {
         source.setEcoreFile(updatedEcore);
         metaModel.setEcoreFile(updatedEcore);
       }
+      rejectDuplicateLibraryVersion(
+          source.getUser(), source.getName(), source.getVersion(), source.getId());
 
       metaModelRepository.saveAll(List.of(source, metaModel));
       return;
@@ -376,6 +406,8 @@ public class MetaModelService {
       newSource.setEcoreFile(updatedEcore);
       metaModel.setEcoreFile(updatedEcore);
     }
+    rejectDuplicateLibraryVersion(
+        user, newSource.getName(), newSource.getVersion(), newSource.getId());
 
     metaModelRepository.save(newSource);
 
