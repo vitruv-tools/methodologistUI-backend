@@ -274,7 +274,11 @@ public class VsumController {
    * @return a response indicating that the build completed successfully
    * @throws AccessDeniedException if the caller has no access to the VSUM
    * @throws VsumBuildingException if the build fails
+   * @deprecated builds are asynchronous now; use {@code POST /v1/vsums/{id}/builds} and poll the
+   *     returned build (see {@link VsumBuildController}). This endpoint blocks until the build
+   *     finishes and is kept for existing clients.
    */
+  @Deprecated(since = "334")
   @GetMapping("/v1/vsums/{id}/build/check")
   @PreAuthorize("hasRole('user')")
   public ResponseTemplateDto<Void> buildOrThrow(
@@ -292,7 +296,11 @@ public class VsumController {
    * @return the VSUM fat JAR build artifact
    * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
    *     fails
+   * @deprecated builds are asynchronous now; use {@code POST /v1/vsums/{id}/builds} and download
+   *     {@code /builds/{buildId}/artifact} (see {@link VsumBuildController}). This endpoint blocks
+   *     until the build finishes and is kept for existing clients.
    */
+  @Deprecated(since = "334")
   @GetMapping("/v1/vsums/{id}/build/artifact")
   public ResponseEntity<byte[]> buildAndDownload(
       KeycloakAuthentication authentication, @PathVariable Long id) {
@@ -321,7 +329,11 @@ public class VsumController {
    *     fails
    * @throws tools.vitruv.methodologist.exception.BuildArtifactCreationException if the archive
    *     cannot be assembled
+   * @deprecated builds are asynchronous now; use {@code POST /v1/vsums/{id}/builds} and download
+   *     {@code /builds/{buildId}/bundle} (see {@link VsumBuildController}). This endpoint blocks
+   *     until the build finishes and is kept for existing clients.
    */
+  @Deprecated(since = "334")
   @GetMapping("/v1/vsums/{id}/build/bundle")
   @PreAuthorize("hasRole('user')")
   public ResponseEntity<byte[]> buildAndDownloadBundle(

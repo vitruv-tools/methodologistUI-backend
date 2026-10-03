@@ -9,5 +9,7 @@ public enum FileEnumType {
   GEN_MODEL,
   REACTION,
   NEO_JOIN,
-  OCL
+  OCL,
+  /** A fat JAR produced by a VSUM build, see {@code VsumBuild}. */
+  VSUM_JAR
 }

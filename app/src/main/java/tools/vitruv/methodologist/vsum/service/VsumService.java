@@ -1,7 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
 import static tools.vitruv.methodologist.messages.Error.METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR;
-import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
@@ -21,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -45,12 +43,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
 import tools.vitruv.methodologist.exception.BuildArtifactCreationException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.general.MemoizedSupplier;
-import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
@@ -69,7 +65,6 @@ import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumViewMapper;
-import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
@@ -150,8 +145,7 @@ public class VsumService {
   private final VsumViewMapper vsumViewMapper;
   FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
   LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
-  ReactionBuildCollector reactionBuildCollector;
-  private final SetupServiceApiHandler setupServiceApiHandler;
+  VsumBuildService vsumBuildService;
   @NonFinal private VsumService self;
 
   @Autowired
@@ -464,7 +458,7 @@ public class VsumService {
 
   /**
    * Scheduled task that deletes all {@link Vsum} entities marked as removed for over 30 days, along
-   * with their associated user relationships, metamodels, and metamodel relations.
+   * with their associated user relationships, metamodels, metamodel relations and builds.
    *
    * <p>Runs daily at midnight.
    */
@@ -480,6 +474,7 @@ public class VsumService {
           vsumUserService.delete(vsum);
           vsumMetaModelService.delete(vsum);
           metaModelRelationService.deleteByVsum(vsum);
+          vsumBuildService.deleteByVsum(vsum);
         });
   }
 
@@ -504,15 +499,11 @@ public class VsumService {
   }
 
   /**
-   * Builds the VSUM via the external setup-service and returns the generated fat JAR.
+   * Builds the VSUM and returns the generated fat JAR.
    *
-   * <p>Access is restricted to users who are members of the given VSUM. If the caller does not have
-   * access, an {@link AccessDeniedException} is thrown.
-   *
-   * <p>The metamodel, genmodel and reaction files referenced by the VSUM are collected and
-   * deduplicated from the resolved {@link VsumUser}, then sent to the setup-service which performs
-   * the build and returns the JAR. Fine-granular reaction files are included. A pair with more than
-   * one reaction file is wrapped in a generated composite that imports each file.
+   * <p>The build itself is handled by {@link VsumBuildService}: an up-to-date build of the same
+   * input files is reused, otherwise a new one is started and this call waits for it. Access is
+   * restricted to members of the VSUM.
    *
    * @param callerEmail email address of the requesting user
    * @param id the VSUM identifier
@@ -520,55 +511,12 @@ public class VsumService {
    * @throws AccessDeniedException if the user is not authorized for this VSUM
    * @throws tools.vitruv.methodologist.exception.NotFoundException if required files (meta-models
    *     or reactions) are missing
-   * @throws tools.vitruv.methodologist.exception.VsumBuildingException if reaction files on a pair
-   *     cannot be composed
-   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
-   *     fails or returns an empty artifact
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the build fails
+   * @throws tools.vitruv.methodologist.exception.VsumBuildingException if the build does not finish
+   *     within the configured wait timeout or the build queue is full
    */
   public byte[] getJarfat(String callerEmail, Long id) {
-    VsumUser vsumUser =
-        vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
-                id, callerEmail)
-            .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
-
-    Vsum vsum = vsumUser.getVsum();
-
-    if (vsum.getMetaModelRelations() == null || vsum.getMetaModelRelations().isEmpty()) {
-      throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
-    }
-
-    Map<String, FileStorage> ecores = new LinkedHashMap<>();
-    Map<String, FileStorage> genmodels = new LinkedHashMap<>();
-    List<FileStorage> reactions = new ArrayList<>();
-
-    for (MetaModelRelation relation : vsum.getMetaModelRelations()) {
-      if (relation == null) {
-        throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
-      }
-
-      MetaModel source = relation.getSource();
-      MetaModel target = relation.getTarget();
-
-      if (source != null) {
-        putPair(ecores, genmodels, source.getEcoreFile(), source.getGenModelFile());
-      }
-      if (target != null) {
-        putPair(ecores, genmodels, target.getEcoreFile(), target.getGenModelFile());
-      }
-
-      reactions.addAll(reactionBuildCollector.collectForRelation(relation));
-    }
-
-    if (ecores.isEmpty() || genmodels.isEmpty()) {
-      throw new NotFoundException(METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR);
-    }
-    if (reactions.isEmpty()) {
-      throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
-    }
-
-    return setupServiceApiHandler.buildVsumJarOrThrow(
-        new ArrayList<>(ecores.values()), new ArrayList<>(genmodels.values()), reactions);
+    return vsumBuildService.buildAndWait(callerEmail, id);
   }
 
   /**
@@ -590,8 +538,18 @@ public class VsumService {
    * @throws BuildArtifactCreationException if the archive cannot be assembled
    */
   public byte[] createDeploymentBundle(String callerEmail, Long id) {
-    byte[] jar = getJarfat(callerEmail, id);
+    return createDeploymentBundle(getJarfat(callerEmail, id));
+  }
 
+  /**
+   * Packages an already built fat JAR together with the {@code deployment} resource package into
+   * the deployment bundle, see {@link #createDeploymentBundle(String, Long)}.
+   *
+   * @param jar the built fat JAR bytes
+   * @return the deployment bundle as ZIP bytes
+   * @throws BuildArtifactCreationException if the archive cannot be assembled
+   */
+  public byte[] createDeploymentBundle(byte[] jar) {
     Path workDirectory = null;
     try {
       // The archive is assembled in a private directory instead of directly in the shared
@@ -602,7 +560,7 @@ public class VsumService {
       writeBundle(bundle, jar);
       return Files.readAllBytes(bundle);
     } catch (IOException e) {
-      log.error("Failed to assemble the deployment bundle for VSUM {}", id, e);
+      log.error("Failed to assemble the deployment bundle", e);
       throw new BuildArtifactCreationException(e.getMessage());
     } finally {
       deleteQuietly(workDirectory);
@@ -762,52 +720,6 @@ public class VsumService {
    * @param resource the classpath resource holding the content
    */
   private record BundleEntry(String name, Resource resource) {}
-
-  /**
-   * Associates an Ecore/GenModel pair into the provided maps using stable keys.
-   *
-   * <p>If either {@code ecore} or {@code genmodel} is {@code null} the pair is ignored. Existing
-   * entries in the maps are preserved (first seen wins).
-   *
-   * @param ecores map to populate with Ecore FileStorage instances keyed by {@link
-   *     #key(FileStorage)}
-   * @param genmodels map to populate with GenModel FileStorage instances keyed by {@link
-   *     #key(FileStorage)}
-   * @param ecore the Ecore file storage; may be {@code null}
-   * @param genmodel the GenModel file storage; may be {@code null}
-   */
-  private void putPair(
-      Map<String, FileStorage> ecores,
-      Map<String, FileStorage> genmodels,
-      FileStorage ecore,
-      FileStorage genmodel) {
-
-    if (ecore == null || genmodel == null) {
-      return;
-    }
-
-    String keyE = key(ecore);
-    String keyG = key(genmodel);
-
-    ecores.putIfAbsent(keyE, ecore);
-    genmodels.putIfAbsent(keyG, genmodel);
-  }
-
-  /**
-   * Produces a stable lookup key for a {@link FileStorage}.
-   *
-   * <p>If the storage has a non-{@code null} id the returned key is {@code "id:<id>"}, otherwise it
-   * is {@code "name:<filename>"}. A {@code null} filename is treated as an empty string.
-   *
-   * @param fs the FileStorage instance; must not be {@code null}
-   * @return a stable string key suitable for map lookups
-   */
-  private String key(FileStorage fs) {
-    if (fs.getId() != null) {
-      return "id:" + fs.getId();
-    }
-    return "name:" + (fs.getFilename() == null ? "" : fs.getFilename());
-  }
 
   /**
    * Synchronize the given {@link Vsum} to match the desired state described by the {@link
