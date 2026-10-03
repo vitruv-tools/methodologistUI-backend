@@ -63,6 +63,14 @@ public class SecurityConfiguration {
             auth ->
                 auth.requestMatchers(HttpMethod.OPTIONS, "/**")
                     .permitAll()
+                    // Probes must work without a token; details are still only shown to
+                    // authenticated users (management.endpoint.health.show-details).
+                    .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**")
+                    .permitAll()
+                    // Actuator endpoints have no @PreAuthorize, so the catch-all below would
+                    // otherwise leave every other one open.
+                    .requestMatchers("/actuator/**")
+                    .hasRole("user")
                     .anyRequest()
                     .permitAll())
         .oauth2ResourceServer(
