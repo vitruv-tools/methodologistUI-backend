@@ -3,7 +3,9 @@ package tools.vitruv.methodologist.general.model.repository;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.query.Param;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
@@ -76,4 +78,17 @@ public interface FileStorageRepository extends CrudRepository<FileStorage, Long>
    */
   @SuppressWarnings("checkstyle:MethodName")
   Optional<FileStorage> findByIdAndUser_EmailAndUser_RemovedAtIsNull(Long id, String callerEmail);
+
+  /**
+   * Frees the PostgreSQL large object holding the content of the given file.
+   *
+   * <p>{@code data} is stored as an {@code oid}; deleting the row does not delete the large object
+   * it points to, so the content would stay in {@code pg_largeobject} forever. Call this right
+   * before deleting a row whose content is large and short-lived, such as a build artifact.
+   *
+   * @param id the file whose content to free
+   * @return {@code 1} if a large object was unlinked
+   */
+  @Query(value = "SELECT lo_unlink(data) FROM file_storage WHERE id = :id", nativeQuery = true)
+  Integer unlinkData(@Param("id") Long id);
 }

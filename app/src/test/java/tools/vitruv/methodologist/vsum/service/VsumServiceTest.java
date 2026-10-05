@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -50,7 +49,6 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -67,13 +65,11 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse
 import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
-import tools.vitruv.methodologist.vsum.lowcode.reactions.template.service.LowCodeReactionService;
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumViewMapper;
-import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
@@ -116,10 +112,7 @@ class VsumServiceTest {
   @Mock private VsumViewMapper vsumViewMapper;
   @Mock private FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
   @Mock private LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
-  @Mock private SetupServiceApiHandler setupServiceApiHandler;
-
-  private final ReactionBuildCollector reactionBuildCollector =
-      new ReactionBuildCollector(new LowCodeReactionService(null));
+  @Mock private VsumBuildService vsumBuildService;
 
   private VsumService service;
 
@@ -168,29 +161,6 @@ class VsumServiceTest {
     return vsumUser;
   }
 
-  private FileStorage fs(Long id, String filename, byte[] data) {
-    FileStorage f = new FileStorage();
-    f.setId(id);
-    f.setFilename(filename);
-    f.setData(data);
-    return f;
-  }
-
-  private MetaModel mm(FileStorage ecore, FileStorage gen) {
-    MetaModel m = new MetaModel();
-    m.setEcoreFile(ecore);
-    m.setGenModelFile(gen);
-    return m;
-  }
-
-  private MetaModelRelation rel(MetaModel source, MetaModel target, FileStorage reaction) {
-    MetaModelRelation r = new MetaModelRelation();
-    r.setSource(source);
-    r.setTarget(target);
-    r.setReactionFileStorage(reaction);
-    return r;
-  }
-
   @BeforeEach
   void setUp() {
     service =
@@ -214,8 +184,7 @@ class VsumServiceTest {
             vsumViewMapper,
             fineGranularMetaModelRelationService,
             lowCodeReactionRequestMapper,
-            reactionBuildCollector,
-            setupServiceApiHandler,
+            vsumBuildService,
             new PathMatchingResourcePatternResolver());
     service.setSelf(service);
 
@@ -1161,190 +1130,20 @@ class VsumServiceTest {
   }
 
   @Test
-  void getJarfat_shouldThrowAccessDenied_whenUserNotMember() {
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
-                anyLong(), anyString()))
-        .thenReturn(Optional.empty());
+  void getJarfat_shouldReturnTheJarOfTheBuildPipeline() {
+    byte[] jarBytes = "FAKEJAR".getBytes(StandardCharsets.UTF_8);
+    when(vsumBuildService.buildAndWait(BUILD_EMAIL, BUILD_ID)).thenReturn(jarBytes);
 
-    assertThatThrownBy(() -> service.getJarfat("x@y.com", 1L))
+    assertThat(service.getJarfat(BUILD_EMAIL, BUILD_ID)).isEqualTo(jarBytes);
+  }
+
+  @Test
+  void getJarfat_shouldPropagateBuildPipelineFailures() {
+    when(vsumBuildService.buildAndWait(BUILD_EMAIL, BUILD_ID))
+        .thenThrow(new org.springframework.security.access.AccessDeniedException("no"));
+
+    assertThatThrownBy(() -> service.getJarfat(BUILD_EMAIL, BUILD_ID))
         .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
-
-    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
-  }
-
-  @Test
-  void getJarfat_shouldReturnJar_fromSetupService_whenAuthorized() {
-    String email = "x@y.com";
-    Long id = 1L;
-
-    Vsum vsum = new Vsum();
-    VsumUser vu = new VsumUser();
-    vu.setVsum(vsum);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(id, email))
-        .thenReturn(Optional.of(vu));
-
-    FileStorage e1 = fs(1L, "a.ecore", new byte[] {1});
-    FileStorage g1 = fs(2L, "a.genmodel", new byte[] {2});
-    FileStorage r1 = fs(3L, "x.reactions", new byte[] {3});
-    vsum.setMetaModelRelations(Set.of(rel(mm(e1, g1), null, r1)));
-
-    byte[] jarBytes = "FAKEJAR".getBytes(StandardCharsets.UTF_8);
-    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
-        .thenReturn(jarBytes);
-
-    byte[] jar = service.getJarfat(email, id);
-
-    assertThat(jar).isEqualTo(jarBytes);
-    verify(setupServiceApiHandler).buildVsumJarOrThrow(anyList(), anyList(), anyList());
-  }
-
-  @Test
-  void getJarfat_shouldDeduplicateMetamodels_beforeCallingSetupService() {
-    String email = "x@y.com";
-    Long id = 1L;
-
-    Vsum vsum = new Vsum();
-    VsumUser vu = new VsumUser();
-    vu.setVsum(vsum);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(id, email))
-        .thenReturn(Optional.of(vu));
-
-    FileStorage e1 = fs(10L, "dup.ecore", new byte[] {1});
-    FileStorage g1 = fs(11L, "dup.genmodel", new byte[] {2});
-    FileStorage r1 = fs(12L, "a.reactions", new byte[] {3});
-    MetaModel m1 = mm(e1, g1);
-    MetaModel m2 = mm(e1, g1);
-    vsum.setMetaModelRelations(
-        Set.of(rel(m1, m2, r1), rel(m1, null, fs(13L, "b.reactions", new byte[] {4}))));
-
-    byte[] jar = "JAR".getBytes(StandardCharsets.UTF_8);
-    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
-        .thenReturn(jar);
-
-    byte[] out = service.getJarfat(email, id);
-    assertThat(out).isEqualTo(jar);
-
-    ArgumentCaptor<List<FileStorage>> ecoresCap = ArgumentCaptor.forClass(List.class);
-    ArgumentCaptor<List<FileStorage>> gensCap = ArgumentCaptor.forClass(List.class);
-    ArgumentCaptor<List<FileStorage>> reactionsCap = ArgumentCaptor.forClass(List.class);
-    verify(setupServiceApiHandler)
-        .buildVsumJarOrThrow(ecoresCap.capture(), gensCap.capture(), reactionsCap.capture());
-
-    assertThat(ecoresCap.getValue()).hasSize(1);
-    assertThat(gensCap.getValue()).hasSize(1);
-    assertThat(reactionsCap.getValue()).hasSize(2);
-  }
-
-  @Test
-  void getJarfat_shouldThrowNotFound_whenNoMetaModelRelations() {
-    String email = "x@y.com";
-    Long id = 1L;
-
-    Vsum vsum = new Vsum();
-    vsum.setMetaModelRelations(null);
-    VsumUser vu = new VsumUser();
-    vu.setVsum(vsum);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(id, email))
-        .thenReturn(Optional.of(vu));
-
-    assertThatThrownBy(() -> service.getJarfat(email, id)).isInstanceOf(NotFoundException.class);
-    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
-  }
-
-  @Test
-  void getJarfat_shouldThrowNotFound_whenNoReactions() {
-    String email = "x@y.com";
-    Long id = 1L;
-
-    Vsum vsum = new Vsum();
-    FileStorage e = fs(1L, "a.ecore", new byte[] {1});
-    FileStorage g = fs(2L, "a.genmodel", new byte[] {2});
-    vsum.setMetaModelRelations(Set.of(rel(mm(e, g), null, null)));
-    VsumUser vu = new VsumUser();
-    vu.setVsum(vsum);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(id, email))
-        .thenReturn(Optional.of(vu));
-
-    assertThatThrownBy(() -> service.getJarfat(email, id)).isInstanceOf(NotFoundException.class);
-    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
-  }
-
-  @Test
-  void getJarfat_shouldIncludeFineGranularReaction_whenCoarseReactionMissing() {
-    String email = "x@y.com";
-    Long id = 1L;
-
-    Vsum vsum = new Vsum();
-    VsumUser vu = new VsumUser();
-    vu.setVsum(vsum);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(id, email))
-        .thenReturn(Optional.of(vu));
-
-    FileStorage e = fs(1L, "a.ecore", new byte[] {1});
-    FileStorage g = fs(2L, "a.genmodel", new byte[] {2});
-    FileStorage fgReaction = fs(3L, "fg.reactions", new byte[] {3});
-    MetaModelRelation relation = rel(mm(e, g), null, null);
-    relation.getFineGranularMetaModelRelationSet().add(fg("Component", "Class", fgReaction));
-    vsum.setMetaModelRelations(Set.of(relation));
-
-    byte[] jarBytes = "FAKEJAR".getBytes(StandardCharsets.UTF_8);
-    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
-        .thenReturn(jarBytes);
-
-    byte[] jar = service.getJarfat(email, id);
-
-    assertThat(jar).isEqualTo(jarBytes);
-    ArgumentCaptor<List<FileStorage>> reactionsCap = ArgumentCaptor.forClass(List.class);
-    verify(setupServiceApiHandler)
-        .buildVsumJarOrThrow(anyList(), anyList(), reactionsCap.capture());
-    assertThat(reactionsCap.getValue()).containsExactly(fgReaction);
-  }
-
-  @Test
-  void getJarfat_shouldSendCompositeAndImports_whenPairHasMultipleReactions() {
-    String email = "x@y.com";
-    Long id = 1L;
-
-    Vsum vsum = new Vsum();
-    VsumUser vu = new VsumUser();
-    vu.setVsum(vsum);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(id, email))
-        .thenReturn(Optional.of(vu));
-
-    FileStorage e = fs(1L, "a.ecore", new byte[] {1});
-    FileStorage g = fs(2L, "a.genmodel", new byte[] {2});
-    FileStorage first = fs(3L, "first.reactions", reactionBytes("firstReaction"));
-    FileStorage second = fs(4L, "second.reactions", reactionBytes("secondReaction"));
-    MetaModelRelation relation = rel(mm(e, g), null, null);
-    relation.setId(5L);
-    relation.getFineGranularMetaModelRelationSet().add(fg("Component", "Class", first));
-    relation.getFineGranularMetaModelRelationSet().add(fg("Interface", "Type", second));
-    vsum.setMetaModelRelations(Set.of(relation));
-
-    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
-        .thenReturn("JAR".getBytes(StandardCharsets.UTF_8));
-
-    service.getJarfat(email, id);
-
-    ArgumentCaptor<List<FileStorage>> reactionsCap = ArgumentCaptor.forClass(List.class);
-    verify(setupServiceApiHandler)
-        .buildVsumJarOrThrow(anyList(), anyList(), reactionsCap.capture());
-
-    List<FileStorage> sent = reactionsCap.getValue();
-    assertThat(sent).hasSize(3);
-    assertThat(sent.get(0).getFilename()).isEqualTo("compositeReaction5.reactions");
-    String composite = new String(sent.get(0).getData(), StandardCharsets.UTF_8);
-    assertThat(composite).contains("reactions: compositeReaction5");
-    assertThat(composite).contains("import firstReaction");
-    assertThat(composite).contains("import secondReaction");
-    assertThat(sent.subList(1, sent.size())).containsExactlyInAnyOrder(first, second);
   }
 
   @Test
@@ -1409,57 +1208,30 @@ class VsumServiceTest {
 
   @Test
   void createDeploymentBundle_shouldThrowAccessDenied_whenUserNotMember() {
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
-                anyLong(), anyString()))
-        .thenReturn(Optional.empty());
+    when(vsumBuildService.buildAndWait(BUILD_EMAIL, BUILD_ID))
+        .thenThrow(new org.springframework.security.access.AccessDeniedException("no"));
 
     assertThatThrownBy(() -> service.createDeploymentBundle(BUILD_EMAIL, BUILD_ID))
         .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
-
-    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
   }
 
   @Test
   void createDeploymentBundle_shouldThrowNotFound_whenNoReactions() {
-    Vsum vsum = new Vsum();
-    FileStorage e = fs(1L, "a.ecore", new byte[] {1});
-    FileStorage g = fs(2L, "a.genmodel", new byte[] {2});
-    vsum.setMetaModelRelations(Set.of(rel(mm(e, g), null, null)));
-    VsumUser vsumUser = new VsumUser();
-    vsumUser.setVsum(vsum);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
-                BUILD_ID, BUILD_EMAIL))
-        .thenReturn(Optional.of(vsumUser));
+    when(vsumBuildService.buildAndWait(BUILD_EMAIL, BUILD_ID))
+        .thenThrow(new NotFoundException("Reaction files"));
 
     assertThatThrownBy(() -> service.createDeploymentBundle(BUILD_EMAIL, BUILD_ID))
         .isInstanceOf(NotFoundException.class);
   }
 
   /**
-   * Arranges an authorized, buildable VSUM whose build returns a fixed JAR.
+   * Stubs the build pipeline to return a fixed JAR for the test VSUM.
    *
-   * @return the JAR bytes the setup-service is stubbed to return
+   * @return the JAR bytes the pipeline is stubbed to return
    */
   private byte[] authorizeBuildableVsum() {
-    Vsum vsum = new Vsum();
-    VsumUser vsumUser = new VsumUser();
-    vsumUser.setVsum(vsum);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
-                BUILD_ID, BUILD_EMAIL))
-        .thenReturn(Optional.of(vsumUser));
-
-    FileStorage ecore = fs(1L, "a.ecore", new byte[] {1});
-    FileStorage genmodel = fs(2L, "a.genmodel", new byte[] {2});
-    FileStorage reaction = fs(3L, "x.reactions", new byte[] {3});
-    vsum.setMetaModelRelations(Set.of(rel(mm(ecore, genmodel), null, reaction)));
-
     byte[] jarBytes = "FAKEJAR".getBytes(StandardCharsets.UTF_8);
-    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
-        .thenReturn(jarBytes);
-
+    when(vsumBuildService.buildAndWait(BUILD_EMAIL, BUILD_ID)).thenReturn(jarBytes);
     return jarBytes;
   }
 
@@ -1521,26 +1293,5 @@ class VsumServiceTest {
     Path archive = tempDir.resolve("bundle-" + bundle.length + ".zip");
     Files.write(archive, bundle);
     return archive;
-  }
-
-  private FineGranularMetaModelRelation fg(String source, String target, FileStorage reaction) {
-    return FineGranularMetaModelRelation.builder()
-        .sourceId(source)
-        .targetId(target)
-        .reactionFileStorage(reaction)
-        .build();
-  }
-
-  private byte[] reactionBytes(String reactionName) {
-    return """
-        import "http://pcm" as pcm
-        import "http://uml" as uml
-
-        reactions: %s
-        in reaction to changes in pcm
-        execute actions in uml
-        """
-        .formatted(reactionName)
-        .getBytes(StandardCharsets.UTF_8);
   }
 }
