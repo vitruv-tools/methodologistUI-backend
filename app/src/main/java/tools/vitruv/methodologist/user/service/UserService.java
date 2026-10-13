@@ -368,7 +368,7 @@ public class UserService {
    */
   public void checkEmailExistsOrThrow(String email) {
     boolean existsInDb = userRepository.findByEmailIgnoreCase(email).isPresent();
-    boolean existsInKeycloak = Boolean.TRUE.equals(keycloakService.existUser(email));
+    boolean existsInKeycloak = keycloakService.existUserByEmail(email);
 
     if (existsInDb || existsInKeycloak) {
       throw new EmailExistsException(email);

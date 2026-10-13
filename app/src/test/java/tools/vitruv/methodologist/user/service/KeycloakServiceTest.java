@@ -244,6 +244,24 @@ class KeycloakServiceTest {
   }
 
   @Test
+  void existUserByEmail_returnsTrue_whenEmailExists() {
+    keycloakGateway.addUser("alice", "alice@example.com", "user-1");
+
+    final boolean result = keycloakService.existUserByEmail("alice@example.com");
+
+    assertThat(result).isTrue();
+  }
+
+  @Test
+  void existUserByEmail_returnsFalse_whenEmailDoesNotExist() {
+    keycloakGateway.addUser("alice", "alice@example.com", "user-1");
+
+    final boolean result = keycloakService.existUserByEmail("missing@example.com");
+
+    assertThat(result).isFalse();
+  }
+
+  @Test
   void preparePasswordRepresentation_returnsPasswordCredential() {
     final CredentialRepresentation credentialRepresentation =
         keycloakService.preparePasswordRepresentation("password", true);
@@ -301,6 +319,13 @@ class KeycloakServiceTest {
     }
 
     @Override
+    public Optional<UserRepresentation> findUserByEmail(String email) {
+      return usersByUsername.values().stream()
+          .filter(userRepresentation -> email.equals(userRepresentation.getEmail()))
+          .findFirst();
+    }
+
+    @Override
     public void assignRealmRole(String userId, String role) {
       if (assignRoleException != null) {
         throw assignRoleException;
@@ -347,8 +372,13 @@ class KeycloakServiceTest {
     }
 
     private void addUser(String username, String userId) {
+      addUser(username, null, userId);
+    }
+
+    private void addUser(String username, String email, String userId) {
       final UserRepresentation userRepresentation = new UserRepresentation();
       userRepresentation.setUsername(username);
+      userRepresentation.setEmail(email);
       userRepresentation.setId(userId);
       usersByUsername.put(username, userRepresentation);
     }

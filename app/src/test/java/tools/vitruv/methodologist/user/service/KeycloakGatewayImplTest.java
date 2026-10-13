@@ -3,9 +3,15 @@ package tools.vitruv.methodologist.user.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import okhttp3.HttpUrl;
+import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -20,6 +26,19 @@ class KeycloakGatewayImplTest {
   private static final String ADMIN_USERNAME = "admin";
   private static final String ADMIN_PASSWORD = "admin-password";
   private static final String CLIENT_SECRET = "client-secret";
+  private static final String TOKEN_RESPONSE_JSON =
+      """
+      {
+        "access_token": "access-token",
+        "expires_in": 300,
+        "refresh_expires_in": 1800,
+        "refresh_token": "refresh-token",
+        "token_type": "Bearer",
+        "not-before-policy": 0,
+        "session_state": "session",
+        "scope": "profile"
+      }
+      """;
 
   @Test
   void createUser_returnsCreatedResult_whenKeycloakCreatesUser() throws Exception {
@@ -86,7 +105,8 @@ class KeycloakGatewayImplTest {
       assertThat(searchRequest.getMethod()).isEqualTo("GET");
       assertThat(searchRequest.getPath())
           .startsWith("/admin/realms/methodologist/users?")
-          .contains("username=alice");
+          .contains("username=alice")
+          .contains("exact=true");
     }
   }
 
@@ -104,7 +124,57 @@ class KeycloakGatewayImplTest {
       assertThat(searchRequest.getMethod()).isEqualTo("GET");
       assertThat(searchRequest.getPath())
           .startsWith("/admin/realms/methodologist/users?")
-          .contains("username=missing");
+          .contains("username=missing")
+          .contains("exact=true");
+    }
+  }
+
+  @Test
+  void findUser_returnsUserWithExactUsername_whenSimilarUsernamesExist() throws Exception {
+    try (KeycloakServerFixture fixture = new KeycloakServerFixture()) {
+      fixture.serveUsers(
+          new StoredUser("user-1", "alisa", "alisa@example.com"),
+          new StoredUser("user-2", "lisa", "lisa@example.com"));
+
+      final Optional<UserRepresentation> result = fixture.gateway.findUser("lisa");
+
+      assertThat(result).isPresent();
+      assertThat(result.orElseThrow().getId()).isEqualTo("user-2");
+    }
+  }
+
+  @Test
+  void findUserByEmail_returnsUserWithExactEmail_whenSimilarEmailsExist() throws Exception {
+    try (KeycloakServerFixture fixture = new KeycloakServerFixture()) {
+      fixture.serveUsers(
+          new StoredUser("user-1", "alisa", "alisa@example.com"),
+          new StoredUser("user-2", "lisa", "lisa@example.com"));
+
+      final Optional<UserRepresentation> result =
+          fixture.gateway.findUserByEmail("lisa@example.com");
+
+      assertThat(result).isPresent();
+      assertThat(result.orElseThrow().getId()).isEqualTo("user-2");
+    }
+  }
+
+  @Test
+  void findUserByEmail_returnsEmpty_whenNoUserMatches() throws Exception {
+    try (KeycloakServerFixture fixture = new KeycloakServerFixture()) {
+      fixture.enqueueTokenResponse();
+      fixture.enqueueJson("[]");
+
+      final Optional<UserRepresentation> result =
+          fixture.gateway.findUserByEmail("missing@example.com");
+
+      assertThat(result).isEmpty();
+      fixture.assertAdminTokenRequest(fixture.takeRequest());
+      final RecordedRequest searchRequest = fixture.takeRequest();
+      assertThat(searchRequest.getMethod()).isEqualTo("GET");
+      assertThat(searchRequest.getPath())
+          .startsWith("/admin/realms/methodologist/users?")
+          .contains("email=missing")
+          .contains("exact=true");
     }
   }
 
@@ -272,23 +342,15 @@ class KeycloakGatewayImplTest {
     }
 
     private void enqueueJson(String body) {
-      enqueue(new MockResponse().setHeader("Content-Type", "application/json").setBody(body));
+      enqueue(jsonResponse(body));
     }
 
     private void enqueueTokenResponse() {
-      enqueueJson(
-          """
-          {
-            "access_token": "access-token",
-            "expires_in": 300,
-            "refresh_expires_in": 1800,
-            "refresh_token": "refresh-token",
-            "token_type": "Bearer",
-            "not-before-policy": 0,
-            "session_state": "session",
-            "scope": "profile"
-          }
-          """);
+      enqueueJson(TOKEN_RESPONSE_JSON);
+    }
+
+    private void serveUsers(StoredUser... users) {
+      server.setDispatcher(new UserSearchDispatcher(List.of(users)));
     }
 
     private RecordedRequest takeRequest() throws InterruptedException {
@@ -310,6 +372,56 @@ class KeycloakGatewayImplTest {
     public void close() throws IOException {
       gateway.close();
       server.shutdown();
+    }
+  }
+
+  private static MockResponse jsonResponse(String body) {
+    return new MockResponse().setHeader("Content-Type", "application/json").setBody(body);
+  }
+
+  private record StoredUser(String id, String username, String email) {
+
+    private String toJson() {
+      return "{\"id\": \"%s\", \"username\": \"%s\", \"email\": \"%s\"}"
+          .formatted(id, username, email);
+    }
+  }
+
+  /**
+   * Answers admin token and user search requests. Users are matched like Keycloak does: by
+   * substring unless {@code exact=true}, sorted by username.
+   */
+  private static final class UserSearchDispatcher extends Dispatcher {
+
+    private final List<StoredUser> users;
+
+    private UserSearchDispatcher(List<StoredUser> users) {
+      this.users = users;
+    }
+
+    @Override
+    public MockResponse dispatch(RecordedRequest request) {
+      final HttpUrl url = Objects.requireNonNull(request.getRequestUrl());
+      if (url.encodedPath().endsWith("/protocol/openid-connect/token")) {
+        return jsonResponse(TOKEN_RESPONSE_JSON);
+      }
+      final boolean exact = Boolean.parseBoolean(url.queryParameter("exact"));
+      final String body =
+          users.stream()
+              .filter(user -> matches(user.username(), url.queryParameter("username"), exact))
+              .filter(user -> matches(user.email(), url.queryParameter("email"), exact))
+              .sorted(Comparator.comparing(StoredUser::username))
+              .map(StoredUser::toJson)
+              .collect(Collectors.joining(",", "[", "]"));
+      return jsonResponse(body);
+    }
+
+    private static boolean matches(String value, String searchValue, boolean exact) {
+      if (searchValue == null) {
+        return true;
+      }
+      final String normalizedSearchValue = searchValue.toLowerCase(Locale.ROOT);
+      return exact ? value.equals(normalizedSearchValue) : value.contains(normalizedSearchValue);
     }
   }
 }
