@@ -219,7 +219,7 @@ class UserServiceTest {
 
     when(userRepository.findByEmailIgnoreCase("alice@example.com")).thenReturn(Optional.empty());
 
-    when(keycloakService.existUser("alice@example.com")).thenReturn(true);
+    when(keycloakService.existUserByEmail("alice@example.com")).thenReturn(true);
 
     assertThatThrownBy(() -> userService.create(req)).isInstanceOf(EmailExistsException.class);
 

@@ -17,12 +17,20 @@ public interface KeycloakGateway {
   UserCreationResult createUser(UserRepresentation userRepresentation);
 
   /**
-   * Finds a user by username.
+   * Finds a user by exact username.
    *
    * @param username the username to search for
-   * @return the first matching user, if one exists
+   * @return the user with exactly this username, if one exists
    */
   Optional<UserRepresentation> findUser(String username);
+
+  /**
+   * Finds a user by exact email.
+   *
+   * @param email the email to search for
+   * @return the user with exactly this email, if one exists
+   */
+  Optional<UserRepresentation> findUserByEmail(String email);
 
   /**
    * Assigns a realm role to a user.

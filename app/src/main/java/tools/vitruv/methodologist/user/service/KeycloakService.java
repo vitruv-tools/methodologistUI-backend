@@ -243,4 +243,15 @@ public class KeycloakService {
   public Boolean existUser(String username) {
     return keycloakGateway.findUser(username).isPresent();
   }
+
+  /**
+   * Checks if a user with the given email exists in Keycloak.
+   *
+   * @param email the email to check
+   * @return true if a user with exactly this email exists, false otherwise
+   */
+  @Transactional
+  public boolean existUserByEmail(String email) {
+    return keycloakGateway.findUserByEmail(email).isPresent();
+  }
 }

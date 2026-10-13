@@ -90,7 +90,12 @@ public class KeycloakGatewayImpl implements KeycloakGateway {
 
   @Override
   public Optional<UserRepresentation> findUser(String username) {
-    return keycloakAdmin.realm(realm).users().search(username).stream().findFirst();
+    return keycloakAdmin.realm(realm).users().searchByUsername(username, true).stream().findFirst();
+  }
+
+  @Override
+  public Optional<UserRepresentation> findUserByEmail(String email) {
+    return keycloakAdmin.realm(realm).users().searchByEmail(email, true).stream().findFirst();
   }
 
   @Override
