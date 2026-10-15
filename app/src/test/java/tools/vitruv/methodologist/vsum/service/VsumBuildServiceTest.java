@@ -318,6 +318,32 @@ class VsumBuildServiceTest {
   }
 
   @Test
+  void buildAndWait_returnsTheArtifact_whenOnlyTheDatabaseKnowsTheBuildSucceeded() {
+    // The worker runs in its own transaction. The build the request created stays QUEUED, like
+    // the copy that open-in-view keeps in the request's persistence context.
+    service = newService(task -> {});
+    when(vsumBuildRepository.findStatusById(anyLong()))
+        .thenReturn(Optional.of(VsumBuildStatus.RUNNING))
+        .thenReturn(Optional.of(VsumBuildStatus.SUCCEEDED));
+    when(vsumBuildRepository.findArtifactDataById(anyLong())).thenReturn(Optional.of(JAR));
+
+    assertThat(service.buildAndWait(EMAIL, VSUM_ID)).isEqualTo(JAR);
+  }
+
+  @Test
+  void buildAndWait_throwsTheErrorOfTheDatabase_whenOnlyTheDatabaseKnowsTheBuildFailed() {
+    service = newService(task -> {});
+    when(vsumBuildRepository.findStatusById(anyLong()))
+        .thenReturn(Optional.of(VsumBuildStatus.FAILED));
+    when(vsumBuildRepository.findErrorMessageById(anyLong()))
+        .thenReturn(Optional.of("compilation failed"));
+
+    assertThatThrownBy(() -> service.buildAndWait(EMAIL, VSUM_ID))
+        .isInstanceOf(SetupServiceException.class)
+        .hasMessage("compilation failed");
+  }
+
+  @Test
   void getArtifact_throwsNotFound_forBuildsOfOtherVsumsOrWithoutArtifact() {
     Vsum other = new Vsum();
     other.setId(8L);
@@ -441,6 +467,25 @@ class VsumBuildServiceTest {
     lenient()
         .when(vsumBuildRepository.findById(anyLong()))
         .thenAnswer(inv -> Optional.ofNullable(builds.get(inv.<Long>getArgument(0))));
+    lenient()
+        .when(vsumBuildRepository.findStatusById(anyLong()))
+        .thenAnswer(
+            inv ->
+                Optional.ofNullable(builds.get(inv.<Long>getArgument(0)))
+                    .map(VsumBuild::getStatus));
+    lenient()
+        .when(vsumBuildRepository.findErrorMessageById(anyLong()))
+        .thenAnswer(
+            inv ->
+                Optional.ofNullable(builds.get(inv.<Long>getArgument(0)))
+                    .map(VsumBuild::getErrorMessage));
+    lenient()
+        .when(vsumBuildRepository.findArtifactDataById(anyLong()))
+        .thenAnswer(
+            inv ->
+                Optional.ofNullable(builds.get(inv.<Long>getArgument(0)))
+                    .map(VsumBuild::getArtifact)
+                    .map(FileStorage::getData));
     lenient()
         .when(vsumBuildRepository.findByIdAndVsum(anyLong(), any(Vsum.class)))
         .thenAnswer(
