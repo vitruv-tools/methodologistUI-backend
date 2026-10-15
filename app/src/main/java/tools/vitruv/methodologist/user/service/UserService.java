@@ -2,7 +2,6 @@ package tools.vitruv.methodologist.user.service;
 
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
-import static tools.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_WRONG_PASSWORD_ERROR;
 
 import jakarta.ws.rs.BadRequestException;
@@ -376,19 +375,17 @@ public class UserService {
   }
 
   /**
-   * Updates an existing user by ID with the provided update request. Throws NotFoundException if
-   * the user is not found.
+   * Updates the caller's own account with the provided update request.
    *
-   * @param id the ID of the user to update
+   * @param callerEmail the email of the authenticated caller
+   * @param id the ID of the user to update, which must be the caller's own
    * @param userPutRequest the request containing updated user information
    * @return the updated User entity
+   * @throws AccessDeniedException if {@code id} is not the ID of the caller's active account
    */
   @Transactional
-  public User update(Long id, UserPutRequest userPutRequest) {
-    User user =
-        userRepository
-            .findByIdAndRemovedAtIsNull(id)
-            .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
+  public User update(String callerEmail, Long id, UserPutRequest userPutRequest) {
+    User user = findOwnAccountOrThrow(callerEmail, id);
     userMapper.updateByUserPutRequest(userPutRequest, user);
     keycloakService.updateUserProfile(user.getUsername(), user.getFirstName(), user.getLastName());
     userRepository.save(user);
@@ -471,21 +468,30 @@ public class UserService {
   }
 
   /**
-   * Marks a user as removed by setting the removedAt timestamp. Throws NotFoundException if the
-   * user is not found.
+   * Marks the caller's own account as removed by setting the removedAt timestamp.
    *
-   * @param id the ID of the user to remove
+   * @param callerEmail the email of the authenticated caller
+   * @param id the ID of the user to remove, which must be the caller's own
    * @return the updated User entity with removedAt set
+   * @throws AccessDeniedException if {@code id} is not the ID of the caller's active account
    */
   @Transactional
-  public User remove(Long id) {
-    User user =
-        userRepository
-            .findByIdAndRemovedAtIsNull(id)
-            .orElseThrow(() -> new NotFoundException(USER_ID_NOT_FOUND_ERROR));
+  public User remove(String callerEmail, Long id) {
+    User user = findOwnAccountOrThrow(callerEmail, id);
     user.setRemovedAt(Instant.now());
     userRepository.save(user);
     return user;
+  }
+
+  /**
+   * Returns the caller's active account if it has the given ID. Any other ID is rejected the same
+   * way, whether it exists or not, so the response does not reveal which user IDs exist.
+   */
+  private User findOwnAccountOrThrow(String callerEmail, Long id) {
+    return userRepository
+        .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
+        .filter(caller -> caller.getId().equals(id))
+        .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
   }
 
   /**
