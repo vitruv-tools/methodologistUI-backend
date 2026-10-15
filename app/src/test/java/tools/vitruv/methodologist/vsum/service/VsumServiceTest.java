@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -42,6 +44,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -1238,6 +1241,99 @@ class VsumServiceTest {
         .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
 
     verify(vsumRepository, never()).save(any(Vsum.class));
+  }
+
+  @Test
+  void deletePermanently_runsTheCleanupOfTheScheduledJob_whenOwnedAndInTrash() {
+    Vsum entity = new Vsum();
+    entity.setId(42L);
+    entity.setRemovedAt(Instant.now());
+    String email = "u@ex.com";
+    when(vsumRepository.findByIdAndUser_EmailAndUser_RemovedAtIsNullAndRemovedAtIsNotNull(
+            42L, email))
+        .thenReturn(Optional.of(entity));
+
+    service.deletePermanently(email, 42L);
+
+    // Views and relations reference the meta-model copies, so they must go first.
+    InOrder order =
+        inOrder(vsumViewService, metaModelRelationService, vsumMetaModelService, vsumBuildService);
+    order.verify(vsumViewService).deleteByVsum(entity);
+    order.verify(metaModelRelationService).deleteByVsum(entity);
+    order.verify(vsumMetaModelService).delete(entity);
+    order.verify(vsumBuildService).deleteByVsum(entity);
+    verify(vsumHistoryService).delete(entity);
+    verify(vsumUserService).delete(entity);
+  }
+
+  @Test
+  void deletePermanently_detachesDeletedChildrenBeforeTheNextStep_soAFlushCannotRestoreThem() {
+    Vsum entity = new Vsum();
+    entity.setId(43L);
+    entity.setRemovedAt(Instant.now());
+    entity.getVsumUsers().add(new VsumUser());
+    entity.getVsumMetaModels().add(new VsumMetaModel());
+    entity.getMetaModelRelations().add(new MetaModelRelation());
+    entity.getViews().add(new VsumView());
+    String email = "u@ex.com";
+    when(vsumRepository.findByIdAndUser_EmailAndUser_RemovedAtIsNullAndRemovedAtIsNotNull(
+            43L, email))
+        .thenReturn(Optional.of(entity));
+
+    // Each step runs queries that flush the persistence context, and the flush cascades from the
+    // Vsum to whatever its collections still hold. So the children deleted by the previous step
+    // must already be gone from the Vsum when the next step starts.
+    doAnswer(
+            inv -> {
+              assertThat(entity.getVsumUsers()).isEmpty();
+              return null;
+            })
+        .when(vsumViewService)
+        .deleteByVsum(entity);
+    doAnswer(
+            inv -> {
+              assertThat(entity.getViews()).isEmpty();
+              return null;
+            })
+        .when(metaModelRelationService)
+        .deleteByVsum(entity);
+    doAnswer(
+            inv -> {
+              assertThat(entity.getMetaModelRelations()).isEmpty();
+              return null;
+            })
+        .when(vsumMetaModelService)
+        .delete(entity);
+    doAnswer(
+            inv -> {
+              assertThat(entity.getVsumMetaModels()).isEmpty();
+              return null;
+            })
+        .when(vsumBuildService)
+        .deleteByVsum(entity);
+
+    service.deletePermanently(email, 43L);
+
+    verify(vsumBuildService).deleteByVsum(entity);
+  }
+
+  @Test
+  void deletePermanently_throwsNotFound_whenNotOwnedOrNotInTrash() {
+    String email = "u@ex.com";
+    when(vsumRepository.findByIdAndUser_EmailAndUser_RemovedAtIsNullAndRemovedAtIsNotNull(
+            99L, email))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.deletePermanently(email, 99L))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
+
+    verifyNoInteractions(
+        vsumHistoryService,
+        vsumUserService,
+        vsumMetaModelService,
+        metaModelRelationService,
+        vsumBuildService);
   }
 
   @Test

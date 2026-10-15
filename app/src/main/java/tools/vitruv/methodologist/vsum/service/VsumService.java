@@ -524,14 +524,63 @@ public class VsumService {
     Instant cutoff = Instant.now().minus(30, ChronoUnit.DAYS);
     List<Vsum> oldVsums = vsumRepository.findAllByRemovedAtBefore(cutoff);
 
-    oldVsums.forEach(
-        vsum -> {
-          vsumHistoryService.delete(vsum);
-          vsumUserService.delete(vsum);
-          vsumMetaModelService.delete(vsum);
-          metaModelRelationService.deleteByVsum(vsum);
-          vsumBuildService.deleteByVsum(vsum);
-        });
+    oldVsums.forEach(this::deleteProjectData);
+  }
+
+  /**
+   * Permanently deletes a {@link Vsum} from the trash of the calling owner, without waiting for the
+   * 30-day cleanup.
+   *
+   * <p>Runs the same cleanup as {@link #delete()}: the project's user relationships, history,
+   * meta-model copies, relations and builds are removed. Meta models of the model library that were
+   * used only by this project can be deleted afterwards. The operation cannot be undone.
+   *
+   * @param callerEmail the email of the authenticated user; must own the VSUM
+   * @param id the identifier of the VSUM to delete permanently
+   * @throws NotFoundException if the VSUM does not exist, is not in the trash, or is not owned by
+   *     the caller
+   */
+  @Transactional
+  public void deletePermanently(String callerEmail, Long id) {
+    Vsum vsum =
+        vsumRepository
+            .findByIdAndUser_EmailAndUser_RemovedAtIsNullAndRemovedAtIsNotNull(id, callerEmail)
+            .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
+
+    deleteProjectData(vsum);
+  }
+
+  /**
+   * Removes everything that belongs to a project. Views and meta-model relations reference the
+   * project's meta-model copies, so they are deleted before the copies to satisfy the foreign keys.
+   *
+   * <p>{@link Vsum} cascades {@code ALL} to its members, meta models, relations and views, and
+   * every query run in between flushes the persistence context. The deleted children are therefore
+   * removed from the loaded collections right after each step; otherwise the next flush cascades a
+   * persist to them, undoes their deletion and breaks the foreign keys.
+   */
+  private void deleteProjectData(Vsum vsum) {
+    vsumHistoryService.delete(vsum);
+
+    vsumUserService.delete(vsum);
+    clearIfLoaded(vsum.getVsumUsers());
+
+    vsumViewService.deleteByVsum(vsum);
+    clearIfLoaded(vsum.getViews());
+
+    metaModelRelationService.deleteByVsum(vsum);
+    clearIfLoaded(vsum.getMetaModelRelations());
+
+    vsumMetaModelService.delete(vsum);
+    clearIfLoaded(vsum.getVsumMetaModels());
+
+    vsumBuildService.deleteByVsum(vsum);
+  }
+
+  private static void clearIfLoaded(Set<?> children) {
+    if (children != null) {
+      children.clear();
+    }
   }
 
   /**

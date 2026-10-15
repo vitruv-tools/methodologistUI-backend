@@ -349,7 +349,8 @@ public class MetaModelService {
    *
    * <p>If the metamodel is currently referenced by any VSUMs, deletion is prevented and a {@link
    * tools.vitruv.methodologist.exception.MetaModelUsedInVsumException} is thrown listing the
-   * referencing VSUM names.
+   * referencing VSUM names. VSUMs that are in the trash are marked with "(in trash)" and can be
+   * deleted permanently to unblock the deletion.
    *
    * @param callerEmail the email address of the user who owns the metamodel
    * @param id the unique identifier of the metamodel to delete
@@ -369,13 +370,17 @@ public class MetaModelService {
       throw new MetaModelUsedInVsumException(
           vsums.stream()
               .map(VsumMetaModel::getVsum)
-              .map(Vsum::getName)
-              .map(String::valueOf)
-              .collect(Collectors.joining(",")));
+              .map(MetaModelService::describeBlockingVsum)
+              .collect(Collectors.joining(", ")));
     }
 
     metaModelRepository.delete(metaModel);
     fileStorageService.deleteFiles(List.of(metaModel.getEcoreFile(), metaModel.getGenModelFile()));
+  }
+
+  private static String describeBlockingVsum(Vsum vsum) {
+    String name = String.valueOf(vsum.getName());
+    return vsum.getRemovedAt() == null ? name : name + " (in trash)";
   }
 
   /**
