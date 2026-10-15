@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -24,6 +25,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,6 +56,7 @@ import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
+import tools.vitruv.methodologist.vsum.model.VsumUser;
 import tools.vitruv.methodologist.vsum.model.repository.MetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 
@@ -612,6 +615,61 @@ class MetaModelServiceTest {
     assertThat(result).isNotNull().isEmpty();
     verify(metaModelRepository).findAll(any(), any(Pageable.class));
     verify(metaModelMapper, never()).toMetaModelResponse(any());
+    verify(vsumMetaModelRepository, never()).findAllByMetaModel_Source_IdIn(any());
+  }
+
+  @Test
+  void findAll_includesVsumsUsingEachLibraryMetaModel() {
+    MetaModel used = MetaModel.builder().id(1L).build();
+    MetaModel unused = MetaModel.builder().id(2L).build();
+    Vsum beta = vsumWithMember(10L, "Beta", "U@EX.com");
+    Vsum alpha = vsumWithMember(11L, "Alpha", "u@ex.com");
+    alpha.setRemovedAt(Instant.EPOCH);
+    when(metaModelRepository.findAll(any(), any(Pageable.class))).thenReturn(List.of(used, unused));
+    when(metaModelMapper.toMetaModelResponse(used)).thenReturn(new MetaModelResponse());
+    when(metaModelMapper.toMetaModelResponse(unused)).thenReturn(new MetaModelResponse());
+    when(vsumMetaModelRepository.findAllByMetaModel_Source_IdIn(List.of(1L, 2L)))
+        .thenReturn(
+            List.of(cloneUsage(beta, used), cloneUsage(alpha, used), cloneUsage(beta, used)));
+
+    List<MetaModelResponse> result =
+        metaModelService.findAll("u@ex.com", new MetaModelFilterRequest(), PageRequest.of(0, 10));
+
+    assertThat(result.get(0).getVsums())
+        .extracting("id", "name", "removedAt")
+        .containsExactly(tuple(11L, "Alpha", Instant.EPOCH), tuple(10L, "Beta", null));
+    assertThat(result.get(1).getVsums()).isEmpty();
+  }
+
+  @Test
+  void findAll_hidesDetailsOfVsumsTheCallerIsNotMemberOf() {
+    MetaModel used = MetaModel.builder().id(1L).build();
+    Vsum own = vsumWithMember(10L, "Own", "u@ex.com");
+    Vsum foreign = vsumWithMember(11L, "Foreign", "other@ex.com");
+    when(metaModelRepository.findAll(any(), any(Pageable.class))).thenReturn(List.of(used));
+    when(metaModelMapper.toMetaModelResponse(used)).thenReturn(new MetaModelResponse());
+    when(vsumMetaModelRepository.findAllByMetaModel_Source_IdIn(List.of(1L)))
+        .thenReturn(List.of(cloneUsage(foreign, used), cloneUsage(own, used)));
+
+    List<MetaModelResponse> result =
+        metaModelService.findAll("u@ex.com", new MetaModelFilterRequest(), PageRequest.of(0, 10));
+
+    assertThat(result.get(0).getVsums())
+        .extracting("id", "name", "removedAt")
+        .containsExactly(tuple(10L, "Own", null), tuple(null, null, null));
+  }
+
+  private static Vsum vsumWithMember(Long id, String name, String memberEmail) {
+    User member = new User();
+    member.setEmail(memberEmail);
+    Vsum vsum = Vsum.builder().id(id).name(name).build();
+    vsum.setVsumUsers(Set.of(VsumUser.builder().user(member).build()));
+    return vsum;
+  }
+
+  private static VsumMetaModel cloneUsage(Vsum vsum, MetaModel source) {
+    MetaModel clone = MetaModel.builder().id(100L + vsum.getId()).source(source).build();
+    return VsumMetaModel.builder().vsum(vsum).metaModel(clone).build();
   }
 
   @Test
