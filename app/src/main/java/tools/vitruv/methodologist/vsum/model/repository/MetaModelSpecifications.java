@@ -33,6 +33,8 @@ public class MetaModelSpecifications {
    *       name (the value is trimmed and wrapped with {\@code %} for LIKE).
    *   <li>\`description\` — if provided, performs a case-insensitive substring match against the
    *       metamodel description (trimmed and wrapped with {\@code %}).
+   *   <li>\`domain\` — if provided, performs a case-insensitive substring match against the
+   *       metamodel domain (trimmed and wrapped with {\@code %}).
    *   <li>\`createdFrom\` — if provided, includes metamodels with {@code createdAt >= createdFrom}.
    *   <li>\`createdTo\` — if provided, includes metamodels with {@code createdAt <= createdTo}.
    * </ul>
@@ -71,6 +73,11 @@ public class MetaModelSpecifications {
             "%" + metaModelFilterRequest.getDescription().trim().toLowerCase() + "%";
         Predicate descLike = cb.like(cb.lower(root.get("description")), description);
         predicates.add(descLike);
+      }
+
+      if (metaModelFilterRequest.getDomain() != null) {
+        String domain = "%" + metaModelFilterRequest.getDomain().trim().toLowerCase() + "%";
+        predicates.add(cb.like(cb.lower(root.get("domain")), domain));
       }
 
       if (metaModelFilterRequest.getCreatedFrom() != null) {
