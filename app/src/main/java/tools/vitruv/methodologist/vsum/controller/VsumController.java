@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.controller;
 
 import static tools.vitruv.methodologist.messages.Message.VSUM_BUILD_WAS_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_CREATED_SUCCESSFULLY;
+import static tools.vitruv.methodologist.messages.Message.VSUM_DELETED_PERMANENTLY_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_RECOVERY_WAS_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_REMOVED_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_UPDATED_SUCCESSFULLY;
@@ -189,6 +190,27 @@ public class VsumController {
     String callerEmail = authentication.getParsedToken().getEmail();
     vsumService.remove(callerEmail, id);
     return ResponseTemplateDto.<Void>builder().message(VSUM_REMOVED_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Permanently deletes a VSUM that is in the trash. The VSUM must be owned by the authenticated
+   * user and already removed; this cannot be undone.
+   *
+   * @param authentication the Keycloak authentication object for the current user
+   * @param id the ID of the trashed VSUM to delete permanently
+   * @return response indicating the VSUM was deleted permanently
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if no matching trashed VSUM is
+   *     found
+   */
+  @DeleteMapping("/v1/vsums/{id}/permanent")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> deletePermanently(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    vsumService.deletePermanently(callerEmail, id);
+    return ResponseTemplateDto.<Void>builder()
+        .message(VSUM_DELETED_PERMANENTLY_SUCCESSFULLY)
+        .build();
   }
 
   /**

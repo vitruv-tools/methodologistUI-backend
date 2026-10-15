@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -543,7 +544,33 @@ class MetaModelServiceTest {
 
     assertThatThrownBy(() -> metaModelService.delete(email, id))
         .isInstanceOf(MetaModelUsedInVsumException.class)
-        .hasMessageContaining("VSUM1");
+        .hasMessage("Meta model is used in: VSUM1");
+  }
+
+  @Test
+  void delete_marksBlockingVsumsInTrash_inTheErrorMessage() {
+    String email = "user@ex.com";
+    Long id = 1L;
+    MetaModel metaModel = new MetaModel();
+    Vsum active = new Vsum();
+    active.setName("A");
+    Vsum trashed = new Vsum();
+    trashed.setName("B");
+    trashed.setRemovedAt(Instant.parse("2026-01-01T00:00:00Z"));
+    VsumMetaModel activeLink = new VsumMetaModel();
+    activeLink.setVsum(active);
+    VsumMetaModel trashedLink = new VsumMetaModel();
+    trashedLink.setVsum(trashed);
+
+    when(metaModelRepository.findByIdAndUser_Email(id, email)).thenReturn(Optional.of(metaModel));
+    when(vsumMetaModelRepository.findAllByMetaModel_Source(metaModel))
+        .thenReturn(List.of(activeLink, trashedLink));
+
+    assertThatThrownBy(() -> metaModelService.delete(email, id))
+        .isInstanceOf(MetaModelUsedInVsumException.class)
+        .hasMessage("Meta model is used in: A, B (in trash)");
+
+    verify(metaModelRepository, never()).delete(any(MetaModel.class));
   }
 
   @Test

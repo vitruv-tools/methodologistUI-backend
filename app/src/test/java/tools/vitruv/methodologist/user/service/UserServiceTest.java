@@ -229,7 +229,7 @@ class UserServiceTest {
   }
 
   @Test
-  void update_appliesChanges_andSaves_whenUserExists() {
+  void update_appliesChanges_andSaves_whenUpdatingOwnAccount() {
     long id = 42L;
     User existing = new User();
     existing.setId(id);
@@ -238,7 +238,8 @@ class UserServiceTest {
 
     UserPutRequest put = UserPutRequest.builder().firstName("Alicia").lastName("Doe").build();
 
-    when(userRepository.findByIdAndRemovedAtIsNull(id)).thenReturn(Optional.of(existing));
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("alice@example.com"))
+        .thenReturn(Optional.of(existing));
     doAnswer(
             invocation -> {
               User user = invocation.getArgument(1);
@@ -249,7 +250,7 @@ class UserServiceTest {
         .when(userMapper)
         .updateByUserPutRequest(put, existing);
 
-    User result = userService.update(id, put);
+    User result = userService.update("alice@example.com", id, put);
 
     assertThat(result).isSameAs(existing);
     verify(userMapper).updateByUserPutRequest(eq(put), eq(existing));
@@ -266,7 +267,8 @@ class UserServiceTest {
     existing.setUsername("alice");
     UserPutRequest put = UserPutRequest.builder().firstName("Alicia").lastName("Doe").build();
 
-    when(userRepository.findByIdAndRemovedAtIsNull(id)).thenReturn(Optional.of(existing));
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("alice@example.com"))
+        .thenReturn(Optional.of(existing));
     doAnswer(
             invocation -> {
               User user = invocation.getArgument(1);
@@ -280,7 +282,7 @@ class UserServiceTest {
         .when(keycloakService)
         .updateUserProfile("alice", "Alicia", "Doe");
 
-    assertThatThrownBy(() -> userService.update(id, put))
+    assertThatThrownBy(() -> userService.update("alice@example.com", id, put))
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining("Keycloak service down");
 
@@ -288,11 +290,32 @@ class UserServiceTest {
   }
 
   @Test
-  void update_throwsNotFound_whenUserMissing() {
-    long id = 7L;
-    when(userRepository.findByIdAndRemovedAtIsNull(id)).thenReturn(Optional.empty());
-    assertThatThrownBy(() -> userService.update(id, UserPutRequest.builder().build()))
-        .isInstanceOf(NotFoundException.class);
+  void update_throwsAccessDenied_forAnotherUsersId_withoutLookingItUp() {
+    User caller = activeUser(42L, "alice@example.com");
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("alice@example.com"))
+        .thenReturn(Optional.of(caller));
+    UserPutRequest put = UserPutRequest.builder().firstName("Changed").lastName("X").build();
+
+    // The same answer whether user 8 exists or not, so IDs cannot be probed.
+    assertThatThrownBy(() -> userService.update("alice@example.com", 8L, put))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessage(USER_DOSE_NOT_HAVE_ACCESS);
+
+    verify(userRepository, never()).findByIdAndRemovedAtIsNull(any());
+    verify(userMapper, never()).updateByUserPutRequest(any(), any());
+    verify(keycloakService, never()).updateUserProfile(any(), any(), any());
+    verify(userRepository, never()).save(any());
+  }
+
+  @Test
+  void update_throwsAccessDenied_whenCallerHasNoActiveAccount() {
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("ghost@example.com"))
+        .thenReturn(Optional.empty());
+    UserPutRequest put = UserPutRequest.builder().build();
+
+    assertThatThrownBy(() -> userService.update("ghost@example.com", 42L, put))
+        .isInstanceOf(AccessDeniedException.class);
+
     verify(userRepository, never()).save(any());
   }
 
@@ -324,14 +347,14 @@ class UserServiceTest {
   }
 
   @Test
-  void remove_setsRemovedAt_andSaves_whenUserExists() {
+  void remove_setsRemovedAt_andSaves_whenRemovingOwnAccount() {
     long id = 11L;
-    User user = new User();
-    user.setId(id);
+    User user = activeUser(id, "bob@example.com");
 
-    when(userRepository.findByIdAndRemovedAtIsNull(id)).thenReturn(Optional.of(user));
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("bob@example.com"))
+        .thenReturn(Optional.of(user));
 
-    User result = userService.remove(id);
+    User result = userService.remove("bob@example.com", id);
 
     assertThat(result).isSameAs(user);
     assertThat(user.getRemovedAt()).isNotNull();
@@ -340,10 +363,25 @@ class UserServiceTest {
   }
 
   @Test
-  void remove_throwsNotFound_whenUserMissing() {
-    when(userRepository.findByIdAndRemovedAtIsNull(77L)).thenReturn(Optional.empty());
+  void remove_throwsAccessDenied_forAnotherUsersId_withoutLookingItUp() {
+    User caller = activeUser(11L, "bob@example.com");
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("bob@example.com"))
+        .thenReturn(Optional.of(caller));
 
-    assertThatThrownBy(() -> userService.remove(77L)).isInstanceOf(NotFoundException.class);
+    assertThatThrownBy(() -> userService.remove("bob@example.com", 77L))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessage(USER_DOSE_NOT_HAVE_ACCESS);
+
+    assertThat(caller.getRemovedAt()).isNull();
+    verify(userRepository, never()).findByIdAndRemovedAtIsNull(any());
+    verify(userRepository, never()).save(any());
+  }
+
+  private static User activeUser(long id, String email) {
+    User user = new User();
+    user.setId(id);
+    user.setEmail(email);
+    return user;
   }
 
   @Test
