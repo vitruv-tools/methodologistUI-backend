@@ -18,7 +18,6 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -49,8 +48,6 @@ import tools.vitruv.methodologist.exception.BuildArtifactCreationException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.general.MemoizedSupplier;
-import tools.vitruv.methodologist.general.model.FileStorage;
-import tools.vitruv.methodologist.general.service.FileStorageService;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
@@ -151,7 +148,7 @@ public class VsumService {
   FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
   LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
   VsumBuildService vsumBuildService;
-  FileStorageService fileStorageService;
+  MetaModelService metaModelService;
   @NonFinal private VsumService self;
 
   @Autowired
@@ -267,8 +264,8 @@ public class VsumService {
   /**
    * Replaces the Ecore content of a meta model within a VSUM.
    *
-   * <p>Only the VSUM's own copy of the meta model is changed. The model-library entry it was cloned
-   * from keeps its Ecore content, so other VSUMs and the library are not affected.
+   * <p>Only the VSUM's own copy of the meta model is changed, and its GenModel is regenerated to
+   * match. The model-library entry it was cloned from is not affected.
    *
    * @param callerEmail the email of the VSUM member requesting the change
    * @param vsumId the VSUM containing the meta model
@@ -276,6 +273,8 @@ public class VsumService {
    * @param ecore the complete new Ecore content
    * @throws NotFoundException if the VSUM membership or meta model link does not exist
    * @throws AccessDeniedException if the caller is a VSUM viewer
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the GenModel cannot be
+   *     generated
    */
   @Transactional
   public void updateMetaModelEcore(
@@ -283,28 +282,7 @@ public class VsumService {
     VsumUser vsumUser = findEditingVsumUser(callerEmail, vsumId);
     MetaModel projectMetaModel =
         findVsumMetaModel(vsumUser.getVsum(), sourceMetaModelId).getMetaModel();
-    byte[] ecoreBytes = ecore.getBytes(StandardCharsets.UTF_8);
-
-    if (Arrays.equals(projectMetaModel.getEcoreFile().getData(), ecoreBytes)) {
-      return;
-    }
-
-    fileStorageService.overwriteStoredContent(projectEcoreFile(projectMetaModel), ecoreBytes);
-  }
-
-  /**
-   * Returns the Ecore file owned by the VSUM's meta model copy. If the copy still shares its file
-   * with the library entry, the file is cloned first so the library entry is never modified.
-   */
-  private FileStorage projectEcoreFile(MetaModel projectMetaModel) {
-    FileStorage ecoreFile = projectMetaModel.getEcoreFile();
-    FileStorage libraryEcoreFile = projectMetaModel.getSource().getEcoreFile();
-    if (libraryEcoreFile == null || !Objects.equals(ecoreFile.getId(), libraryEcoreFile.getId())) {
-      return ecoreFile;
-    }
-    FileStorage projectCopy = fileStorageService.clone(ecoreFile);
-    projectMetaModel.setEcoreFile(projectCopy);
-    return projectCopy;
+    metaModelService.updateProjectEcore(projectMetaModel, ecore.getBytes(StandardCharsets.UTF_8));
   }
 
   private VsumUser findEditingVsumUser(String callerEmail, Long vsumId) {

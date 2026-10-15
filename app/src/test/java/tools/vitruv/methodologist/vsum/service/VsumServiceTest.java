@@ -53,7 +53,6 @@ import org.springframework.security.access.AccessDeniedException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.general.model.FileStorage;
-import tools.vitruv.methodologist.general.service.FileStorageService;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
@@ -115,7 +114,7 @@ class VsumServiceTest {
   @Mock private FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
   @Mock private LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
   @Mock private VsumBuildService vsumBuildService;
-  @Mock private FileStorageService fileStorageService;
+  @Mock private MetaModelService metaModelService;
 
   private VsumService service;
 
@@ -157,14 +156,6 @@ class VsumServiceTest {
     return vsumMetaModel;
   }
 
-  private FileStorage fs(Long id, String filename, byte[] data) {
-    FileStorage f = new FileStorage();
-    f.setId(id);
-    f.setFilename(filename);
-    f.setData(data);
-    return f;
-  }
-
   private VsumUser vsumUser(Vsum vsum, User u) {
     VsumUser vsumUser = new VsumUser();
     vsumUser.setVsum(vsum);
@@ -196,7 +187,7 @@ class VsumServiceTest {
             fineGranularMetaModelRelationService,
             lowCodeReactionRequestMapper,
             vsumBuildService,
-            fileStorageService,
+            metaModelService,
             new PathMatchingResourcePatternResolver());
     service.setSelf(service);
 
@@ -294,72 +285,19 @@ class VsumServiceTest {
         .thenReturn(Optional.of(vsumUser));
   }
 
-  private void givenProjectMetaModel(Vsum vsum, MetaModel projectMetaModel) {
+  @Test
+  void updateMetaModelEcore_delegatesProjectCopyToMetaModelService() {
+    String email = "u@ex.com";
+    Vsum vsum = new Vsum();
+    givenVsumMember(email, vsum, VsumRole.MEMBER);
+    MetaModel projectMetaModel = clonedMetaModel(101L, 10L);
     when(vsumMetaModelRepository.findByVsumAndMetaModel_Source_Id(vsum, 10L))
         .thenReturn(Optional.of(vsumMetaModel(vsum, projectMetaModel)));
-  }
-
-  private MetaModel projectMetaModel(FileStorage projectEcore, FileStorage libraryEcore) {
-    MetaModel libraryMetaModel = original(10L);
-    libraryMetaModel.setEcoreFile(libraryEcore);
-    MetaModel projectMetaModel = clonedMetaModel(101L, 10L);
-    projectMetaModel.setSource(libraryMetaModel);
-    projectMetaModel.setEcoreFile(projectEcore);
-    return projectMetaModel;
-  }
-
-  private static byte[] utf8(String content) {
-    return content.getBytes(StandardCharsets.UTF_8);
-  }
-
-  @Test
-  void updateMetaModelEcore_overwritesOnlyTheProjectCopy() {
-    String email = "u@ex.com";
-    Vsum vsum = new Vsum();
-    givenVsumMember(email, vsum, VsumRole.MEMBER);
-    FileStorage libraryEcore = fs(1L, "model.ecore", utf8("<library/>"));
-    FileStorage projectEcore = fs(2L, "model.ecore", utf8("<library/>"));
-    MetaModel projectMetaModel = projectMetaModel(projectEcore, libraryEcore);
-    givenProjectMetaModel(vsum, projectMetaModel);
 
     service.updateMetaModelEcore(email, 1L, 10L, "<edited/>");
 
-    verify(fileStorageService).overwriteStoredContent(projectEcore, utf8("<edited/>"));
-    verify(fileStorageService, never()).overwriteStoredContent(eq(libraryEcore), any());
-    verify(fileStorageService, never()).clone(any());
-    assertThat(projectMetaModel.getEcoreFile()).isSameAs(projectEcore);
-    assertThat(projectMetaModel.getSource().getEcoreFile()).isSameAs(libraryEcore);
-  }
-
-  @Test
-  void updateMetaModelEcore_clonesFileFirst_whenSharedWithLibrary() {
-    String email = "u@ex.com";
-    Vsum vsum = new Vsum();
-    givenVsumMember(email, vsum, VsumRole.OWNER);
-    FileStorage sharedEcore = fs(1L, "model.ecore", utf8("<library/>"));
-    MetaModel projectMetaModel = projectMetaModel(sharedEcore, sharedEcore);
-    givenProjectMetaModel(vsum, projectMetaModel);
-    FileStorage projectCopy = fs(2L, "model.ecore", utf8("<library/>"));
-    when(fileStorageService.clone(sharedEcore)).thenReturn(projectCopy);
-
-    service.updateMetaModelEcore(email, 1L, 10L, "<edited/>");
-
-    verify(fileStorageService).overwriteStoredContent(projectCopy, utf8("<edited/>"));
-    verify(fileStorageService, never()).overwriteStoredContent(eq(sharedEcore), any());
-    assertThat(projectMetaModel.getEcoreFile()).isSameAs(projectCopy);
-    assertThat(projectMetaModel.getSource().getEcoreFile()).isSameAs(sharedEcore);
-  }
-
-  @Test
-  void updateMetaModelEcore_doesNothing_whenContentUnchanged() {
-    String email = "u@ex.com";
-    Vsum vsum = new Vsum();
-    givenVsumMember(email, vsum, VsumRole.MEMBER);
-    givenProjectMetaModel(vsum, projectMetaModel(fs(2L, "model.ecore", utf8("<same/>")), null));
-
-    service.updateMetaModelEcore(email, 1L, 10L, "<same/>");
-
-    verifyNoInteractions(fileStorageService);
+    verify(metaModelService)
+        .updateProjectEcore(projectMetaModel, "<edited/>".getBytes(StandardCharsets.UTF_8));
   }
 
   @Test
@@ -369,7 +307,7 @@ class VsumServiceTest {
 
     assertThatThrownBy(() -> service.updateMetaModelEcore(email, 1L, 10L, "<edited/>"))
         .isInstanceOf(AccessDeniedException.class);
-    verifyNoInteractions(fileStorageService);
+    verifyNoInteractions(metaModelService);
   }
 
   @Test
@@ -382,7 +320,7 @@ class VsumServiceTest {
 
     assertThatThrownBy(() -> service.updateMetaModelEcore(email, 1L, 10L, "<edited/>"))
         .isInstanceOf(NotFoundException.class);
-    verifyNoInteractions(fileStorageService);
+    verifyNoInteractions(metaModelService);
   }
 
   @Test
