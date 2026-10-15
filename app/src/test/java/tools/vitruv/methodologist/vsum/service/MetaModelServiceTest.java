@@ -774,6 +774,85 @@ class MetaModelServiceTest {
     assertThat(metaModel.getGenModelFile()).isSameAs(genModel);
   }
 
+  private static MetaModel projectCopy(FileStorage ecoreFile, FileStorage genModelFile) {
+    final MetaModel library =
+        metaModel(
+            1L,
+            fs(1L, FileEnumType.ECORE, "old".getBytes()),
+            fs(2L, FileEnumType.GEN_MODEL, "old-gen".getBytes()));
+    final MetaModel copy = metaModel(101L, ecoreFile, genModelFile);
+    copy.setSource(library);
+    return copy;
+  }
+
+  @Test
+  void updateProjectEcore_overwritesCopyAndRegeneratesGenModel() {
+    FileStorage ecore = fs(10L, FileEnumType.ECORE, "old".getBytes());
+    ecore.setFilename("family.ecore");
+    FileStorage genModel = fs(20L, FileEnumType.GEN_MODEL, "old-gen".getBytes());
+    MetaModel projectMetaModel = projectCopy(ecore, genModel);
+    byte[] regenerated = "new-gen".getBytes();
+    when(setupServiceApiHandler.generateGenModelOrThrow(ecore)).thenReturn(regenerated);
+
+    metaModelService.updateProjectEcore(projectMetaModel, "new".getBytes());
+
+    verify(fileStorageService).overwriteStoredContent(ecore, "new".getBytes());
+    verify(fileStorageService).overwriteStoredContent(genModel, regenerated);
+    verify(fileStorageService, times(2)).overwriteStoredContent(any(), any());
+    verify(fileStorageService, never()).clone(any());
+    assertThat(genModel.getFilename()).isEqualTo("family.genmodel");
+    verify(metaModelRepository).save(projectMetaModel);
+  }
+
+  @Test
+  void updateProjectEcore_clonesFilesFirst_whenSharedWithLibrary() {
+    MetaModel library = projectCopy(null, null).getSource();
+    MetaModel projectMetaModel = metaModel(101L, library.getEcoreFile(), library.getGenModelFile());
+    projectMetaModel.setSource(library);
+    FileStorage ecoreCopy = fs(10L, FileEnumType.ECORE, "old".getBytes());
+    when(fileStorageService.clone(library.getEcoreFile())).thenReturn(ecoreCopy);
+    FileStorage genModelCopy = fs(20L, FileEnumType.GEN_MODEL, "old-gen".getBytes());
+    when(fileStorageService.clone(library.getGenModelFile())).thenReturn(genModelCopy);
+    when(setupServiceApiHandler.generateGenModelOrThrow(ecoreCopy))
+        .thenReturn("new-gen".getBytes());
+
+    metaModelService.updateProjectEcore(projectMetaModel, "new".getBytes());
+
+    verify(fileStorageService).overwriteStoredContent(ecoreCopy, "new".getBytes());
+    verify(fileStorageService).overwriteStoredContent(genModelCopy, "new-gen".getBytes());
+    verify(fileStorageService, times(2)).overwriteStoredContent(any(), any());
+    assertThat(projectMetaModel.getEcoreFile()).isSameAs(ecoreCopy);
+    assertThat(projectMetaModel.getGenModelFile()).isSameAs(genModelCopy);
+  }
+
+  @Test
+  void updateProjectEcore_doesNothing_whenContentUnchanged() {
+    MetaModel projectMetaModel =
+        projectCopy(
+            fs(10L, FileEnumType.ECORE, "same".getBytes()),
+            fs(20L, FileEnumType.GEN_MODEL, "gen".getBytes()));
+
+    metaModelService.updateProjectEcore(projectMetaModel, "same".getBytes());
+
+    verify(fileStorageService, never()).overwriteStoredContent(any(), any());
+    verify(setupServiceApiHandler, never()).generateGenModelOrThrow(any());
+    verify(metaModelRepository, never()).save(any());
+  }
+
+  @Test
+  void updateProjectEcore_propagatesSetupServiceFailure() {
+    FileStorage ecore = fs(10L, FileEnumType.ECORE, "old".getBytes());
+    MetaModel projectMetaModel =
+        projectCopy(ecore, fs(20L, FileEnumType.GEN_MODEL, "old-gen".getBytes()));
+    when(setupServiceApiHandler.generateGenModelOrThrow(ecore))
+        .thenThrow(new SetupServiceException("invalid ecore"));
+    byte[] newEcore = "broken".getBytes();
+
+    assertThatThrownBy(() -> metaModelService.updateProjectEcore(projectMetaModel, newEcore))
+        .isInstanceOf(SetupServiceException.class);
+    verify(metaModelRepository, never()).save(any());
+  }
+
   @Test
   void update_doesNotRegenerateGenModel_whenEcoreUnchanged() {
     String email = "u@ex.com";

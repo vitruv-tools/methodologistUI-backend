@@ -6,6 +6,7 @@ import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -65,6 +66,7 @@ import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumViewMapper;
+import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
@@ -146,6 +148,7 @@ public class VsumService {
   FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
   LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
   VsumBuildService vsumBuildService;
+  MetaModelService metaModelService;
   @NonFinal private VsumService self;
 
   @Autowired
@@ -246,6 +249,43 @@ public class VsumService {
   @Transactional
   public void updateMetaModelName(
       String callerEmail, Long vsumId, Long sourceMetaModelId, String name) {
+    VsumUser vsumUser = findEditingVsumUser(callerEmail, vsumId);
+    VsumMetaModel vsumMetaModel = findVsumMetaModel(vsumUser.getVsum(), sourceMetaModelId);
+
+    if (Objects.equals(vsumMetaModel.getName(), name)) {
+      return;
+    }
+
+    vsumHistoryService.create(vsumUser.getVsum(), vsumUser.getUser());
+    vsumMetaModel.setName(name);
+    vsumMetaModelRepository.save(vsumMetaModel);
+  }
+
+  /**
+   * Replaces the Ecore content of a meta model within a VSUM.
+   *
+   * <p>Only the VSUM's own copy of the meta model is changed, and its GenModel is regenerated to
+   * match. The model-library entry it was cloned from is not affected.
+   *
+   * @param callerEmail the email of the VSUM member requesting the change
+   * @param vsumId the VSUM containing the meta model
+   * @param sourceMetaModelId the ID of the source meta model in the model library
+   * @param ecore the complete new Ecore content
+   * @throws NotFoundException if the VSUM membership or meta model link does not exist
+   * @throws AccessDeniedException if the caller is a VSUM viewer
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the GenModel cannot be
+   *     generated
+   */
+  @Transactional
+  public void updateMetaModelEcore(
+      String callerEmail, Long vsumId, Long sourceMetaModelId, String ecore) {
+    VsumUser vsumUser = findEditingVsumUser(callerEmail, vsumId);
+    MetaModel projectMetaModel =
+        findVsumMetaModel(vsumUser.getVsum(), sourceMetaModelId).getMetaModel();
+    metaModelService.updateProjectEcore(projectMetaModel, ecore.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private VsumUser findEditingVsumUser(String callerEmail, Long vsumId) {
     VsumUser vsumUser =
         vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
@@ -255,20 +295,14 @@ public class VsumService {
     if (vsumUser.getRole() == VsumRole.VIEWER) {
       throw new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS);
     }
+    return vsumUser;
+  }
 
-    VsumMetaModel vsumMetaModel =
-        vsumMetaModelRepository
-            .findByVsumAndMetaModel_Source_Id(vsumUser.getVsum(), sourceMetaModelId)
-            .orElseThrow(
-                () -> new NotFoundException(METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR));
-
-    if (Objects.equals(vsumMetaModel.getName(), name)) {
-      return;
-    }
-
-    vsumHistoryService.create(vsumUser.getVsum(), vsumUser.getUser());
-    vsumMetaModel.setName(name);
-    vsumMetaModelRepository.save(vsumMetaModel);
+  private VsumMetaModel findVsumMetaModel(Vsum vsum, Long sourceMetaModelId) {
+    return vsumMetaModelRepository
+        .findByVsumAndMetaModel_Source_Id(vsum, sourceMetaModelId)
+        .orElseThrow(
+            () -> new NotFoundException(METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR));
   }
 
   /**

@@ -52,6 +52,7 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -116,6 +117,7 @@ class VsumServiceTest {
   @Mock private FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
   @Mock private LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
   @Mock private VsumBuildService vsumBuildService;
+  @Mock private MetaModelService metaModelService;
 
   private VsumService service;
 
@@ -188,6 +190,7 @@ class VsumServiceTest {
             fineGranularMetaModelRelationService,
             lowCodeReactionRequestMapper,
             vsumBuildService,
+            metaModelService,
             new PathMatchingResourcePatternResolver());
     service.setSelf(service);
 
@@ -275,6 +278,52 @@ class VsumServiceTest {
     assertThat(libraryMetaModel.getName()).isEqualTo("Library name");
     verify(vsumHistoryService).create(vsum, user);
     verify(vsumMetaModelRepository).save(vsumMetaModel);
+  }
+
+  private void givenVsumMember(String email, Vsum vsum, VsumRole role) {
+    VsumUser vsumUser = vsumUser(vsum, new User());
+    vsumUser.setRole(role);
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(1L, email))
+        .thenReturn(Optional.of(vsumUser));
+  }
+
+  @Test
+  void updateMetaModelEcore_delegatesProjectCopyToMetaModelService() {
+    String email = "u@ex.com";
+    Vsum vsum = new Vsum();
+    givenVsumMember(email, vsum, VsumRole.MEMBER);
+    MetaModel projectMetaModel = clonedMetaModel(101L, 10L);
+    when(vsumMetaModelRepository.findByVsumAndMetaModel_Source_Id(vsum, 10L))
+        .thenReturn(Optional.of(vsumMetaModel(vsum, projectMetaModel)));
+
+    service.updateMetaModelEcore(email, 1L, 10L, "<edited/>");
+
+    verify(metaModelService)
+        .updateProjectEcore(projectMetaModel, "<edited/>".getBytes(StandardCharsets.UTF_8));
+  }
+
+  @Test
+  void updateMetaModelEcore_throwsAccessDenied_whenViewer() {
+    String email = "u@ex.com";
+    givenVsumMember(email, new Vsum(), VsumRole.VIEWER);
+
+    assertThatThrownBy(() -> service.updateMetaModelEcore(email, 1L, 10L, "<edited/>"))
+        .isInstanceOf(AccessDeniedException.class);
+    verifyNoInteractions(metaModelService);
+  }
+
+  @Test
+  void updateMetaModelEcore_throwsNotFound_whenMetaModelNotInVsum() {
+    String email = "u@ex.com";
+    Vsum vsum = new Vsum();
+    givenVsumMember(email, vsum, VsumRole.MEMBER);
+    when(vsumMetaModelRepository.findByVsumAndMetaModel_Source_Id(vsum, 10L))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.updateMetaModelEcore(email, 1L, 10L, "<edited/>"))
+        .isInstanceOf(NotFoundException.class);
+    verifyNoInteractions(metaModelService);
   }
 
   @Test

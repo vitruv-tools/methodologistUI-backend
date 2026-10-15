@@ -11,6 +11,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -463,6 +464,46 @@ public class MetaModelService {
 
     metaModel.setSource(newSource);
     metaModelRepository.save(metaModel);
+  }
+
+  /**
+   * Replaces the Ecore content of a VSUM's own meta model copy and regenerates its GenModel, so
+   * both files stay in sync.
+   *
+   * <p>The model-library entry the copy was cloned from is never modified. If the copy still shares
+   * a file with the library entry, that file is cloned first.
+   *
+   * @param projectMetaModel the VSUM's meta model copy; must have a library source
+   * @param ecore the complete new Ecore content
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the GenModel cannot be
+   *     generated
+   */
+  @Transactional
+  public void updateProjectEcore(MetaModel projectMetaModel, byte[] ecore) {
+    if (Arrays.equals(projectMetaModel.getEcoreFile().getData(), ecore)) {
+      return;
+    }
+
+    MetaModel libraryMetaModel = projectMetaModel.getSource();
+    projectMetaModel.setEcoreFile(
+        projectOwnedFile(projectMetaModel.getEcoreFile(), libraryMetaModel.getEcoreFile()));
+    projectMetaModel.setGenModelFile(
+        projectOwnedFile(projectMetaModel.getGenModelFile(), libraryMetaModel.getGenModelFile()));
+
+    fileStorageService.overwriteStoredContent(projectMetaModel.getEcoreFile(), ecore);
+    regenerateGenModels(projectMetaModel.getEcoreFile(), projectMetaModel);
+    metaModelRepository.save(projectMetaModel);
+  }
+
+  /**
+   * Returns a file the project copy may overwrite: the file itself, or a clone of it if it is
+   * shared with the library entry.
+   */
+  private FileStorage projectOwnedFile(FileStorage projectFile, FileStorage libraryFile) {
+    if (libraryFile == null || !Objects.equals(projectFile.getId(), libraryFile.getId())) {
+      return projectFile;
+    }
+    return fileStorageService.clone(projectFile);
   }
 
   private FileStorage resolveUpdatedEcore(
