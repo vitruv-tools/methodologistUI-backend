@@ -4,7 +4,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.vsum.model.Vsum;
@@ -23,6 +25,38 @@ public interface VsumBuildRepository extends CrudRepository<VsumBuild, Long> {
    * @return the build, or empty if it does not exist or belongs to another VSUM
    */
   Optional<VsumBuild> findByIdAndVsum(Long id, Vsum vsum);
+
+  /**
+   * Reads the current status of a build from the database.
+   *
+   * <p>Unlike {@link #findById}, this never answers from the caller's persistence context. With
+   * open-in-view, a request keeps the build it created or looked up there, so {@code findById}
+   * would keep returning that copy and miss the status the build worker writes in its own
+   * transaction.
+   *
+   * @param id the build id
+   * @return the current status, or empty if the build does not exist
+   */
+  @Query("SELECT b.status FROM VsumBuild b WHERE b.id = :id")
+  Optional<VsumBuildStatus> findStatusById(@Param("id") Long id);
+
+  /**
+   * Reads the current error message of a build from the database, see {@link #findStatusById}.
+   *
+   * @param id the build id
+   * @return the error message, or empty if the build does not exist or has none
+   */
+  @Query("SELECT b.errorMessage FROM VsumBuild b WHERE b.id = :id")
+  Optional<String> findErrorMessageById(@Param("id") Long id);
+
+  /**
+   * Reads the JAR of a build from the database, see {@link #findStatusById}.
+   *
+   * @param id the build id
+   * @return the JAR, or empty if the build does not exist or has no artifact
+   */
+  @Query("SELECT a.data FROM VsumBuild b JOIN b.artifact a WHERE b.id = :id")
+  Optional<byte[]> findArtifactDataById(@Param("id") Long id);
 
   /**
    * Lists the builds of a VSUM, newest first.

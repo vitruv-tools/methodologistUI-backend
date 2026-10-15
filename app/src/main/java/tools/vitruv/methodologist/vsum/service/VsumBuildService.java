@@ -186,13 +186,12 @@ public class VsumBuildService {
    * @throws VsumBuildingException if the build did not finish within the configured wait timeout
    */
   public byte[] buildAndWait(String callerEmail, Long vsumId) {
-    BuildRequest request = requestBuild(callerEmail, vsumId, false);
-    VsumBuild finished = awaitCompletion(request.build().getId());
-    if (finished.getStatus() != VsumBuildStatus.SUCCEEDED) {
+    Long buildId = requestBuild(callerEmail, vsumId, false).build().getId();
+    if (awaitCompletion(buildId) != VsumBuildStatus.SUCCEEDED) {
       throw new SetupServiceException(
-          finished.getErrorMessage() == null ? "The build failed." : finished.getErrorMessage());
+          vsumBuildRepository.findErrorMessageById(buildId).orElse("The build failed."));
     }
-    return artifactBytes(finished.getId());
+    return artifactBytes(buildId);
   }
 
   /** Returns one build of the VSUM. */
@@ -416,16 +415,23 @@ public class VsumBuildService {
     }
   }
 
-  private VsumBuild awaitCompletion(Long buildId) {
+  /**
+   * Waits until the build has finished and returns its final status.
+   *
+   * <p>The status is read with {@link VsumBuildRepository#findStatusById} rather than {@code
+   * findById}: the request still holds the build in its persistence context and would otherwise
+   * never see the status the build worker writes.
+   */
+  private VsumBuildStatus awaitCompletion(Long buildId) {
     long timeoutSeconds = properties.getWaitTimeoutSeconds();
     Instant deadline = Instant.now().plus(Duration.ofSeconds(timeoutSeconds));
     while (true) {
-      VsumBuild build =
+      VsumBuildStatus status =
           vsumBuildRepository
-              .findById(buildId)
+              .findStatusById(buildId)
               .orElseThrow(() -> new NotFoundException(VSUM_BUILD_ID_NOT_FOUND_ERROR));
-      if (build.getStatus().isTerminal()) {
-        return build;
+      if (status.isTerminal()) {
+        return status;
       }
       if (!Instant.now().isBefore(deadline)) {
         throw new VsumBuildingException(String.format(TIMEOUT_ERROR, timeoutSeconds));
@@ -438,9 +444,7 @@ public class VsumBuildService {
     return transactionTemplate.execute(
         status ->
             vsumBuildRepository
-                .findById(buildId)
-                .map(VsumBuild::getArtifact)
-                .map(FileStorage::getData)
+                .findArtifactDataById(buildId)
                 .orElseThrow(() -> new NotFoundException(VSUM_BUILD_ARTIFACT_NOT_FOUND_ERROR)));
   }
 
