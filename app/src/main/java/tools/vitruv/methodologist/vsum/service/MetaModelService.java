@@ -1,7 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
 import static tools.vitruv.methodologist.messages.Error.ECORE_FILE_ID_NOT_FOUND_ERROR;
-import static tools.vitruv.methodologist.messages.Error.GEN_MODEL_FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.META_MODEL_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
@@ -33,6 +32,7 @@ import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
 import tools.vitruv.methodologist.exception.MetaModelVersionAlreadyExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
+import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.general.service.FileStorageService;
@@ -64,6 +64,9 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class MetaModelService {
+
+  private static final String GEN_MODEL_EXTENSION = ".genmodel";
+  private static final String DEFAULT_GEN_MODEL_BASE_NAME = "model";
 
   MetaModelService self;
   MetaModelMapper metaModelMapper;
@@ -110,7 +113,7 @@ public class MetaModelService {
   }
 
   /**
-   * Loads the user, mapped metamodel, and referenced files required to create a metamodel.
+   * Loads the user, mapped metamodel, and referenced Ecore file required to create a metamodel.
    *
    * @param callerEmail authenticated user's email
    * @param req creation request
@@ -130,13 +133,7 @@ public class MetaModelService {
                 req.getEcoreFileId(), FileEnumType.ECORE, callerEmail)
             .orElseThrow(() -> new NotFoundException(ECORE_FILE_ID_NOT_FOUND_ERROR));
 
-    FileStorage genModelFile =
-        fileStorageRepository
-            .findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
-                req.getGenModelFileId(), FileEnumType.GEN_MODEL, callerEmail)
-            .orElseThrow(() -> new NotFoundException(GEN_MODEL_FILE_ID_NOT_FOUND_ERROR));
-
-    return new CreateContext(user, metaModel, ecoreFile, genModelFile);
+    return new CreateContext(user, metaModel, ecoreFile);
   }
 
   /**
@@ -159,12 +156,67 @@ public class MetaModelService {
     }
   }
 
-  private MetaModel savePendingMetaModel(CreateContext createContext) {
+  private MetaModel savePendingMetaModel(CreateContext createContext, FileStorage genModelFile) {
     MetaModel metaModel = createContext.metaModel();
     metaModel.setUser(createContext.user());
     metaModel.setEcoreFile(createContext.ecoreFile());
-    metaModel.setGenModelFile(createContext.genModelFile());
+    metaModel.setGenModelFile(genModelFile);
     return metaModelRepository.save(metaModel);
+  }
+
+  /**
+   * Generates the GenModel for the given Ecore file via the setup-service and stores it as a new
+   * GenModel file owned by the caller.
+   *
+   * @param callerEmail authenticated user's email
+   * @param ecoreFile the Ecore file to generate the GenModel from
+   * @return the stored GenModel file
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
+   *     fails
+   */
+  private FileStorage storeGeneratedGenModel(String callerEmail, FileStorage ecoreFile) {
+    byte[] genModel = setupServiceApiHandler.generateGenModelOrThrow(ecoreFile);
+    FileStorageResponse storedGenModel =
+        fileStorageService.storeFile(
+            callerEmail, genModel, genModelFilename(ecoreFile), null, FileEnumType.GEN_MODEL);
+    return fileStorageService.getFile(storedGenModel.getId());
+  }
+
+  /**
+   * Regenerates the GenModel from a changed Ecore file and writes it into the GenModel file of each
+   * given metamodel, so the GenModel always matches the Ecore it belongs to.
+   *
+   * @param ecoreFile the new Ecore file
+   * @param metaModels the metamodels that now use this Ecore file
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
+   *     fails
+   */
+  private void regenerateGenModels(FileStorage ecoreFile, MetaModel... metaModels) {
+    byte[] genModel = setupServiceApiHandler.generateGenModelOrThrow(ecoreFile);
+    String filename = genModelFilename(ecoreFile);
+    for (MetaModel metaModel : metaModels) {
+      FileStorage genModelFile = metaModel.getGenModelFile();
+      genModelFile.setFilename(filename);
+      fileStorageService.overwriteStoredContent(genModelFile, genModel);
+    }
+  }
+
+  /**
+   * Derives the GenModel filename from the Ecore filename, for example {@code model.ecore} becomes
+   * {@code model.genmodel}.
+   *
+   * @param ecoreFile the Ecore file
+   * @return the GenModel filename
+   */
+  private static String genModelFilename(FileStorage ecoreFile) {
+    String ecoreFilename = ecoreFile.getFilename();
+    if (ecoreFilename == null || ecoreFilename.isBlank()) {
+      return DEFAULT_GEN_MODEL_BASE_NAME + GEN_MODEL_EXTENSION;
+    }
+    int extensionStart = ecoreFilename.lastIndexOf('.');
+    String baseName =
+        extensionStart > 0 ? ecoreFilename.substring(0, extensionStart) : ecoreFilename;
+    return baseName + GEN_MODEL_EXTENSION;
   }
 
   /**
@@ -196,16 +248,13 @@ public class MetaModelService {
   /**
    * Creates a metamodel from the request.
    *
-   * <p>When {@link MetaModelPostRequest#isApplyGenModelFixes()} is {@code true}, the GenModel is
-   * sent to the setup-service {@code process} endpoint, the returned (fixed) GenModel overwrites
-   * the stored file, and the metamodel is then persisted and built. When it is {@code false}, the
-   * GenModel is only sent to the {@code inspect} endpoint and the resulting message is returned
-   * without creating the metamodel.
+   * <p>Only the Ecore file is uploaded. The GenModel is generated from it by the setup-service
+   * {@code generate} endpoint and stored as a new file, and the metamodel is then persisted and
+   * built.
    *
    * @param callerEmail authenticated user's email
    * @param req creation request
-   * @return the creation result holding the created metamodel (fixes applied) or the inspection
-   *     message (fixes not applied)
+   * @return the creation result holding the created metamodel and the success message
    */
   @Transactional
   public MetaModelCreationResult create(String callerEmail, MetaModelPostRequest req) {
@@ -216,15 +265,8 @@ public class MetaModelService {
         createContext.metaModel().getVersion(),
         null);
 
-    if (!req.isApplyGenModelFixes()) {
-      GenModelInspectionResponse inspection = inspectGenModel(createContext.genModelFile());
-      return new MetaModelCreationResult(null, inspection.getMessage());
-    }
-
-    byte[] processedGenModel = processGenModel(createContext.genModelFile());
-    fileStorageService.overwriteStoredContent(createContext.genModelFile(), processedGenModel);
-
-    MetaModel metaModel = savePendingMetaModel(createContext);
+    FileStorage genModelFile = storeGeneratedGenModel(callerEmail, createContext.ecoreFile());
+    MetaModel metaModel = savePendingMetaModel(createContext, genModelFile);
 
     MetamodelBuildService.BuildResult result =
         metamodelBuildService.buildAndValidate(
@@ -370,6 +412,7 @@ public class MetaModelService {
       metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, metaModel);
       if (updatedEcore != null) {
         metaModel.setEcoreFile(updatedEcore);
+        regenerateGenModels(updatedEcore, metaModel);
       }
       rejectDuplicateLibraryVersion(
           metaModel.getUser(), metaModel.getName(), metaModel.getVersion(), metaModel.getId());
@@ -386,6 +429,7 @@ public class MetaModelService {
       if (updatedEcore != null) {
         source.setEcoreFile(updatedEcore);
         metaModel.setEcoreFile(updatedEcore);
+        regenerateGenModels(updatedEcore, source, metaModel);
       }
       rejectDuplicateLibraryVersion(
           source.getUser(), source.getName(), source.getVersion(), source.getId());
@@ -405,6 +449,7 @@ public class MetaModelService {
     if (updatedEcore != null) {
       newSource.setEcoreFile(updatedEcore);
       metaModel.setEcoreFile(updatedEcore);
+      regenerateGenModels(updatedEcore, newSource, metaModel);
     }
     rejectDuplicateLibraryVersion(
         user, newSource.getName(), newSource.getVersion(), newSource.getId());
@@ -506,14 +551,12 @@ public class MetaModelService {
     }
   }
 
-  private record CreateContext(
-      User user, MetaModel metaModel, FileStorage ecoreFile, FileStorage genModelFile) {}
+  private record CreateContext(User user, MetaModel metaModel, FileStorage ecoreFile) {}
 
   /**
    * Result of {@link #create(String, MetaModelPostRequest)}.
    *
-   * @param metaModel the created metamodel, or {@code null} when fixes were not applied and only an
-   *     inspection was performed
+   * @param metaModel the created metamodel
    * @param message the message to return to the caller
    */
   public record MetaModelCreationResult(MetaModel metaModel, String message) {}

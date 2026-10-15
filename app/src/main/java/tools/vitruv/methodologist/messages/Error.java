@@ -13,7 +13,6 @@ public class Error {
   public static final String USER_DOSE_NOT_HAVE_ACCESS = "You don't have access";
   public static final String VIEW_FILE_ID_NOT_FOUND_ERROR = "View file id";
   public static final String ECORE_FILE_ID_NOT_FOUND_ERROR = "Ecore file id";
-  public static final String GEN_MODEL_FILE_ID_NOT_FOUND_ERROR = "Gen model file id";
   public static final String USER_EMAIL_NOT_FOUND_ERROR = "Email";
   public static final String USER_WRONG_PASSWORD_ERROR = "Wrong password";
   public static final String META_MODEL_ID_NOT_FOUND_ERROR = "Meta model id";
