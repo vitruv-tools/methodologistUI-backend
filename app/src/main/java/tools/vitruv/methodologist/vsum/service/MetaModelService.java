@@ -12,11 +12,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +46,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelFilterReq
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelVsumUsageResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.Vsum;
@@ -305,7 +309,71 @@ public class MetaModelService {
         Specification.where(
             MetaModelSpecifications.buildSpecification(callerEmail, metaModelFilterRequest));
     List<MetaModel> metaModels = metaModelRepository.findAll(spec, pageable);
-    return metaModels.stream().map(metaModelMapper::toMetaModelResponse).toList();
+    Map<Long, List<MetaModelVsumUsageResponse>> vsumsBySourceId =
+        findVsumsUsing(metaModels, callerEmail);
+    return metaModels.stream()
+        .map(
+            metaModel -> {
+              MetaModelResponse response = metaModelMapper.toMetaModelResponse(metaModel);
+              response.setVsums(vsumsBySourceId.getOrDefault(metaModel.getId(), List.of()));
+              return response;
+            })
+        .toList();
+  }
+
+  /**
+   * Finds the VSUMs that use the given library metamodels through their clones, using the same
+   * relation as the deletion check in {@link #delete(String, Long)}, so trashed VSUMs are included.
+   *
+   * <p>Every using VSUM yields one entry, so the entry count always matches the deletion check.
+   * Details are only exposed for VSUMs the caller is a member of; entries for other users' VSUMs
+   * stay empty so their names are not disclosed.
+   *
+   * @param metaModels the library metamodels to look up
+   * @param callerEmail the email of the requesting user
+   * @return the using VSUMs grouped by library metamodel ID; metamodels without usage are absent
+   */
+  private Map<Long, List<MetaModelVsumUsageResponse>> findVsumsUsing(
+      List<MetaModel> metaModels, String callerEmail) {
+    if (metaModels.isEmpty()) {
+      return Map.of();
+    }
+    List<Long> sourceIds = metaModels.stream().map(MetaModel::getId).toList();
+    return vsumMetaModelRepository.findAllByMetaModel_Source_IdIn(sourceIds).stream()
+        .collect(
+            Collectors.groupingBy(
+                vsumMetaModel -> vsumMetaModel.getMetaModel().getSource().getId(),
+                Collectors.collectingAndThen(
+                    Collectors.mapping(VsumMetaModel::getVsum, Collectors.toList()),
+                    vsums -> toVsumUsageResponses(vsums, callerEmail))));
+  }
+
+  private static List<MetaModelVsumUsageResponse> toVsumUsageResponses(
+      List<Vsum> vsums, String callerEmail) {
+    Map<Boolean, List<Vsum>> byAccess =
+        vsums.stream()
+            .collect(Collectors.toMap(Vsum::getId, vsum -> vsum, (first, duplicate) -> first))
+            .values()
+            .stream()
+            .collect(Collectors.partitioningBy(vsum -> isMember(vsum, callerEmail)));
+    Stream<MetaModelVsumUsageResponse> visible =
+        byAccess.get(true).stream()
+            .sorted(Comparator.comparing(Vsum::getName, Comparator.nullsLast(String::compareTo)))
+            .map(
+                vsum ->
+                    MetaModelVsumUsageResponse.builder()
+                        .id(vsum.getId())
+                        .name(vsum.getName())
+                        .removedAt(vsum.getRemovedAt())
+                        .build());
+    Stream<MetaModelVsumUsageResponse> hidden =
+        byAccess.get(false).stream().map(vsum -> new MetaModelVsumUsageResponse());
+    return Stream.concat(visible, hidden).toList();
+  }
+
+  private static boolean isMember(Vsum vsum, String callerEmail) {
+    return vsum.getVsumUsers().stream()
+        .anyMatch(vsumUser -> callerEmail.equalsIgnoreCase(vsumUser.getUser().getEmail()));
   }
 
   /**

@@ -33,4 +33,11 @@ public class MetaModelResponse {
   private Instant removedAt;
   private Long ecoreFileId;
   private Long genModelFileId;
+
+  /**
+   * VSUMs (projects) that use this library metamodel through a clone, one entry per VSUM. Details
+   * are only filled for VSUMs the caller is a member of. Only populated by the model library
+   * listing; {@code null} in other responses.
+   */
+  private List<MetaModelVsumUsageResponse> vsums;
 }

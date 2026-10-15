@@ -1,8 +1,10 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
@@ -53,6 +55,18 @@ public interface VsumMetaModelRepository extends CrudRepository<VsumMetaModel, L
    */
   @SuppressWarnings("checkstyle:MethodName")
   List<VsumMetaModel> findAllByMetaModel_Source(MetaModel metaModel);
+
+  /**
+   * Retrieves all VsumMetaModel entries whose metamodel is a clone of one of the given library
+   * metamodels. The owning VSUM with its members and the clone are fetched eagerly so callers can
+   * read project data, membership and the source ID without additional queries.
+   *
+   * @param sourceIds the IDs of the library metamodels; must not be {@code null}
+   * @return the matching VsumMetaModel entities, or an empty list if none match
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  @EntityGraph(attributePaths = {"vsum", "vsum.vsumUsers", "vsum.vsumUsers.user", "metaModel"})
+  List<VsumMetaModel> findAllByMetaModel_Source_IdIn(Collection<Long> sourceIds);
 
   /**
    * Retrieves all {@link VsumMetaModel} entities associated with the given {@link Vsum} whose
