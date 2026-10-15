@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
+import tools.vitruv.methodologist.vsum.controller.dto.request.VsumMetaModelEcorePutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumMetaModelNamePutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
@@ -149,6 +150,28 @@ public class VsumController {
       @Valid @RequestBody VsumMetaModelNamePutRequest request) {
     String callerEmail = authentication.getParsedToken().getEmail();
     vsumService.updateMetaModelName(callerEmail, vsumId, metaModelId, request.name());
+    return ResponseTemplateDto.<Void>builder().message(VSUM_UPDATED_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Replaces the Ecore content of a meta model within a VSUM. Only the project's own copy is
+   * changed; the model-library entry stays untouched.
+   *
+   * @param authentication the authenticated VSUM member
+   * @param vsumId the VSUM containing the meta model
+   * @param metaModelId the source meta-model ID from the model library
+   * @param request the new Ecore content
+   * @return a response indicating the project was updated
+   */
+  @PutMapping("/v1/vsums/{vsumId}/meta-models/{metaModelId}/ecore")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> updateMetaModelEcore(
+      KeycloakAuthentication authentication,
+      @PathVariable Long vsumId,
+      @PathVariable Long metaModelId,
+      @Valid @RequestBody VsumMetaModelEcorePutRequest request) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    vsumService.updateMetaModelEcore(callerEmail, vsumId, metaModelId, request.ecore());
     return ResponseTemplateDto.<Void>builder().message(VSUM_UPDATED_SUCCESSFULLY).build();
   }
 

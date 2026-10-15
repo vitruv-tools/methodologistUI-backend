@@ -49,9 +49,11 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.general.service.FileStorageService;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
@@ -113,6 +115,7 @@ class VsumServiceTest {
   @Mock private FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
   @Mock private LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
   @Mock private VsumBuildService vsumBuildService;
+  @Mock private FileStorageService fileStorageService;
 
   private VsumService service;
 
@@ -154,6 +157,14 @@ class VsumServiceTest {
     return vsumMetaModel;
   }
 
+  private FileStorage fs(Long id, String filename, byte[] data) {
+    FileStorage f = new FileStorage();
+    f.setId(id);
+    f.setFilename(filename);
+    f.setData(data);
+    return f;
+  }
+
   private VsumUser vsumUser(Vsum vsum, User u) {
     VsumUser vsumUser = new VsumUser();
     vsumUser.setVsum(vsum);
@@ -185,6 +196,7 @@ class VsumServiceTest {
             fineGranularMetaModelRelationService,
             lowCodeReactionRequestMapper,
             vsumBuildService,
+            fileStorageService,
             new PathMatchingResourcePatternResolver());
     service.setSelf(service);
 
@@ -272,6 +284,122 @@ class VsumServiceTest {
     assertThat(libraryMetaModel.getName()).isEqualTo("Library name");
     verify(vsumHistoryService).create(vsum, user);
     verify(vsumMetaModelRepository).save(vsumMetaModel);
+  }
+
+  @Test
+  void updateMetaModelEcore_overwritesOnlyTheProjectCopy() {
+    String email = "u@ex.com";
+    User user = new User();
+    user.setEmail(email);
+    Vsum vsum = new Vsum();
+    VsumUser vsumUser = vsumUser(vsum, user);
+    vsumUser.setRole(VsumRole.MEMBER);
+    FileStorage libraryEcore = fs(1L, "model.ecore", "<library/>".getBytes(StandardCharsets.UTF_8));
+    FileStorage projectEcore = fs(2L, "model.ecore", "<library/>".getBytes(StandardCharsets.UTF_8));
+    MetaModel libraryMetaModel = original(10L);
+    libraryMetaModel.setEcoreFile(libraryEcore);
+    MetaModel projectMetaModel = clonedMetaModel(101L, 10L);
+    projectMetaModel.setSource(libraryMetaModel);
+    projectMetaModel.setEcoreFile(projectEcore);
+    VsumMetaModel vsumMetaModel = vsumMetaModel(vsum, projectMetaModel);
+
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(1L, email))
+        .thenReturn(Optional.of(vsumUser));
+    when(vsumMetaModelRepository.findByVsumAndMetaModel_Source_Id(vsum, 10L))
+        .thenReturn(Optional.of(vsumMetaModel));
+
+    service.updateMetaModelEcore(email, 1L, 10L, "<edited/>");
+
+    verify(fileStorageService)
+        .overwriteStoredContent(projectEcore, "<edited/>".getBytes(StandardCharsets.UTF_8));
+    verify(fileStorageService, never()).overwriteStoredContent(eq(libraryEcore), any());
+    verify(fileStorageService, never()).clone(any());
+    assertThat(projectMetaModel.getEcoreFile()).isSameAs(projectEcore);
+  }
+
+  @Test
+  void updateMetaModelEcore_clonesFileFirst_whenSharedWithLibrary() {
+    String email = "u@ex.com";
+    Vsum vsum = new Vsum();
+    VsumUser vsumUser = vsumUser(vsum, new User());
+    vsumUser.setRole(VsumRole.OWNER);
+    FileStorage sharedEcore = fs(1L, "model.ecore", "<library/>".getBytes(StandardCharsets.UTF_8));
+    FileStorage projectCopy = fs(2L, "model.ecore", "<library/>".getBytes(StandardCharsets.UTF_8));
+    MetaModel libraryMetaModel = original(10L);
+    libraryMetaModel.setEcoreFile(sharedEcore);
+    MetaModel projectMetaModel = clonedMetaModel(101L, 10L);
+    projectMetaModel.setSource(libraryMetaModel);
+    projectMetaModel.setEcoreFile(sharedEcore);
+
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(1L, email))
+        .thenReturn(Optional.of(vsumUser));
+    when(vsumMetaModelRepository.findByVsumAndMetaModel_Source_Id(vsum, 10L))
+        .thenReturn(Optional.of(vsumMetaModel(vsum, projectMetaModel)));
+    when(fileStorageService.clone(sharedEcore)).thenReturn(projectCopy);
+
+    service.updateMetaModelEcore(email, 1L, 10L, "<edited/>");
+
+    verify(fileStorageService)
+        .overwriteStoredContent(projectCopy, "<edited/>".getBytes(StandardCharsets.UTF_8));
+    verify(fileStorageService, never()).overwriteStoredContent(eq(sharedEcore), any());
+    assertThat(projectMetaModel.getEcoreFile()).isSameAs(projectCopy);
+    assertThat(libraryMetaModel.getEcoreFile()).isSameAs(sharedEcore);
+  }
+
+  @Test
+  void updateMetaModelEcore_doesNothing_whenContentUnchanged() {
+    String email = "u@ex.com";
+    Vsum vsum = new Vsum();
+    VsumUser vsumUser = vsumUser(vsum, new User());
+    vsumUser.setRole(VsumRole.MEMBER);
+    MetaModel projectMetaModel = clonedMetaModel(101L, 10L);
+    projectMetaModel.setEcoreFile(
+        fs(2L, "model.ecore", "<same/>".getBytes(StandardCharsets.UTF_8)));
+
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(1L, email))
+        .thenReturn(Optional.of(vsumUser));
+    when(vsumMetaModelRepository.findByVsumAndMetaModel_Source_Id(vsum, 10L))
+        .thenReturn(Optional.of(vsumMetaModel(vsum, projectMetaModel)));
+
+    service.updateMetaModelEcore(email, 1L, 10L, "<same/>");
+
+    verifyNoInteractions(fileStorageService);
+  }
+
+  @Test
+  void updateMetaModelEcore_throwsAccessDenied_whenViewer() {
+    String email = "u@ex.com";
+    VsumUser vsumUser = vsumUser(new Vsum(), new User());
+    vsumUser.setRole(VsumRole.VIEWER);
+
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(1L, email))
+        .thenReturn(Optional.of(vsumUser));
+
+    assertThatThrownBy(() -> service.updateMetaModelEcore(email, 1L, 10L, "<edited/>"))
+        .isInstanceOf(AccessDeniedException.class);
+    verifyNoInteractions(fileStorageService);
+  }
+
+  @Test
+  void updateMetaModelEcore_throwsNotFound_whenMetaModelNotInVsum() {
+    String email = "u@ex.com";
+    Vsum vsum = new Vsum();
+    VsumUser vsumUser = vsumUser(vsum, new User());
+    vsumUser.setRole(VsumRole.MEMBER);
+
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(1L, email))
+        .thenReturn(Optional.of(vsumUser));
+    when(vsumMetaModelRepository.findByVsumAndMetaModel_Source_Id(vsum, 10L))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.updateMetaModelEcore(email, 1L, 10L, "<edited/>"))
+        .isInstanceOf(NotFoundException.class);
+    verifyNoInteractions(fileStorageService);
   }
 
   @Test
