@@ -1,0 +1,26 @@
+name: Deploy - Production (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Production version tag (e.g. v0.1.7)"
+        required: true
+
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to production
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd /opt/methodologist
+            echo "BACKEND_IMAGE_TAG=${{ github.event.inputs.version }}" > .deploy.env
+            echo "FRONTEND_IMAGE_TAG=${{ github.event.inputs.version }}" >> .deploy.env
+            docker compose --env-file .deploy.env pull
+            docker compose --env-file .deploy.env up -d

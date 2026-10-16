@@ -455,13 +455,14 @@ public class MetaModelService {
   /**
    * Updates a MetaModel for the active user.
    *
-   * <p>If the caller is not allowed to update this MetaModel, an {@link AccessDeniedException} is
-   * thrown.
+   * <p>Any authenticated user may update any MetaModel. If the MetaModel is a clone of a shared
+   * source that the caller does not own, the source is forked into a private copy instead of
+   * modifying the shared original.
    *
    * @param callerEmail authenticated user's email
    * @param id MetaModel identifier
    * @param metaModelPutRequest requested changes (validated)
-   * @throws AccessDeniedException if the caller cannot update the specified MetaModel
+   * @throws AccessDeniedException if the caller cannot be resolved to a known user
    * @throws NotFoundException if the user or MetaModel cannot be found
    */
   @Transactional
