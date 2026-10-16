@@ -713,7 +713,7 @@ class MetaModelServiceTest {
   }
 
   @Test
-  void update_updatesAndSaves_whenOriginalMetaModelNotOwned() {
+  void update_throwsAccessDenied_whenOriginalMetaModelNotOwned() {
     String email = "u@ex.com";
     User caller = new User();
     caller.setId(1L);
@@ -727,16 +727,18 @@ class MetaModelServiceTest {
     metaModel.setSource(null);
     metaModel.setUser(other);
 
-    MetaModelPutRequest req = new MetaModelPutRequest();
+    MetaModelPutRequest request = new MetaModelPutRequest();
 
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.of(caller));
     when(metaModelRepository.findById(10L)).thenReturn(Optional.of(metaModel));
 
-    metaModelService.update(email, 10L, req);
+    assertThatThrownBy(() -> metaModelService.update(email, 10L, request))
+        .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
 
-    verify(metaModelMapper, times(1)).updateByMetaModelPutRequest(req, metaModel);
-    verify(metaModelRepository, times(1)).save(metaModel);
+    verify(metaModelMapper, never()).updateByMetaModelPutRequest(any(), any());
+    verify(metaModelRepository, never()).save(any());
     verify(metaModelRepository, never()).saveAll(any());
   }
 
