@@ -144,6 +144,19 @@ public class KeycloakService {
   }
 
   /**
+   * Updates a user's editable profile names in Keycloak.
+   *
+   * @param username the username of the user to update
+   * @param firstName the first name to persist
+   * @param lastName the last name to persist
+   */
+  @Transactional
+  public void updateUserProfile(String username, String firstName, String lastName) {
+    final UserRepresentation userRepresentation = getUserRepresentationOrThrow(username);
+    keycloakGateway.updateUserProfile(userRepresentation.getId(), firstName, lastName);
+  }
+
+  /**
    * Verifies a user's password against Keycloak.
    *
    * @param username the username
@@ -156,7 +169,7 @@ public class KeycloakService {
   public void verifyUserPasswordOrThrow(String username, String password) {
     try {
       keycloakGateway.verifyPassword(username, password);
-    } catch (NotAuthorizedException notAuthorizedException) {
+    } catch (NotAuthorizedException | BadRequestException wrongPasswordException) {
       throw new BadRequestException(USER_WRONG_PASSWORD_ERROR);
     } catch (Exception e) {
       throw new UncheckedRuntimeException(e.getMessage());
@@ -229,5 +242,16 @@ public class KeycloakService {
   @Transactional
   public Boolean existUser(String username) {
     return keycloakGateway.findUser(username).isPresent();
+  }
+
+  /**
+   * Checks if a user with the given email exists in Keycloak.
+   *
+   * @param email the email to check
+   * @return true if a user with exactly this email exists, false otherwise
+   */
+  @Transactional
+  public boolean existUserByEmail(String email) {
+    return keycloakGateway.findUserByEmail(email).isPresent();
   }
 }

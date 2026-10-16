@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.controller;
 
 import static tools.vitruv.methodologist.messages.Message.VSUM_BUILD_WAS_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_CREATED_SUCCESSFULLY;
+import static tools.vitruv.methodologist.messages.Message.VSUM_DELETED_PERMANENTLY_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_RECOVERY_WAS_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_REMOVED_SUCCESSFULLY;
 import static tools.vitruv.methodologist.messages.Message.VSUM_UPDATED_SUCCESSFULLY;
@@ -28,6 +29,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
+import tools.vitruv.methodologist.vsum.controller.dto.request.VsumMetaModelEcorePutRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.request.VsumMetaModelNamePutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
@@ -43,6 +46,8 @@ import tools.vitruv.methodologist.vsum.service.VsumService;
 @RequestMapping("/api/")
 @Validated
 public class VsumController {
+  private static final MediaType APPLICATION_ZIP = MediaType.parseMediaType("application/zip");
+
   private final VsumService vsumService;
 
   /**
@@ -129,6 +134,49 @@ public class VsumController {
   }
 
   /**
+   * Renames a meta model within a VSUM without changing the name of its model-library entry.
+   *
+   * @param authentication the authenticated VSUM member
+   * @param vsumId the VSUM containing the meta model
+   * @param metaModelId the source meta-model ID from the model library
+   * @param request the project-specific name to assign
+   * @return a response indicating the project was updated
+   */
+  @PutMapping("/v1/vsums/{vsumId}/meta-models/{metaModelId}/name")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> updateMetaModelName(
+      KeycloakAuthentication authentication,
+      @PathVariable Long vsumId,
+      @PathVariable Long metaModelId,
+      @Valid @RequestBody VsumMetaModelNamePutRequest request) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    vsumService.updateMetaModelName(callerEmail, vsumId, metaModelId, request.name());
+    return ResponseTemplateDto.<Void>builder().message(VSUM_UPDATED_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Replaces the Ecore content of a meta model within a VSUM. Only the project's own copy is
+   * changed; the model-library entry stays untouched.
+   *
+   * @param authentication the authenticated VSUM member
+   * @param vsumId the VSUM containing the meta model
+   * @param metaModelId the source meta-model ID from the model library
+   * @param request the new Ecore content
+   * @return a response indicating the project was updated
+   */
+  @PutMapping("/v1/vsums/{vsumId}/meta-models/{metaModelId}/ecore")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> updateMetaModelEcore(
+      KeycloakAuthentication authentication,
+      @PathVariable Long vsumId,
+      @PathVariable Long metaModelId,
+      @Valid @RequestBody VsumMetaModelEcorePutRequest request) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    vsumService.updateMetaModelEcore(callerEmail, vsumId, metaModelId, request.ecore());
+    return ResponseTemplateDto.<Void>builder().message(VSUM_UPDATED_SUCCESSFULLY).build();
+  }
+
+  /**
    * Removes a VSUM resource.
    *
    * @param authentication the Keycloak authentication object for the current user
@@ -142,6 +190,27 @@ public class VsumController {
     String callerEmail = authentication.getParsedToken().getEmail();
     vsumService.remove(callerEmail, id);
     return ResponseTemplateDto.<Void>builder().message(VSUM_REMOVED_SUCCESSFULLY).build();
+  }
+
+  /**
+   * Permanently deletes a VSUM that is in the trash. The VSUM must be owned by the authenticated
+   * user and already removed; this cannot be undone.
+   *
+   * @param authentication the Keycloak authentication object for the current user
+   * @param id the ID of the trashed VSUM to delete permanently
+   * @return response indicating the VSUM was deleted permanently
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if no matching trashed VSUM is
+   *     found
+   */
+  @DeleteMapping("/v1/vsums/{id}/permanent")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> deletePermanently(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    vsumService.deletePermanently(callerEmail, id);
+    return ResponseTemplateDto.<Void>builder()
+        .message(VSUM_DELETED_PERMANENTLY_SUCCESSFULLY)
+        .build();
   }
 
   /**
@@ -250,7 +319,11 @@ public class VsumController {
    * @return a response indicating that the build completed successfully
    * @throws AccessDeniedException if the caller has no access to the VSUM
    * @throws VsumBuildingException if the build fails
+   * @deprecated builds are asynchronous now; use {@code POST /v1/vsums/{id}/builds} and poll the
+   *     returned build (see {@link VsumBuildController}). This endpoint blocks until the build
+   *     finishes and is kept for existing clients.
    */
+  @Deprecated(since = "334")
   @GetMapping("/v1/vsums/{id}/build/check")
   @PreAuthorize("hasRole('user')")
   public ResponseTemplateDto<Void> buildOrThrow(
@@ -268,7 +341,11 @@ public class VsumController {
    * @return the VSUM fat JAR build artifact
    * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
    *     fails
+   * @deprecated builds are asynchronous now; use {@code POST /v1/vsums/{id}/builds} and download
+   *     {@code /builds/{buildId}/artifact} (see {@link VsumBuildController}). This endpoint blocks
+   *     until the build finishes and is kept for existing clients.
    */
+  @Deprecated(since = "334")
   @GetMapping("/v1/vsums/{id}/build/artifact")
   public ResponseEntity<byte[]> buildAndDownload(
       KeycloakAuthentication authentication, @PathVariable Long id) {
@@ -281,5 +358,40 @@ public class VsumController {
     headers.setContentDisposition(ContentDisposition.attachment().filename("vsum.jar").build());
 
     return ResponseEntity.ok().headers(headers).body(jar);
+  }
+
+  /**
+   * Builds the VSUM and returns a ready-to-run deployment bundle as a downloadable ZIP archive.
+   *
+   * <p>The archive contains the generated fat JAR together with the launcher scripts and
+   * documentation of the {@code deployment} resource package, so that the user can start the
+   * application locally right after extracting it.
+   *
+   * @param authentication the authenticated Keycloak principal
+   * @param id the identifier of the VSUM to build
+   * @return the deployment bundle as a ZIP archive
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
+   *     fails
+   * @throws tools.vitruv.methodologist.exception.BuildArtifactCreationException if the archive
+   *     cannot be assembled
+   * @deprecated builds are asynchronous now; use {@code POST /v1/vsums/{id}/builds} and download
+   *     {@code /builds/{buildId}/bundle} (see {@link VsumBuildController}). This endpoint blocks
+   *     until the build finishes and is kept for existing clients.
+   */
+  @Deprecated(since = "334")
+  @GetMapping("/v1/vsums/{id}/build/bundle")
+  @PreAuthorize("hasRole('user')")
+  public ResponseEntity<byte[]> buildAndDownloadBundle(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+
+    byte[] bundle = vsumService.createDeploymentBundle(callerEmail, id);
+
+    HttpHeaders headers = new HttpHeaders();
+    headers.setContentType(APPLICATION_ZIP);
+    headers.setContentDisposition(
+        ContentDisposition.attachment().filename("vsum-deployment.zip").build());
+
+    return ResponseEntity.ok().headers(headers).body(bundle);
   }
 }

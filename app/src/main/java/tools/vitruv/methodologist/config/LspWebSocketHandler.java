@@ -20,6 +20,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -149,25 +150,19 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
 
     new Thread(lspProcess::readFromLsp).start();
 
-    new Thread(
+    CompletableFuture.delayedExecutor(500, TimeUnit.MILLISECONDS)
+        .execute(
             () -> {
               try {
-                Thread.sleep(500);
-
                 String rootUriMessage =
                     String.format(
                         "{\"type\":\"workspaceReady\",\"rootUri\":\"%s\"}",
                         userProject.toUri().toString());
                 session.sendMessage(new TextMessage(rootUriMessage));
-              } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.error(
-                    "💥 Thread interrupted while sending workspaceReady: {}", e.getMessage());
               } catch (Exception e) {
                 logger.error("💥 Failed to send workspaceReady: {}", e.getMessage());
               }
-            })
-        .start();
+            });
   }
 
   @Override

@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import lombok.AllArgsConstructor;
@@ -29,6 +30,7 @@ import org.hibernate.annotations.UpdateTimestamp;
  *   <li><b>id</b> — unique identifier for the link entry.
  *   <li><b>vsum</b> — the owning VSUM to which the metamodel belongs (cannot be null).
  *   <li><b>metaModel</b> — the linked metamodel entity (cannot be null).
+ *   <li><b>name</b> — the meta model's project-specific name.
  *   <li><b>createdAt</b> — timestamp automatically set when the link is created.
  *   <li><b>updatedAt</b> — timestamp automatically updated when the link is modified.
  *   <li><b>removedAt</b> — optional timestamp indicating when the link was removed.
@@ -54,6 +56,12 @@ public class VsumMetaModel {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "meta_model_id")
   private MetaModel metaModel;
+
+  /**
+   * The name used for this meta model within its VSUM. It is independent from the library meta
+   * model's name.
+   */
+  @NotNull @NotBlank private String name;
 
   @CreationTimestamp private Instant createdAt;
 

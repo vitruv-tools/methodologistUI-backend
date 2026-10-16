@@ -1,7 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
 import static tools.vitruv.methodologist.messages.Error.ECORE_FILE_ID_NOT_FOUND_ERROR;
-import static tools.vitruv.methodologist.messages.Error.GEN_MODEL_FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.META_MODEL_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
@@ -12,10 +11,15 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
@@ -29,8 +33,10 @@ import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
 import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
+import tools.vitruv.methodologist.exception.MetaModelVersionAlreadyExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
+import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.general.service.FileStorageService;
@@ -40,6 +46,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelFilterReq
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelVsumUsageResponse;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.Vsum;
@@ -62,6 +69,9 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class MetaModelService {
+
+  private static final String GEN_MODEL_EXTENSION = ".genmodel";
+  private static final String DEFAULT_GEN_MODEL_BASE_NAME = "model";
 
   MetaModelService self;
   MetaModelMapper metaModelMapper;
@@ -108,7 +118,7 @@ public class MetaModelService {
   }
 
   /**
-   * Loads the user, mapped metamodel, and referenced files required to create a metamodel.
+   * Loads the user, mapped metamodel, and referenced Ecore file required to create a metamodel.
    *
    * @param callerEmail authenticated user's email
    * @param req creation request
@@ -128,21 +138,90 @@ public class MetaModelService {
                 req.getEcoreFileId(), FileEnumType.ECORE, callerEmail)
             .orElseThrow(() -> new NotFoundException(ECORE_FILE_ID_NOT_FOUND_ERROR));
 
-    FileStorage genModelFile =
-        fileStorageRepository
-            .findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
-                req.getGenModelFileId(), FileEnumType.GEN_MODEL, callerEmail)
-            .orElseThrow(() -> new NotFoundException(GEN_MODEL_FILE_ID_NOT_FOUND_ERROR));
-
-    return new CreateContext(user, metaModel, ecoreFile, genModelFile);
+    return new CreateContext(user, metaModel, ecoreFile);
   }
 
-  private MetaModel savePendingMetaModel(CreateContext createContext) {
+  /**
+   * Rejects a library metamodel when this user already has the same name and version. A different
+   * version of the same name is allowed. Cloned metamodels are not part of the check.
+   *
+   * @param user the owning user
+   * @param name the metamodel name
+   * @param version the metamodel version
+   * @param excludedId the metamodel id to ignore when updating, or {@code null} when creating
+   */
+  private void rejectDuplicateLibraryVersion(
+      User user, String name, String version, Long excludedId) {
+    boolean duplicate =
+        excludedId == null
+            ? metaModelRepository.existsLibraryMetamodel(user, name, version)
+            : metaModelRepository.existsOtherLibraryMetamodel(user, name, version, excludedId);
+    if (duplicate) {
+      throw new MetaModelVersionAlreadyExistsException();
+    }
+  }
+
+  private MetaModel savePendingMetaModel(CreateContext createContext, FileStorage genModelFile) {
     MetaModel metaModel = createContext.metaModel();
     metaModel.setUser(createContext.user());
     metaModel.setEcoreFile(createContext.ecoreFile());
-    metaModel.setGenModelFile(createContext.genModelFile());
+    metaModel.setGenModelFile(genModelFile);
     return metaModelRepository.save(metaModel);
+  }
+
+  /**
+   * Generates the GenModel for the given Ecore file via the setup-service and stores it as a new
+   * GenModel file owned by the caller.
+   *
+   * @param callerEmail authenticated user's email
+   * @param ecoreFile the Ecore file to generate the GenModel from
+   * @return the stored GenModel file
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
+   *     fails
+   */
+  private FileStorage storeGeneratedGenModel(String callerEmail, FileStorage ecoreFile) {
+    byte[] genModel = setupServiceApiHandler.generateGenModelOrThrow(ecoreFile);
+    FileStorageResponse storedGenModel =
+        fileStorageService.storeFile(
+            callerEmail, genModel, genModelFilename(ecoreFile), null, FileEnumType.GEN_MODEL);
+    return fileStorageService.getFile(storedGenModel.getId());
+  }
+
+  /**
+   * Regenerates the GenModel from a changed Ecore file and writes it into the GenModel file of each
+   * given metamodel, so the GenModel always matches the Ecore it belongs to.
+   *
+   * @param ecoreFile the new Ecore file
+   * @param metaModels the metamodels that now use this Ecore file
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service call
+   *     fails
+   */
+  private void regenerateGenModels(FileStorage ecoreFile, MetaModel... metaModels) {
+    byte[] genModel = setupServiceApiHandler.generateGenModelOrThrow(ecoreFile);
+    String filename = genModelFilename(ecoreFile);
+    for (MetaModel metaModel : metaModels) {
+      FileStorage genModelFile = metaModel.getGenModelFile();
+      genModelFile.setFilename(filename);
+      fileStorageService.overwriteStoredContent(genModelFile, genModel);
+    }
+  }
+
+  /**
+   * Derives the GenModel filename from the Ecore filename, for example {@code model.ecore} becomes
+   * {@code model.genmodel}.
+   *
+   * @param ecoreFile the Ecore file
+   * @return the GenModel filename
+   */
+  private static String genModelFilename(FileStorage ecoreFile) {
+    String ecoreFilename = ecoreFile.getFilename();
+    if (ecoreFilename == null || ecoreFilename.isBlank()) {
+      return DEFAULT_GEN_MODEL_BASE_NAME + GEN_MODEL_EXTENSION;
+    }
+    int extensionStart = ecoreFilename.lastIndexOf('.');
+    String baseName =
+        extensionStart > 0 ? ecoreFilename.substring(0, extensionStart) : ecoreFilename;
+    return baseName + GEN_MODEL_EXTENSION;
   }
 
   /**
@@ -174,30 +253,25 @@ public class MetaModelService {
   /**
    * Creates a metamodel from the request.
    *
-   * <p>When {@link MetaModelPostRequest#isApplyGenModelFixes()} is {@code true}, the GenModel is
-   * sent to the setup-service {@code process} endpoint, the returned (fixed) GenModel overwrites
-   * the stored file, and the metamodel is then persisted and built. When it is {@code false}, the
-   * GenModel is only sent to the {@code inspect} endpoint and the resulting message is returned
-   * without creating the metamodel.
+   * <p>Only the Ecore file is uploaded. The GenModel is generated from it by the setup-service
+   * {@code generate} endpoint and stored as a new file, and the metamodel is then persisted and
+   * built.
    *
    * @param callerEmail authenticated user's email
    * @param req creation request
-   * @return the creation result holding the created metamodel (fixes applied) or the inspection
-   *     message (fixes not applied)
+   * @return the creation result holding the created metamodel and the success message
    */
   @Transactional
   public MetaModelCreationResult create(String callerEmail, MetaModelPostRequest req) {
     CreateContext createContext = prepareCreateContext(callerEmail, req);
+    rejectDuplicateLibraryVersion(
+        createContext.user(),
+        createContext.metaModel().getName(),
+        createContext.metaModel().getVersion(),
+        null);
 
-    if (!req.isApplyGenModelFixes()) {
-      GenModelInspectionResponse inspection = inspectGenModel(createContext.genModelFile());
-      return new MetaModelCreationResult(null, inspection.getMessage());
-    }
-
-    byte[] processedGenModel = processGenModel(createContext.genModelFile());
-    fileStorageService.overwriteStoredContent(createContext.genModelFile(), processedGenModel);
-
-    MetaModel metaModel = savePendingMetaModel(createContext);
+    FileStorage genModelFile = storeGeneratedGenModel(callerEmail, createContext.ecoreFile());
+    MetaModel metaModel = savePendingMetaModel(createContext, genModelFile);
 
     MetamodelBuildService.BuildResult result =
         metamodelBuildService.buildAndValidate(
@@ -235,7 +309,71 @@ public class MetaModelService {
         Specification.where(
             MetaModelSpecifications.buildSpecification(callerEmail, metaModelFilterRequest));
     List<MetaModel> metaModels = metaModelRepository.findAll(spec, pageable);
-    return metaModels.stream().map(metaModelMapper::toMetaModelResponse).toList();
+    Map<Long, List<MetaModelVsumUsageResponse>> vsumsBySourceId =
+        findVsumsUsing(metaModels, callerEmail);
+    return metaModels.stream()
+        .map(
+            metaModel -> {
+              MetaModelResponse response = metaModelMapper.toMetaModelResponse(metaModel);
+              response.setVsums(vsumsBySourceId.getOrDefault(metaModel.getId(), List.of()));
+              return response;
+            })
+        .toList();
+  }
+
+  /**
+   * Finds the VSUMs that use the given library metamodels through their clones, using the same
+   * relation as the deletion check in {@link #delete(String, Long)}, so trashed VSUMs are included.
+   *
+   * <p>Every using VSUM yields one entry, so the entry count always matches the deletion check.
+   * Details are only exposed for VSUMs the caller is a member of; entries for other users' VSUMs
+   * stay empty so their names are not disclosed.
+   *
+   * @param metaModels the library metamodels to look up
+   * @param callerEmail the email of the requesting user
+   * @return the using VSUMs grouped by library metamodel ID; metamodels without usage are absent
+   */
+  private Map<Long, List<MetaModelVsumUsageResponse>> findVsumsUsing(
+      List<MetaModel> metaModels, String callerEmail) {
+    if (metaModels.isEmpty()) {
+      return Map.of();
+    }
+    List<Long> sourceIds = metaModels.stream().map(MetaModel::getId).toList();
+    return vsumMetaModelRepository.findAllByMetaModel_Source_IdIn(sourceIds).stream()
+        .collect(
+            Collectors.groupingBy(
+                vsumMetaModel -> vsumMetaModel.getMetaModel().getSource().getId(),
+                Collectors.collectingAndThen(
+                    Collectors.mapping(VsumMetaModel::getVsum, Collectors.toList()),
+                    vsums -> toVsumUsageResponses(vsums, callerEmail))));
+  }
+
+  private static List<MetaModelVsumUsageResponse> toVsumUsageResponses(
+      List<Vsum> vsums, String callerEmail) {
+    Map<Boolean, List<Vsum>> byAccess =
+        vsums.stream()
+            .collect(Collectors.toMap(Vsum::getId, vsum -> vsum, (first, duplicate) -> first))
+            .values()
+            .stream()
+            .collect(Collectors.partitioningBy(vsum -> isMember(vsum, callerEmail)));
+    Stream<MetaModelVsumUsageResponse> visible =
+        byAccess.get(true).stream()
+            .sorted(Comparator.comparing(Vsum::getName, Comparator.nullsLast(String::compareTo)))
+            .map(
+                vsum ->
+                    MetaModelVsumUsageResponse.builder()
+                        .id(vsum.getId())
+                        .name(vsum.getName())
+                        .removedAt(vsum.getRemovedAt())
+                        .build());
+    Stream<MetaModelVsumUsageResponse> hidden =
+        byAccess.get(false).stream().map(vsum -> new MetaModelVsumUsageResponse());
+    return Stream.concat(visible, hidden).toList();
+  }
+
+  private static boolean isMember(Vsum vsum, String callerEmail) {
+    return vsum.getVsumUsers().stream()
+        .anyMatch(vsumUser -> callerEmail.equalsIgnoreCase(vsumUser.getUser().getEmail()));
   }
 
   /**
@@ -280,7 +418,8 @@ public class MetaModelService {
    *
    * <p>If the metamodel is currently referenced by any VSUMs, deletion is prevented and a {@link
    * tools.vitruv.methodologist.exception.MetaModelUsedInVsumException} is thrown listing the
-   * referencing VSUM names.
+   * referencing VSUM names. VSUMs that are in the trash are marked with "(in trash)" and can be
+   * deleted permanently to unblock the deletion.
    *
    * @param callerEmail the email address of the user who owns the metamodel
    * @param id the unique identifier of the metamodel to delete
@@ -300,13 +439,17 @@ public class MetaModelService {
       throw new MetaModelUsedInVsumException(
           vsums.stream()
               .map(VsumMetaModel::getVsum)
-              .map(Vsum::getName)
-              .map(String::valueOf)
-              .collect(Collectors.joining(",")));
+              .map(MetaModelService::describeBlockingVsum)
+              .collect(Collectors.joining(", ")));
     }
 
     metaModelRepository.delete(metaModel);
     fileStorageService.deleteFiles(List.of(metaModel.getEcoreFile(), metaModel.getGenModelFile()));
+  }
+
+  private static String describeBlockingVsum(Vsum vsum) {
+    String name = String.valueOf(vsum.getName());
+    return vsum.getRemovedAt() == null ? name : name + " (in trash)";
   }
 
   /**
@@ -336,7 +479,18 @@ public class MetaModelService {
             .orElseThrow(() -> new NotFoundException(META_MODEL_ID_NOT_FOUND_ERROR));
 
     if (metaModel.getSource() == null) {
+      if (!isOwnedBy(metaModel, user)) {
+        throw new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS);
+      }
+
+      FileStorage updatedEcore = resolveUpdatedEcore(callerEmail, metaModel, metaModelPutRequest);
       metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, metaModel);
+      if (updatedEcore != null) {
+        metaModel.setEcoreFile(updatedEcore);
+        regenerateGenModels(updatedEcore, metaModel);
+      }
+      rejectDuplicateLibraryVersion(
+          metaModel.getUser(), metaModel.getName(), metaModel.getVersion(), metaModel.getId());
       metaModelRepository.save(metaModel);
       return;
     }
@@ -344,24 +498,95 @@ public class MetaModelService {
     MetaModel source = metaModel.getSource();
 
     if (isOwnedBy(source, user)) {
+      FileStorage updatedEcore = resolveUpdatedEcore(callerEmail, metaModel, metaModelPutRequest);
       metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, source);
       metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, metaModel);
+      if (updatedEcore != null) {
+        source.setEcoreFile(updatedEcore);
+        metaModel.setEcoreFile(updatedEcore);
+        regenerateGenModels(updatedEcore, source, metaModel);
+      }
+      rejectDuplicateLibraryVersion(
+          source.getUser(), source.getName(), source.getVersion(), source.getId());
 
       metaModelRepository.saveAll(List.of(source, metaModel));
       return;
     }
 
+    final FileStorage updatedEcore =
+        resolveUpdatedEcore(callerEmail, metaModel, metaModelPutRequest);
     MetaModel newSource = clone(source);
     newSource.setUser(user);
     newSource.setSource(null);
 
     metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, newSource);
     metaModelMapper.updateByMetaModelPutRequest(metaModelPutRequest, metaModel);
+    if (updatedEcore != null) {
+      newSource.setEcoreFile(updatedEcore);
+      metaModel.setEcoreFile(updatedEcore);
+      regenerateGenModels(updatedEcore, newSource, metaModel);
+    }
+    rejectDuplicateLibraryVersion(
+        user, newSource.getName(), newSource.getVersion(), newSource.getId());
 
     metaModelRepository.save(newSource);
 
     metaModel.setSource(newSource);
     metaModelRepository.save(metaModel);
+  }
+
+  /**
+   * Replaces the Ecore content of a VSUM's own meta model copy and regenerates its GenModel, so
+   * both files stay in sync.
+   *
+   * <p>The model-library entry the copy was cloned from is never modified. If the copy still shares
+   * a file with the library entry, that file is cloned first.
+   *
+   * @param projectMetaModel the VSUM's meta model copy; must have a library source
+   * @param ecore the complete new Ecore content
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the GenModel cannot be
+   *     generated
+   */
+  @Transactional
+  public void updateProjectEcore(MetaModel projectMetaModel, byte[] ecore) {
+    if (Arrays.equals(projectMetaModel.getEcoreFile().getData(), ecore)) {
+      return;
+    }
+
+    MetaModel libraryMetaModel = projectMetaModel.getSource();
+    projectMetaModel.setEcoreFile(
+        projectOwnedFile(projectMetaModel.getEcoreFile(), libraryMetaModel.getEcoreFile()));
+    projectMetaModel.setGenModelFile(
+        projectOwnedFile(projectMetaModel.getGenModelFile(), libraryMetaModel.getGenModelFile()));
+
+    fileStorageService.overwriteStoredContent(projectMetaModel.getEcoreFile(), ecore);
+    regenerateGenModels(projectMetaModel.getEcoreFile(), projectMetaModel);
+    metaModelRepository.save(projectMetaModel);
+  }
+
+  /**
+   * Returns a file the project copy may overwrite: the file itself, or a clone of it if it is
+   * shared with the library entry.
+   */
+  private FileStorage projectOwnedFile(FileStorage projectFile, FileStorage libraryFile) {
+    if (libraryFile == null || !Objects.equals(projectFile.getId(), libraryFile.getId())) {
+      return projectFile;
+    }
+    return fileStorageService.clone(projectFile);
+  }
+
+  private FileStorage resolveUpdatedEcore(
+      String callerEmail, MetaModel metaModel, MetaModelPutRequest request) {
+    Long requestedId = request.getEcoreFileId();
+    FileStorage currentFile = metaModel.getEcoreFile();
+    if (requestedId == null
+        || Objects.equals(requestedId, currentFile == null ? null : currentFile.getId())) {
+      return null;
+    }
+    return fileStorageRepository
+        .findByIdAndTypeAndUser_EmailAndUser_RemovedAtIsNull(
+            requestedId, FileEnumType.ECORE, callerEmail)
+        .orElseThrow(() -> new NotFoundException(ECORE_FILE_ID_NOT_FOUND_ERROR));
   }
 
   boolean isOwnedBy(MetaModel metaModel, User user) {
@@ -430,7 +655,7 @@ public class MetaModelService {
    * @param vsumId project/VSUM whose metamodels should be included
    * @throws IOException if file writing fails
    */
-  @Transactional(readOnly = true)
+  @Transactional(readOnly = true, noRollbackFor = IOException.class)
   public void writeMetamodelsToDirectory(File targetDir, Long vsumId) throws IOException {
     List<MetaModel> metamodels = self.findAccessibleByProject(vsumId);
 
@@ -441,14 +666,12 @@ public class MetaModelService {
     }
   }
 
-  private record CreateContext(
-      User user, MetaModel metaModel, FileStorage ecoreFile, FileStorage genModelFile) {}
+  private record CreateContext(User user, MetaModel metaModel, FileStorage ecoreFile) {}
 
   /**
    * Result of {@link #create(String, MetaModelPostRequest)}.
    *
-   * @param metaModel the created metamodel, or {@code null} when fixes were not applied and only an
-   *     inspection was performed
+   * @param metaModel the created metamodel
    * @param message the message to return to the caller
    */
   public record MetaModelCreationResult(MetaModel metaModel, String message) {}

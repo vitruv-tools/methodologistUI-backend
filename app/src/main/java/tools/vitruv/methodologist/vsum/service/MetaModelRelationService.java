@@ -1,9 +1,12 @@
 package tools.vitruv.methodologist.vsum.service;
 
 import static tools.vitruv.methodologist.messages.Error.METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.METAMODEL_RELATION_REACTION_OR_FG_REQUIRED_ERROR;
+import static tools.vitruv.methodologist.messages.Error.METAMODEL_RELATION_UPDATE_NOT_ALLOWED_ERROR;
 import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +20,7 @@ import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.exception.MetaModelRelationCreationException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -40,13 +44,58 @@ public class MetaModelRelationService {
   VsumMetaModelRepository vsumMetaModelRepository;
 
   /**
-   * Creates relations for the given requests; requires non-null reactionFileId for new relations.
+   * Creates relations for the given requests. Requires a reaction file or a non-empty fine-granular
+   * set.
+   *
+   * @param vsum the VSUM to create relations for
+   * @param requests the list of requests
+   * @return a map of requests to created relations
    */
   @Transactional
-  public void create(Vsum vsum, List<MetaModelRelationRequest> requests) {
-    if (requests == null || requests.isEmpty()) {
-      return;
+  public Map<MetaModelRelationRequest, MetaModelRelation> create(
+      Vsum vsum, List<MetaModelRelationRequest> requests) {
+    Map<MetaModelRelationRequest, MetaModelRelation> map = new HashMap<>();
+    if (requests != null) {
+      requests.forEach(r -> map.put(r, null));
     }
+    return createOrUpdate(vsum, map, false);
+  }
+
+  /**
+   * Updates relations for the given requests. Requires a reaction file or a non-empty fine-granular
+   * set.
+   *
+   * @param vsum the VSUM to update relations for
+   * @param metaModelRelationRequestToRelation the map of requests to existing relations
+   * @return a map of requests to updated relations
+   */
+  @Transactional
+  public Map<MetaModelRelationRequest, MetaModelRelation> update(
+      Vsum vsum,
+      Map<MetaModelRelationRequest, MetaModelRelation> metaModelRelationRequestToRelation) {
+    return createOrUpdate(vsum, metaModelRelationRequestToRelation, true);
+  }
+
+  /**
+   * Creates or updates relations for the given requests. Requires a reaction file or a non-empty
+   * fine-granular set.
+   *
+   * @param vsum the VSUM to create or update relations for
+   * @param metaModelRelationRequestToRelation the map of requests to relations
+   * @param allowUpdate whether to allow updates of existing relations
+   * @return a map of requests to created or updated relations
+   */
+  @Transactional
+  protected Map<MetaModelRelationRequest, MetaModelRelation> createOrUpdate(
+      Vsum vsum,
+      Map<MetaModelRelationRequest, MetaModelRelation> metaModelRelationRequestToRelation,
+      boolean allowUpdate) {
+    var result = new HashMap<MetaModelRelationRequest, MetaModelRelation>();
+    if (metaModelRelationRequestToRelation == null
+        || metaModelRelationRequestToRelation.isEmpty()) {
+      return result;
+    }
+    var requests = metaModelRelationRequestToRelation.keySet();
 
     Set<Long> metaModelSourceIds =
         requests.stream()
@@ -67,8 +116,12 @@ public class MetaModelRelationService {
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
     Map<Long, FileStorage> reactionFileById =
-        fileStorageRepository.findAllByIdInAndType(reactionFileIds, FileEnumType.REACTION).stream()
-            .collect(Collectors.toMap(FileStorage::getId, fileStorage -> fileStorage));
+        reactionFileIds.isEmpty()
+            ? Map.of()
+            : fileStorageRepository
+                .findAllByIdInAndType(reactionFileIds, FileEnumType.REACTION)
+                .stream()
+                .collect(Collectors.toMap(FileStorage::getId, fileStorage -> fileStorage));
 
     Set<Long> missingMM =
         requests.stream()
@@ -85,7 +138,7 @@ public class MetaModelRelationService {
       throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
     }
 
-    record Key(long sourceId, long targetId, long reactionFileId) {}
+    record Key(long sourceId, long targetId, Long reactionFileId) {}
 
     Set<Key> seen = new HashSet<>();
 
@@ -95,6 +148,12 @@ public class MetaModelRelationService {
       Long targetId = metaModelRelationRequest.getTargetId();
       Long reactionFileId = metaModelRelationRequest.getReactionFileId();
 
+      if (reactionFileId == null
+          && metaModelRelationRequest.getFineGranularMetaModelRelationSet().isEmpty()) {
+        throw new MetaModelRelationCreationException(
+            METAMODEL_RELATION_REACTION_OR_FG_REQUIRED_ERROR);
+      }
+
       Key k = new Key(sourceId, targetId, reactionFileId);
       if (!seen.add(k)) {
         continue;
@@ -102,25 +161,53 @@ public class MetaModelRelationService {
 
       MetaModel source = metaModelBySourceId.get(sourceId);
       MetaModel target = metaModelBySourceId.get(targetId);
-      FileStorage reactionFile = reactionFileById.get(reactionFileId);
+      FileStorage reactionFile =
+          reactionFileId == null ? null : reactionFileById.get(reactionFileId);
 
-      toSave.add(
-          MetaModelRelation.builder()
-              .vsum(vsum)
-              .source(source)
-              .target(target)
-              .reactionFileStorage(reactionFile)
-              .build());
+      MetaModelRelation metaModelRelation;
+      if (allowUpdate) {
+        metaModelRelation = metaModelRelationRequestToRelation.get(metaModelRelationRequest);
+        if (metaModelRelation == null) {
+          throw new MetaModelRelationCreationException(METAMODEL_RELATION_UPDATE_NOT_ALLOWED_ERROR);
+        }
+        if (metaModelRelationRequest.getId() != null
+            && !Objects.equals(metaModelRelation.getId(), metaModelRelationRequest.getId())) {
+          throw new MetaModelRelationCreationException(METAMODEL_RELATION_UPDATE_NOT_ALLOWED_ERROR);
+        }
+        metaModelRelation.setSource(source);
+        metaModelRelation.setTarget(target);
+        metaModelRelation.setReactionFileStorage(reactionFile);
+      } else {
+        if (metaModelRelationRequest.getId() != null) {
+          throw new MetaModelRelationCreationException(METAMODEL_RELATION_UPDATE_NOT_ALLOWED_ERROR);
+        }
+        metaModelRelation =
+            MetaModelRelation.builder()
+                .vsum(vsum)
+                .source(source)
+                .target(target)
+                .reactionFileStorage(reactionFile)
+                .fineGranularMetaModelRelationSet(new HashSet<>())
+                .build();
+      }
+
+      result.put(metaModelRelationRequest, metaModelRelation);
+      toSave.add(metaModelRelation);
     }
 
     if (toSave.isEmpty()) {
-      return;
+      return result;
     }
 
     metaModelRelationRepository.saveAll(toSave);
+    return result;
   }
 
-  /** Deletes the provided relations in batch. */
+  /**
+   * Deletes the provided relations in batch.
+   *
+   * @param relations the list of relations to delete
+   */
   @Transactional
   public void delete(List<MetaModelRelation> relations) {
     metaModelRelationRepository.deleteAll(relations);

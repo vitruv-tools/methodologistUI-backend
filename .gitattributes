@@ -1,0 +1,5 @@
+# Files of the deployment bundle are shipped byte-for-byte to the user's machine and into Docker
+# builds, so their line endings must not depend on the checkout that built the backend:
+# shell scripts, the Dockerfile and Compose file need LF, Windows batch files need CRLF.
+app/src/main/resources/deployment/** text eol=lf
+app/src/main/resources/deployment/*.bat text eol=crlf

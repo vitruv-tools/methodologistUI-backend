@@ -1,7 +1,10 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
@@ -34,6 +37,16 @@ public interface VsumMetaModelRepository extends CrudRepository<VsumMetaModel, L
   List<VsumMetaModel> findAllByVsum(Vsum vsum);
 
   /**
+   * Finds the project-specific link for a library meta model source within a VSUM.
+   *
+   * @param vsum the VSUM containing the meta model
+   * @param sourceId the ID of the source meta model in the model library
+   * @return the matching project meta model link, if one exists
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  Optional<VsumMetaModel> findByVsumAndMetaModel_Source_Id(Vsum vsum, Long sourceId);
+
+  /**
    * Retrieves all VsumMetaModel entries where the given MetaModel is used as a source.
    *
    * @param metaModel the MetaModel to search for as a source
@@ -42,6 +55,18 @@ public interface VsumMetaModelRepository extends CrudRepository<VsumMetaModel, L
    */
   @SuppressWarnings("checkstyle:MethodName")
   List<VsumMetaModel> findAllByMetaModel_Source(MetaModel metaModel);
+
+  /**
+   * Retrieves all VsumMetaModel entries whose metamodel is a clone of one of the given library
+   * metamodels. The owning VSUM with its members and the clone are fetched eagerly so callers can
+   * read project data, membership and the source ID without additional queries.
+   *
+   * @param sourceIds the IDs of the library metamodels; must not be {@code null}
+   * @return the matching VsumMetaModel entities, or an empty list if none match
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  @EntityGraph(attributePaths = {"vsum", "vsum.vsumUsers", "vsum.vsumUsers.user", "metaModel"})
+  List<VsumMetaModel> findAllByMetaModel_Source_IdIn(Collection<Long> sourceIds);
 
   /**
    * Retrieves all {@link VsumMetaModel} entities associated with the given {@link Vsum} whose

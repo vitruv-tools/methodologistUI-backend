@@ -29,7 +29,10 @@ public class Message {
   public static final String META_MODEL_REMOVED_SUCCESSFULLY = "Meta model successfully removed";
   public static final String META_MODEL_UPDATED_SUCCESSFULLY = "Meta model successfully updated";
   public static final String VSUM_RECOVERY_WAS_SUCCESSFULLY = "Recovery was successful";
+  public static final String VSUM_DELETED_PERMANENTLY_SUCCESSFULLY = "Vsum permanently deleted";
   public static final String VSUM_BUILD_WAS_SUCCESSFULLY = "The build was successful.";
+  public static final String VSUM_BUILD_STARTED = "The build was started.";
+  public static final String VSUM_BUILD_REUSED = "An up-to-date build already exists.";
   public static final String VSUM_HISTORY_REVERT_WAS_SUCCESSFULLY =
       "The vsum history was reverted.";
   public static final String VSUM_USER_DELETED_SUCCESSFULLY =
@@ -37,4 +40,8 @@ public class Message {
   public static final String VSUM_USER_CREATED_SUCCESSFULLY =
       "Member successfully added into the Vsum.";
   public static final String VSUM_INVITATION_SENT_SUCCESSFULLY = "Invitation sent successfully.";
+  public static final String LOWCODE_REACTION_CREATED_SUCCESSFULLY =
+      "Low-code reaction created successfully";
+  public static final String LOWCODE_REACTIONS_METADATA_LOADED_SUCCESSFULLY =
+      "Low-code reactions metadata loaded successfully";
 }

@@ -158,7 +158,8 @@ public class UserController {
    *
    * @param authentication the {@link KeycloakAuthentication} containing the caller's parsed token
    *     and email
-   * @param userPutChangePasswordRequest validated request DTO containing the new password
+   * @param userPutChangePasswordRequest validated request DTO containing the current and new
+   *     password
    * @return a {@link ResponseTemplateDto} with no payload and a success message
    * @throws RuntimeException if the service fails to change the password (underlying exceptions
    *     will propagate)
@@ -191,28 +192,39 @@ public class UserController {
   }
 
   /**
-   * Updates an existing user by ID.
+   * Updates the authenticated caller's own account. Requires the 'user' role; any other ID is
+   * rejected with 403.
    *
-   * @param id the ID of the user to update
+   * @param authentication the Keycloak authentication object containing caller details
+   * @param id the ID of the user to update, which must be the caller's own
    * @param userPutRequest the request body containing updated user information
    * @return a response template indicating successful update
    */
   @PutMapping("/v1/users/{id}")
+  @PreAuthorize("hasRole('user')")
   public ResponseTemplateDto<Void> update(
-      @PathVariable Long id, @Valid @RequestBody UserPutRequest userPutRequest) {
-    userService.update(id, userPutRequest);
+      KeycloakAuthentication authentication,
+      @PathVariable Long id,
+      @Valid @RequestBody UserPutRequest userPutRequest) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    userService.update(callerEmail, id, userPutRequest);
     return ResponseTemplateDto.<Void>builder().message(USER_UPDATED_SUCCESSFULLY).build();
   }
 
   /**
-   * Removes a user by ID.
+   * Removes the authenticated caller's own account. Requires the 'user' role; any other ID is
+   * rejected with 403.
    *
-   * @param id the ID of the user to remove
+   * @param authentication the Keycloak authentication object containing caller details
+   * @param id the ID of the user to remove, which must be the caller's own
    * @return a response template indicating successful removal
    */
   @DeleteMapping("/v1/users/{id}")
-  public ResponseTemplateDto<Void> remove(@PathVariable Long id) {
-    userService.remove(id);
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<Void> remove(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    userService.remove(callerEmail, id);
     return ResponseTemplateDto.<Void>builder().message(USER_REMOVED_SUCCESSFULLY).build();
   }
 

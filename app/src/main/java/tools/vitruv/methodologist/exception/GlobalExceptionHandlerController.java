@@ -16,6 +16,7 @@
 
 package tools.vitruv.methodologist.exception;
 
+import jakarta.ws.rs.BadRequestException;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -344,6 +345,29 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
+   * Handles creation or update of a library metamodel whose name and version are already used by
+   * the same user. Returns a BAD_REQUEST (400) response.
+   *
+   * @param ex the exception describing the duplicate name and version
+   * @param handlerMethod the handler method where the exception occurred
+   * @param request the current web request
+   * @return an ErrorResponse containing the error message and request path
+   */
+  @ExceptionHandler(value = MetaModelVersionAlreadyExistsException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse metaModelVersionAlreadyExistsException(
+      MetaModelVersionAlreadyExistsException ex,
+      HandlerMethod handlerMethod,
+      ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .error(MetaModelVersionAlreadyExistsException.MESSAGE_TEMPLATE)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles exceptions when attempting to add a user to a VSUM with a role they already have.
    * Returns a BAD_REQUEST (400) response with details about the duplicate user-role assignment.
    *
@@ -381,6 +405,55 @@ public class GlobalExceptionHandlerController {
   @ResponseBody
   public ErrorResponse metaModelUsedInVsumException(
       MetaModelUsedInVsumException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link MetaModelRelationCreationException} thrown when a coarse or fine-granular
+   * meta-model relation cannot be created or updated (for example because neither a reaction file
+   * nor a low-code template was provided).
+   *
+   * <p>Responds with HTTP 400 (Bad Request) and returns an {@link ErrorResponse} containing the
+   * exception message and the request path.
+   *
+   * @param ex the thrown {@code MetaModelRelationCreationException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the relation creation failure
+   */
+  @ExceptionHandler(value = MetaModelRelationCreationException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse metaModelRelationCreationException(
+      MetaModelRelationCreationException ex,
+      HandlerMethod handlerMethod,
+      ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles {@link LowCodeTemplateException} thrown when a FreeMarker reaction template cannot be
+   * loaded or applied.
+   *
+   * <p>Responds with HTTP 400 (Bad Request) and returns an {@link ErrorResponse} containing the
+   * exception message and the request path.
+   *
+   * @param ex the thrown {@code LowCodeTemplateException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the template failure
+   */
+  @ExceptionHandler(value = LowCodeTemplateException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse lowCodeTemplateException(
+      LowCodeTemplateException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
@@ -492,6 +565,31 @@ public class GlobalExceptionHandlerController {
       HttpClientErrorException.BadRequest ex,
       HandlerMethod handlerMethod,
       ServletWebRequest request) {
+    log.warn(
+        BAD_REQUEST_ERROR,
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage());
+    log.debug(STACKTRACE_LOG, ex.toString());
+    return ErrorResponse.builder()
+        .error(BAD_REQUEST_ERROR)
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles bad request exceptions from JAX-RS operations.
+   *
+   * @param ex the caught BadRequest exception
+   * @param handlerMethod the handler method that threw the exception
+   * @param request the current web request
+   * @return ErrorResponse with bad request details
+   */
+  @ExceptionHandler(value = BadRequestException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse badRequestException(
+      BadRequestException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     log.warn(
         BAD_REQUEST_ERROR,
         handlerMethod.getMethod().getDeclaringClass().getSimpleName(),

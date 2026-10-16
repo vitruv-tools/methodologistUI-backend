@@ -38,7 +38,10 @@ public class KeycloakGatewayImpl implements KeycloakGateway {
       @Value("${keycloak.admin.username}") String adminUsername,
       @Value("${keycloak.admin.password}") String adminPassword,
       @Value("${keycloak.admin.client-secret}") String secret,
-      @Value("${spring.security.oauth2.client.registration.keycloak.client-id}") String clientId) {
+      @Value(
+              "${methodologist.keycloak.client-id:"
+                  + "${spring.security.oauth2.client.registration.keycloak.client-id}}")
+          String clientId) {
     this.authServerUrl = authServerUrl;
     this.realm = realm;
     this.clientId = clientId;
@@ -87,7 +90,12 @@ public class KeycloakGatewayImpl implements KeycloakGateway {
 
   @Override
   public Optional<UserRepresentation> findUser(String username) {
-    return keycloakAdmin.realm(realm).users().search(username).stream().findFirst();
+    return keycloakAdmin.realm(realm).users().searchByUsername(username, true).stream().findFirst();
+  }
+
+  @Override
+  public Optional<UserRepresentation> findUserByEmail(String email) {
+    return keycloakAdmin.realm(realm).users().searchByEmail(email, true).stream().findFirst();
   }
 
   @Override
@@ -107,6 +115,15 @@ public class KeycloakGatewayImpl implements KeycloakGateway {
   @Override
   public void removeUser(String userId) {
     keycloakAdmin.realm(realm).users().get(userId).remove();
+  }
+
+  @Override
+  public void updateUserProfile(String userId, String firstName, String lastName) {
+    final var userResource = keycloakAdmin.realm(realm).users().get(userId);
+    final UserRepresentation userRepresentation = userResource.toRepresentation();
+    userRepresentation.setFirstName(firstName);
+    userRepresentation.setLastName(lastName);
+    userResource.update(userRepresentation);
   }
 
   @Override

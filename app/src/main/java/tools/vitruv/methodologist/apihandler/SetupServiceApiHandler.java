@@ -33,6 +33,7 @@ public class SetupServiceApiHandler {
   public static final String JAR_URL = "/api/vsum/jar";
   public static final String PROCESS_GENMODEL_URL = "/api/genmodel/process";
   public static final String INSPECT_GENMODEL_URL = "/api/genmodel/inspect";
+  public static final String GENERATE_GENMODEL_URL = "/api/genmodel/generate";
   public static final String METAMODEL_FILES_PART = "metamodelFiles";
   public static final String GENMODEL_FILES_PART = "genmodelFiles";
   public static final String REACTION_FILES_PART = "reactionFiles";
@@ -145,12 +146,7 @@ public class SetupServiceApiHandler {
                               body ->
                                   Mono.error(
                                       new SetupServiceException(
-                                          "Setup-service request to '"
-                                              + uri
-                                              + "' failed with status "
-                                              + response.statusCode()
-                                              + ": "
-                                              + body))))
+                                          requestFailedMessage(uri, response.statusCode(), body)))))
               .bodyToMono(byte[].class)
               .block();
     } catch (SetupServiceException e) {
@@ -176,15 +172,31 @@ public class SetupServiceApiHandler {
    * @throws SetupServiceException if the setup-service call fails or returns an empty file
    */
   public byte[] processGenModelOrThrow(FileStorage genModelFile) {
-    MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
-    addFilePart(bodyBuilder, FILE_PART, genModelFile);
+    return requestGenModelOrThrow(PROCESS_GENMODEL_URL, genModelFile);
+  }
 
-    byte[] processed;
+  /**
+   * Sends an Ecore file to the setup-service {@code /api/genmodel/generate} endpoint, which
+   * generates the matching GenModel and returns it.
+   *
+   * @param ecoreFile the Ecore (.ecore) file to generate the GenModel from
+   * @return the generated GenModel file as a byte array
+   * @throws SetupServiceException if the setup-service call fails or returns an empty file
+   */
+  public byte[] generateGenModelOrThrow(FileStorage ecoreFile) {
+    return requestGenModelOrThrow(GENERATE_GENMODEL_URL, ecoreFile);
+  }
+
+  private byte[] requestGenModelOrThrow(String uri, FileStorage file) {
+    MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
+    addFilePart(bodyBuilder, FILE_PART, file);
+
+    byte[] genModel;
     try {
-      processed =
+      genModel =
           webClient
               .post()
-              .uri(PROCESS_GENMODEL_URL)
+              .uri(uri)
               .contentType(MediaType.MULTIPART_FORM_DATA)
               .accept(MediaType.APPLICATION_OCTET_STREAM)
               .body(BodyInserters.fromMultipartData(bodyBuilder.build()))
@@ -199,26 +211,21 @@ public class SetupServiceApiHandler {
                               body ->
                                   Mono.error(
                                       new SetupServiceException(
-                                          "Setup-service request to '"
-                                              + PROCESS_GENMODEL_URL
-                                              + "' failed with status "
-                                              + response.statusCode()
-                                              + ": "
-                                              + body))))
+                                          requestFailedMessage(uri, response.statusCode(), body)))))
               .bodyToMono(byte[].class)
               .block();
     } catch (SetupServiceException e) {
       throw e;
     } catch (Exception e) {
       throw new SetupServiceException(
-          "Failed to call setup-service '" + PROCESS_GENMODEL_URL + "': " + e.getMessage());
+          "Failed to call setup-service '" + uri + "': " + e.getMessage());
     }
 
-    if (processed == null || processed.length == 0) {
+    if (genModel == null || genModel.length == 0) {
       throw new SetupServiceException(
-          "Setup-service returned an empty GenModel for '" + PROCESS_GENMODEL_URL + "'.");
+          "Setup-service returned an empty GenModel for '" + uri + "'.");
     }
-    return processed;
+    return genModel;
   }
 
   /**
@@ -260,12 +267,8 @@ public class SetupServiceApiHandler {
                             body ->
                                 Mono.error(
                                     new SetupServiceException(
-                                        "Setup-service request to '"
-                                            + INSPECT_GENMODEL_URL
-                                            + "' failed with status "
-                                            + response.statusCode()
-                                            + ": "
-                                            + body)));
+                                        requestFailedMessage(
+                                            INSPECT_GENMODEL_URL, response.statusCode(), body))));
                   })
               .block();
 
@@ -280,6 +283,10 @@ public class SetupServiceApiHandler {
       throw new SetupServiceException(
           "Failed to call setup-service '" + INSPECT_GENMODEL_URL + "': " + e.getMessage());
     }
+  }
+
+  private static String requestFailedMessage(String uri, HttpStatusCode statusCode, String body) {
+    return "Setup-service request to '" + uri + "' failed with status " + statusCode + ": " + body;
   }
 
   private void addFilePart(MultipartBodyBuilder bodyBuilder, String partName, FileStorage file) {

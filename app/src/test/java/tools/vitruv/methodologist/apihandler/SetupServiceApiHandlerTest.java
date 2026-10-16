@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -171,6 +172,61 @@ class SetupServiceApiHandlerTest {
   }
 
   @Test
+  void generateGenModelOrThrow_returnsGeneratedBytes_andPostsEcoreToGenerateEndpoint()
+      throws Exception {
+    byte[] expected = "generated-genmodel".getBytes();
+    mockWebServer.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .setHeader(HttpHeaders.CONTENT_TYPE, "application/octet-stream")
+            .setBody(new Buffer().write(expected)));
+
+    byte[] result =
+        setupServiceApiHandler.generateGenModelOrThrow(
+            fileStorage("model.ecore", "ecore".getBytes()));
+
+    assertThat(result).containsExactly(expected);
+
+    RecordedRequest recordedRequest = mockWebServer.takeRequest();
+    assertThat(recordedRequest.getMethod()).isEqualTo("POST");
+    assertThat(recordedRequest.getPath()).isEqualTo(SetupServiceApiHandler.GENERATE_GENMODEL_URL);
+    String body = recordedRequest.getBody().readUtf8();
+    assertThat(body).contains(SetupServiceApiHandler.FILE_PART);
+    assertThat(body).contains("model.ecore");
+  }
+
+  @Test
+  void generateGenModelOrThrow_throwsSetupServiceException_onUnprocessableEntity() {
+    mockWebServer.enqueue(
+        new MockResponse()
+            .setResponseCode(422)
+            .setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+            .setBody(
+                "{\"errorCode\":\"ECORE_NS_URI_MISSING\",\"message\":\"nsURI is missing\","
+                    + "\"path\":\"/api/genmodel/generate\",\"status\":422}"));
+
+    assertThatThrownBy(
+            () ->
+                setupServiceApiHandler.generateGenModelOrThrow(
+                    fileStorage("model.ecore", "ecore".getBytes())))
+        .isInstanceOf(SetupServiceException.class)
+        .hasMessageContaining(SetupServiceApiHandler.GENERATE_GENMODEL_URL)
+        .hasMessageContaining("nsURI is missing");
+  }
+
+  @Test
+  void generateGenModelOrThrow_throwsSetupServiceException_onEmptyGenModel() {
+    mockWebServer.enqueue(new MockResponse().setResponseCode(200));
+
+    assertThatThrownBy(
+            () ->
+                setupServiceApiHandler.generateGenModelOrThrow(
+                    fileStorage("model.ecore", "ecore".getBytes())))
+        .isInstanceOf(SetupServiceException.class)
+        .hasMessageContaining("empty GenModel");
+  }
+
+  @Test
   void inspectGenModelOrThrow_returnsMessage_onSuccess() throws Exception {
     mockWebServer.enqueue(
         new MockResponse()
@@ -190,6 +246,25 @@ class SetupServiceApiHandlerTest {
     RecordedRequest recordedRequest = mockWebServer.takeRequest();
     assertThat(recordedRequest.getMethod()).isEqualTo("POST");
     assertThat(recordedRequest.getPath()).isEqualTo(SetupServiceApiHandler.INSPECT_GENMODEL_URL);
+  }
+
+  @Test
+  void inspectGenModelOrThrow_deserializesDataEntriesAsUntypedJson() {
+    mockWebServer.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+            .setBody(
+                "{\"data\":[{\"type\":\"RENAME\",\"path\":\"model.genmodel\"}],"
+                    + "\"message\":\"GenModel inspected successfully\"}"));
+
+    GenModelInspectionResponse result =
+        setupServiceApiHandler.inspectGenModelOrThrow(
+            fileStorage("model.genmodel", "genmodel".getBytes()));
+
+    assertThat(result.getData())
+        .singleElement()
+        .isEqualTo(Map.of("type", "RENAME", "path", "model.genmodel"));
   }
 
   @Test

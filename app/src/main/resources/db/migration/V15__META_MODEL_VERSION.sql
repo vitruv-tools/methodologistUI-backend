@@ -1,0 +1,5 @@
+ALTER TABLE meta_model
+    ADD COLUMN version VARCHAR(255) NOT NULL DEFAULT '1.0';
+
+ALTER TABLE meta_model
+    ALTER COLUMN version DROP DEFAULT;

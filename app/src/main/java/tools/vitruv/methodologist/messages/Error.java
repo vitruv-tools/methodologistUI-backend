@@ -2,14 +2,17 @@ package tools.vitruv.methodologist.messages;
 
 /** Contains error message constants used throughout the application. */
 public class Error {
+  private Error() {}
+
   public static final String CLIENT_NOT_FOUND_ERROR = "Client";
   public static final String USER_ID_NOT_FOUND_ERROR = "User id";
   public static final String VSUM_ID_NOT_FOUND_ERROR = "Vsum id";
   public static final String VSUM_HISTORY_ID_NOT_FOUND_ERROR = "Vsum history id";
+  public static final String VSUM_BUILD_ID_NOT_FOUND_ERROR = "Vsum build id";
+  public static final String VSUM_BUILD_ARTIFACT_NOT_FOUND_ERROR = "Vsum build artifact";
   public static final String USER_DOSE_NOT_HAVE_ACCESS = "You don't have access";
   public static final String VIEW_FILE_ID_NOT_FOUND_ERROR = "View file id";
   public static final String ECORE_FILE_ID_NOT_FOUND_ERROR = "Ecore file id";
-  public static final String GEN_MODEL_FILE_ID_NOT_FOUND_ERROR = "Gen model file id";
   public static final String USER_EMAIL_NOT_FOUND_ERROR = "Email";
   public static final String USER_WRONG_PASSWORD_ERROR = "Wrong password";
   public static final String META_MODEL_ID_NOT_FOUND_ERROR = "Meta model id";
@@ -23,6 +26,19 @@ public class Error {
       "At least one metamodel (Ecore/GenModel pair) must be provided.";
   public static final String METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR =
       "MetaModel Ids not found in this VSUM";
+  public static final String NO_TEMPLATE_PROVIDED_ERROR =
+      "No template provided for fine-granular reaction.";
+  public static final String METAMODEL_RELATION_REACTION_OR_FG_REQUIRED_ERROR =
+      "Metamodel relation must have a reaction file or at least one fine-grained meta-model"
+          + " relation.";
+  public static final String FINE_GRANULAR_RELATION_ID_NOT_FOUND_ERROR =
+      "Fine-granular meta-model relation";
+  public static final String METAMODEL_RELATION_UPDATE_NOT_ALLOWED_ERROR =
+      "Not allowed to update metamodel relation with the given id";
+  public static final String FINE_GRANULAR_RELATION_UPDATE_NOT_ALLOWED_ERROR =
+      "Not allowed to update fine-granular relation with the given id";
+  public static final String LOWCODE_TEMPLATE_APPLY_ERROR =
+      "Failed to apply low-code reaction template";
   public static final String REACTION_FILE_REQUIRED_ERROR =
       "At least one reactions file must be provided";
   public static final String FAT_JAR_NOT_FOUND_ERROR = "Fat jar not found at: ";

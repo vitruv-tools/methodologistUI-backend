@@ -23,6 +23,7 @@ using Docker Compose and the included realm template.
 - Build
 - Run (development)
 - Configuration
+- Health checks
 - Keycloak setup (REQUIRED)
     - Start Keycloak with Docker Compose
     - Import the provided realm (methodologist)
@@ -104,6 +105,33 @@ After the application is running, the Swagger/OpenAPI UI is available at:
 - (alternative) `http://localhost:9811/swagger-ui.html`
 
 If your application runs on a different port, replace `9811` with the configured `server.port`.
+
+---
+
+## Health checks
+
+The backend exposes Spring Boot Actuator health and info endpoints:
+
+| Endpoint | Token | What it reports |
+|---|---|---|
+| `GET /actuator/health/liveness` | no | Whether the JVM is alive. Used by the Docker `HEALTHCHECK`. |
+| `GET /actuator/health/readiness` | no | Whether the backend can serve requests: PostgreSQL, Keycloak and the setup-service must all be reachable. `503` otherwise. |
+| `GET /actuator/health` | no | Overall status. With a token, also each component (`db`, `keycloak`, `setupService`, ...). |
+| `GET /actuator/info` | yes | Version, build time and the git commit the running instance was built from. |
+
+No other actuator endpoint is exposed. Keycloak and setup-service probes time out after
+`health.upstream.timeout` (default `3s`).
+
+```bash
+curl http://localhost:9811/actuator/health/readiness
+```
+
+The Docker Compose services have health checks too, so you can wait for the dependencies before
+starting the backend:
+
+```bash
+docker compose up -d --wait methodologist-postgresdb keycloak-db keycloak
+```
 
 ---
 

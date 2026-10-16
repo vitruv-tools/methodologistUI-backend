@@ -270,8 +270,9 @@ class VsumInvitationServiceTest {
     when(vsumInvitationRepository.existsByVsumAndInviteeEmailIgnoreCaseAndStatus(
             vsum, INVITEE_EMAIL, VsumInvitationStatus.PENDING))
         .thenReturn(true);
+    VsumInvitationPostRequest invitationRequest = request(INVITEE_EMAIL);
 
-    assertThatThrownBy(() -> service.invite(OWNER_EMAIL, request(INVITEE_EMAIL)))
+    assertThatThrownBy(() -> service.invite(OWNER_EMAIL, invitationRequest))
         .isInstanceOf(VsumInvitationAlreadyExistsException.class);
 
     verify(vsumInvitationRepository, never()).save(any());

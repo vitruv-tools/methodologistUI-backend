@@ -11,6 +11,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -20,7 +21,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.USER_WRONG_PASSWORD_ERROR;
 
+import jakarta.ws.rs.BadRequestException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -216,7 +219,7 @@ class UserServiceTest {
 
     when(userRepository.findByEmailIgnoreCase("alice@example.com")).thenReturn(Optional.empty());
 
-    when(keycloakService.existUser("alice@example.com")).thenReturn(true);
+    when(keycloakService.existUserByEmail("alice@example.com")).thenReturn(true);
 
     assertThatThrownBy(() -> userService.create(req)).isInstanceOf(EmailExistsException.class);
 
@@ -226,29 +229,93 @@ class UserServiceTest {
   }
 
   @Test
-  void update_appliesChanges_andSaves_whenUserExists() {
+  void update_appliesChanges_andSaves_whenUpdatingOwnAccount() {
     long id = 42L;
     User existing = new User();
     existing.setId(id);
     existing.setEmail("alice@example.com");
+    existing.setUsername("alice");
 
     UserPutRequest put = UserPutRequest.builder().firstName("Alicia").lastName("Doe").build();
 
-    when(userRepository.findByIdAndRemovedAtIsNull(id)).thenReturn(Optional.of(existing));
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("alice@example.com"))
+        .thenReturn(Optional.of(existing));
+    doAnswer(
+            invocation -> {
+              User user = invocation.getArgument(1);
+              user.setFirstName(put.getFirstName());
+              user.setLastName(put.getLastName());
+              return null;
+            })
+        .when(userMapper)
+        .updateByUserPutRequest(put, existing);
 
-    User result = userService.update(id, put);
+    User result = userService.update("alice@example.com", id, put);
 
     assertThat(result).isSameAs(existing);
     verify(userMapper).updateByUserPutRequest(eq(put), eq(existing));
+    verify(keycloakService).updateUserProfile("alice", "Alicia", "Doe");
     verify(userRepository).save(existing);
   }
 
   @Test
-  void update_throwsNotFound_whenUserMissing() {
-    long id = 7L;
-    when(userRepository.findByIdAndRemovedAtIsNull(id)).thenReturn(Optional.empty());
-    assertThatThrownBy(() -> userService.update(id, UserPutRequest.builder().build()))
-        .isInstanceOf(NotFoundException.class);
+  void update_propagatesKeycloakError_andDoesNotSave() {
+    long id = 42L;
+    User existing = new User();
+    existing.setId(id);
+    existing.setEmail("alice@example.com");
+    existing.setUsername("alice");
+    UserPutRequest put = UserPutRequest.builder().firstName("Alicia").lastName("Doe").build();
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("alice@example.com"))
+        .thenReturn(Optional.of(existing));
+    doAnswer(
+            invocation -> {
+              User user = invocation.getArgument(1);
+              user.setFirstName(put.getFirstName());
+              user.setLastName(put.getLastName());
+              return null;
+            })
+        .when(userMapper)
+        .updateByUserPutRequest(put, existing);
+    doThrow(new RuntimeException("Keycloak service down"))
+        .when(keycloakService)
+        .updateUserProfile("alice", "Alicia", "Doe");
+
+    assertThatThrownBy(() -> userService.update("alice@example.com", id, put))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Keycloak service down");
+
+    verify(userRepository, never()).save(any());
+  }
+
+  @Test
+  void update_throwsAccessDenied_forAnotherUsersId_withoutLookingItUp() {
+    User caller = activeUser(42L, "alice@example.com");
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("alice@example.com"))
+        .thenReturn(Optional.of(caller));
+    UserPutRequest put = UserPutRequest.builder().firstName("Changed").lastName("X").build();
+
+    // The same answer whether user 8 exists or not, so IDs cannot be probed.
+    assertThatThrownBy(() -> userService.update("alice@example.com", 8L, put))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessage(USER_DOSE_NOT_HAVE_ACCESS);
+
+    verify(userRepository, never()).findByIdAndRemovedAtIsNull(any());
+    verify(userMapper, never()).updateByUserPutRequest(any(), any());
+    verify(keycloakService, never()).updateUserProfile(any(), any(), any());
+    verify(userRepository, never()).save(any());
+  }
+
+  @Test
+  void update_throwsAccessDenied_whenCallerHasNoActiveAccount() {
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("ghost@example.com"))
+        .thenReturn(Optional.empty());
+    UserPutRequest put = UserPutRequest.builder().build();
+
+    assertThatThrownBy(() -> userService.update("ghost@example.com", 42L, put))
+        .isInstanceOf(AccessDeniedException.class);
+
     verify(userRepository, never()).save(any());
   }
 
@@ -280,14 +347,14 @@ class UserServiceTest {
   }
 
   @Test
-  void remove_setsRemovedAt_andSaves_whenUserExists() {
+  void remove_setsRemovedAt_andSaves_whenRemovingOwnAccount() {
     long id = 11L;
-    User user = new User();
-    user.setId(id);
+    User user = activeUser(id, "bob@example.com");
 
-    when(userRepository.findByIdAndRemovedAtIsNull(id)).thenReturn(Optional.of(user));
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("bob@example.com"))
+        .thenReturn(Optional.of(user));
 
-    User result = userService.remove(id);
+    User result = userService.remove("bob@example.com", id);
 
     assertThat(result).isSameAs(user);
     assertThat(user.getRemovedAt()).isNotNull();
@@ -296,10 +363,25 @@ class UserServiceTest {
   }
 
   @Test
-  void remove_throwsNotFound_whenUserMissing() {
-    when(userRepository.findByIdAndRemovedAtIsNull(77L)).thenReturn(Optional.empty());
+  void remove_throwsAccessDenied_forAnotherUsersId_withoutLookingItUp() {
+    User caller = activeUser(11L, "bob@example.com");
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("bob@example.com"))
+        .thenReturn(Optional.of(caller));
 
-    assertThatThrownBy(() -> userService.remove(77L)).isInstanceOf(NotFoundException.class);
+    assertThatThrownBy(() -> userService.remove("bob@example.com", 77L))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessage(USER_DOSE_NOT_HAVE_ACCESS);
+
+    assertThat(caller.getRemovedAt()).isNull();
+    verify(userRepository, never()).findByIdAndRemovedAtIsNull(any());
+    verify(userRepository, never()).save(any());
+  }
+
+  private static User activeUser(long id, String email) {
+    User user = new User();
+    user.setId(id);
+    user.setEmail(email);
+    return user;
   }
 
   @Test
@@ -684,11 +766,16 @@ class UserServiceTest {
         .thenReturn(Optional.of(user));
 
     UserPutChangePasswordRequest req = new UserPutChangePasswordRequest();
-    req.setPassword("StrongPass#12345");
+    req.setCurrentPassword("CurrentPass#12345");
+    req.setNewPassword("StrongPass#12345");
+
+    when(keycloakApiHandler.getAccessTokenOrThrow(user.getUsername(), req.getCurrentPassword()))
+        .thenReturn(new KeycloakWebToken());
 
     userService.changePassword(email, req);
 
-    verify(keycloakService).setPassword(user.getUsername(), req.getPassword());
+    verify(keycloakApiHandler).getAccessTokenOrThrow(user.getUsername(), req.getCurrentPassword());
+    verify(keycloakService).setPassword(user.getUsername(), req.getNewPassword());
   }
 
   @Test
@@ -699,12 +786,41 @@ class UserServiceTest {
         .thenReturn(Optional.empty());
 
     UserPutChangePasswordRequest req = new UserPutChangePasswordRequest();
-    req.setPassword("StrongPass#12345");
+    req.setCurrentPassword("CurrentPass#12345");
+    req.setNewPassword("StrongPass#12345");
 
     assertThatThrownBy(() -> userService.changePassword(email, req))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(USER_EMAIL_NOT_FOUND_ERROR);
 
+    verify(keycloakApiHandler, never()).getAccessTokenOrThrow(anyString(), anyString());
+    verify(keycloakService, never()).setPassword(anyString(), anyString());
+  }
+
+  @Test
+  void changePassword_throwsBadRequest_andDoesNotUpdatePassword_whenCurrentPasswordIsWrong() {
+    String email = "caller@example.com";
+
+    User user = new User();
+    user.setEmail(email);
+    user.setUsername("kc-user-1");
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+
+    UserPutChangePasswordRequest req = new UserPutChangePasswordRequest();
+    req.setCurrentPassword("WrongPass#12345");
+    req.setNewPassword("StrongPass#12345");
+
+    doThrow(new RuntimeException("invalid credentials"))
+        .when(keycloakApiHandler)
+        .getAccessTokenOrThrow(user.getUsername(), req.getCurrentPassword());
+
+    assertThatThrownBy(() -> userService.changePassword(email, req))
+        .isInstanceOf(BadRequestException.class)
+        .hasMessageContaining(USER_WRONG_PASSWORD_ERROR);
+
+    verify(keycloakApiHandler).getAccessTokenOrThrow(user.getUsername(), req.getCurrentPassword());
     verify(keycloakService, never()).setPassword(anyString(), anyString());
   }
 
@@ -720,11 +836,12 @@ class UserServiceTest {
         .thenReturn(Optional.of(user));
 
     UserPutChangePasswordRequest req = new UserPutChangePasswordRequest();
-    req.setPassword("StrongPass#12345");
+    req.setCurrentPassword("CurrentPass#12345");
+    req.setNewPassword("StrongPass#12345");
 
     doThrow(new RuntimeException("Keycloak down"))
         .when(keycloakService)
-        .setPassword(user.getUsername(), req.getPassword());
+        .setPassword(user.getUsername(), req.getNewPassword());
 
     assertThatThrownBy(() -> userService.changePassword(email, req))
         .isInstanceOf(RuntimeException.class)
@@ -758,7 +875,7 @@ class UserServiceTest {
   }
 
   @Test
-  void syncWithKeycloak_updatesExistingUser_whenUsernameFound() {
+  void syncWithKeycloak_preservesExistingNames_whenUsernameFound() {
     User existingUser = new User();
     existingUser.setId(1L);
     existingUser.setEmail("oldemail@example.com");
@@ -773,9 +890,7 @@ class UserServiceTest {
         .thenReturn(Optional.of(existingUser));
 
     String newEmail = "updatedemail@example.com";
-    String newFirstName = "Jane";
-    String newLastName = "Smith";
-    userService.syncWithKeycloak(newEmail, username, newFirstName, newLastName);
+    userService.syncWithKeycloak(newEmail, username, "Jane", "Smith");
 
     ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
     verify(userRepository).save(savedCaptor.capture());
@@ -784,8 +899,8 @@ class UserServiceTest {
     assertThat(savedUser.getId()).isEqualTo(1L);
     assertThat(savedUser.getEmail()).isEqualTo(newEmail);
     assertThat(savedUser.getUsername()).isEqualTo(username);
-    assertThat(savedUser.getFirstName()).isEqualTo(newFirstName);
-    assertThat(savedUser.getLastName()).isEqualTo(newLastName);
+    assertThat(savedUser.getFirstName()).isEqualTo("Old");
+    assertThat(savedUser.getLastName()).isEqualTo("Name");
     assertThat(savedUser.getVerified()).isTrue();
 
     verify(keycloakService).assignUserRole(username, RoleType.USER.getName());
@@ -814,6 +929,8 @@ class UserServiceTest {
     User saved = savedCaptor.getValue();
     assertThat(saved.getId()).isEqualTo(99L);
     assertThat(saved.getVerified()).isTrue();
+    assertThat(saved.getFirstName()).isEqualTo("Old");
+    assertThat(saved.getLastName()).isEqualTo("Value");
   }
 
   @Test

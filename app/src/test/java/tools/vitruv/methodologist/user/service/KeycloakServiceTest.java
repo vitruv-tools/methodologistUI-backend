@@ -112,6 +112,25 @@ class KeycloakServiceTest {
   }
 
   @Test
+  void updateUserProfile_updatesNames_whenUserExists() {
+    keycloakGateway.addUser("alice", "user-1");
+
+    keycloakService.updateUserProfile("alice", "Alicia", "Smith");
+
+    assertThat(keycloakGateway.updatedUserId).isEqualTo("user-1");
+    assertThat(keycloakGateway.updatedFirstName).isEqualTo("Alicia");
+    assertThat(keycloakGateway.updatedLastName).isEqualTo("Smith");
+  }
+
+  @Test
+  void updateUserProfile_throwsNotFound_whenUserDoesNotExist() {
+    assertThatThrownBy(() -> keycloakService.updateUserProfile("missing", "Alicia", "Smith"))
+        .isInstanceOf(NotFoundException.class);
+
+    assertThat(keycloakGateway.updatedUserId).isNull();
+  }
+
+  @Test
   void verifyUserPasswordOrThrow_doesNotThrow_whenPasswordIsValid() {
     keycloakService.verifyUserPasswordOrThrow("alice", "correct-password");
 
@@ -122,6 +141,15 @@ class KeycloakServiceTest {
   @Test
   void verifyUserPasswordOrThrow_throwsBadRequest_whenPasswordIsWrong() {
     keycloakGateway.verifyPasswordException = new NotAuthorizedException("Bearer");
+
+    assertThatThrownBy(() -> keycloakService.verifyUserPasswordOrThrow("alice", "wrong-password"))
+        .isInstanceOf(BadRequestException.class)
+        .hasMessageContaining(USER_WRONG_PASSWORD_ERROR);
+  }
+
+  @Test
+  void verifyUserPasswordOrThrow_throwsBadRequest_whenKeycloakReturnsInvalidGrant() {
+    keycloakGateway.verifyPasswordException = new BadRequestException("invalid_grant");
 
     assertThatThrownBy(() -> keycloakService.verifyUserPasswordOrThrow("alice", "wrong-password"))
         .isInstanceOf(BadRequestException.class)
@@ -216,6 +244,24 @@ class KeycloakServiceTest {
   }
 
   @Test
+  void existUserByEmail_returnsTrue_whenEmailExists() {
+    keycloakGateway.addUser("alice", "alice@example.com", "user-1");
+
+    final boolean result = keycloakService.existUserByEmail("alice@example.com");
+
+    assertThat(result).isTrue();
+  }
+
+  @Test
+  void existUserByEmail_returnsFalse_whenEmailDoesNotExist() {
+    keycloakGateway.addUser("alice", "alice@example.com", "user-1");
+
+    final boolean result = keycloakService.existUserByEmail("missing@example.com");
+
+    assertThat(result).isFalse();
+  }
+
+  @Test
   void preparePasswordRepresentation_returnsPasswordCredential() {
     final CredentialRepresentation credentialRepresentation =
         keycloakService.preparePasswordRepresentation("password", true);
@@ -247,6 +293,9 @@ class KeycloakServiceTest {
     private RuntimeException assignRoleException;
     private RuntimeException verifyPasswordException;
     private UserRepresentation createdUserRepresentation;
+    private String updatedUserId;
+    private String updatedFirstName;
+    private String updatedLastName;
     private String assignedRoleUserId;
     private String assignedRole;
     private String verifiedUsername;
@@ -270,6 +319,13 @@ class KeycloakServiceTest {
     }
 
     @Override
+    public Optional<UserRepresentation> findUserByEmail(String email) {
+      return usersByUsername.values().stream()
+          .filter(userRepresentation -> email.equals(userRepresentation.getEmail()))
+          .findFirst();
+    }
+
+    @Override
     public void assignRealmRole(String userId, String role) {
       if (assignRoleException != null) {
         throw assignRoleException;
@@ -284,6 +340,13 @@ class KeycloakServiceTest {
       usersByUsername
           .values()
           .removeIf(userRepresentation -> userId.equals(userRepresentation.getId()));
+    }
+
+    @Override
+    public void updateUserProfile(String userId, String firstName, String lastName) {
+      updatedUserId = userId;
+      updatedFirstName = firstName;
+      updatedLastName = lastName;
     }
 
     @Override
@@ -309,8 +372,13 @@ class KeycloakServiceTest {
     }
 
     private void addUser(String username, String userId) {
+      addUser(username, null, userId);
+    }
+
+    private void addUser(String username, String email, String userId) {
       final UserRepresentation userRepresentation = new UserRepresentation();
       userRepresentation.setUsername(username);
+      userRepresentation.setEmail(email);
       userRepresentation.setId(userId);
       usersByUsername.put(username, userRepresentation);
     }

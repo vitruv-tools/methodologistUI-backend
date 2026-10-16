@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.controller.dto.response;
 
+import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -9,10 +10,8 @@ import lombok.Setter;
 /**
  * Response DTO representing a relation between two meta models.
  *
- * <p>Provides the relation identifier, the IDs of the source and target meta models, and an
- * optional reaction file storage ID.
- *
- * <p>Lombok generates getters, setters, constructors, and a builder.
+ * <p>{@code sourceId} and {@code targetId} are original meta-model ids. The coarse reaction file is
+ * optional when the relation is defined only by fine-granular children.
  */
 @Builder
 @Getter
@@ -24,4 +23,5 @@ public class MetaModelRelationResponse {
   private Long sourceId;
   private Long targetId;
   private Long reactionFileStorageId;
+  private Set<FineGranularMetaModelRelationResponse> fineGranularMetaModelRelationSet;
 }

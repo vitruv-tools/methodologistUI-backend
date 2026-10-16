@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class SmtpMailService {
 
+  private static final String RECIPIENT_NAME = "recipient_name";
+
   private final JavaMailSender mailSender;
   private final String fromEmail;
   private final String fromName;
@@ -67,7 +69,7 @@ public class SmtpMailService {
 
     var props = impl.getJavaMailProperties();
     props.put("mail.transport.protocol", "smtp");
-    props.put("mail.smtp.auth", "true");
+    props.put("mail.smtp.auth", String.valueOf(username != null && !username.isBlank()));
     props.put("mail.smtp.starttls.enable", String.valueOf(startTls));
     props.put("mail.smtp.ssl.enable", String.valueOf(ssl));
     props.put("mail.smtp.connectiontimeout", String.valueOf(connectionTimeoutMs));
@@ -94,9 +96,12 @@ public class SmtpMailService {
         loadAndRenderTemplate(
             "templates/mail/send_otp_message.txt",
             Map.of(
-                "otp_code", otpCode,
-                "ttl_minutes", String.valueOf(ttlMinutes),
-                "recipient_name", safe(toName)));
+                "otp_code",
+                otpCode,
+                "ttl_minutes",
+                String.valueOf(ttlMinutes),
+                RECIPIENT_NAME,
+                safe(toName)));
     sendHtml(toEmail, toName, subject, html);
   }
 
@@ -115,7 +120,7 @@ public class SmtpMailService {
     String html =
         loadAndRenderTemplate(
             "templates/mail/send_new_password.txt",
-            Map.of("password", newPassword, "recipient_name", safe(toName)));
+            Map.of("password", newPassword, RECIPIENT_NAME, safe(toName)));
     sendHtml(toEmail, toName, subject, html);
   }
 
@@ -138,9 +143,12 @@ public class SmtpMailService {
         loadAndRenderTemplate(
             "templates/mail/send_vsum_invitation.txt",
             Map.of(
-                "recipient_name", safe(toName),
-                "vsum_name", safe(vsumName),
-                "invitation_link", safe(invitationLink)));
+                RECIPIENT_NAME,
+                safe(toName),
+                "vsum_name",
+                safe(vsumName),
+                "invitation_link",
+                safe(invitationLink)));
     sendHtml(toEmail, toName, subject, html);
   }
 
