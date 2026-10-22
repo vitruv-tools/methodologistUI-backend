@@ -774,10 +774,10 @@ public class GlobalExceptionHandlerController {
    */
   @ExceptionHandler(value = RuntimeException.class)
   @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-  public ErrorResponse uncatchedException(
+  public ErrorResponse uncaughtException(
       RuntimeException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     log.warn(
-        "UncatchedException handled in Controller: {}, message: {}, stackTrace: {}",
+        "Uncaught exception in controller: {}, message: {}",
         handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
         ex.getMessage(),
         ex);
