@@ -1,6 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
-import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -190,7 +190,7 @@ public class ConstraintRuleSetService {
             .orElseThrow(() -> new NotFoundException("VSUM not found"));
     if (vsum.getVsumUsers() == null
         || vsum.getVsumUsers().stream().noneMatch(vsumUser -> belongsToUser(vsumUser, user))) {
-      throw new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS);
+      throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
     }
     return vsum;
   }

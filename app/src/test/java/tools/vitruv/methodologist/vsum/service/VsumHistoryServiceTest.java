@@ -8,7 +8,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_HISTORY_ID_NOT_FOUND_ERROR;
 
 import java.util.HashSet;
@@ -214,7 +214,7 @@ class VsumHistoryServiceTest {
 
     assertThatThrownBy(() -> service.revert(callerEmail, historyId))
         .isInstanceOf(AccessDeniedException.class)
-        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+        .hasMessageContaining(USER_DOES_NOT_HAVE_ACCESS);
 
     verify(vsumHistoryRepository, never()).findById(any());
     verify(vsumUserRepository, never())
@@ -266,7 +266,7 @@ class VsumHistoryServiceTest {
 
     assertThatThrownBy(() -> service.revert(callerEmail, historyId))
         .isInstanceOf(AccessDeniedException.class)
-        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+        .hasMessageContaining(USER_DOES_NOT_HAVE_ACCESS);
 
     verify(vsumService, never()).applySyncChanges(any(), any(), any(), anyBoolean());
   }

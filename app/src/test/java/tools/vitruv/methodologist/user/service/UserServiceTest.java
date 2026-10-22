@@ -19,7 +19,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_WRONG_PASSWORD_ERROR;
 
@@ -299,7 +299,7 @@ class UserServiceTest {
     // The same answer whether user 8 exists or not, so IDs cannot be probed.
     assertThatThrownBy(() -> userService.update("alice@example.com", 8L, put))
         .isInstanceOf(AccessDeniedException.class)
-        .hasMessage(USER_DOSE_NOT_HAVE_ACCESS);
+        .hasMessage(USER_DOES_NOT_HAVE_ACCESS);
 
     verify(userRepository, never()).findByIdAndRemovedAtIsNull(any());
     verify(userMapper, never()).updateByUserPutRequest(any(), any());
@@ -370,7 +370,7 @@ class UserServiceTest {
 
     assertThatThrownBy(() -> userService.remove("bob@example.com", 77L))
         .isInstanceOf(AccessDeniedException.class)
-        .hasMessage(USER_DOSE_NOT_HAVE_ACCESS);
+        .hasMessage(USER_DOES_NOT_HAVE_ACCESS);
 
     assertThat(caller.getRemovedAt()).isNull();
     verify(userRepository, never()).findByIdAndRemovedAtIsNull(any());
@@ -583,7 +583,7 @@ class UserServiceTest {
 
     assertThatThrownBy(() -> userService.verifyOtp(callerEmail, req))
         .isInstanceOf(AccessDeniedException.class)
-        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+        .hasMessageContaining(USER_DOES_NOT_HAVE_ACCESS);
 
     verify(userRepository, never()).save(any());
   }
@@ -667,7 +667,7 @@ class UserServiceTest {
 
     assertThatThrownBy(() -> userService.resendOtp(callerEmail))
         .isInstanceOf(AccessDeniedException.class)
-        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+        .hasMessageContaining(USER_DOES_NOT_HAVE_ACCESS);
 
     verify(userRepository, never()).save(any());
   }

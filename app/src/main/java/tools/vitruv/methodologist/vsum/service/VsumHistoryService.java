@@ -1,6 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
-import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_HISTORY_ID_NOT_FOUND_ERROR;
 
 import java.util.HashMap;
@@ -150,7 +150,7 @@ public class VsumHistoryService {
     User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
-            .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+            .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
 
     VsumHistory history =
         vsumHistoryRepository
@@ -162,7 +162,7 @@ public class VsumHistoryService {
     vsumUserRepository
         .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
             vsum.getId(), callerEmail)
-        .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+        .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
 
     create(vsum, user);
 

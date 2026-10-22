@@ -1,7 +1,7 @@
 package tools.vitruv.methodologist.vsum.service;
 
 import static tools.vitruv.methodologist.messages.Error.METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR;
-import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.io.IOException;
@@ -228,7 +228,7 @@ public class VsumService {
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
 
     if (vsumUser.getRole() == VsumRole.VIEWER) {
-      throw new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS);
+      throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
     }
 
     return self.applySyncChanges(
@@ -293,7 +293,7 @@ public class VsumService {
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
 
     if (vsumUser.getRole() == VsumRole.VIEWER) {
-      throw new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS);
+      throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
     }
     return vsumUser;
   }
@@ -356,7 +356,7 @@ public class VsumService {
     User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
-            .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+            .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
 
     Vsum vsum =
         vsumRepository
@@ -366,7 +366,7 @@ public class VsumService {
     vsum.getVsumUsers().stream()
         .filter(vsumUser -> vsumUser.getUser().equals(user))
         .findFirst()
-        .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+        .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
 
     VsumMetaModelResponse response = vsumMapper.toVsumMetaModelResponse(vsum);
 
