@@ -20,12 +20,13 @@ public class Error {
   public static final String REACTION_FILE_IDS_ID_NOT_FOUND_ERROR = "Reaction files";
   public static final String MEMBER_IN_VSUM_NOT_FOUND_ERROR = "Member in VSUM";
   public static final String FILE_ID_NOT_FOUND_ERROR = "File";
+  public static final String RULE_SET_NOT_FOUND_ERROR = "RuleSet";
   public static final String METAMODEL_PAIR_COUNT_MISMATCH_ERROR =
       "Number of Ecore files must match number of GenModel files";
   public static final String METAMODEL_PAIR_REQUIRED_ERROR =
       "At least one metamodel (Ecore/GenModel pair) must be provided.";
   public static final String METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR =
-      "MetaModel Ids not found in this VSUM";
+      "MetaModel Ids in this VSUM";
   public static final String NO_TEMPLATE_PROVIDED_ERROR =
       "No template provided for fine-granular reaction.";
   public static final String METAMODEL_RELATION_REACTION_OR_FG_REQUIRED_ERROR =

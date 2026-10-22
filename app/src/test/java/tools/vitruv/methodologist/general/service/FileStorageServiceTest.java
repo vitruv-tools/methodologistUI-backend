@@ -218,7 +218,10 @@ class FileStorageServiceTest {
     when(fileStorageRepository.findByIdAndType(1L, FileEnumType.REACTION))
         .thenReturn(Optional.empty());
 
-    assertThrows(NotFoundException.class, () -> fileStorageService.updateFile(email, 1L, testFile));
+    NotFoundException exception =
+        assertThrows(
+            NotFoundException.class, () -> fileStorageService.updateFile(email, 1L, testFile));
+    assertEquals("File not found!", exception.getMessage());
   }
 
   @Test

@@ -63,7 +63,9 @@ class VsumBuildInputCollectorTest {
     FileStorage r = fs(3L, "x.reactions", new byte[] {3});
     vsum.setMetaModelRelations(Set.of(rel(mm(null, null), null, r)));
 
-    assertThatThrownBy(() -> collector.collect(vsum)).isInstanceOf(NotFoundException.class);
+    assertThatThrownBy(() -> collector.collect(vsum))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessage("MetaModel Ids in this VSUM not found!");
   }
 
   @Test

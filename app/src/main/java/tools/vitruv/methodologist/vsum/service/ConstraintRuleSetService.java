@@ -1,6 +1,8 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import static tools.vitruv.methodologist.messages.Error.RULE_SET_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -99,7 +101,7 @@ public class ConstraintRuleSetService {
     ConstraintRuleSet ruleSet =
         ruleSetRepository
             .findByIdAndVsumId(ruleSetId, vsumId)
-            .orElseThrow(() -> new NotFoundException("RuleSet not found"));
+            .orElseThrow(() -> new NotFoundException(RULE_SET_NOT_FOUND_ERROR));
 
     ruleSet.setName(request.name());
     if (request.color() != null) {
@@ -128,7 +130,7 @@ public class ConstraintRuleSetService {
     ConstraintRuleSet ruleSet =
         ruleSetRepository
             .findByIdAndVsumId(ruleSetId, vsumId)
-            .orElseThrow(() -> new NotFoundException("RuleSet not found"));
+            .orElseThrow(() -> new NotFoundException(RULE_SET_NOT_FOUND_ERROR));
     ruleSetRepository.delete(ruleSet);
   }
 
@@ -187,7 +189,7 @@ public class ConstraintRuleSetService {
     Vsum vsum =
         vsumRepository
             .findByIdAndRemovedAtIsNull(vsumId)
-            .orElseThrow(() -> new NotFoundException("VSUM not found"));
+            .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
     if (vsum.getVsumUsers() == null
         || vsum.getVsumUsers().stream().noneMatch(vsumUser -> belongsToUser(vsumUser, user))) {
       throw new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS);

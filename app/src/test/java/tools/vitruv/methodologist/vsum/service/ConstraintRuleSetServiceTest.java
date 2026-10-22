@@ -244,7 +244,7 @@ class ConstraintRuleSetServiceTest {
     var req = new RuleSetPostRequest("X", null, null, null);
     assertThatThrownBy(() -> service.create("test@example.com", 99L, req))
         .isInstanceOf(NotFoundException.class)
-        .hasMessageContaining("VSUM not found");
+        .hasMessage("Vsum id not found!");
   }
 
   @Test
@@ -349,7 +349,7 @@ class ConstraintRuleSetServiceTest {
     var req = new RuleSetPutRequest("X", null, null, null);
     assertThatThrownBy(() -> service.update("test@example.com", 10L, 999L, req))
         .isInstanceOf(NotFoundException.class)
-        .hasMessageContaining("RuleSet not found");
+        .hasMessage("RuleSet not found!");
   }
 
   @Test
@@ -411,7 +411,7 @@ class ConstraintRuleSetServiceTest {
 
     assertThatThrownBy(() -> service.delete("test@example.com", 10L, 999L))
         .isInstanceOf(NotFoundException.class)
-        .hasMessageContaining("RuleSet not found");
+        .hasMessage("RuleSet not found!");
   }
 
   @Test

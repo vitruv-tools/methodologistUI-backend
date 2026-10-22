@@ -218,7 +218,7 @@ public class FileStorageService {
     FileStorage existing =
         fileStorageRepository
             .findByIdAndType(fileId, FileEnumType.REACTION)
-            .orElseThrow(() -> new NotFoundException("File not found"));
+            .orElseThrow(() -> new NotFoundException(FILE_ID_NOT_FOUND_ERROR));
 
     if (existing.getUser() == null
         || existing.getUser().getId() == null
