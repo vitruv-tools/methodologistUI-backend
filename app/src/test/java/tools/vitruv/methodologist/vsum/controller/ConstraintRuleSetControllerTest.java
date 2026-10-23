@@ -191,9 +191,7 @@ class ConstraintRuleSetControllerTest {
   @Test
   void delete_propagatesNotFoundException() {
     stubEmail();
-    doThrow(new NotFoundException("RuleSet"))
-        .when(service)
-        .delete("test@example.com", 10L, 999L);
+    doThrow(new NotFoundException("RuleSet")).when(service).delete("test@example.com", 10L, 999L);
 
     org.assertj.core.api.Assertions.assertThatThrownBy(
             () -> controller.delete(authentication, 10L, 999L))
