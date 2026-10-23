@@ -1,4 +1,3 @@
-
 package tools.vitruv.methodologist.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -71,4 +70,3 @@ class GrantedAuthoritiesConverterTest {
         .build();
   }
 }
-
