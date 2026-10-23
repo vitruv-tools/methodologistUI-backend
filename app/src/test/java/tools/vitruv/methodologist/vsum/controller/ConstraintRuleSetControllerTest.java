@@ -160,7 +160,7 @@ class ConstraintRuleSetControllerTest {
     stubEmail();
     RuleSetPutRequest request = new RuleSetPutRequest("X", null, null, null);
     when(service.update(any(), eq(10L), eq(999L), any()))
-        .thenThrow(new NotFoundException("RuleSet not found"));
+        .thenThrow(new NotFoundException("RuleSet"));
 
     org.assertj.core.api.Assertions.assertThatThrownBy(
             () -> controller.update(authentication, 10L, 999L, request))
@@ -191,7 +191,7 @@ class ConstraintRuleSetControllerTest {
   @Test
   void delete_propagatesNotFoundException() {
     stubEmail();
-    doThrow(new NotFoundException("RuleSet not found"))
+    doThrow(new NotFoundException("RuleSet"))
         .when(service)
         .delete("test@example.com", 10L, 999L);
 
