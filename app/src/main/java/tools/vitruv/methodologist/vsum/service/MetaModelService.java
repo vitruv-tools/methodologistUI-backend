@@ -10,11 +10,9 @@ import jakarta.validation.Valid;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.AccessLevel;
@@ -136,7 +134,7 @@ public class MetaModelService {
    * Rejects a library metamodel when this user already has the same name and version. A different
    * version of the same name is allowed. Cloned metamodels are not part of the check.
    *
-   * @param user the owning user
+   * @param user the owning userfindAccessibleByProject
    * @param name the metamodel name
    * @param version the metamodel version
    * @param excludedId the metamodel id to ignore when updating, or {@code null} when creating
@@ -562,55 +560,6 @@ public class MetaModelService {
       return metaModel.getUser().getId().equals(user.getId());
     }
     return metaModel.getUser().equals(user);
-  }
-
-  /**
-   * Finds all metamodels accessible by a given project.
-   *
-   * <p>This method retrieves:
-   *
-   * <ul>
-   *   <li>All metamodels associated with the project via VSUM (if vsumId is provided)
-   * </ul>
-   *
-   * <p>Duplicates are automatically removed by using a Set internally. This method is primarily
-   * used by the Language Server to determine which metamodels should be loaded for a specific
-   * editing session.
-   *
-   * @param vsumId the ID of the project/VSUM whose metamodels should be included (can be null)
-   * @return a list of unique MetaModel instances accessible by the user and/or project
-   */
-  @Transactional(readOnly = true)
-  public List<MetaModel> findAccessibleByProject(Long vsumId) {
-    log.info("findAccessibleByProject called with vsumId: {}", vsumId);
-
-    if (vsumId == null) {
-      log.warn("vsumId is null, returning empty list");
-      return List.of();
-    }
-
-    List<VsumMetaModel> vsumMetaModels = vsumMetaModelRepository.findByVsumId(vsumId);
-    log.info("Found {} VsumMetaModel entries for vsumId {}", vsumMetaModels.size(), vsumId);
-
-    Set<MetaModel> metamodels = new LinkedHashSet<>();
-
-    for (VsumMetaModel vmm : vsumMetaModels) {
-      MetaModel mm = vmm.getMetaModel();
-      log.info(
-          "Processing MetaModel id={}, name={}, hasSource={}",
-          mm.getId(),
-          mm.getName(),
-          mm.getSource() != null);
-
-      if (mm.getSource() != null) {
-        metamodels.add(mm.getSource());
-      } else {
-        metamodels.add(mm);
-      }
-    }
-
-    log.info("Returning {} metamodels", metamodels.size());
-    return new ArrayList<>(metamodels);
   }
 
   private record CreateContext(User user, MetaModel metaModel, FileStorage ecoreFile) {}

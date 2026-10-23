@@ -1213,52 +1213,6 @@ class MetaModelServiceTest {
     assertThat(metaModelService.isOwnedBy(m, owner)).isTrue();
   }
 
-  /**
-   * Verifies that finding accessible metamodels by project returns source metamodels.
-   *
-   * <p>Tests the LSP workspace preparation logic that retrieves all metamodels associated with a
-   * given VSUM, preferring source metamodels over clones.
-   */
-  @Test
-  void findAccessibleByProject_returnsSourceMetaModels() {
-
-    MetaModel source1 = new MetaModel();
-    source1.setId(1L);
-    source1.setName("SourceMM1");
-
-    MetaModel clone1 = new MetaModel();
-    clone1.setId(2L);
-    clone1.setSource(source1);
-
-    MetaModel original2 = new MetaModel();
-    original2.setId(3L);
-    original2.setName("OriginalMM2");
-    Long vsumId = 10L;
-    Vsum vsum = new Vsum();
-    vsum.setId(vsumId);
-
-    VsumMetaModel vmm1 = VsumMetaModel.builder().vsum(vsum).metaModel(clone1).build();
-    VsumMetaModel vmm2 = VsumMetaModel.builder().vsum(vsum).metaModel(original2).build();
-
-    when(vsumMetaModelRepository.findByVsumId(vsumId)).thenReturn(List.of(vmm1, vmm2));
-
-    List<MetaModel> result = metaModelService.findAccessibleByProject(vsumId);
-
-    assertThat(result).hasSize(2).contains(source1, original2).doesNotContain(clone1);
-  }
-
-  /**
-   * Verifies that finding accessible metamodels with null vsumId returns empty list.
-   *
-   * <p>Tests defensive handling when no project context is provided.
-   */
-  @Test
-  void findAccessibleByProject_withNullVsumId_returnsEmptyList() {
-    List<MetaModel> result = metaModelService.findAccessibleByProject(null);
-
-    assertThat(result).isEmpty();
-  }
-
   private FileStorage createFileStorage(Long id, String filename, byte[] data) {
     FileStorage file = mock(FileStorage.class);
     when(file.getId()).thenReturn(id);

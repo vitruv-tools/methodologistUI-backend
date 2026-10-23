@@ -32,7 +32,7 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
-import tools.vitruv.methodologist.vsum.service.MetaModelService;
+import tools.vitruv.methodologist.vsum.service.VsumMetaModelService;
 
 /**
  * WebSocket handler for VitruvOCL LSP connections. Sets up a temp workspace with the project's
@@ -49,7 +49,7 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
   private final ConcurrentHashMap<String, OclLspProcess> sessions = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, Long> lastActivity = new ConcurrentHashMap<>();
   private final ScheduledExecutorService cleanupScheduler = Executors.newScheduledThreadPool(1);
-  private final MetaModelService metaModelService;
+  private final VsumMetaModelService vsumMetaModelService;
 
   /**
    * Private base directory owned exclusively by this process. All temp files and session dirs are
@@ -66,8 +66,8 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
    * @param metaModelService service for accessing metamodel data
    * @throws IOException if the private base temp directory cannot be created
    */
-  public OclLspWebSocketHandler(MetaModelService metaModelService) throws IOException {
-    this.metaModelService = metaModelService;
+  public OclLspWebSocketHandler(VsumMetaModelService vsumMetaModelService) throws IOException {
+    this.vsumMetaModelService = vsumMetaModelService;
     Path vitruvoclHome = Path.of(System.getProperty("user.home")).resolve(".vitruvocl");
     Files.createDirectories(vitruvoclHome);
     this.appTempBase = vitruvoclHome.resolve("app-" + UUID.randomUUID());
@@ -136,7 +136,7 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
 
     // Write metamodel ecore files so the LSP can resolve types
     if (vsumId != null) {
-      List<MetaModel> metamodels = metaModelService.findAccessibleByProject(vsumId);
+      List<MetaModel> metamodels = vsumMetaModelService.findAccessibleByProject(vsumId);
       for (MetaModel mm : metamodels) {
         byte[] ecoreData = mm.getEcoreFile().getData();
         String fileName = mm.getEcoreFile().getFilename();
