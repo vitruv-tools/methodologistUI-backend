@@ -17,10 +17,6 @@ import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCES
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Message.META_MODEL_CREATED_SUCCESSFULLY;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,13 +25,10 @@ import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.test.util.ReflectionTestUtils;
 import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
-import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
 import tools.vitruv.methodologist.exception.CreateMwe2FileException;
 import tools.vitruv.methodologist.exception.MetaModelUsedInVsumException;
 import tools.vitruv.methodologist.exception.MetaModelVersionAlreadyExistsException;
@@ -62,7 +55,6 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 
 class MetaModelServiceTest {
 
-  @TempDir Path tempDir;
   private MetaModelMapper metaModelMapper;
   private MetaModelRepository metaModelRepository;
   private FileStorageRepository fileStorageRepository;
@@ -111,7 +103,6 @@ class MetaModelServiceTest {
 
     metaModelService =
         new MetaModelService(
-            metaModelService,
             metaModelMapper,
             metaModelRepository,
             fileStorageRepository,
@@ -296,27 +287,6 @@ class MetaModelServiceTest {
     assertThat(result.metaModel().getId()).isEqualTo(100L);
     verify(metaModelRepository).existsLibraryMetamodel(user, "mm1", "2.0");
     verify(metaModelRepository).save(any(MetaModel.class));
-  }
-
-  @Test
-  void processGenModel_delegatesToSetupServiceApiHandler() {
-    final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
-    byte[] processed = "fixed".getBytes();
-    when(setupServiceApiHandler.processGenModelOrThrow(gen)).thenReturn(processed);
-
-    assertThat(metaModelService.processGenModel(gen)).isEqualTo(processed);
-    verify(setupServiceApiHandler).processGenModelOrThrow(gen);
-  }
-
-  @Test
-  void inspectGenModel_delegatesToSetupServiceApiHandler() {
-    final FileStorage gen = fs(20L, FileEnumType.GEN_MODEL, "G".getBytes());
-    GenModelInspectionResponse response =
-        GenModelInspectionResponse.builder().message("ok").build();
-    when(setupServiceApiHandler.inspectGenModelOrThrow(gen)).thenReturn(response);
-
-    assertThat(metaModelService.inspectGenModel(gen)).isSameAs(response);
-    verify(setupServiceApiHandler).inspectGenModelOrThrow(gen);
   }
 
   @Test
@@ -1295,45 +1265,5 @@ class MetaModelServiceTest {
     when(file.getFilename()).thenReturn(filename);
     when(file.getData()).thenReturn(data);
     return file;
-  }
-
-  /**
-   * Verifies that writing metamodels to directory creates files correctly.
-   *
-   * <p>Tests the LSP workspace initialization that writes ecore files to the filesystem for the
-   * language server to access.
-   */
-  @Test
-  void writeMetamodelsToDirectory_createsEcoreFiles() throws IOException {
-    // Setup
-    MetaModel mm1 = new MetaModel();
-    mm1.setId(1L);
-    mm1.setEcoreFile(createFileStorage(10L, "model1.ecore", "ecore content 1".getBytes()));
-
-    MetaModel mm2 = new MetaModel();
-    mm2.setId(2L);
-    mm2.setEcoreFile(createFileStorage(11L, "model2.ecore", "ecore content 2".getBytes()));
-
-    Vsum vsum = new Vsum();
-    VsumMetaModel vmm1 = VsumMetaModel.builder().vsum(vsum).metaModel(mm1).build();
-    VsumMetaModel vmm2 = VsumMetaModel.builder().vsum(vsum).metaModel(mm2).build();
-    Long vsumId = 10L;
-
-    when(vsumMetaModelRepository.findByVsumId(vsumId)).thenReturn(List.of(vmm1, vmm2));
-
-    // Inject self reference manually
-    ReflectionTestUtils.setField(metaModelService, "self", metaModelService);
-
-    File targetDir = tempDir.toFile();
-    metaModelService.writeMetamodelsToDirectory(targetDir, vsumId);
-
-    // Verify
-    File file1 = new File(targetDir, "model1.ecore");
-    File file2 = new File(targetDir, "model2.ecore");
-
-    assertThat(file1).exists();
-    assertThat(file2).exists();
-    assertThat(Files.readAllBytes(file1.toPath())).isEqualTo("ecore content 1".getBytes());
-    assertThat(Files.readAllBytes(file2.toPath())).isEqualTo("ecore content 2".getBytes());
   }
 }
