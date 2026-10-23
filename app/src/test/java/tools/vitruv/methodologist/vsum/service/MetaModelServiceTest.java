@@ -18,7 +18,6 @@ import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERR
 import static tools.vitruv.methodologist.messages.Message.META_MODEL_CREATED_SUCCESSFULLY;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -422,53 +421,6 @@ class MetaModelServiceTest {
         .hasMessageContaining("disk full");
 
     verify(metaModelRepository, never()).save(any(MetaModel.class));
-  }
-
-  @Test
-  void deleteCloned_deletesModels_thenDeletesBothFileTypes() {
-    FileStorage ecoreA = new FileStorage();
-    ecoreA.setId(100L);
-    FileStorage genA = new FileStorage();
-    genA.setId(101L);
-    MetaModel cloneA = new MetaModel();
-    cloneA.setId(1000L);
-    cloneA.setEcoreFile(ecoreA);
-    cloneA.setGenModelFile(genA);
-
-    FileStorage ecoreB = new FileStorage();
-    ecoreB.setId(200L);
-    FileStorage genB = new FileStorage();
-    genB.setId(201L);
-    MetaModel cloneB = new MetaModel();
-    cloneB.setId(2000L);
-    cloneB.setEcoreFile(ecoreB);
-    cloneB.setGenModelFile(genB);
-
-    List<MetaModel> clones = List.of(cloneA, cloneB);
-
-    ArgumentCaptor<List<FileStorage>> filesCaptor = ArgumentCaptor.forClass(List.class);
-
-    metaModelService.deleteCloned(clones);
-
-    verify(metaModelRepository).deleteAll(clones);
-    verify(fileStorageService).deleteFiles(filesCaptor.capture());
-
-    List<FileStorage> sentFiles = filesCaptor.getValue();
-    assertThat(sentFiles)
-        .extracting(FileStorage::getId)
-        .containsExactlyInAnyOrder(
-            ecoreA.getId(), genA.getId(),
-            ecoreB.getId(), genB.getId());
-  }
-
-  @Test
-  void deleteCloned_handlesEmptyList() {
-    List<MetaModel> empty = new ArrayList<>();
-
-    metaModelService.deleteCloned(empty);
-
-    verify(metaModelRepository).deleteAll(empty);
-    verify(fileStorageService).deleteFiles(List.of());
   }
 
   @Test

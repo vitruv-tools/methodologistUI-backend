@@ -12,6 +12,8 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.general.service.FileStorageService;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
@@ -35,6 +37,7 @@ public class VsumMetaModelService {
   MetaModelService metaModelService;
   MetaModelRepository metaModelRepository;
   EntityManager entityManager;
+  FileStorageService fileStorageService;
 
   /**
    * Finds all metamodels accessible by a given project.
@@ -133,18 +136,35 @@ public class VsumMetaModelService {
    * Creates new {@link VsumMetaModel} associations for the given {@link Vsum}.
    *
    * <p>First, all previously cloned {@link MetaModel} instances linked to the given {@code
-   * vsumMetaModels} are removed using {@link MetaModelService#deleteCloned(List)}. Then, the
-   * provided {@link VsumMetaModel} associations are deleted from the repository and detached from
-   * the {@link Vsum}.
+   * vsumMetaModels} are removed using {@link #deleteCloned(List)}. Then, the provided {@link
+   * VsumMetaModel} associations are deleted from the repository and detached from the {@link Vsum}.
    *
    * @param vsum the parent {@link Vsum} whose associations are being recreated
    * @param vsumMetaModels the list of {@link VsumMetaModel} associations to remove before creation
    */
+  @Transactional
   public void delete(Vsum vsum, List<VsumMetaModel> vsumMetaModels) {
     vsumMetaModelRepository.deleteAll(vsumMetaModels);
     vsum.getVsumMetaModels().removeAll(vsumMetaModels);
-    metaModelService.deleteCloned(
-        vsumMetaModels.stream().map(VsumMetaModel::getMetaModel).toList());
+    deleteCloned(vsumMetaModels.stream().map(VsumMetaModel::getMetaModel).toList());
+  }
+
+  /**
+   * Deletes the file storage records associated with the given cloned {@link MetaModel} entities.
+   *
+   * <p>Collects all linked Ecore and GenModel files from the provided metamodels and removes them
+   * from persistent storage using {@link
+   * tools.vitruv.methodologist.general.service.FileStorageService}.
+   *
+   * @param metaModels the list of cloned {@link MetaModel} entities whose files should be deleted
+   */
+  @Transactional
+  public void deleteCloned(List<MetaModel> metaModels) {
+    metaModelRepository.deleteAll(metaModels);
+    List<FileStorage> fileStorages = new ArrayList<>();
+    fileStorages.addAll(metaModels.stream().map(MetaModel::getEcoreFile).toList());
+    fileStorages.addAll(metaModels.stream().map(MetaModel::getGenModelFile).toList());
+    fileStorageService.deleteFiles(fileStorages);
   }
 
   /**
@@ -153,10 +173,11 @@ public class VsumMetaModelService {
    *
    * @param vsum the VSUM whose metamodel associations and cloned metamodels should be deleted
    */
+  @Transactional
   public void delete(Vsum vsum) {
     List<MetaModel> metaModels =
         vsum.getVsumMetaModels().stream().map(VsumMetaModel::getMetaModel).toList();
     vsumMetaModelRepository.deleteVsumMetaModelByVsum(vsum);
-    metaModelService.deleteCloned(metaModels);
+    deleteCloned(metaModels);
   }
 }

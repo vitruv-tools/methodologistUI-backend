@@ -7,7 +7,6 @@ import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERR
 import static tools.vitruv.methodologist.messages.Message.META_MODEL_CREATED_SUCCESSFULLY;
 
 import jakarta.validation.Valid;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -355,24 +354,6 @@ public class MetaModelService {
     clonedMetaModel.setGenModelFile(genModelFile);
     metaModelRepository.save(clonedMetaModel);
     return clonedMetaModel;
-  }
-
-  /**
-   * Deletes the file storage records associated with the given cloned {@link MetaModel} entities.
-   *
-   * <p>Collects all linked Ecore and GenModel files from the provided metamodels and removes them
-   * from persistent storage using {@link
-   * tools.vitruv.methodologist.general.service.FileStorageService}.
-   *
-   * @param metaModels the list of cloned {@link MetaModel} entities whose files should be deleted
-   */
-  @Transactional
-  public void deleteCloned(List<MetaModel> metaModels) {
-    metaModelRepository.deleteAll(metaModels);
-    List<FileStorage> fileStorages = new ArrayList<>();
-    fileStorages.addAll(metaModels.stream().map(MetaModel::getEcoreFile).toList());
-    fileStorages.addAll(metaModels.stream().map(MetaModel::getGenModelFile).toList());
-    fileStorageService.deleteFiles(fileStorages);
   }
 
   /**
