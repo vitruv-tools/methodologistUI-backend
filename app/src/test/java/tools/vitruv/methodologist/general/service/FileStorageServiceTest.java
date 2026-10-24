@@ -12,11 +12,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import jakarta.ws.rs.BadRequestException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-
-import jakarta.ws.rs.BadRequestException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -243,7 +242,7 @@ class FileStorageServiceTest {
         .thenReturn(Optional.of(existing));
 
     assertThrows(
-            AccessDeniedException.class, () -> fileStorageService.updateFile(email, 1L, testFile));
+        AccessDeniedException.class, () -> fileStorageService.updateFile(email, 1L, testFile));
   }
 
   @Test
@@ -265,7 +264,7 @@ class FileStorageServiceTest {
         new MockMultipartFile("file", "empty.txt", "text/plain", new byte[0]);
 
     assertThrows(
-            BadRequestException.class, () -> fileStorageService.updateFile(email, 1L, emptyFile));
+        BadRequestException.class, () -> fileStorageService.updateFile(email, 1L, emptyFile));
   }
 
   @Test

@@ -1,5 +1,8 @@
 package tools.vitruv.methodologist.general.service;
 
+import static tools.vitruv.methodologist.messages.Error.*;
+
+import jakarta.ws.rs.BadRequestException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -7,6 +10,7 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,10 +24,6 @@ import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
-import jakarta.ws.rs.BadRequestException;
-import org.springframework.security.access.AccessDeniedException;
-
-import static tools.vitruv.methodologist.messages.Error.*;
 
 /**
  * Service class that handles file storage operations including storing, retrieving, and deleting
