@@ -10,7 +10,7 @@ public class Error {
   public static final String VSUM_HISTORY_ID_NOT_FOUND_ERROR = "Vsum history id";
   public static final String VSUM_BUILD_ID_NOT_FOUND_ERROR = "Vsum build id";
   public static final String VSUM_BUILD_ARTIFACT_NOT_FOUND_ERROR = "Vsum build artifact";
-  public static final String USER_DOSE_NOT_HAVE_ACCESS = "You don't have access";
+  public static final String USER_DOES_NOT_HAVE_ACCESS = "You don't have access";
   public static final String VIEW_FILE_ID_NOT_FOUND_ERROR = "View file id";
   public static final String ECORE_FILE_ID_NOT_FOUND_ERROR = "Ecore file id";
   public static final String USER_EMAIL_NOT_FOUND_ERROR = "Email";

@@ -1,6 +1,6 @@
 package tools.vitruv.methodologist.user.service;
 
-import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_WRONG_PASSWORD_ERROR;
 
@@ -127,7 +127,7 @@ public class UserService {
     User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNullAndVerifiedIsFalse(callerEmail)
-            .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+            .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
 
     if (Instant.now().isAfter(user.getOtpExpiresAt())) {
       throw new ValidationCodeExpiredException();
@@ -156,7 +156,7 @@ public class UserService {
     User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNullAndVerifiedIsFalse(callerEmail)
-            .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+            .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
 
     if (Instant.now().isBefore(user.getOtpExpiresAt())) {
       throw new ValidationCodeNotExpiredYetException();
@@ -491,7 +491,7 @@ public class UserService {
     return userRepository
         .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
         .filter(caller -> caller.getId().equals(id))
-        .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+        .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
   }
 
   /**
