@@ -37,7 +37,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import tools.vitruv.methodologist.exception.LspProcessException;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
-import tools.vitruv.methodologist.vsum.service.MetaModelService;
+import tools.vitruv.methodologist.vsum.service.VsumMetaModelService;
 
 /** Websocket handler for LSP communication with automatic session cleanup. */
 @Component
@@ -49,7 +49,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
   private final ConcurrentHashMap<String, LspServerProcess> sessions = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, Long> lastActivity = new ConcurrentHashMap<>();
   private final ScheduledExecutorService cleanupScheduler = Executors.newScheduledThreadPool(1);
-  private final MetaModelService metaModelService;
+  private final VsumMetaModelService vsumMetaModelService;
 
   @Value("${reactions.ide.jar.path}")
   private Resource jarResource;
@@ -57,10 +57,10 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
   /**
    * Constructs a new LspWebSocketHandler with the required metamodel service.
    *
-   * @param metaModelService the service for metamodel operations
+   * @param vsumMetaModelService the service for metamodel operations
    */
-  public LspWebSocketHandler(MetaModelService metaModelService) {
-    this.metaModelService = metaModelService;
+  public LspWebSocketHandler(VsumMetaModelService vsumMetaModelService) {
+    this.vsumMetaModelService = vsumMetaModelService;
 
     // Start periodic cleanup task
     cleanupScheduler.scheduleAtFixedRate(
@@ -108,7 +108,7 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
     Path userProject = sessionDir.resolve("UserProject");
     Path modelDir = userProject.resolve("model");
     Files.createDirectories(modelDir);
-    List<MetaModel> metamodels = metaModelService.findAccessibleByProject(vsumId);
+    List<MetaModel> metamodels = vsumMetaModelService.findAccessibleByProject(vsumId);
 
     for (MetaModel mm : metamodels) {
       byte[] ecoreData = mm.getEcoreFile().getData();
