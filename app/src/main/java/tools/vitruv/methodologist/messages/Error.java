@@ -25,7 +25,7 @@ public class Error {
   public static final String METAMODEL_PAIR_REQUIRED_ERROR =
       "At least one metamodel (Ecore/GenModel pair) must be provided.";
   public static final String METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR =
-      "MetaModel Ids not found in this VSUM";
+      "MetaModel Ids in this VSUM";
   public static final String NO_TEMPLATE_PROVIDED_ERROR =
       "No template provided for fine-granular reaction.";
   public static final String METAMODEL_RELATION_REACTION_OR_FG_REQUIRED_ERROR =

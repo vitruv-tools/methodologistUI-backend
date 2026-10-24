@@ -99,7 +99,7 @@ public class ConstraintRuleSetService {
     ConstraintRuleSet ruleSet =
         ruleSetRepository
             .findByIdAndVsumId(ruleSetId, vsumId)
-            .orElseThrow(() -> new NotFoundException("RuleSet not found"));
+            .orElseThrow(() -> new NotFoundException("RuleSet"));
 
     ruleSet.setName(request.name());
     if (request.color() != null) {
@@ -128,7 +128,7 @@ public class ConstraintRuleSetService {
     ConstraintRuleSet ruleSet =
         ruleSetRepository
             .findByIdAndVsumId(ruleSetId, vsumId)
-            .orElseThrow(() -> new NotFoundException("RuleSet not found"));
+            .orElseThrow(() -> new NotFoundException("RuleSet"));
     ruleSetRepository.delete(ruleSet);
   }
 
@@ -187,7 +187,7 @@ public class ConstraintRuleSetService {
     Vsum vsum =
         vsumRepository
             .findByIdAndRemovedAtIsNull(vsumId)
-            .orElseThrow(() -> new NotFoundException("VSUM not found"));
+            .orElseThrow(() -> new NotFoundException("VSUM"));
     if (vsum.getVsumUsers() == null
         || vsum.getVsumUsers().stream().noneMatch(vsumUser -> belongsToUser(vsumUser, user))) {
       throw new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS);
