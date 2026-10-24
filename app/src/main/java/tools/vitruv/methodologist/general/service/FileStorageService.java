@@ -1,6 +1,9 @@
 package tools.vitruv.methodologist.general.service;
 
-import static tools.vitruv.methodologist.messages.Error.*;
+import static tools.vitruv.methodologist.messages.Error.FILE_HASHING_EXCEPTION;
+import static tools.vitruv.methodologist.messages.Error.FILE_ID_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
 import jakarta.ws.rs.BadRequestException;
 import java.security.MessageDigest;
@@ -81,7 +84,7 @@ public class FileStorageService {
    * @return FileStorageResponse containing the stored file's ID
    * @throws Exception if file hashing fails
    * @throws NotFoundException if the user email is not found
-   * @throws BadRequestException; if the file is empty
+   * @throws BadRequestException if the file is empty
    * @throws FileAlreadyExistsException if a non-metamodel file with the same content already exists
    *     for the user
    */
