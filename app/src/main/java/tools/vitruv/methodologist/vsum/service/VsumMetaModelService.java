@@ -150,6 +150,20 @@ public class VsumMetaModelService {
   }
 
   /**
+   * Deletes all {@link VsumMetaModel} associations and their cloned {@link MetaModel} instances
+   * linked to the specified {@link Vsum}.
+   *
+   * @param vsum the VSUM whose metamodel associations and cloned metamodels should be deleted
+   */
+  @Transactional
+  public void delete(Vsum vsum) {
+    List<MetaModel> metaModels =
+        vsum.getVsumMetaModels().stream().map(VsumMetaModel::getMetaModel).toList();
+    vsumMetaModelRepository.deleteVsumMetaModelByVsum(vsum);
+    deleteCloned(metaModels);
+  }
+
+  /**
    * Deletes the file storage records associated with the given cloned {@link MetaModel} entities.
    *
    * <p>Collects all linked Ecore and GenModel files from the provided metamodels and removes them
@@ -164,19 +178,5 @@ public class VsumMetaModelService {
     fileStorages.addAll(metaModels.stream().map(MetaModel::getEcoreFile).toList());
     fileStorages.addAll(metaModels.stream().map(MetaModel::getGenModelFile).toList());
     fileStorageService.deleteFiles(fileStorages);
-  }
-
-  /**
-   * Deletes all {@link VsumMetaModel} associations and their cloned {@link MetaModel} instances
-   * linked to the specified {@link Vsum}.
-   *
-   * @param vsum the VSUM whose metamodel associations and cloned metamodels should be deleted
-   */
-  @Transactional
-  public void delete(Vsum vsum) {
-    List<MetaModel> metaModels =
-        vsum.getVsumMetaModels().stream().map(VsumMetaModel::getMetaModel).toList();
-    vsumMetaModelRepository.deleteVsumMetaModelByVsum(vsum);
-    deleteCloned(metaModels);
   }
 }
