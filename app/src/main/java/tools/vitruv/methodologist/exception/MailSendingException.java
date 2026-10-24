@@ -23,5 +23,7 @@ public class MailSendingException extends RuntimeException {
    *
    * @param message human-readable description of the error
    */
-  public MailSendingException(String message)  {super(message); }
+  public MailSendingException(String message) {
+    super(message);
+  }
 }
