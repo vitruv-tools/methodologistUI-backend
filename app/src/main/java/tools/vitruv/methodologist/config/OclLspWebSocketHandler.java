@@ -63,7 +63,7 @@ public class OclLspWebSocketHandler extends TextWebSocketHandler {
   /**
    * Constructs a new {@code OclLspWebSocketHandler}.
    *
-   * @param metaModelService service for accessing metamodel data
+   * @param vsumMetaModelService service for accessing metamodel data
    * @throws IOException if the private base temp directory cannot be created
    */
   public OclLspWebSocketHandler(VsumMetaModelService vsumMetaModelService) throws IOException {

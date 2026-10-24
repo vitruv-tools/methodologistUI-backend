@@ -158,8 +158,7 @@ public class VsumMetaModelService {
    *
    * @param metaModels the list of cloned {@link MetaModel} entities whose files should be deleted
    */
-  @Transactional
-  public void deleteCloned(List<MetaModel> metaModels) {
+  void deleteCloned(List<MetaModel> metaModels) {
     metaModelRepository.deleteAll(metaModels);
     List<FileStorage> fileStorages = new ArrayList<>();
     fileStorages.addAll(metaModels.stream().map(MetaModel::getEcoreFile).toList());
