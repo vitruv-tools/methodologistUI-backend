@@ -1,9 +1,5 @@
 package tools.vitruv.methodologist.general.service;
 
-import static tools.vitruv.methodologist.messages.Error.FILE_HASHING_EXCEPTION;
-import static tools.vitruv.methodologist.messages.Error.FILE_ID_NOT_FOUND_ERROR;
-import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
-
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -24,6 +20,10 @@ import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
+import jakarta.ws.rs.BadRequestException;
+import org.springframework.security.access.AccessDeniedException;
+
+import static tools.vitruv.methodologist.messages.Error.*;
 
 /**
  * Service class that handles file storage operations including storing, retrieving, and deleting
@@ -81,7 +81,7 @@ public class FileStorageService {
    * @return FileStorageResponse containing the stored file's ID
    * @throws Exception if file hashing fails
    * @throws NotFoundException if the user email is not found
-   * @throws IllegalArgumentException if the file is empty
+   * @throws BadRequestException; if the file is empty
    * @throws FileAlreadyExistsException if a non-metamodel file with the same content already exists
    *     for the user
    */
@@ -103,7 +103,7 @@ public class FileStorageService {
    * @param type the type of file being stored
    * @return FileStorageResponse containing the stored file's ID
    * @throws NotFoundException if the user email is not found
-   * @throws IllegalArgumentException if the file is empty
+   * @throws BadRequestException if the file is empty
    * @throws FileAlreadyExistsException if a non-metamodel file with the same content already exists
    *     for the user
    */
@@ -115,7 +115,7 @@ public class FileStorageService {
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
             .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
     if (data == null || data.length == 0) {
-      throw new IllegalArgumentException("File is empty");
+      throw new BadRequestException("File is empty");
     }
 
     String sha = sha256Hex(data);
@@ -178,8 +178,9 @@ public class FileStorageService {
    * @param file the new MultipartFile whose content will replace the existing file content
    * @return FileStorageResponse containing the updated file's ID
    * @throws Exception if file hashing fails
-   * @throws NotFoundException if the user email is not found
-   * @throws IllegalArgumentException if the file is empty or the file ID is not found
+   * @throws NotFoundException if the user email is not found or the file is not found
+   * @throws BadRequestException if the file is empty
+   * @throws AccessDeniedException if file does not belong to the caller
    * @throws FileAlreadyExistsException if another file with the same content already exists for the
    *     same user
    */
@@ -205,7 +206,8 @@ public class FileStorageService {
    * @param contentType the MIME type of the file
    * @return FileStorageResponse containing the updated file's ID
    * @throws NotFoundException if the user email or file is not found
-   * @throws IllegalArgumentException if the file is empty or does not belong to the caller
+   * @throws BadRequestException if the file is empty
+   * @throws AccessDeniedException if file does not belong to the caller
    */
   @Transactional(rollbackFor = Exception.class)
   public FileStorageResponse updateFile(
@@ -223,11 +225,11 @@ public class FileStorageService {
     if (existing.getUser() == null
         || existing.getUser().getId() == null
         || !existing.getUser().getId().equals(user.getId())) {
-      throw new IllegalArgumentException("File does not belong to the requesting user");
+      throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
     }
 
     if (data == null || data.length == 0) {
-      throw new IllegalArgumentException("File is empty");
+      throw new BadRequestException("File is empty");
     }
 
     String sha = sha256Hex(data);
