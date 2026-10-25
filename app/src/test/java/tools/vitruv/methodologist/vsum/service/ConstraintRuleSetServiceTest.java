@@ -6,7 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -138,7 +138,7 @@ class ConstraintRuleSetServiceTest {
 
     assertThatThrownBy(() -> service.findAll("test@example.com", 10L))
         .isInstanceOf(AccessDeniedException.class)
-        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+        .hasMessageContaining(USER_DOES_NOT_HAVE_ACCESS);
 
     verify(ruleSetRepository, never()).findByVsumId(10L);
   }
@@ -257,7 +257,7 @@ class ConstraintRuleSetServiceTest {
     var req = new RuleSetPostRequest("X", null, null, null);
     assertThatThrownBy(() -> service.create("test@example.com", 10L, req))
         .isInstanceOf(AccessDeniedException.class)
-        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+        .hasMessageContaining(USER_DOES_NOT_HAVE_ACCESS);
 
     verify(ruleSetRepository, never()).save(any());
   }
@@ -372,7 +372,7 @@ class ConstraintRuleSetServiceTest {
     var req = new RuleSetPutRequest("X", null, null, null);
     assertThatThrownBy(() -> service.update("test@example.com", 10L, 100L, req))
         .isInstanceOf(AccessDeniedException.class)
-        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+        .hasMessageContaining(USER_DOES_NOT_HAVE_ACCESS);
 
     verify(ruleSetRepository, never()).findByIdAndVsumId(100L, 10L);
     verify(ruleSetRepository, never()).save(any());
@@ -423,7 +423,7 @@ class ConstraintRuleSetServiceTest {
 
     assertThatThrownBy(() -> service.delete("test@example.com", 10L, 100L))
         .isInstanceOf(AccessDeniedException.class)
-        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+        .hasMessageContaining(USER_DOES_NOT_HAVE_ACCESS);
 
     verify(ruleSetRepository, never()).findByIdAndVsumId(100L, 10L);
     verify(ruleSetRepository, never()).delete(any());

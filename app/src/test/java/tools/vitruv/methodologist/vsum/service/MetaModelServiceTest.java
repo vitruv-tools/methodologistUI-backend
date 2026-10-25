@@ -13,7 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.ECORE_FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.META_MODEL_ID_NOT_FOUND_ERROR;
-import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Message.META_MODEL_CREATED_SUCCESSFULLY;
 
@@ -603,7 +603,7 @@ class MetaModelServiceTest {
 
     assertThatThrownBy(() -> metaModelService.update(email, 1L, request))
         .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
-        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+        .hasMessageContaining(USER_DOES_NOT_HAVE_ACCESS);
 
     verify(metaModelRepository, never()).findById(any());
     verify(metaModelRepository, never()).save(any());
@@ -657,7 +657,7 @@ class MetaModelServiceTest {
 
     assertThatThrownBy(() -> metaModelService.update(email, 10L, request))
         .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
-        .hasMessageContaining(USER_DOSE_NOT_HAVE_ACCESS);
+        .hasMessageContaining(USER_DOES_NOT_HAVE_ACCESS);
 
     verify(metaModelMapper, never()).updateByMetaModelPutRequest(any(), any());
     verify(metaModelRepository, never()).save(any());

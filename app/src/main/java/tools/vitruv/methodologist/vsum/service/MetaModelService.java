@@ -2,7 +2,7 @@ package tools.vitruv.methodologist.vsum.service;
 
 import static tools.vitruv.methodologist.messages.Error.ECORE_FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.META_MODEL_ID_NOT_FOUND_ERROR;
-import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Message.META_MODEL_CREATED_SUCCESSFULLY;
 
@@ -415,7 +415,7 @@ public class MetaModelService {
     User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
-            .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+            .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
 
     MetaModel metaModel =
         metaModelRepository
@@ -424,7 +424,7 @@ public class MetaModelService {
 
     if (metaModel.getSource() == null) {
       if (!isOwnedBy(metaModel, user)) {
-        throw new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS);
+        throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
       }
 
       FileStorage updatedEcore = resolveUpdatedEcore(callerEmail, metaModel, metaModelPutRequest);

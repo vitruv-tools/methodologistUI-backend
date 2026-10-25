@@ -10,7 +10,7 @@ public class Error {
   public static final String VSUM_HISTORY_ID_NOT_FOUND_ERROR = "Vsum history id";
   public static final String VSUM_BUILD_ID_NOT_FOUND_ERROR = "Vsum build id";
   public static final String VSUM_BUILD_ARTIFACT_NOT_FOUND_ERROR = "Vsum build artifact";
-  public static final String USER_DOSE_NOT_HAVE_ACCESS = "You don't have access";
+  public static final String USER_DOES_NOT_HAVE_ACCESS = "You don't have access";
   public static final String VIEW_FILE_ID_NOT_FOUND_ERROR = "View file id";
   public static final String ECORE_FILE_ID_NOT_FOUND_ERROR = "Ecore file id";
   public static final String USER_EMAIL_NOT_FOUND_ERROR = "Email";
@@ -25,7 +25,7 @@ public class Error {
   public static final String METAMODEL_PAIR_REQUIRED_ERROR =
       "At least one metamodel (Ecore/GenModel pair) must be provided.";
   public static final String METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR =
-      "MetaModel Ids not found in this VSUM";
+      "MetaModel Ids in this VSUM";
   public static final String NO_TEMPLATE_PROVIDED_ERROR =
       "No template provided for fine-granular reaction.";
   public static final String METAMODEL_RELATION_REACTION_OR_FG_REQUIRED_ERROR =

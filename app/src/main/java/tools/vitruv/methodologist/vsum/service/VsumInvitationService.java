@@ -1,6 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
-import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.time.Instant;
@@ -106,9 +106,9 @@ public class VsumInvitationService {
     VsumUser callerMembership =
         vsumUserRepository
             .findByVsumAndUser_EmailAndUser_RemovedAtIsNull(vsum, callerEmail)
-            .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+            .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
     if (callerMembership.getRole() == VsumRole.VIEWER) {
-      throw new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS);
+      throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
     }
 
     if (inviteeEmail.equalsIgnoreCase(normalizeEmail(callerEmail))) {
