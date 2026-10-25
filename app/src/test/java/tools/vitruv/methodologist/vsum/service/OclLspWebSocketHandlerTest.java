@@ -39,7 +39,7 @@ import tools.vitruv.methodologist.vsum.model.MetaModel;
     })
 class OclLspWebSocketHandlerTest {
 
-  private MetaModelService metaModelService;
+  private VsumMetaModelService vsumMetaModelService;
   private OclLspWebSocketHandler handler;
   private WebSocketSession session;
 
@@ -48,9 +48,9 @@ class OclLspWebSocketHandlerTest {
 
   @BeforeEach
   void setUp() throws Exception {
-    metaModelService = mock(MetaModelService.class);
+    vsumMetaModelService = mock(VsumMetaModelService.class);
 
-    handler = new OclLspWebSocketHandler(metaModelService);
+    handler = new OclLspWebSocketHandler(vsumMetaModelService);
     ReflectionTestUtils.setField(handler, "jarResource", new FileSystemResource(testJarPath));
 
     session = mock(WebSocketSession.class);
@@ -65,7 +65,7 @@ class OclLspWebSocketHandlerTest {
     when(session.getUri()).thenReturn(uri);
 
     MetaModel metamodel = createMetaModel(1L, "test.ecore", "test content".getBytes());
-    when(metaModelService.findAccessibleByProject(1L)).thenReturn(List.of(metamodel));
+    when(vsumMetaModelService.findAccessibleByProject(1L)).thenReturn(List.of(metamodel));
 
     Path fakeJar = Files.createTempFile("vitruvocl-ls-", ".jar");
     Files.write(fakeJar, "not-a-real-jar".getBytes());
@@ -73,7 +73,7 @@ class OclLspWebSocketHandlerTest {
 
     handler.afterConnectionEstablished(session);
 
-    verify(metaModelService).findAccessibleByProject(1L);
+    verify(vsumMetaModelService).findAccessibleByProject(1L);
     verify(session, never()).close(any(CloseStatus.class));
   }
 
@@ -88,7 +88,7 @@ class OclLspWebSocketHandlerTest {
 
     handler.afterConnectionEstablished(session);
 
-    verify(metaModelService, never()).findAccessibleByProject(any());
+    verify(vsumMetaModelService, never()).findAccessibleByProject(any());
     verify(session, never()).close(any(CloseStatus.class));
   }
 
@@ -99,7 +99,7 @@ class OclLspWebSocketHandlerTest {
 
     MetaModel mm1 = createMetaModel(1L, "model1.ecore", "content1".getBytes());
     MetaModel mm2 = createMetaModel(2L, "model2.ecore", "content2".getBytes());
-    when(metaModelService.findAccessibleByProject(10L)).thenReturn(List.of(mm1, mm2));
+    when(vsumMetaModelService.findAccessibleByProject(10L)).thenReturn(List.of(mm1, mm2));
 
     Path fakeJar = Files.createTempFile("vitruvocl-ls-", ".jar");
     Files.write(fakeJar, "not-a-real-jar".getBytes());
@@ -107,7 +107,7 @@ class OclLspWebSocketHandlerTest {
 
     handler.afterConnectionEstablished(session);
 
-    verify(metaModelService).findAccessibleByProject(10L);
+    verify(vsumMetaModelService).findAccessibleByProject(10L);
   }
 
   @Test
@@ -115,7 +115,7 @@ class OclLspWebSocketHandlerTest {
     URI uri = new URI("ws://localhost/ocl-lsp?vsumId=5");
     when(session.getUri()).thenReturn(uri);
 
-    when(metaModelService.findAccessibleByProject(5L)).thenReturn(Collections.emptyList());
+    when(vsumMetaModelService.findAccessibleByProject(5L)).thenReturn(Collections.emptyList());
 
     Path fakeJar = Files.createTempFile("vitruvocl-ls-", ".jar");
     Files.write(fakeJar, "not-a-real-jar".getBytes());
@@ -123,7 +123,7 @@ class OclLspWebSocketHandlerTest {
 
     handler.afterConnectionEstablished(session);
 
-    verify(metaModelService).findAccessibleByProject(5L);
+    verify(vsumMetaModelService).findAccessibleByProject(5L);
     verify(session, never()).close(any(CloseStatus.class));
   }
 
@@ -131,7 +131,7 @@ class OclLspWebSocketHandlerTest {
   void afterConnectionClosed_removesSession() throws Exception {
     URI uri = new URI("ws://localhost/ocl-lsp?vsumId=1");
     when(session.getUri()).thenReturn(uri);
-    when(metaModelService.findAccessibleByProject(1L)).thenReturn(Collections.emptyList());
+    when(vsumMetaModelService.findAccessibleByProject(1L)).thenReturn(Collections.emptyList());
 
     Path fakeJar = Files.createTempFile("vitruvocl-ls-", ".jar");
     Files.write(fakeJar, "not-a-real-jar".getBytes());

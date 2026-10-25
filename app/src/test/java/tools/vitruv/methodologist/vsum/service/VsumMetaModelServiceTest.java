@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import jakarta.persistence.EntityManager;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,8 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.general.service.FileStorageService;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
@@ -23,6 +26,7 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 class VsumMetaModelServiceTest {
 
   private VsumMetaModelRepository vsumMetaModelRepository;
+  private FileStorageService fileStorageService;
   private MetaModelService metaModelService;
   private MetaModelRepository metaModelRepository;
   private EntityManager entityManager;
@@ -35,10 +39,15 @@ class VsumMetaModelServiceTest {
     metaModelService = mock(MetaModelService.class);
     metaModelRepository = mock(MetaModelRepository.class);
     entityManager = mock(EntityManager.class);
+    fileStorageService = mock(FileStorageService.class);
 
     service =
         new VsumMetaModelService(
-            vsumMetaModelRepository, metaModelService, metaModelRepository, entityManager);
+            vsumMetaModelRepository,
+            metaModelService,
+            metaModelRepository,
+            entityManager,
+            fileStorageService);
   }
 
   private Vsum newVsumWithUserEmail(String email) {
@@ -134,6 +143,8 @@ class VsumMetaModelServiceTest {
 
     MetaModel original = newOriginalMetaModel(10L);
     MetaModel cloned = newClonedMetaModel(100L, original);
+    cloned.setEcoreFile(new FileStorage());
+    cloned.setGenModelFile(new FileStorage());
 
     VsumMetaModel link = vsumMetaModel(vsum, cloned);
     vsum.getVsumMetaModels().add(link);
@@ -143,7 +154,7 @@ class VsumMetaModelServiceTest {
     service.delete(vsum, toDelete);
 
     verify(vsumMetaModelRepository).deleteAll(toDelete);
-    verify(metaModelService).deleteCloned(List.of(cloned));
+    verify(metaModelRepository).deleteAll(List.of(cloned));
     assertThat(vsum.getVsumMetaModels()).doesNotContain(link);
   }
 
@@ -151,6 +162,11 @@ class VsumMetaModelServiceTest {
   void delete_shouldDeleteVsumAndMetaModels() {
     MetaModel meta1 = MetaModel.builder().id(1L).name("m1").build();
     MetaModel meta2 = MetaModel.builder().id(2L).name("m2").build();
+    meta1.setEcoreFile(new FileStorage());
+    meta1.setGenModelFile(new FileStorage());
+
+    meta2.setEcoreFile(new FileStorage());
+    meta2.setGenModelFile(new FileStorage());
 
     Vsum vsum = new Vsum();
     VsumMetaModel vmm1 = VsumMetaModel.builder().vsum(vsum).metaModel(meta1).build();
@@ -163,10 +179,103 @@ class VsumMetaModelServiceTest {
     verify(vsumMetaModelRepository).deleteVsumMetaModelByVsum(vsum);
 
     ArgumentCaptor<List<MetaModel>> captor = ArgumentCaptor.forClass(List.class);
-    verify(metaModelService).deleteCloned(captor.capture());
+    verify(metaModelRepository).deleteAll(captor.capture());
 
     assertThat(captor.getValue()).extracting(MetaModel::getId).containsExactlyInAnyOrder(1L, 2L);
 
     verifyNoMoreInteractions(vsumMetaModelRepository, metaModelService);
+  }
+
+  /**
+   * Verifies that finding accessible metamodels by project returns source metamodels.
+   *
+   * <p>Tests the LSP workspace preparation logic that retrieves all metamodels associated with a
+   * given VSUM, preferring source metamodels over clones.
+   */
+  @Test
+  void findAccessibleByProject_returnsSourceMetaModels() {
+
+    MetaModel source1 = new MetaModel();
+    source1.setId(1L);
+    source1.setName("SourceMM1");
+
+    MetaModel clone1 = new MetaModel();
+    clone1.setId(2L);
+    clone1.setSource(source1);
+
+    MetaModel original2 = new MetaModel();
+    original2.setId(3L);
+    original2.setName("OriginalMM2");
+    Long vsumId = 10L;
+    Vsum vsum = new Vsum();
+    vsum.setId(vsumId);
+
+    VsumMetaModel vmm1 = VsumMetaModel.builder().vsum(vsum).metaModel(clone1).build();
+    VsumMetaModel vmm2 = VsumMetaModel.builder().vsum(vsum).metaModel(original2).build();
+
+    when(vsumMetaModelRepository.findByVsumId(vsumId)).thenReturn(List.of(vmm1, vmm2));
+
+    List<MetaModel> result = service.findAccessibleByProject(vsumId);
+
+    assertThat(result).hasSize(2).contains(source1, original2).doesNotContain(clone1);
+  }
+
+  /**
+   * Verifies that finding accessible metamodels with null vsumId returns empty list.
+   *
+   * <p>Tests defensive handling when no project context is provided.
+   */
+  @Test
+  void findAccessibleByProject_withNullVsumId_returnsEmptyList() {
+    List<MetaModel> result = service.findAccessibleByProject(null);
+
+    assertThat(result).isEmpty();
+  }
+
+  @Test
+  void deleteCloned_deletesModels_thenDeletesBothFileTypes() {
+    FileStorage ecoreA = new FileStorage();
+    ecoreA.setId(100L);
+    FileStorage genA = new FileStorage();
+    genA.setId(101L);
+    MetaModel cloneA = new MetaModel();
+    cloneA.setId(1000L);
+    cloneA.setEcoreFile(ecoreA);
+    cloneA.setGenModelFile(genA);
+
+    FileStorage ecoreB = new FileStorage();
+    ecoreB.setId(200L);
+    FileStorage genB = new FileStorage();
+    genB.setId(201L);
+    MetaModel cloneB = new MetaModel();
+    cloneB.setId(2000L);
+    cloneB.setEcoreFile(ecoreB);
+    cloneB.setGenModelFile(genB);
+
+    List<MetaModel> clones = List.of(cloneA, cloneB);
+
+    ArgumentCaptor<List<FileStorage>> filesCaptor = ArgumentCaptor.forClass(List.class);
+
+    service.deleteCloned(clones);
+
+    verify(metaModelRepository).deleteAll(clones);
+    verify(fileStorageService).deleteFiles(filesCaptor.capture());
+
+    List<FileStorage> sentFiles = filesCaptor.getValue();
+    assertThat(sentFiles)
+        .extracting(FileStorage::getId)
+        .containsExactlyInAnyOrder(
+            ecoreA.getId(), genA.getId(),
+            ecoreB.getId(), genB.getId());
+  }
+
+  @Test
+  void deleteCloned_handlesEmptyList() {
+    List<MetaModel> empty = new ArrayList<>();
+
+    service.deleteCloned(empty);
+
+    verify(metaModelRepository).deleteAll(empty);
+    verify(fileStorageService).deleteFiles(List.of());
   }
 }
