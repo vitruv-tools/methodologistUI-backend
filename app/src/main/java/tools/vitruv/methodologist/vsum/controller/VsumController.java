@@ -36,6 +36,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
+import tools.vitruv.methodologist.vsum.service.VsumDeploymentBundleService;
 import tools.vitruv.methodologist.vsum.service.VsumService;
 
 /**
@@ -49,14 +50,18 @@ public class VsumController {
   private static final MediaType APPLICATION_ZIP = MediaType.parseMediaType("application/zip");
 
   private final VsumService vsumService;
+  private final VsumDeploymentBundleService vsumDeploymentBundleService;
 
   /**
-   * Constructs a new VSUM controller with the required service dependency.
+   * Constructs a new VSUM controller with the required service dependencies.
    *
    * @param vsumService the service component for VSUM operations
+   * @param vsumDeploymentBundleService the service component packaging deployment bundles
    */
-  public VsumController(VsumService vsumService) {
+  public VsumController(
+      VsumService vsumService, VsumDeploymentBundleService vsumDeploymentBundleService) {
     this.vsumService = vsumService;
+    this.vsumDeploymentBundleService = vsumDeploymentBundleService;
   }
 
   /**
@@ -385,7 +390,7 @@ public class VsumController {
       KeycloakAuthentication authentication, @PathVariable Long id) {
     String callerEmail = authentication.getParsedToken().getEmail();
 
-    byte[] bundle = vsumService.createDeploymentBundle(callerEmail, id);
+    byte[] bundle = vsumDeploymentBundleService.createDeploymentBundle(callerEmail, id);
 
     HttpHeaders headers = new HttpHeaders();
     headers.setContentType(APPLICATION_ZIP);

@@ -21,7 +21,7 @@ import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildResponse;
 import tools.vitruv.methodologist.vsum.model.VsumBuildStatus;
 import tools.vitruv.methodologist.vsum.service.VsumBuildService;
-import tools.vitruv.methodologist.vsum.service.VsumService;
+import tools.vitruv.methodologist.vsum.service.VsumDeploymentBundleService;
 
 @ExtendWith(MockitoExtension.class)
 class VsumBuildControllerTest {
@@ -30,7 +30,7 @@ class VsumBuildControllerTest {
 
   @InjectMocks VsumBuildController controller;
   @Mock VsumBuildService vsumBuildService;
-  @Mock VsumService vsumService;
+  @Mock VsumDeploymentBundleService vsumDeploymentBundleService;
   @Mock KeycloakAuthentication authentication;
   @Mock KeycloakAuthentication.ParsedToken parsedToken;
 
@@ -104,7 +104,7 @@ class VsumBuildControllerTest {
     byte[] jar = "JAR".getBytes(StandardCharsets.UTF_8);
     byte[] zip = "ZIP".getBytes(StandardCharsets.UTF_8);
     when(vsumBuildService.getArtifact(EMAIL, 7L, 42L)).thenReturn(jar);
-    when(vsumService.createDeploymentBundle(jar)).thenReturn(zip);
+    when(vsumDeploymentBundleService.createDeploymentBundle(jar)).thenReturn(zip);
 
     ResponseEntity<byte[]> response = controller.downloadBundle(authentication, 7L, 42L);
 

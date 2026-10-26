@@ -3,52 +3,25 @@ package tools.vitruv.methodologist.vsum.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
-import static tools.vitruv.methodologist.vsum.service.VsumService.JAR_ENTRY_NAME;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -59,9 +32,6 @@ import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
-import tools.vitruv.methodologist.vsum.controller.dto.request.FineGranularMetaModelRelationRequest;
-import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
-import tools.vitruv.methodologist.vsum.controller.dto.request.ViewRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelationResponse;
@@ -80,12 +50,9 @@ import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 import tools.vitruv.methodologist.vsum.model.VsumUser;
 import tools.vitruv.methodologist.vsum.model.VsumView;
-import tools.vitruv.methodologist.vsum.model.VsumViewMetaModel;
-import tools.vitruv.methodologist.vsum.model.repository.MetaModelRelationRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
-import tools.vitruv.methodologist.vsum.model.repository.VsumViewMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -94,30 +61,22 @@ class VsumServiceTest {
   private static final String BUILD_EMAIL = "x@y.com";
   private static final Long BUILD_ID = 1L;
 
-  @TempDir private Path tempDir;
-
-  @InjectMocks VsumService job;
   @Mock private VsumMapper vsumMapper;
   @Mock private VsumRepository vsumRepository;
   @Mock private MetaModelMapper metaModelMapper;
-  @Mock private VsumMetaModelService vsumMetaModelService;
   @Mock private UserRepository userRepository;
   @Mock private VsumUserRepository vsumUserRepository;
   @Mock private VsumUserService vsumUserService;
-  @Mock private MetaModelRelationService metaModelRelationService;
   @Mock private MetaModelRelationMapper metaModelRelationMapper;
   @Mock private VsumMetaModelRepository vsumMetaModelRepository;
-  @Mock private MetaModelRelationRepository metaModelRelationRepository;
   @Mock private VsumHistoryService vsumHistoryService;
-  @Mock private VsumViewMetaModelService vsumViewMetaModelService;
-  @Mock private VsumViewService vsumViewService;
   @Mock private VsumViewRepository vsumViewRepository;
-  @Mock private VsumViewMetaModelRepository vsumViewMetaModelRepository;
   @Mock private VsumViewMapper vsumViewMapper;
-  @Mock private FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
   @Mock private LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
   @Mock private VsumBuildService vsumBuildService;
   @Mock private MetaModelService metaModelService;
+  @Mock private VsumSyncService vsumSyncService;
+  @Mock private VsumCleanupService vsumCleanupService;
 
   private VsumService service;
 
@@ -173,33 +132,21 @@ class VsumServiceTest {
             vsumMapper,
             vsumRepository,
             metaModelMapper,
-            vsumMetaModelService,
             userRepository,
             vsumUserRepository,
             vsumUserService,
-            metaModelRelationService,
             metaModelRelationMapper,
             vsumMetaModelRepository,
-            metaModelRelationRepository,
             vsumHistoryService,
-            vsumViewMetaModelService,
-            vsumViewService,
             vsumViewRepository,
-            vsumViewMetaModelRepository,
             vsumViewMapper,
-            fineGranularMetaModelRelationService,
             lowCodeReactionRequestMapper,
             vsumBuildService,
             metaModelService,
-            new PathMatchingResourcePatternResolver());
-    service.setSelf(service);
+            vsumSyncService,
+            vsumCleanupService);
 
-    lenient().when(metaModelRelationService.create(any(), any())).thenReturn(Map.of());
-    lenient().when(metaModelRelationService.update(any(), any())).thenReturn(Map.of());
     lenient().when(vsumViewRepository.findAllByVsum(any(Vsum.class))).thenReturn(List.of());
-    lenient()
-        .when(vsumViewMetaModelRepository.findAllByVsumViewIn(anyList()))
-        .thenReturn(List.of());
     lenient()
         .when(vsumViewMapper.toViewsResponse(any(VsumView.class)))
         .thenAnswer(
@@ -549,574 +496,38 @@ class VsumServiceTest {
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
 
-    verifyNoInteractions(
-        metaModelRelationRepository,
-        metaModelRelationService,
-        vsumMetaModelRepository,
-        vsumMetaModelService,
-        vsumHistoryService);
+    verifyNoInteractions(vsumSyncService, vsumMetaModelRepository, vsumHistoryService);
   }
 
   @Test
-  void update_removesRelations_whenPairsMissingInDesired_andWritesHistory() {
+  void update_delegatesTheSyncToVsumSyncService_withHistory() {
+    String email = "u@ex.com";
     Vsum vsum = new Vsum();
     vsum.setId(1L);
-    vsum.setMetaModelRelations(new java.util.HashSet<>());
-    vsum.setVsumMetaModels(new java.util.HashSet<>());
-    User owner = new User();
-    String email = "u@ex.com";
-    owner.setEmail(email);
+    User member = new User();
+    member.setEmail(email);
+    VsumUser vsumUser = vsumUser(vsum, member);
+    vsumUser.setRole(VsumRole.MEMBER);
     when(vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(1L, email))
-        .thenReturn(Optional.of(vsumUser(vsum, owner)));
-
-    MetaModel a = clonedMetaModel(10L, 100L);
-    MetaModel b = clonedMetaModel(20L, 200L);
-    MetaModel c = clonedMetaModel(30L, 300L);
-    MetaModel d = clonedMetaModel(40L, 400L);
-
-    MetaModelRelation relAB = metaModelRelation(vsum, a, b, 999L);
-    MetaModelRelation relCD = metaModelRelation(vsum, c, d);
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(relAB, relCD));
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
-
+        .thenReturn(Optional.of(vsumUser));
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setMetaModelRelationRequests(List.of(new MetaModelRelationRequest(100L, 200L, 999L)));
+    when(vsumSyncService.applySyncChanges(vsum, member, put, true)).thenReturn(vsum);
 
     Vsum result = service.update(email, 1L, put);
 
-    verify(metaModelRelationService).delete(List.of(relCD));
-    verify(metaModelRelationService)
-        .delete(
-            argThat((List<MetaModelRelation> list) -> list.size() == 1 && list.contains(relCD)));
-    assertThat(result.getMetaModelRelations()).isEmpty();
-    verify(vsumHistoryService).create(vsum, owner);
-    verify(vsumRepository).save(vsum);
-    assertThat(result.getMetaModelRelations()).isEmpty();
+    assertThat(result).isSameAs(vsum);
   }
 
   @Test
-  void update_createsRelations_whenNewPairsAppear_andWritesHistory() {
-    Vsum vsum = new Vsum();
-    vsum.setId(2L);
-    vsum.setMetaModelRelations(new java.util.HashSet<>());
-    vsum.setVsumMetaModels(new java.util.HashSet<>());
-    User owner = new User();
+  void update_throwsAccessDenied_whenViewer() {
     String email = "u@ex.com";
-    owner.setEmail(email);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(2L, email))
-        .thenReturn(Optional.of(vsumUser(vsum, owner)));
-
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
-
-    MetaModelRelationRequest req = new MetaModelRelationRequest(100L, 200L, 777L);
+    givenVsumMember(email, new Vsum(), VsumRole.VIEWER);
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setMetaModelRelationRequests(List.of(req));
 
-    service.update(email, 2L, put);
-
-    verify(metaModelRelationService).create(vsum, List.of(req));
-    verify(vsumHistoryService).create(vsum, owner);
-    verify(vsumRepository).save(vsum);
-  }
-
-  @Test
-  void update_removesVsumMetaModels_notInDesiredList_andWritesHistory() {
-    Vsum vsum = new Vsum();
-    vsum.setId(3L);
-    vsum.setMetaModelRelations(new java.util.HashSet<>());
-    vsum.setVsumMetaModels(new java.util.HashSet<>());
-    User owner = new User();
-    String email = "u@ex.com";
-    owner.setEmail(email);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(3L, email))
-        .thenReturn(Optional.of(vsumUser(vsum, owner)));
-
-    MetaModel mm10 = clonedMetaModel(1000L, 10L);
-    MetaModel mm20 = clonedMetaModel(2000L, 20L);
-    MetaModel mm30 = clonedMetaModel(3000L, 30L);
-    VsumMetaModel v10 = vsumMetaModel(vsum, mm10);
-    VsumMetaModel v20 = vsumMetaModel(vsum, mm20);
-    VsumMetaModel v30 = vsumMetaModel(vsum, mm30);
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v10, v20, v30));
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
-
-    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setMetaModelIds(List.of(10L, 30L));
-
-    Vsum result = service.update(email, 3L, put);
-
-    verify(vsumMetaModelService).delete(vsum, List.of(v20));
-    verify(vsumHistoryService).create(vsum, owner);
-    verify(vsumRepository).save(vsum);
-    assertThat(result.getVsumMetaModels()).doesNotContain(v20);
-  }
-
-  @Test
-  void update_addsVsumMetaModels_whenNewIdsAppear_andWritesHistory() {
-    Vsum vsum = new Vsum();
-    vsum.setId(4L);
-    vsum.setMetaModelRelations(new java.util.HashSet<>());
-    vsum.setVsumMetaModels(new java.util.HashSet<>());
-    User owner = new User();
-    String email = "u@ex.com";
-    owner.setEmail(email);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(4L, email))
-        .thenReturn(Optional.of(vsumUser(vsum, owner)));
-
-    MetaModel mm11 = clonedMetaModel(1011L, 11L);
-    MetaModel mm12 = clonedMetaModel(1012L, 12L);
-    VsumMetaModel v11 = vsumMetaModel(vsum, mm11);
-    VsumMetaModel v12 = vsumMetaModel(vsum, mm12);
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v11, v12));
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
-
-    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setMetaModelIds(List.of(11L, 12L, 13L));
-
-    service.update(email, 4L, put);
-
-    verify(vsumMetaModelService).create(vsum, Set.of(13L));
-    verify(vsumHistoryService).create(vsum, owner);
-    verify(vsumRepository).save(vsum);
-  }
-
-  @Test
-  void update_mixedChanges_relationsAndMetaModels_andWritesHistoryOnce() {
-    Vsum vsum = new Vsum();
-    vsum.setId(5L);
-    vsum.setMetaModelRelations(new java.util.HashSet<>());
-    vsum.setVsumMetaModels(new java.util.HashSet<>());
-    String email = "u@ex.com";
-    User owner = new User();
-    owner.setEmail(email);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(5L, email))
-        .thenReturn(Optional.of(vsumUser(vsum, owner)));
-
-    MetaModel m41 = clonedMetaModel(1041L, 41L);
-    MetaModel m42 = clonedMetaModel(1042L, 42L);
-    VsumMetaModel v41 = vsumMetaModel(vsum, m41);
-    VsumMetaModel v42 = vsumMetaModel(vsum, m42);
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v41, v42));
-
-    MetaModel s10 = clonedMetaModel(10L, 10L);
-    MetaModel t20 = clonedMetaModel(20L, 20L);
-    MetaModel s30 = clonedMetaModel(30L, 30L);
-    MetaModel t40 = clonedMetaModel(40L, 40L);
-    MetaModelRelation r10And20 = metaModelRelation(vsum, s10, t20, 111L);
-    MetaModelRelation r30And40 = metaModelRelation(vsum, s30, t40);
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r10And20, r30And40));
-
-    MetaModelRelationRequest addRelationReq = new MetaModelRelationRequest(50L, 60L, 909L);
-
-    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setMetaModelRelationRequests(
-        List.of(new MetaModelRelationRequest(10L, 20L, 111L), addRelationReq));
-    put.setMetaModelIds(List.of(41L, 43L));
-
-    service.update(email, 5L, put);
-
-    verify(vsumMetaModelService).delete(vsum, List.of(v42));
-    verify(vsumMetaModelService).create(vsum, Set.of(43L));
-    verify(metaModelRelationService).delete(List.of(r30And40));
-    verify(metaModelRelationService).create(vsum, List.of(addRelationReq));
-    verify(vsumHistoryService).create(vsum, owner);
-    verify(vsumRepository).save(vsum);
-  }
-
-  @Test
-  void update_noChanges_noSideEffects_exceptSave_andNoHistory() {
-    Vsum vsum = new Vsum();
-    vsum.setId(6L);
-    vsum.setMetaModelRelations(new java.util.HashSet<>());
-    vsum.setVsumMetaModels(new java.util.HashSet<>());
-    User owner = new User();
-    String email = "u@ex.com";
-    owner.setEmail(email);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(6L, email))
-        .thenReturn(Optional.of(vsumUser(vsum, owner)));
-
-    MetaModel m1 = clonedMetaModel(101L, 1L);
-    MetaModel m2 = clonedMetaModel(102L, 2L);
-    VsumMetaModel v1 = vsumMetaModel(vsum, m1);
-    VsumMetaModel v2 = vsumMetaModel(vsum, m2);
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v1, v2));
-
-    MetaModel s1 = clonedMetaModel(1L, 1L);
-    MetaModel t2 = clonedMetaModel(2L, 2L);
-    MetaModelRelation r12 = metaModelRelation(vsum, s1, t2, 555L);
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r12));
-
-    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setMetaModelIds(List.of(1L, 2L));
-    put.setMetaModelRelationRequests(List.of(new MetaModelRelationRequest(1L, 2L, 555L)));
-
-    service.update(email, 6L, put);
-
-    verify(vsumMetaModelService, never()).delete(any(), any());
-    verify(vsumMetaModelService, never()).create(any(), any());
-    verify(metaModelRelationService, never()).delete(any());
-    verify(metaModelRelationService, never()).create(any(), any());
-    verify(metaModelRelationService, never()).update(any(), any());
-    verify(vsumHistoryService, never()).create(any(), any());
-    verify(vsumRepository).save(vsum);
-  }
-
-  @Test
-  void update_updatesRelation_whenSamePairHasDifferentReactionFile_andWritesHistory() {
-    Vsum vsum = new Vsum();
-    vsum.setId(61L);
-    vsum.setMetaModelRelations(new java.util.HashSet<>());
-    vsum.setVsumMetaModels(new java.util.HashSet<>());
-    User owner = new User();
-    String email = "u@ex.com";
-    owner.setEmail(email);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(61L, email))
-        .thenReturn(Optional.of(vsumUser(vsum, owner)));
-
-    MetaModel s1 = clonedMetaModel(1L, 1L);
-    MetaModel t2 = clonedMetaModel(2L, 2L);
-    MetaModelRelation r12 = metaModelRelation(vsum, s1, t2, 555L);
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r12));
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
-
-    MetaModelRelationRequest updated = new MetaModelRelationRequest(1L, 2L, 777L);
-    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setMetaModelRelationRequests(List.of(updated));
-
-    when(metaModelRelationService.update(eq(vsum), any())).thenReturn(Map.of(updated, r12));
-
-    service.update(email, 61L, put);
-
-    verify(metaModelRelationService, never()).delete(any());
-    verify(metaModelRelationService, never()).create(any(), any());
-    verify(metaModelRelationService).update(eq(vsum), eq(Map.of(updated, r12)));
-    verify(vsumHistoryService).create(vsum, owner);
-    verify(fineGranularMetaModelRelationService).update(eq(email), eq(Map.of(updated, r12)), any());
-  }
-
-  @Test
-  void update_syncsFineGranularAndViewsTogether_andWritesHistoryOnce() {
-    Vsum vsum = new Vsum();
-    vsum.setId(80L);
-    vsum.setMetaModelRelations(new java.util.HashSet<>());
-    vsum.setVsumMetaModels(new java.util.HashSet<>());
-    User owner = new User();
-    String email = "u@ex.com";
-    owner.setEmail(email);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(80L, email))
-        .thenReturn(Optional.of(vsumUser(vsum, owner)));
-
-    MetaModel s1 = clonedMetaModel(1L, 1L);
-    MetaModel t2 = clonedMetaModel(2L, 2L);
-    MetaModelRelation r12 = metaModelRelation(vsum, s1, t2, 555L);
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r12));
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
-    when(vsumViewRepository.findAllByVsum(vsum)).thenReturn(List.of());
-
-    FineGranularMetaModelRelationRequest fgReq =
-        new FineGranularMetaModelRelationRequest(null, "Component", "Class", 14L, null);
-    MetaModelRelationRequest updated = new MetaModelRelationRequest(1L, 2L, 555L);
-    updated.getFineGranularMetaModelRelationSet().add(fgReq);
-
-    VsumView createdView = new VsumView();
-    createdView.setId(991L);
-    when(vsumViewService.create(vsum, 90L)).thenReturn(createdView);
-    when(metaModelRelationService.update(eq(vsum), any())).thenReturn(Map.of(updated, r12));
-
-    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setMetaModelRelationRequests(List.of(updated));
-    put.setViewRequests(
-        List.of(ViewRequest.builder().fileStorageId(90L).metaModelIds(List.of(1L, 2L)).build()));
-
-    service.update(email, 80L, put);
-
-    verify(metaModelRelationService).update(eq(vsum), eq(Map.of(updated, r12)));
-    verify(fineGranularMetaModelRelationService).update(eq(email), eq(Map.of(updated, r12)), any());
-    verify(vsumViewService).create(vsum, 90L);
-    verify(vsumHistoryService, times(1)).create(vsum, owner);
-    verify(vsumRepository).save(vsum);
-  }
-
-  @Test
-  void update_clearsAll_whenRequestListsAreNull_orEmpty_andWritesHistory() {
-    Vsum vsum = new Vsum();
-    vsum.setId(7L);
-    vsum.setMetaModelRelations(new java.util.HashSet<>());
-    vsum.setVsumMetaModels(new java.util.HashSet<>());
-    User owner = new User();
-    String email = "u@ex.com";
-    owner.setEmail(email);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(7L, email))
-        .thenReturn(Optional.of(vsumUser(vsum, owner)));
-
-    MetaModel mm10 = clonedMetaModel(1000L, 10L);
-    MetaModel mm20 = clonedMetaModel(2000L, 20L);
-    VsumMetaModel v10 = vsumMetaModel(vsum, mm10);
-    VsumMetaModel v20 = vsumMetaModel(vsum, mm20);
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v10, v20));
-
-    MetaModel s1 = clonedMetaModel(11L, 11L);
-    MetaModel t2 = clonedMetaModel(22L, 22L);
-    MetaModelRelation r = metaModelRelation(vsum, s1, t2);
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r));
-
-    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setMetaModelIds(null);
-    put.setMetaModelRelationRequests(null);
-
-    service.update(email, 7L, put);
-
-    verify(vsumMetaModelService)
-        .delete(eq(vsum), argThat(list -> list.size() == 2 && list.containsAll(List.of(v10, v20))));
-    verify(metaModelRelationService).delete(List.of(r));
-    verify(vsumHistoryService).create(vsum, owner);
-    verify(vsumRepository).save(vsum);
-  }
-
-  @Test
-  void update_createsViews_whenNewViewAppears_andWritesHistory() {
-    Vsum vsum = new Vsum();
-    vsum.setId(70L);
-    vsum.setMetaModelRelations(new java.util.HashSet<>());
-    vsum.setVsumMetaModels(new java.util.HashSet<>());
-
-    User owner = new User();
-    String email = "u@ex.com";
-    owner.setEmail(email);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(70L, email))
-        .thenReturn(Optional.of(vsumUser(vsum, owner)));
-
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
-    when(vsumViewRepository.findAllByVsum(vsum)).thenReturn(List.of());
-
-    VsumView createdView = new VsumView();
-    createdView.setId(991L);
-    when(vsumViewService.create(vsum, 90L)).thenReturn(createdView);
-
-    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setViewRequests(
-        List.of(
-            ViewRequest.builder()
-                .fileStorageId(90L)
-                .metaModelIds(List.of(3L, 1L, 3L, 2L))
-                .build()));
-
-    service.update(email, 70L, put);
-
-    verify(vsumViewService).create(vsum, 90L);
-    verify(vsumViewMetaModelService)
-        .create(
-            argThat(view -> view != null && Long.valueOf(991L).equals(view.getId())),
-            argThat(ids -> ids.equals(Set.of(1L, 2L, 3L))));
-    verify(vsumHistoryService).create(vsum, owner);
-    verify(vsumRepository).save(vsum);
-  }
-
-  @Test
-  void update_deletesViews_whenExistingViewIsRemoved_andWritesHistory() {
-    Vsum vsum = new Vsum();
-    vsum.setId(71L);
-    vsum.setMetaModelRelations(new java.util.HashSet<>());
-    vsum.setVsumMetaModels(new java.util.HashSet<>());
-
-    User owner = new User();
-    String email = "u@ex.com";
-    owner.setEmail(email);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(71L, email))
-        .thenReturn(Optional.of(vsumUser(vsum, owner)));
-
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
-
-    VsumView existingView = new VsumView();
-    existingView.setId(10L);
-    FileStorage viewFile = new FileStorage();
-    viewFile.setId(50L);
-    existingView.setFileStorage(viewFile);
-
-    when(vsumViewRepository.findAllByVsum(vsum)).thenReturn(List.of(existingView));
-
-    VsumViewMetaModel vm1 = new VsumViewMetaModel();
-    vm1.setMetaModel(clonedMetaModel(1001L, 1L));
-    vm1.setVsumView(existingView);
-    VsumViewMetaModel vm2 = new VsumViewMetaModel();
-    vm2.setMetaModel(clonedMetaModel(1002L, 2L));
-    vm2.setVsumView(existingView);
-    when(vsumViewMetaModelRepository.findAllByVsumViewIn(List.of(existingView)))
-        .thenReturn(List.of(vm1, vm2));
-
-    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setViewRequests(List.of());
-
-    service.update(email, 71L, put);
-
-    verify(vsumViewMetaModelService).deleteByVsumView(existingView);
-    verify(vsumViewService).delete(vsum, existingView);
-    verify(vsumHistoryService).create(vsum, owner);
-    verify(vsumRepository).save(vsum);
-  }
-
-  @Test
-  void update_doesNotTouchViews_whenDesiredMatchesExistingAfterNormalization() {
-    Vsum vsum = new Vsum();
-    vsum.setId(72L);
-    vsum.setMetaModelRelations(new java.util.HashSet<>());
-    vsum.setVsumMetaModels(new java.util.HashSet<>());
-
-    User owner = new User();
-    String email = "u@ex.com";
-    owner.setEmail(email);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(72L, email))
-        .thenReturn(Optional.of(vsumUser(vsum, owner)));
-
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
-
-    VsumView existingView = new VsumView();
-    existingView.setId(11L);
-    FileStorage viewFile = new FileStorage();
-    viewFile.setId(60L);
-    existingView.setFileStorage(viewFile);
-    when(vsumViewRepository.findAllByVsum(vsum)).thenReturn(List.of(existingView));
-
-    VsumViewMetaModel vm1 = new VsumViewMetaModel();
-    vm1.setMetaModel(clonedMetaModel(2001L, 1L));
-    vm1.setVsumView(existingView);
-    VsumViewMetaModel vm2 = new VsumViewMetaModel();
-    vm2.setMetaModel(clonedMetaModel(2002L, 2L));
-    vm2.setVsumView(existingView);
-    when(vsumViewMetaModelRepository.findAllByVsumViewIn(List.of(existingView)))
-        .thenReturn(List.of(vm1, vm2));
-
-    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setViewRequests(
-        List.of(
-            ViewRequest.builder()
-                .fileStorageId(60L)
-                .metaModelIds(Arrays.asList(2L, 1L, 2L, null))
-                .build()));
-
-    service.update(email, 72L, put);
-
-    verify(vsumViewService, never()).create(any(), anyLong());
-    verify(vsumViewService, never()).delete(any(), any());
-    verify(vsumViewMetaModelService, never()).create(any(), any());
-    verify(vsumViewMetaModelService, never()).deleteByVsumView(any());
-    verify(vsumHistoryService, never()).create(any(), any());
-    verify(vsumRepository).save(vsum);
-  }
-
-  @Test
-  void update_ignoresInvalidViewRequests_andCreatesOnlyValidOnes() {
-    Vsum vsum = new Vsum();
-    vsum.setId(73L);
-    vsum.setMetaModelRelations(new java.util.HashSet<>());
-    vsum.setVsumMetaModels(new java.util.HashSet<>());
-
-    User owner = new User();
-    String email = "u@ex.com";
-    owner.setEmail(email);
-    when(vsumUserRepository
-            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(73L, email))
-        .thenReturn(Optional.of(vsumUser(vsum, owner)));
-
-    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
-    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
-    when(vsumViewRepository.findAllByVsum(vsum)).thenReturn(List.of());
-
-    VsumView createdView = new VsumView();
-    createdView.setId(992L);
-    when(vsumViewService.create(vsum, 72L)).thenReturn(createdView);
-
-    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setViewRequests(
-        Arrays.asList(
-            null,
-            ViewRequest.builder().fileStorageId(null).metaModelIds(List.of(1L, 2L)).build(),
-            ViewRequest.builder().fileStorageId(71L).metaModelIds(null).build(),
-            ViewRequest.builder()
-                .fileStorageId(71L)
-                .metaModelIds(Collections.singletonList(null))
-                .build(),
-            ViewRequest.builder()
-                .fileStorageId(72L)
-                .metaModelIds(Arrays.asList(5L, null, 4L, 5L))
-                .build()));
-
-    service.update(email, 73L, put);
-
-    verify(vsumViewService).create(vsum, 72L);
-    verify(vsumViewMetaModelService)
-        .create(
-            argThat(view -> view != null && Long.valueOf(992L).equals(view.getId())),
-            argThat(ids -> ids.equals(Set.of(4L, 5L))));
-    verify(vsumHistoryService).create(vsum, owner);
-    verify(vsumRepository).save(vsum);
-  }
-
-  @Test
-  void delete_invokesSubservices_forEachOldVsum_andUses30DayCutoff() {
-    Vsum a = new Vsum();
-    a.setId(1L);
-    Vsum b = new Vsum();
-    b.setId(2L);
-
-    when(vsumRepository.findAllByRemovedAtBefore(any(Instant.class))).thenReturn(List.of(a, b));
-
-    job.delete();
-
-    ArgumentCaptor<Instant> cutoffCap = ArgumentCaptor.forClass(Instant.class);
-    verify(vsumRepository).findAllByRemovedAtBefore(cutoffCap.capture());
-
-    Instant cutoff = cutoffCap.getValue();
-    long days = ChronoUnit.DAYS.between(cutoff, Instant.now());
-    assertThat(days).isBetween(29L, 31L);
-
-    verify(vsumUserService, times(1))
-        .delete(argThat(v -> v != null && Long.valueOf(1L).equals(v.getId())));
-    verify(vsumUserService, times(1))
-        .delete(argThat(v -> v != null && Long.valueOf(2L).equals(v.getId())));
-
-    verify(vsumMetaModelService, times(1))
-        .delete(argThat(v -> v != null && Long.valueOf(1L).equals(v.getId())));
-    verify(vsumMetaModelService, times(1))
-        .delete(argThat(v -> v != null && Long.valueOf(2L).equals(v.getId())));
-
-    verify(metaModelRelationService, times(1))
-        .deleteByVsum(argThat(v -> v != null && Long.valueOf(1L).equals(v.getId())));
-    verify(metaModelRelationService, times(1))
-        .deleteByVsum(argThat(v -> v != null && Long.valueOf(2L).equals(v.getId())));
-
-    verify(vsumHistoryService, times(1))
-        .delete(argThat(v -> v != null && Long.valueOf(1L).equals(v.getId())));
-    verify(vsumHistoryService, times(1))
-        .delete(argThat(v -> v != null && Long.valueOf(2L).equals(v.getId())));
-    verifyNoMoreInteractions(
-        vsumUserService, vsumMetaModelService, metaModelRelationService, vsumHistoryService);
-  }
-
-  @Test
-  void delete_whenNoOldVsums_doesNothing() {
-    when(vsumRepository.findAllByRemovedAtBefore(any(Instant.class))).thenReturn(List.of());
-
-    job.delete();
-
-    verify(vsumRepository).findAllByRemovedAtBefore(any(Instant.class));
-    verifyNoInteractions(vsumUserService, vsumMetaModelService, metaModelRelationService);
+    assertThatThrownBy(() -> service.update(email, 1L, put))
+        .isInstanceOf(AccessDeniedException.class);
+    verifyNoInteractions(vsumSyncService);
   }
 
   @Test
@@ -1182,7 +593,7 @@ class VsumServiceTest {
   }
 
   @Test
-  void deletePermanently_runsTheCleanupOfTheScheduledJob_whenOwnedAndInTrash() {
+  void deletePermanently_deletesTheProjectData_whenOwnedAndInTrash() {
     Vsum entity = new Vsum();
     entity.setId(42L);
     entity.setRemovedAt(Instant.now());
@@ -1193,66 +604,7 @@ class VsumServiceTest {
 
     service.deletePermanently(email, 42L);
 
-    // Views and relations reference the meta-model copies, so they must go first.
-    InOrder order =
-        inOrder(vsumViewService, metaModelRelationService, vsumMetaModelService, vsumBuildService);
-    order.verify(vsumViewService).deleteByVsum(entity);
-    order.verify(metaModelRelationService).deleteByVsum(entity);
-    order.verify(vsumMetaModelService).delete(entity);
-    order.verify(vsumBuildService).deleteByVsum(entity);
-    verify(vsumHistoryService).delete(entity);
-    verify(vsumUserService).delete(entity);
-  }
-
-  @Test
-  void deletePermanently_detachesDeletedChildrenBeforeTheNextStep_soAFlushCannotRestoreThem() {
-    Vsum entity = new Vsum();
-    entity.setId(43L);
-    entity.setRemovedAt(Instant.now());
-    entity.getVsumUsers().add(new VsumUser());
-    entity.getVsumMetaModels().add(new VsumMetaModel());
-    entity.getMetaModelRelations().add(new MetaModelRelation());
-    entity.getViews().add(new VsumView());
-    String email = "u@ex.com";
-    when(vsumRepository.findByIdAndUser_EmailAndUser_RemovedAtIsNullAndRemovedAtIsNotNull(
-            43L, email))
-        .thenReturn(Optional.of(entity));
-
-    // Each step runs queries that flush the persistence context, and the flush cascades from the
-    // Vsum to whatever its collections still hold. So the children deleted by the previous step
-    // must already be gone from the Vsum when the next step starts.
-    doAnswer(
-            inv -> {
-              assertThat(entity.getVsumUsers()).isEmpty();
-              return null;
-            })
-        .when(vsumViewService)
-        .deleteByVsum(entity);
-    doAnswer(
-            inv -> {
-              assertThat(entity.getViews()).isEmpty();
-              return null;
-            })
-        .when(metaModelRelationService)
-        .deleteByVsum(entity);
-    doAnswer(
-            inv -> {
-              assertThat(entity.getMetaModelRelations()).isEmpty();
-              return null;
-            })
-        .when(vsumMetaModelService)
-        .delete(entity);
-    doAnswer(
-            inv -> {
-              assertThat(entity.getVsumMetaModels()).isEmpty();
-              return null;
-            })
-        .when(vsumBuildService)
-        .deleteByVsum(entity);
-
-    service.deletePermanently(email, 43L);
-
-    verify(vsumBuildService).deleteByVsum(entity);
+    verify(vsumCleanupService).deleteProjectData(entity);
   }
 
   @Test
@@ -1266,12 +618,7 @@ class VsumServiceTest {
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
 
-    verifyNoInteractions(
-        vsumHistoryService,
-        vsumUserService,
-        vsumMetaModelService,
-        metaModelRelationService,
-        vsumBuildService);
+    verifyNoInteractions(vsumCleanupService);
   }
 
   @Test
@@ -1289,154 +636,5 @@ class VsumServiceTest {
 
     assertThatThrownBy(() -> service.getJarfat(BUILD_EMAIL, BUILD_ID))
         .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
-  }
-
-  @Test
-  void createDeploymentBundle_shouldContainTheBuiltJar() throws IOException {
-    byte[] jarBytes = authorizeBuildableVsum();
-
-    Map<String, byte[]> entries = entriesOf(service.createDeploymentBundle(BUILD_EMAIL, BUILD_ID));
-
-    assertThat(entries).containsKey(JAR_ENTRY_NAME);
-    assertThat(entries.get(JAR_ENTRY_NAME)).isEqualTo(jarBytes);
-  }
-
-  @Test
-  void createDeploymentBundle_shouldContainEveryFileOfTheDeploymentPackage()
-      throws IOException, URISyntaxException {
-    authorizeBuildableVsum();
-
-    Map<String, byte[]> entries = entriesOf(service.createDeploymentBundle(BUILD_EMAIL, BUILD_ID));
-
-    assertThat(entries).containsOnlyKeys(expectedBundleEntryNames());
-  }
-
-  @Test
-  void createDeploymentBundle_shouldKeepTheLauncherScriptsExecutable() throws IOException {
-    authorizeBuildableVsum();
-
-    byte[] bundle = service.createDeploymentBundle(BUILD_EMAIL, BUILD_ID);
-
-    Path archive = writeToTempFile(bundle);
-    Map<String, String> env = new HashMap<>();
-    env.put("enablePosixFileAttributes", "true");
-    Set<PosixFilePermission> ownerOnly = PosixFilePermissions.fromString("rwx------");
-    try (FileSystem zip = FileSystems.newFileSystem(archive, env)) {
-      assertThat(Files.getPosixFilePermissions(zip.getPath("run.sh")))
-          .containsExactlyInAnyOrderElementsOf(ownerOnly);
-      assertThat(Files.getPosixFilePermissions(zip.getPath("run.command")))
-          .containsExactlyInAnyOrderElementsOf(ownerOnly);
-    }
-  }
-
-  @Test
-  void createDeploymentBundle_shouldShipDockerFilesThatRunTheJarEntry() throws IOException {
-    authorizeBuildableVsum();
-
-    Map<String, byte[]> entries = entriesOf(service.createDeploymentBundle(BUILD_EMAIL, BUILD_ID));
-
-    String dockerfile = new String(entries.get("Dockerfile"), StandardCharsets.UTF_8);
-    String compose = new String(entries.get("docker-compose.yaml"), StandardCharsets.UTF_8);
-
-    // `docker build` fails if COPY names a file that is not in the archive next to the Dockerfile.
-    assertThat(dockerfile).contains("COPY " + JAR_ENTRY_NAME + " /app/" + JAR_ENTRY_NAME);
-    assertThat(dockerfile)
-        .contains("ENTRYPOINT [\"java\", \"-jar\", \"/app/" + JAR_ENTRY_NAME + "\"]");
-    // Without this the server binds to localhost inside the container and the port mapping is dead.
-    assertThat(dockerfile).contains("VITRUV_SERVER_HOST=0.0.0.0");
-    assertThat(compose).contains("build: .");
-    assertThat(compose).contains(":8080\"");
-    // Both files are consumed on Linux; a CRLF checkout must not leak into them.
-    assertThat(dockerfile).doesNotContain("\r");
-    assertThat(compose).doesNotContain("\r");
-  }
-
-  @Test
-  void createDeploymentBundle_shouldThrowAccessDenied_whenUserNotMember() {
-    when(vsumBuildService.buildAndWait(BUILD_EMAIL, BUILD_ID))
-        .thenThrow(new org.springframework.security.access.AccessDeniedException("no"));
-
-    assertThatThrownBy(() -> service.createDeploymentBundle(BUILD_EMAIL, BUILD_ID))
-        .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
-  }
-
-  @Test
-  void createDeploymentBundle_shouldThrowNotFound_whenNoReactions() {
-    when(vsumBuildService.buildAndWait(BUILD_EMAIL, BUILD_ID))
-        .thenThrow(new NotFoundException("Reaction files"));
-
-    assertThatThrownBy(() -> service.createDeploymentBundle(BUILD_EMAIL, BUILD_ID))
-        .isInstanceOf(NotFoundException.class);
-  }
-
-  /**
-   * Stubs the build pipeline to return a fixed JAR for the test VSUM.
-   *
-   * @return the JAR bytes the pipeline is stubbed to return
-   */
-  private byte[] authorizeBuildableVsum() {
-    byte[] jarBytes = "FAKEJAR".getBytes(StandardCharsets.UTF_8);
-    when(vsumBuildService.buildAndWait(BUILD_EMAIL, BUILD_ID)).thenReturn(jarBytes);
-    return jarBytes;
-  }
-
-  /**
-   * Reads all entries of a ZIP archive held in memory.
-   *
-   * @param bundle the archive bytes
-   * @return the entry names mapped to their content
-   * @throws IOException if the archive cannot be read
-   */
-  private Map<String, byte[]> entriesOf(byte[] bundle) throws IOException {
-    Path archive = writeToTempFile(bundle);
-    Map<String, byte[]> entries = new HashMap<>();
-
-    try (FileSystem zip = FileSystems.newFileSystem(archive, Map.of())) {
-      for (Path root : zip.getRootDirectories()) {
-        try (Stream<Path> paths = Files.walk(root)) {
-          for (Path path : paths.filter(Files::isRegularFile).toList()) {
-            entries.put(root.relativize(path).toString(), Files.readAllBytes(path));
-          }
-        }
-      }
-    }
-
-    return entries;
-  }
-
-  /**
-   * Lists the names the bundle is expected to hold: the JAR plus every file that currently lives in
-   * the {@code deployment} resource package.
-   *
-   * @return the expected entry names
-   * @throws IOException if the resource package cannot be read
-   * @throws URISyntaxException if the resource package location is not a valid URI
-   */
-  private String[] expectedBundleEntryNames() throws IOException, URISyntaxException {
-    Path deploymentPackage =
-        Path.of(getClass().getResource("/" + VsumService.BUNDLE_RESOURCE_ROOT).toURI());
-
-    try (Stream<Path> paths = Files.walk(deploymentPackage)) {
-      Set<String> names =
-          paths
-              .filter(Files::isRegularFile)
-              .map(path -> deploymentPackage.relativize(path).toString())
-              .collect(Collectors.toSet());
-      names.add(JAR_ENTRY_NAME);
-      return names.toArray(String[]::new);
-    }
-  }
-
-  /**
-   * Stores archive bytes in a temporary file so that they can be opened as a ZIP file system.
-   *
-   * @param bundle the archive bytes
-   * @return the path of the written file
-   * @throws IOException if the file cannot be written
-   */
-  private Path writeToTempFile(byte[] bundle) throws IOException {
-    Path archive = tempDir.resolve("bundle-" + bundle.length + ".zip");
-    Files.write(archive, bundle);
-    return archive;
   }
 }
