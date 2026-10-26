@@ -43,7 +43,7 @@ class VsumHistoryServiceTest {
   @Mock VsumHistoryMapper vsumHistoryMapper;
   @Mock UserRepository userRepository;
   @Mock VsumUserRepository vsumUserRepository;
-  @Mock VsumService vsumService;
+  @Mock VsumSyncService vsumSyncService;
   @Mock LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
 
   private VsumHistoryService service;
@@ -57,7 +57,7 @@ class VsumHistoryServiceTest {
             5L,
             userRepository,
             vsumUserRepository,
-            vsumService,
+            vsumSyncService,
             lowCodeReactionRequestMapper);
   }
 
@@ -219,7 +219,7 @@ class VsumHistoryServiceTest {
     verify(vsumHistoryRepository, never()).findById(any());
     verify(vsumUserRepository, never())
         .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(any(), any());
-    verify(vsumService, never()).applySyncChanges(any(), any(), any(), anyBoolean());
+    verify(vsumSyncService, never()).applySyncChanges(any(), any(), any(), anyBoolean());
   }
 
   @Test
@@ -240,7 +240,7 @@ class VsumHistoryServiceTest {
 
     verify(vsumUserRepository, never())
         .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(any(), any());
-    verify(vsumService, never()).applySyncChanges(any(), any(), any(), anyBoolean());
+    verify(vsumSyncService, never()).applySyncChanges(any(), any(), any(), anyBoolean());
   }
 
   @Test
@@ -268,7 +268,7 @@ class VsumHistoryServiceTest {
         .isInstanceOf(AccessDeniedException.class)
         .hasMessageContaining(USER_DOES_NOT_HAVE_ACCESS);
 
-    verify(vsumService, never()).applySyncChanges(any(), any(), any(), anyBoolean());
+    verify(vsumSyncService, never()).applySyncChanges(any(), any(), any(), anyBoolean());
   }
 
   @Test
@@ -310,7 +310,7 @@ class VsumHistoryServiceTest {
 
     ArgumentCaptor<VsumSyncChangesPutRequest> reqCap =
         ArgumentCaptor.forClass(VsumSyncChangesPutRequest.class);
-    verify(vsumService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
+    verify(vsumSyncService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
 
     VsumSyncChangesPutRequest applied = reqCap.getValue();
     assertThat(applied.getMetaModelIds()).containsExactlyInAnyOrder(1L, 2L, 3L);
@@ -354,7 +354,7 @@ class VsumHistoryServiceTest {
 
     ArgumentCaptor<VsumSyncChangesPutRequest> reqCap =
         ArgumentCaptor.forClass(VsumSyncChangesPutRequest.class);
-    verify(vsumService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
+    verify(vsumSyncService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
 
     VsumSyncChangesPutRequest applied = reqCap.getValue();
     assertThat(applied.getMetaModelIds()).isNotNull().isEmpty();
@@ -400,7 +400,7 @@ class VsumHistoryServiceTest {
 
     ArgumentCaptor<VsumSyncChangesPutRequest> reqCap =
         ArgumentCaptor.forClass(VsumSyncChangesPutRequest.class);
-    verify(vsumService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
+    verify(vsumSyncService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
 
     assertThat(reqCap.getValue().getMetaModelRelationRequests()).hasSize(1);
   }
@@ -443,7 +443,7 @@ class VsumHistoryServiceTest {
 
     ArgumentCaptor<VsumSyncChangesPutRequest> reqCap =
         ArgumentCaptor.forClass(VsumSyncChangesPutRequest.class);
-    verify(vsumService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
+    verify(vsumSyncService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
 
     VsumSyncChangesPutRequest applied = reqCap.getValue();
     assertThat(applied.getViewRequests()).hasSize(2);
@@ -490,7 +490,7 @@ class VsumHistoryServiceTest {
 
     ArgumentCaptor<VsumSyncChangesPutRequest> reqCap =
         ArgumentCaptor.forClass(VsumSyncChangesPutRequest.class);
-    verify(vsumService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
+    verify(vsumSyncService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
 
     assertThat(reqCap.getValue().getViewRequests()).isNotNull().isEmpty();
   }
@@ -544,7 +544,7 @@ class VsumHistoryServiceTest {
 
     ArgumentCaptor<VsumSyncChangesPutRequest> reqCap =
         ArgumentCaptor.forClass(VsumSyncChangesPutRequest.class);
-    verify(vsumService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
+    verify(vsumSyncService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
 
     VsumSyncChangesPutRequest applied = reqCap.getValue();
     assertThat(applied.getMetaModelRelationRequests())

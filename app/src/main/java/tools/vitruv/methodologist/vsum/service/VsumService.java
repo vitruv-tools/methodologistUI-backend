@@ -4,55 +4,25 @@ import static tools.vitruv.methodologist.messages.Error.METAMODEL_IDS_NOT_FOUND_
 import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.FileAttribute;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import lombok.experimental.NonFinal;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
-import org.springframework.core.io.support.ResourcePatternResolver;
-import org.springframework.core.io.support.ResourcePatternUtils;
 import org.springframework.data.domain.Pageable;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.vitruv.methodologist.exception.BuildArtifactCreationException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
-import tools.vitruv.methodologist.general.MemoizedSupplier;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
-import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
-import tools.vitruv.methodologist.vsum.controller.dto.request.ViewRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
@@ -71,13 +41,9 @@ import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 import tools.vitruv.methodologist.vsum.model.VsumUser;
-import tools.vitruv.methodologist.vsum.model.VsumView;
-import tools.vitruv.methodologist.vsum.model.VsumViewMetaModel;
-import tools.vitruv.methodologist.vsum.model.repository.MetaModelRelationRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
-import tools.vitruv.methodologist.vsum.model.repository.VsumViewMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
 
 /**
@@ -85,78 +51,35 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
  * business logic for VSUM creation, updates, retrieval, and removal while ensuring proper
  * validation and persistence.
  *
+ * <p>Synchronizing the contents of a VSUM, packaging deployment bundles and permanently deleting
+ * VSUMs are handled by {@link VsumSyncService}, {@link VsumDeploymentBundleService} and {@link
+ * VsumCleanupService}.
+ *
  * @see tools.vitruv.methodologist.vsum.model.Vsum
  * @see tools.vitruv.methodologist.vsum.model.repository.VsumRepository
  * @see tools.vitruv.methodologist.vsum.mapper.VsumMapper
  */
 @Service
-@Slf4j
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumService {
 
-  /** Classpath package whose whole content is copied into every deployment bundle. */
-  static final String BUNDLE_RESOURCE_ROOT = "deployment";
-
-  /** Name under which the built fat JAR is stored in a deployment bundle. */
-  static final String JAR_ENTRY_NAME = "vsum.jar";
-
-  private static final String BUNDLE_ROOT_PATTERN =
-      ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX + BUNDLE_RESOURCE_ROOT + "/";
-  private static final String BUNDLE_CONTENT_PATTERN = BUNDLE_ROOT_PATTERN + "**";
-
-  /**
-   * Permissions of the launcher scripts inside the bundle: executable for the user who extracts the
-   * archive, no access at all for group and others.
-   */
-  private static final Set<PosixFilePermission> EXECUTABLE_PERMISSIONS =
-      PosixFilePermissions.fromString("rwx------");
-
-  private static final Set<String> EXECUTABLE_SUFFIXES = Set.of(".sh", ".command", ".bash");
-
-  private static final Map<String, String> ZIP_FILE_SYSTEM_ENV =
-      Map.of("create", "true", "enablePosixFileAttributes", "true");
-
-  private static final String POSIX_FILE_ATTRIBUTE_VIEW = "posix";
-  private static final String BUNDLE_FILE_NAME = "bundle.zip";
-  private static final String WORK_DIRECTORY_PREFIX = "vsum-deployment-";
-
-  /**
-   * Attributes making the temporary work directory accessible to the owner only, so that no other
-   * local user can read the artifact or plant entries in it while it is being written. Empty on
-   * file systems without POSIX support, which then apply their own default permissions.
-   */
-  private static final FileAttribute<?>[] OWNER_ONLY_DIRECTORY = ownerOnlyDirectoryAttributes();
-
   VsumMapper vsumMapper;
   VsumRepository vsumRepository;
   MetaModelMapper metaModelMapper;
-  VsumMetaModelService vsumMetaModelService;
   UserRepository userRepository;
   VsumUserRepository vsumUserRepository;
   VsumUserService vsumUserService;
-  MetaModelRelationService metaModelRelationService;
   MetaModelRelationMapper metaModelRelationMapper;
   VsumMetaModelRepository vsumMetaModelRepository;
-  MetaModelRelationRepository metaModelRelationRepository;
   VsumHistoryService vsumHistoryService;
-  private final VsumViewMetaModelService vsumViewMetaModelService;
-  private final VsumViewService vsumViewService;
   private final VsumViewRepository vsumViewRepository;
-  private final VsumViewMetaModelRepository vsumViewMetaModelRepository;
   private final VsumViewMapper vsumViewMapper;
-  FineGranularMetaModelRelationService fineGranularMetaModelRelationService;
   LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
   VsumBuildService vsumBuildService;
   MetaModelService metaModelService;
-  @NonFinal private VsumService self;
-
-  @Autowired
-  void setSelf(@Lazy VsumService self) {
-    this.self = self;
-  }
-
-  private final ResourceLoader resourceLoader;
+  VsumSyncService vsumSyncService;
+  VsumCleanupService vsumCleanupService;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -208,8 +131,8 @@ public class VsumService {
    *
    * <p>The method verifies the caller's membership and throws a {@link NotFoundException} when the
    * VSUM or membership is not found. Actual synchronization and persistence are delegated to {@link
-   * #applySyncChanges(Vsum, User, VsumSyncChangesPutRequest, boolean)}; when changes occur a
-   * history entry may be created.
+   * VsumSyncService#applySyncChanges(Vsum, User, VsumSyncChangesPutRequest, boolean)}; when changes
+   * occur a history entry may be created.
    *
    * @param callerEmail the authenticated user's email; must be a member of the VSUM
    * @param id the identifier of the VSUM to update
@@ -231,7 +154,7 @@ public class VsumService {
       throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
     }
 
-    return self.applySyncChanges(
+    return vsumSyncService.applySyncChanges(
         vsumUser.getVsum(), vsumUser.getUser(), vsumSyncChangesPutRequest, true);
   }
 
@@ -491,27 +414,13 @@ public class VsumService {
   }
 
   /**
-   * Scheduled task that deletes all {@link Vsum} entities marked as removed for over 30 days, along
-   * with their associated user relationships, metamodels, metamodel relations and builds.
-   *
-   * <p>Runs daily at midnight.
-   */
-  @Transactional
-  @Scheduled(cron = "0 0 0 * * ?")
-  public void delete() {
-    Instant cutoff = Instant.now().minus(30, ChronoUnit.DAYS);
-    List<Vsum> oldVsums = vsumRepository.findAllByRemovedAtBefore(cutoff);
-
-    oldVsums.forEach(this::deleteProjectData);
-  }
-
-  /**
    * Permanently deletes a {@link Vsum} from the trash of the calling owner, without waiting for the
    * 30-day cleanup.
    *
-   * <p>Runs the same cleanup as {@link #delete()}: the project's user relationships, history,
-   * meta-model copies, relations and builds are removed. Meta models of the model library that were
-   * used only by this project can be deleted afterwards. The operation cannot be undone.
+   * <p>Runs the same cleanup as {@link VsumCleanupService#delete()}: the project's user
+   * relationships, history, meta-model copies, relations and builds are removed. Meta models of the
+   * model library that were used only by this project can be deleted afterwards. The operation
+   * cannot be undone.
    *
    * @param callerEmail the email of the authenticated user; must own the VSUM
    * @param id the identifier of the VSUM to delete permanently
@@ -525,40 +434,7 @@ public class VsumService {
             .findByIdAndUser_EmailAndUser_RemovedAtIsNullAndRemovedAtIsNotNull(id, callerEmail)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
 
-    deleteProjectData(vsum);
-  }
-
-  /**
-   * Removes everything that belongs to a project. Views and meta-model relations reference the
-   * project's meta-model copies, so they are deleted before the copies to satisfy the foreign keys.
-   *
-   * <p>{@link Vsum} cascades {@code ALL} to its members, meta models, relations and views, and
-   * every query run in between flushes the persistence context. The deleted children are therefore
-   * removed from the loaded collections right after each step; otherwise the next flush cascades a
-   * persist to them, undoes their deletion and breaks the foreign keys.
-   */
-  private void deleteProjectData(Vsum vsum) {
-    vsumHistoryService.delete(vsum);
-
-    vsumUserService.delete(vsum);
-    clearIfLoaded(vsum.getVsumUsers());
-
-    vsumViewService.deleteByVsum(vsum);
-    clearIfLoaded(vsum.getViews());
-
-    metaModelRelationService.deleteByVsum(vsum);
-    clearIfLoaded(vsum.getMetaModelRelations());
-
-    vsumMetaModelService.delete(vsum);
-    clearIfLoaded(vsum.getVsumMetaModels());
-
-    vsumBuildService.deleteByVsum(vsum);
-  }
-
-  private static void clearIfLoaded(Set<?> children) {
-    if (children != null) {
-      children.clear();
-    }
+    vsumCleanupService.deleteProjectData(vsum);
   }
 
   /**
@@ -600,546 +476,5 @@ public class VsumService {
    */
   public byte[] getJarfat(String callerEmail, Long id) {
     return vsumBuildService.buildAndWait(callerEmail, id);
-  }
-
-  /**
-   * Builds the VSUM and packages the resulting fat JAR together with the {@code deployment}
-   * resource package into a single ZIP archive that the user can run locally.
-   *
-   * <p>The {@code deployment} package holds the launcher scripts and documentation needed to start
-   * the application; adding a file there is enough to have it shipped in the bundle, no code change
-   * is required. Launcher scripts are stored with the POSIX executable bit set so that they can be
-   * started directly after extraction on macOS and Linux.
-   *
-   * <p>Access to the VSUM is validated by {@link #getJarfat(String, Long)}, whose exceptions are
-   * propagated unchanged.
-   *
-   * @param callerEmail email address of the requesting user
-   * @param id the VSUM identifier
-   * @return the deployment bundle as ZIP bytes
-   * @throws AccessDeniedException if the user is not authorized for this VSUM
-   * @throws BuildArtifactCreationException if the archive cannot be assembled
-   */
-  public byte[] createDeploymentBundle(String callerEmail, Long id) {
-    return createDeploymentBundle(getJarfat(callerEmail, id));
-  }
-
-  /**
-   * Packages an already built fat JAR together with the {@code deployment} resource package into
-   * the deployment bundle, see {@link #createDeploymentBundle(String, Long)}.
-   *
-   * @param jar the built fat JAR bytes
-   * @return the deployment bundle as ZIP bytes
-   * @throws BuildArtifactCreationException if the archive cannot be assembled
-   */
-  public byte[] createDeploymentBundle(byte[] jar) {
-    Path workDirectory = null;
-    try {
-      // The archive is assembled in a private directory instead of directly in the shared
-      // temporary directory, so that no other local user can read or replace it meanwhile.
-      workDirectory = Files.createTempDirectory(WORK_DIRECTORY_PREFIX, OWNER_ONLY_DIRECTORY);
-
-      Path bundle = workDirectory.resolve(BUNDLE_FILE_NAME);
-      writeBundle(bundle, jar);
-      return Files.readAllBytes(bundle);
-    } catch (IOException e) {
-      log.error("Failed to assemble the deployment bundle", e);
-      throw new BuildArtifactCreationException(e.getMessage());
-    } finally {
-      deleteQuietly(workDirectory);
-    }
-  }
-
-  /**
-   * Builds the attributes restricting the temporary work directory to its owner.
-   *
-   * @return the owner-only attributes, or an empty array if the default file system has no POSIX
-   *     support
-   */
-  private static FileAttribute<?>[] ownerOnlyDirectoryAttributes() {
-    if (!FileSystems.getDefault()
-        .supportedFileAttributeViews()
-        .contains(POSIX_FILE_ATTRIBUTE_VIEW)) {
-      return new FileAttribute<?>[0];
-    }
-    return new FileAttribute<?>[] {
-      PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"))
-    };
-  }
-
-  /**
-   * Writes the fat JAR and the {@code deployment} resources into the given archive.
-   *
-   * @param bundle path of the archive to create
-   * @param jar the built fat JAR bytes
-   * @throws IOException if the archive cannot be written
-   */
-  private void writeBundle(Path bundle, byte[] jar) throws IOException {
-    try (FileSystem zip = FileSystems.newFileSystem(bundle, ZIP_FILE_SYSTEM_ENV)) {
-      Files.write(zip.getPath(JAR_ENTRY_NAME), jar);
-      for (BundleEntry entry : readBundleResources()) {
-        addBundleEntry(zip, entry);
-      }
-    }
-  }
-
-  /**
-   * Copies a single resource into the archive, preserving its path inside the {@code deployment}
-   * package and marking launcher scripts as executable.
-   *
-   * @param zip the archive file system to write into
-   * @param entry the resource and the name it gets in the archive
-   * @throws IOException if the entry cannot be written
-   */
-  private void addBundleEntry(FileSystem zip, BundleEntry entry) throws IOException {
-    Path target = zip.getPath(entry.name());
-    Path parent = target.getParent();
-    if (parent != null) {
-      Files.createDirectories(parent);
-    }
-
-    try (InputStream source = entry.resource().getInputStream()) {
-      Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-    }
-
-    if (isExecutableBundleEntry(entry.name())) {
-      Files.setPosixFilePermissions(target, EXECUTABLE_PERMISSIONS);
-    }
-  }
-
-  /**
-   * Collects every readable file of the {@code deployment} resource package.
-   *
-   * <p>Entries are sorted by name so that the produced archive is reproducible.
-   *
-   * @return the resources to add, each paired with its name inside the archive
-   * @throws IOException if the classpath cannot be scanned
-   */
-  private List<BundleEntry> readBundleResources() throws IOException {
-    ResourcePatternResolver resolver =
-        ResourcePatternUtils.getResourcePatternResolver(resourceLoader);
-
-    List<String> roots = new ArrayList<>();
-    for (Resource root : resolver.getResources(BUNDLE_ROOT_PATTERN)) {
-      String url = root.getURL().toString();
-      roots.add(url.endsWith("/") ? url : url + "/");
-    }
-
-    if (roots.isEmpty()) {
-      log.warn(
-          "No '{}' resource package found on the classpath, the bundle will contain only {}",
-          BUNDLE_RESOURCE_ROOT,
-          JAR_ENTRY_NAME);
-      return List.of();
-    }
-
-    List<BundleEntry> entries = new ArrayList<>();
-    for (Resource resource : resolver.getResources(BUNDLE_CONTENT_PATTERN)) {
-      String name = resource.isReadable() ? relativeBundleName(resource, roots) : null;
-
-      if (name == null || name.isEmpty()) {
-        log.debug(
-            "Skipping non-file resource of the '{}' package: {}", BUNDLE_RESOURCE_ROOT, resource);
-      } else {
-        entries.add(new BundleEntry(name, resource));
-      }
-    }
-
-    entries.sort(Comparator.comparing(BundleEntry::name));
-    return entries;
-  }
-
-  /**
-   * Determines the archive name of a resource relative to the {@code deployment} package.
-   *
-   * @param resource the resource to name
-   * @param roots the URLs of the {@code deployment} package roots, each ending with a slash
-   * @return the relative name, or {@code null} if the resource belongs to no known root
-   * @throws IOException if the resource URL cannot be resolved
-   */
-  private String relativeBundleName(Resource resource, List<String> roots) throws IOException {
-    String url = resource.getURL().toString();
-    for (String root : roots) {
-      if (url.startsWith(root)) {
-        return url.substring(root.length());
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Tells whether an archive entry is a launcher script that must stay executable.
-   *
-   * @param name the entry name inside the archive
-   * @return {@code true} if the executable bit has to be set
-   */
-  private boolean isExecutableBundleEntry(String name) {
-    String lowerCaseName = name.toLowerCase(Locale.ROOT);
-    return EXECUTABLE_SUFFIXES.stream().anyMatch(lowerCaseName::endsWith);
-  }
-
-  /**
-   * Removes the temporary work directory and the archive it holds, logging instead of failing when
-   * they cannot be deleted.
-   *
-   * @param workDirectory the directory to delete; may be {@code null}
-   */
-  private void deleteQuietly(Path workDirectory) {
-    if (workDirectory == null) {
-      return;
-    }
-    try {
-      Files.deleteIfExists(workDirectory.resolve(BUNDLE_FILE_NAME));
-      Files.deleteIfExists(workDirectory);
-    } catch (IOException e) {
-      log.warn("Could not delete the temporary deployment work directory {}", workDirectory, e);
-    }
-  }
-
-  /**
-   * A single file of the {@code deployment} package together with its name inside the archive.
-   *
-   * @param name the entry name inside the archive
-   * @param resource the classpath resource holding the content
-   */
-  private record BundleEntry(String name, Resource resource) {}
-
-  /**
-   * Synchronize the given {@link Vsum} to match the desired state described by the {@link
-   * VsumSyncChangesPutRequest}.
-   *
-   * <p>The method will:
-   *
-   * <p>Change persistence and creation/deletion work is delegated to domain services. If {@code
-   * createHistory} is {@code true} and any change is detected, a history entry for the provided
-   * {@code user} is created. The updated {@link Vsum} is saved before being returned.
-   *
-   * <p>Runtime exceptions from delegated services (for example {@link
-   * tools.vitruv.methodologist.exception.NotFoundException} or {@link
-   * org.springframework.security.access.AccessDeniedException}) may be propagated.
-   *
-   * @param vsum the target {@link Vsum} to update; must not be {@code null}
-   * @param user the acting {@link User} used for history creation when changes occur
-   * @param vsumSyncChangesPutRequest DTO describing desired meta-model ids and relation requests;
-   *     may be {@code null} and will be treated as empty
-   * @param createHistory when {@code true}, create a history record if any modifications are made
-   * @return the persisted, updated {@link Vsum}
-   */
-  @Transactional
-  public Vsum applySyncChanges(
-      Vsum vsum,
-      User user,
-      VsumSyncChangesPutRequest vsumSyncChangesPutRequest,
-      boolean createHistory) {
-
-    List<MetaModelRelationRequest> desiredMetaModelRelation =
-        normalizeMetaModelRelationRequests(
-            vsumSyncChangesPutRequest.getMetaModelRelationRequests());
-
-    List<MetaModelRelation> existingMetaModelRelation =
-        metaModelRelationRepository.findAllByVsum(vsum);
-
-    Set<String> desiredMetaModelRelationPairs =
-        desiredMetaModelRelation.stream()
-            .map(request -> request.getSourceId() + ":" + request.getTargetId())
-            .collect(Collectors.toSet());
-
-    Map<String, MetaModelRelation> existingByPair = new HashMap<>();
-    for (MetaModelRelation metaModelRelation : existingMetaModelRelation) {
-      String key =
-          metaModelRelation.getSource().getSource().getId()
-              + ":"
-              + metaModelRelation.getTarget().getSource().getId();
-      existingByPair.put(key, metaModelRelation);
-    }
-
-    Set<String> existingMetaModelRelationPairs = new HashSet<>(existingByPair.keySet());
-
-    Set<String> toRemoveMetaModelRelation = new HashSet<>(existingMetaModelRelationPairs);
-    toRemoveMetaModelRelation.removeAll(desiredMetaModelRelationPairs);
-
-    Set<String> toAddMetaModelRelation = new HashSet<>(desiredMetaModelRelationPairs);
-    toAddMetaModelRelation.removeAll(existingMetaModelRelationPairs);
-
-    Map<MetaModelRelationRequest, MetaModelRelation> toUpdateMetaModelRelation = new HashMap<>();
-    for (MetaModelRelationRequest request : desiredMetaModelRelation) {
-      String key = request.getSourceId() + ":" + request.getTargetId();
-      MetaModelRelation existing = existingByPair.get(key);
-      if (existing != null && !request.equals(lowCodeReactionRequestMapper, existing)) {
-        toUpdateMetaModelRelation.put(request, existing);
-      }
-    }
-
-    List<Long> metaModelIds = vsumSyncChangesPutRequest.getMetaModelIds();
-    List<VsumMetaModel> existingVsumMetaModel = vsumMetaModelRepository.findAllByVsum(vsum);
-    Map<Long, String> desiredMetaModelNames =
-        normalizeMetaModelNames(vsumSyncChangesPutRequest.getMetaModelNames());
-
-    Set<Long> existingVsumMetaModelIds =
-        existingVsumMetaModel.stream()
-            .map(vsumMetaModel -> vsumMetaModel.getMetaModel().getSource().getId())
-            .collect(Collectors.toSet());
-
-    Set<Long> desiredMetaModelIds =
-        metaModelIds == null
-            ? Set.of()
-            : metaModelIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
-
-    Set<Long> toRemoveVsumMetaModelIds = new HashSet<>(existingVsumMetaModelIds);
-    toRemoveVsumMetaModelIds.removeAll(desiredMetaModelIds);
-
-    Set<Long> toAddVsumMetaModelIds = new HashSet<>(desiredMetaModelIds);
-    toAddVsumMetaModelIds.removeAll(existingVsumMetaModelIds);
-
-    List<VsumMetaModel> renamedVsumMetaModels =
-        existingVsumMetaModel.stream()
-            .filter(
-                vsumMetaModel -> {
-                  Long sourceId = vsumMetaModel.getMetaModel().getSource().getId();
-                  String name = desiredMetaModelNames.get(sourceId);
-                  return desiredMetaModelIds.contains(sourceId)
-                      && name != null
-                      && !name.equals(projectMetaModelName(vsumMetaModel));
-                })
-            .toList();
-
-    List<ViewRequest> desiredViewRequests =
-        normalizeViewRequests(vsumSyncChangesPutRequest.getViewRequests());
-
-    ViewSyncPlan viewSyncPlan = buildViewSyncPlan(vsum, desiredViewRequests);
-
-    boolean hasAnyChanges =
-        !toRemoveMetaModelRelation.isEmpty()
-            || !toRemoveVsumMetaModelIds.isEmpty()
-            || !toAddVsumMetaModelIds.isEmpty()
-            || !renamedVsumMetaModels.isEmpty()
-            || !toAddMetaModelRelation.isEmpty()
-            || !toUpdateMetaModelRelation.isEmpty()
-            || viewSyncPlan.hasChanges();
-
-    MemoizedSupplier<Boolean> vsumHistorySaveSupplier =
-        new MemoizedSupplier<>(
-            () -> {
-              if (createHistory) {
-                vsumHistoryService.create(vsum, user);
-              }
-              return true;
-            });
-
-    if (hasAnyChanges) {
-      vsumHistorySaveSupplier.get();
-    }
-
-    if (!toRemoveMetaModelRelation.isEmpty()) {
-      List<MetaModelRelation> deletions =
-          toRemoveMetaModelRelation.stream().map(existingByPair::get).toList();
-      metaModelRelationService.delete(deletions);
-      if (vsum.getMetaModelRelations() != null) {
-        deletions.forEach(vsum.getMetaModelRelations()::remove);
-      }
-    }
-
-    if (!toRemoveVsumMetaModelIds.isEmpty()) {
-      List<VsumMetaModel> toDeleteVsumMetaModel =
-          existingVsumMetaModel.stream()
-              .filter(
-                  vsumMetaModel ->
-                      toRemoveVsumMetaModelIds.contains(
-                          vsumMetaModel.getMetaModel().getSource().getId()))
-              .toList();
-      vsumMetaModelService.delete(vsum, toDeleteVsumMetaModel);
-      if (vsum.getVsumMetaModels() != null) {
-        toDeleteVsumMetaModel.forEach(vsum.getVsumMetaModels()::remove);
-      }
-    }
-
-    if (!toAddVsumMetaModelIds.isEmpty()) {
-      if (desiredMetaModelNames.isEmpty()) {
-        vsumMetaModelService.create(vsum, toAddVsumMetaModelIds);
-      } else {
-        vsumMetaModelService.create(vsum, toAddVsumMetaModelIds, desiredMetaModelNames);
-      }
-    }
-
-    if (!renamedVsumMetaModels.isEmpty()) {
-      renamedVsumMetaModels.forEach(
-          vsumMetaModel ->
-              vsumMetaModel.setName(
-                  desiredMetaModelNames.get(vsumMetaModel.getMetaModel().getSource().getId())));
-      vsumMetaModelRepository.saveAll(renamedVsumMetaModels);
-    }
-
-    applyViewSyncPlan(vsum, viewSyncPlan);
-
-    Map<MetaModelRelationRequest, MetaModelRelation> requestToRelation =
-        new HashMap<>(toUpdateMetaModelRelation);
-
-    if (!toAddMetaModelRelation.isEmpty()) {
-      List<MetaModelRelationRequest> creations =
-          desiredMetaModelRelation.stream()
-              .filter(
-                  request ->
-                      toAddMetaModelRelation.contains(
-                          request.getSourceId() + ":" + request.getTargetId()))
-              .toList();
-      Map<MetaModelRelationRequest, MetaModelRelation> created =
-          metaModelRelationService.create(vsum, creations);
-      if (created != null) {
-        requestToRelation.putAll(created);
-      }
-    }
-
-    if (!toUpdateMetaModelRelation.isEmpty()) {
-      Map<MetaModelRelationRequest, MetaModelRelation> updated =
-          metaModelRelationService.update(vsum, toUpdateMetaModelRelation);
-      if (updated != null) {
-        requestToRelation.putAll(updated);
-      }
-    }
-
-    fineGranularMetaModelRelationService.update(
-        user.getEmail(), requestToRelation, vsumHistorySaveSupplier);
-
-    vsumRepository.save(vsum);
-    return vsum;
-  }
-
-  private List<MetaModelRelationRequest> normalizeMetaModelRelationRequests(
-      List<MetaModelRelationRequest> requests) {
-    if (requests == null) {
-      return List.of();
-    }
-
-    return requests.stream()
-        .filter(Objects::nonNull)
-        .filter(request -> request.getSourceId() != null && request.getTargetId() != null)
-        .toList();
-  }
-
-  private Map<Long, String> normalizeMetaModelNames(Map<Long, String> metaModelNames) {
-    if (metaModelNames == null || metaModelNames.isEmpty()) {
-      return Map.of();
-    }
-
-    return metaModelNames.entrySet().stream()
-        .filter(entry -> entry.getKey() != null && entry.getValue() != null)
-        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-  }
-
-  private List<ViewRequest> normalizeViewRequests(List<ViewRequest> requests) {
-    if (requests == null) {
-      return List.of();
-    }
-
-    return requests.stream()
-        .filter(Objects::nonNull)
-        .map(this::normalizeViewRequest)
-        .filter(request -> request.getFileStorageId() != null)
-        .filter(request -> !request.getMetaModelIds().isEmpty())
-        .toList();
-  }
-
-  private ViewRequest normalizeViewRequest(ViewRequest request) {
-    List<Long> normalizedMetaModelIds =
-        request.getMetaModelIds() == null
-            ? List.of()
-            : request.getMetaModelIds().stream()
-                .filter(Objects::nonNull)
-                .distinct()
-                .sorted()
-                .toList();
-
-    return ViewRequest.builder()
-        .fileStorageId(request.getFileStorageId())
-        .metaModelIds(normalizedMetaModelIds)
-        .build();
-  }
-
-  private String toViewKey(ViewRequest request) {
-    String metaModelPart =
-        request.getMetaModelIds().stream().map(String::valueOf).collect(Collectors.joining(","));
-    return request.getFileStorageId() + "|" + metaModelPart;
-  }
-
-  private String toViewKey(VsumView vsumView, List<VsumViewMetaModel> relations) {
-    String metaModelPart =
-        relations.stream()
-            .map(VsumViewMetaModel::getMetaModel)
-            .map(
-                metaModel ->
-                    metaModel.getSource() != null
-                        ? metaModel.getSource().getId()
-                        : metaModel.getId())
-            .filter(Objects::nonNull)
-            .distinct()
-            .sorted()
-            .map(String::valueOf)
-            .collect(Collectors.joining(","));
-
-    return vsumView.getFileStorage().getId() + "|" + metaModelPart;
-  }
-
-  private ViewSyncPlan buildViewSyncPlan(Vsum vsum, List<ViewRequest> desiredViewRequests) {
-    List<VsumView> existingViews = vsumViewRepository.findAllByVsum(vsum);
-
-    Map<Long, List<VsumViewMetaModel>> relationsByViewId = new HashMap<>();
-    if (!existingViews.isEmpty()) {
-      List<VsumViewMetaModel> allRelations =
-          vsumViewMetaModelRepository.findAllByVsumViewIn(existingViews);
-      for (VsumViewMetaModel relation : allRelations) {
-        relationsByViewId
-            .computeIfAbsent(relation.getVsumView().getId(), k -> new ArrayList<>())
-            .add(relation);
-      }
-    }
-
-    Map<String, VsumView> existingByKey = new HashMap<>();
-    for (VsumView existingView : existingViews) {
-      List<VsumViewMetaModel> viewRelations =
-          relationsByViewId.getOrDefault(existingView.getId(), List.of());
-      existingByKey.put(toViewKey(existingView, viewRelations), existingView);
-    }
-
-    Set<String> existingKeys = new HashSet<>(existingByKey.keySet());
-
-    Set<String> desiredKeys =
-        desiredViewRequests.stream().map(this::toViewKey).collect(Collectors.toSet());
-
-    Set<String> toRemoveKeys = new HashSet<>(existingKeys);
-    toRemoveKeys.removeAll(desiredKeys);
-
-    Set<String> toAddKeys = new HashSet<>(desiredKeys);
-    toAddKeys.removeAll(existingKeys);
-
-    List<ViewRequest> toCreateRequests =
-        desiredViewRequests.stream()
-            .filter(request -> toAddKeys.contains(toViewKey(request)))
-            .toList();
-
-    List<VsumView> toDeleteViews = toRemoveKeys.stream().map(existingByKey::get).toList();
-
-    return new ViewSyncPlan(toDeleteViews, toCreateRequests);
-  }
-
-  private void applyViewSyncPlan(Vsum vsum, ViewSyncPlan plan) {
-    if (!plan.toDeleteViews().isEmpty()) {
-      for (VsumView vsumView : plan.toDeleteViews()) {
-        vsumViewMetaModelService.deleteByVsumView(vsumView);
-        vsumViewService.delete(vsum, vsumView);
-      }
-    }
-
-    if (!plan.toCreateRequests().isEmpty()) {
-      for (ViewRequest request : plan.toCreateRequests()) {
-        VsumView createdView = vsumViewService.create(vsum, request.getFileStorageId());
-        vsumViewMetaModelService.create(createdView, new HashSet<>(request.getMetaModelIds()));
-      }
-    }
-  }
-
-  private record ViewSyncPlan(List<VsumView> toDeleteViews, List<ViewRequest> toCreateRequests) {
-    private boolean hasChanges() {
-      return !toDeleteViews.isEmpty() || !toCreateRequests.isEmpty();
-    }
   }
 }
