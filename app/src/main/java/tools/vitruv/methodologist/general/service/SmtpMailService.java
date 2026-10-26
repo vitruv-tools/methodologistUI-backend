@@ -13,6 +13,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import tools.vitruv.methodologist.exception.MailSendingException;
 
 /**
  * Service responsible for sending email messages using an SMTP backend.
@@ -88,7 +89,7 @@ public class SmtpMailService {
    * @param toName recipient display name (may be {@code null} or blank)
    * @param otpCode the one-time code to include in the message
    * @param ttlMinutes time-to-live for the OTP, in minutes
-   * @throws RuntimeException if reading the template or sending the message fails
+   * @throws MailSendingException if reading the template or sending the message fails
    */
   public void sendOtpMail(String toEmail, String toName, String otpCode, int ttlMinutes) {
     String subject = "Verify your email";
@@ -113,7 +114,7 @@ public class SmtpMailService {
    * @param toEmail recipient email address
    * @param toName recipient display name (may be {@code null} or blank)
    * @param newPassword the new password to include in the email
-   * @throws RuntimeException if reading the template or sending the message fails
+   * @throws MailSendingException if reading the template or sending the message fails
    */
   public void sendForgotPasswordMail(String toEmail, String toName, String newPassword) {
     String subject = "Your new password";
@@ -134,7 +135,7 @@ public class SmtpMailService {
    * @param toName recipient display name (may be {@code null} or blank)
    * @param vsumName the name of the VSUM the recipient was invited to
    * @param invitationLink the link that opens the VSUM
-   * @throws RuntimeException if reading the template or sending the message fails
+   * @throws MailSendingException if reading the template or sending the message fails
    */
   public void sendVsumInvitationMail(
       String toEmail, String toName, String vsumName, String invitationLink) {
@@ -159,7 +160,7 @@ public class SmtpMailService {
    * @param toName recipient display name (may be {@code null} or blank)
    * @param subject email subject
    * @param html HTML payload (already escaped/rendered)
-   * @throws RuntimeException if creating or sending the message fails
+   * @throws MailSendingException if creating or sending the message fails
    */
   private void sendHtml(String toEmail, String toName, String subject, String html) {
     try {
@@ -174,7 +175,7 @@ public class SmtpMailService {
       helper.setText(html, true); // true => HTML
       mailSender.send(msg);
     } catch (MessagingException | MailException | java.io.UnsupportedEncodingException e) {
-      throw new RuntimeException("Failed to send email via SMTP: " + e.getMessage(), e);
+      throw new MailSendingException("Failed to send email via SMTP: " + e.getMessage(), e);
     }
   }
 
@@ -206,13 +207,13 @@ public class SmtpMailService {
    *
    * @param classpathPath classpath resource path
    * @return file contents as UTF-8 string
-   * @throws RuntimeException if the resource cannot be read
+   * @throws MailSendingException if the resource cannot be read
    */
   private String readClasspathFile(String classpathPath) {
     try (var in = new ClassPathResource(classpathPath).getInputStream()) {
       return new String(in.readAllBytes(), StandardCharsets.UTF_8);
     } catch (IOException e) {
-      throw new RuntimeException(
+      throw new MailSendingException(
           "Failed to load email template from classpath: " + classpathPath, e);
     }
   }

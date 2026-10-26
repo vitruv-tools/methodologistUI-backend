@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.vitruv.methodologist.exception.MailSendingException;
 
 /** Unit tests for {@link SmtpMailService}. */
 @ExtendWith(MockitoExtension.class)
@@ -128,15 +129,15 @@ public class SmtpMailServiceTest {
   // sendOtpMail -> error paths
 
   @Test
-  void sendOtpMail_mailSenderThrowsException_throwsRuntimeException() {
+  void sendOtpMail_mailSenderThrowsException_throwsMailSendingException() {
     when(mailSender.createMimeMessage()).thenReturn(mimeMessageMock);
     doThrow(new MailSendException("SMTP Connection dropped"))
         .when(mailSender)
         .send(any(MimeMessage.class));
 
-    RuntimeException exception =
+    MailSendingException exception =
         assertThrows(
-            RuntimeException.class,
+            MailSendingException.class,
             () -> smtpMailService.sendOtpMail(recipientEmail, recipientName, "123456", 5));
 
     assertTrue(exception.getMessage().contains("Failed to send email via SMTP"));
@@ -190,13 +191,13 @@ public class SmtpMailServiceTest {
   // sendForgotPasswordMail — error paths
 
   @Test
-  void sendForgotPasswordMail_mailSenderThrowsException_throwsRuntimeException() {
+  void sendForgotPasswordMail_mailSenderThrowsException_throwsMailSendingException() {
     when(mailSender.createMimeMessage()).thenReturn(mimeMessageMock);
     doThrow(new MailSendException("SMTP failed")).when(mailSender).send(any(MimeMessage.class));
 
-    RuntimeException exception =
+    MailSendingException exception =
         assertThrows(
-            RuntimeException.class,
+            MailSendingException.class,
             () -> smtpMailService.sendForgotPasswordMail(recipientEmail, recipientName, "pw"));
 
     assertTrue(exception.getMessage().contains("Failed to send email via SMTP"));
