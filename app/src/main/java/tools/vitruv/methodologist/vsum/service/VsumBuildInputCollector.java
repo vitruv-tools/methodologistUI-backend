@@ -20,13 +20,15 @@ import tools.vitruv.methodologist.vsum.model.Vsum;
  *
  * <p>The metamodel/genmodel pairs of every relation are deduplicated (first seen wins) and the
  * reaction files are gathered per relation by the {@link ReactionBuildCollector}, which also
- * generates a composite reaction for pairs that carry more than one file.
+ * generates a composite reaction for pairs that carry more than one file. If the VSUM has helpers,
+ * the Java utility class generated from them is sent along with the reaction files.
  */
 @Component
 @RequiredArgsConstructor
 public class VsumBuildInputCollector {
 
   private final ReactionBuildCollector reactionBuildCollector;
+  private final HelperService helperService;
 
   /**
    * Collects the build inputs of the given VSUM.
@@ -36,7 +38,7 @@ public class VsumBuildInputCollector {
    * @return the inputs in setup-service order
    * @throws NotFoundException if the VSUM has no relations, no metamodel pair or no reaction file
    * @throws tools.vitruv.methodologist.exception.VsumBuildingException if reaction files on a pair
-   *     cannot be composed
+   *     cannot be composed or a helper cannot be translated to Java
    */
   public VsumBuildInputs collect(Vsum vsum) {
     if (vsum.getMetaModelRelations() == null || vsum.getMetaModelRelations().isEmpty()) {
@@ -71,6 +73,7 @@ public class VsumBuildInputCollector {
     if (reactions.isEmpty()) {
       throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
     }
+    helperService.generateBuildFile(vsum, ecores.values()).ifPresent(reactions::add);
 
     return new VsumBuildInputs(
         new ArrayList<>(ecores.values()), new ArrayList<>(genmodels.values()), reactions);

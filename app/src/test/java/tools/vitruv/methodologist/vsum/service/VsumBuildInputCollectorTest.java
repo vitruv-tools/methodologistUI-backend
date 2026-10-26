@@ -2,10 +2,17 @@ package tools.vitruv.methodologist.vsum.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -18,8 +25,10 @@ import tools.vitruv.methodologist.vsum.model.Vsum;
 
 class VsumBuildInputCollectorTest {
 
+  private final HelperService helperService = mock(HelperService.class);
   private final VsumBuildInputCollector collector =
-      new VsumBuildInputCollector(new ReactionBuildCollector(new LowCodeReactionService(null)));
+      new VsumBuildInputCollector(
+          new ReactionBuildCollector(new LowCodeReactionService(null)), helperService);
 
   @Test
   void collect_shouldDeduplicateMetamodels() {
@@ -37,6 +46,23 @@ class VsumBuildInputCollectorTest {
     assertThat(inputs.ecores()).containsExactly(e1);
     assertThat(inputs.genmodels()).containsExactly(g1);
     assertThat(inputs.reactions()).hasSize(2);
+  }
+
+  @Test
+  void collect_shouldAppendHelperClass_whenVsumHasHelpers() {
+    Vsum vsum = new Vsum();
+    FileStorage e = fs(1L, "a.ecore", new byte[] {1});
+    FileStorage g = fs(2L, "a.genmodel", new byte[] {2});
+    FileStorage r = fs(3L, "a.reactions", new byte[] {3});
+    vsum.setMetaModelRelations(Set.of(rel(mm(e, g), null, r)));
+    FileStorage helpers = fs(null, "Utility.java", new byte[] {4});
+    when(helperService.generateBuildFile(eq(vsum), anyCollection()))
+        .thenReturn(Optional.of(helpers));
+
+    VsumBuildInputs inputs = collector.collect(vsum);
+
+    assertThat(inputs.reactions()).containsExactly(r, helpers);
+    verify(helperService).generateBuildFile(eq(vsum), argThat(ecores -> ecores.contains(e)));
   }
 
   @Test
