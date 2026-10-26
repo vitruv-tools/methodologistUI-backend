@@ -23,7 +23,7 @@ import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildResponse;
 import tools.vitruv.methodologist.vsum.service.VsumBuildService;
-import tools.vitruv.methodologist.vsum.service.VsumService;
+import tools.vitruv.methodologist.vsum.service.VsumDeploymentBundleService;
 
 /**
  * Asynchronous VSUM builds: start one, follow its status, and download what it produced.
@@ -41,7 +41,7 @@ public class VsumBuildController {
       MediaType.parseMediaType("application/java-archive");
 
   private final VsumBuildService vsumBuildService;
-  private final VsumService vsumService;
+  private final VsumDeploymentBundleService vsumDeploymentBundleService;
 
   /**
    * Requests a build of the VSUM's current input files.
@@ -158,7 +158,7 @@ public class VsumBuildController {
       KeycloakAuthentication authentication, @PathVariable Long id, @PathVariable Long buildId) {
     String callerEmail = authentication.getParsedToken().getEmail();
     byte[] jar = vsumBuildService.getArtifact(callerEmail, id, buildId);
-    byte[] bundle = vsumService.createDeploymentBundle(jar);
+    byte[] bundle = vsumDeploymentBundleService.createDeploymentBundle(jar);
 
     HttpHeaders headers = new HttpHeaders();
     headers.setContentType(APPLICATION_ZIP);
