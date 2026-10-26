@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ecore:EPackage xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" name="library" nsURI="http://library" nsPrefix="library">
+  <eClassifiers xsi:type="ecore:EClass" name="Block">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="model" eType="ecore:EClass simulink.ecore#//SimulinkModel"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="pages" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//ELong"/>
+  </eClassifiers>
+  <eSubpackages name="shelf" nsURI="http://library/shelf" nsPrefix="shelf">
+    <eClassifiers xsi:type="ecore:EClass" name="Shelf">
+      <eSuperTypes href="http://library#//Block"/>
+      <eStructuralFeatures xsi:type="ecore:EReference" name="books" upperBound="-1" eType="#//shelf/Book"/>
+    </eClassifiers>
+    <eClassifiers xsi:type="ecore:EClass" name="Book" eSuperTypes="#//Block"/>
+  </eSubpackages>
+</ecore:EPackage>
