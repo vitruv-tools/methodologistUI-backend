@@ -408,8 +408,6 @@ public class VsumBuildService {
   private void deleteUnreferenced(Set<FileStorage> artifacts) {
     for (FileStorage artifact : artifacts) {
       if (vsumBuildRepository.countByArtifact(artifact) == 0) {
-        // Deleting the row alone would leave the JAR behind as an orphaned large object.
-        fileStorageRepository.unlinkData(artifact.getId());
         fileStorageRepository.delete(artifact);
       }
     }
