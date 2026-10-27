@@ -186,12 +186,44 @@ public class VsumBuildService {
    * @throws VsumBuildingException if the build did not finish within the configured wait timeout
    */
   public byte[] buildAndWait(String callerEmail, Long vsumId) {
+    return artifactBytes(buildAndAwaitSuccess(callerEmail, vsumId));
+  }
+
+  /**
+   * Builds the VSUM like {@link #buildAndWait} and reports the constraint rule sets it was built
+   * with. The rule sets are only known if the VSUM's inputs did not change since the build: the
+   * fingerprint of the current inputs, which covers name and content of every rule set, must equal
+   * the fingerprint of the build.
+   *
+   * @return the names of the rule sets built into the VSUM, or empty if the inputs changed
+   * @throws SetupServiceException if the build failed
+   */
+  public Optional<List<String>> buildAndFindConstraintRuleSets(String callerEmail, Long vsumId) {
+    Long buildId = buildAndAwaitSuccess(callerEmail, vsumId);
+    return transactionTemplate.execute(
+        status -> {
+          Vsum vsum = findMember(callerEmail, vsumId).getVsum();
+          String builtFingerprint =
+              vsumBuildRepository.findById(buildId).map(VsumBuild::getFingerprint).orElse(null);
+          try {
+            if (!inputCollector.collect(vsum).fingerprint().equals(builtFingerprint)) {
+              return Optional.empty();
+            }
+          } catch (NotFoundException inputsRemoved) {
+            return Optional.empty();
+          }
+          return Optional.of(inputCollector.collectConstraintRuleSetNames(vsum));
+        });
+  }
+
+  /** Requests a build of the VSUM, waits for it and returns its id if it succeeded. */
+  private Long buildAndAwaitSuccess(String callerEmail, Long vsumId) {
     Long buildId = requestBuild(callerEmail, vsumId, false).build().getId();
     if (awaitCompletion(buildId) != VsumBuildStatus.SUCCEEDED) {
       throw new SetupServiceException(
           vsumBuildRepository.findErrorMessageById(buildId).orElse("The build failed."));
     }
-    return artifactBytes(buildId);
+    return buildId;
   }
 
   /** Returns one build of the VSUM. */

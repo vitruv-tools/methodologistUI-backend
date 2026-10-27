@@ -304,6 +304,47 @@ class VsumBuildServiceTest {
   }
 
   @Test
+  void buildAndFindConstraintRuleSets_reportsTheRuleSetsOfTheBuiltInputs() {
+    when(inputCollector.collectConstraintRuleSetNames(vsum)).thenReturn(List.of("Preise"));
+
+    assertThat(service.buildAndFindConstraintRuleSets(EMAIL, VSUM_ID)).contains(List.of("Preise"));
+  }
+
+  @Test
+  void buildAndFindConstraintRuleSets_reportsNothing_whenTheInputsChangedDuringTheBuild() {
+    VsumBuildInputs changed =
+        new VsumBuildInputs(
+            inputs.ecores(),
+            inputs.genmodels(),
+            inputs.reactions(),
+            List.of(fs(4L, "Neu.ocl", new byte[] {4})));
+    // requested and started with the original inputs, checked afterwards with the changed ones
+    when(inputCollector.collect(vsum)).thenReturn(inputs, inputs, changed);
+
+    assertThat(service.buildAndFindConstraintRuleSets(EMAIL, VSUM_ID)).isEmpty();
+    verify(inputCollector, never()).collectConstraintRuleSetNames(vsum);
+  }
+
+  @Test
+  void buildAndFindConstraintRuleSets_reportsNothing_whenTheInputsAreGoneAfterTheBuild() {
+    when(inputCollector.collect(vsum))
+        .thenReturn(inputs, inputs)
+        .thenThrow(new tools.vitruv.methodologist.exception.NotFoundException("reactions"));
+
+    assertThat(service.buildAndFindConstraintRuleSets(EMAIL, VSUM_ID)).isEmpty();
+  }
+
+  @Test
+  void buildAndFindConstraintRuleSets_throws_whenTheBuildFailed() {
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
+        .thenThrow(new SetupServiceException("ocl broken"));
+
+    assertThatThrownBy(() -> service.buildAndFindConstraintRuleSets(EMAIL, VSUM_ID))
+        .isInstanceOf(SetupServiceException.class)
+        .hasMessageContaining("ocl broken");
+  }
+
+  @Test
   void buildAndWait_throwsSetupServiceException_whenTheBuildFailed() {
     when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
         .thenThrow(new SetupServiceException("boom"));

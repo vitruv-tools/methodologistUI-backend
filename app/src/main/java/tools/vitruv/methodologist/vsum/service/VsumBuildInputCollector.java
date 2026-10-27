@@ -33,6 +33,7 @@ public class VsumBuildInputCollector {
 
   private static final String OCL_EXTENSION = ".ocl";
   private static final String OCL_CONTENT_TYPE = "text/plain";
+  static final String UNNAMED_RULE_SET = "(unnamed)";
 
   private final ReactionBuildCollector reactionBuildCollector;
   private final ConstraintRuleSetRepository ruleSetRepository;
@@ -89,16 +90,40 @@ public class VsumBuildInputCollector {
   }
 
   /**
+   * Returns the names of the rule sets whose constraints the VSUM is built with.
+   *
+   * @param vsum the VSUM; its rule sets must be loadable, i.e. the call has to run inside a
+   *     transaction
+   * @return the rule set names in build order, {@value #UNNAMED_RULE_SET} for rule sets without a
+   *     name; empty if the VSUM has no constraints
+   */
+  public List<String> collectConstraintRuleSetNames(Vsum vsum) {
+    return ruleSetsWithConstraints(vsum).stream()
+        .map(
+            ruleSet ->
+                ruleSet.getName() == null || ruleSet.getName().isBlank()
+                    ? UNNAMED_RULE_SET
+                    : ruleSet.getName())
+        .toList();
+  }
+
+  /**
    * Creates one OCL file per rule set of the VSUM that contains constraints. Each file is named
    * like its rule set, so the constraints keep their grouping in the built project. The files are
    * ordered by rule set name and id, so the fingerprint does not depend on the database order.
    */
   private List<FileStorage> collectConstraints(Vsum vsum) {
+    return ruleSetsWithConstraints(vsum).stream()
+        .map(VsumBuildInputCollector::toConstraintFile)
+        .toList();
+  }
+
+  /** The rule sets of the VSUM that contain constraints, in build order. */
+  private List<ConstraintRuleSet> ruleSetsWithConstraints(Vsum vsum) {
     if (vsum.getId() == null) {
       return List.of();
     }
-    List<FileStorage> constraints = new ArrayList<>();
-    ruleSetRepository.findByVsumId(vsum.getId()).stream()
+    return ruleSetRepository.findByVsumId(vsum.getId()).stream()
         .filter(ruleSet -> ruleSet.getOclFile() != null && ruleSet.getOclFile().getData() != null)
         .filter(
             ruleSet ->
@@ -107,8 +132,7 @@ public class VsumBuildInputCollector {
             Comparator.comparing(
                     ConstraintRuleSet::getName, Comparator.nullsFirst(String::compareTo))
                 .thenComparing(ConstraintRuleSet::getId, Comparator.nullsFirst(Long::compareTo)))
-        .forEach(ruleSet -> constraints.add(toConstraintFile(ruleSet)));
-    return constraints;
+        .toList();
   }
 
   private static FileStorage toConstraintFile(ConstraintRuleSet ruleSet) {

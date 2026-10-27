@@ -110,6 +110,22 @@ class VsumBuildInputCollectorConstraintsTest {
   }
 
   @Test
+  void reportsTheNamesOfTheRuleSetsWithConstraints() {
+    ConstraintRuleSet unnamed = ruleSet(4L, "x", "context m::C inv c: true");
+    unnamed.setName(" ");
+    when(ruleSetRepository.findByVsumId(VSUM_ID))
+        .thenReturn(
+            List.of(
+                ruleSet(1L, "Preise", "context m::A inv a: true"),
+                ruleSet(2L, "Leer", " "),
+                ruleSet(3L, "Komponenten", "context m::B inv b: true"),
+                unnamed));
+
+    assertThat(collector.collectConstraintRuleSetNames(vsum))
+        .containsExactly("(unnamed)", "Komponenten", "Preise");
+  }
+
+  @Test
   void buildsWithoutRuleSets() {
     when(ruleSetRepository.findByVsumId(VSUM_ID)).thenReturn(List.of());
 
