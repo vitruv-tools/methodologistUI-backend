@@ -1,6 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
-import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_HISTORY_ID_NOT_FOUND_ERROR;
 
 import java.util.HashMap;
@@ -45,7 +45,7 @@ public class VsumHistoryService {
   private final Long historyLimit;
   private final UserRepository userRepository;
   private final VsumUserRepository vsumUserRepository;
-  private final VsumService vsumService;
+  private final VsumSyncService vsumSyncService;
   private final LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
 
   /**
@@ -61,14 +61,14 @@ public class VsumHistoryService {
       @Value("${vsum.history.limit}") Long historyLimit,
       UserRepository userRepository,
       VsumUserRepository vsumUserRepository,
-      @Lazy VsumService vsumService,
+      @Lazy VsumSyncService vsumSyncService,
       LowCodeReactionRequestMapper lowCodeReactionRequestMapper) {
     this.vsumHistoryRepository = vsumHistoryRepository;
     this.vsumHistoryMapper = vsumHistoryMapper;
     this.historyLimit = historyLimit;
     this.userRepository = userRepository;
     this.vsumUserRepository = vsumUserRepository;
-    this.vsumService = vsumService;
+    this.vsumSyncService = vsumSyncService;
     this.lowCodeReactionRequestMapper = lowCodeReactionRequestMapper;
   }
 
@@ -137,7 +137,8 @@ public class VsumHistoryService {
    *   <li>Loads the {@link VsumHistory} identified by {@code id}.
    *   <li>Verifies that the caller has access to the VSUM referenced by the history entry.
    *   <li>Creates a new history snapshot for the current VSUM state (audit before revert).
-   *   <li>Applies the recorded sync changes to the VSUM using {@link VsumService#applySyncChanges}.
+   *   <li>Applies the recorded sync changes to the VSUM using {@link
+   *       VsumSyncService#applySyncChanges}.
    * </ol>
    *
    * @param callerEmail email of the user requesting the revert; used to validate access
@@ -150,7 +151,7 @@ public class VsumHistoryService {
     User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
-            .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+            .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
 
     VsumHistory history =
         vsumHistoryRepository
@@ -162,13 +163,13 @@ public class VsumHistoryService {
     vsumUserRepository
         .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
             vsum.getId(), callerEmail)
-        .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+        .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
 
     create(vsum, user);
 
     VsumSyncChangesPutRequest vsumSyncChangesPutRequest =
         toSyncRequest(history.getRepresentation());
-    vsumService.applySyncChanges(vsum, user, vsumSyncChangesPutRequest, false);
+    vsumSyncService.applySyncChanges(vsum, user, vsumSyncChangesPutRequest, false);
   }
 
   /**

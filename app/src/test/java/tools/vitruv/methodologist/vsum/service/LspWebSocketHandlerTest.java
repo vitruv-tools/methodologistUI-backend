@@ -44,7 +44,7 @@ import tools.vitruv.methodologist.vsum.model.MetaModel;
     })
 class LspWebSocketHandlerTest {
 
-  private MetaModelService metaModelService;
+  private VsumMetaModelService vsumMetaModelService;
   private LspWebSocketHandler handler;
   private WebSocketSession session;
 
@@ -59,14 +59,15 @@ class LspWebSocketHandlerTest {
    */
   @BeforeEach
   void setUp() throws Exception {
-    metaModelService = mock(MetaModelService.class);
+    vsumMetaModelService = mock(VsumMetaModelService.class);
 
     // Nutze die injizierte Property
     Resource resource = new FileSystemResource(testJarPath);
 
     handler =
         new LspWebSocketHandler(
-            new ReactionsLspWorkspaceService(metaModelService, mock(UtilityMethodService.class)));
+            new ReactionsLspWorkspaceService(
+                vsumMetaModelService, mock(UtilityMethodService.class)));
     ReflectionTestUtils.setField(handler, "jarResource", resource);
 
     session = mock(WebSocketSession.class);
@@ -87,7 +88,7 @@ class LspWebSocketHandlerTest {
     when(session.getUri()).thenReturn(uri);
 
     MetaModel metamodel = createMetaModel(1L, "test.ecore", "test content".getBytes());
-    when(metaModelService.findAccessibleByProject(1L)).thenReturn(List.of(metamodel));
+    when(vsumMetaModelService.findAccessibleByProject(1L)).thenReturn(List.of(metamodel));
     Path fakeJar = Files.createTempFile("reactions-ide-", ".jar");
     Files.write(fakeJar, "not-a-real-jar".getBytes());
 
@@ -95,7 +96,7 @@ class LspWebSocketHandlerTest {
 
     handler.afterConnectionEstablished(session);
 
-    verify(metaModelService).findAccessibleByProject(1L);
+    verify(vsumMetaModelService).findAccessibleByProject(1L);
     verify(session, never()).close(any(CloseStatus.class));
   }
 
@@ -109,7 +110,7 @@ class LspWebSocketHandlerTest {
   void afterConnectionEstablished_extractsUserIdFromQueryParam() throws Exception {
     URI uri = new URI("ws://localhost/lsp?userId=99&vsumId=5");
     when(session.getUri()).thenReturn(uri);
-    when(metaModelService.findAccessibleByProject(5L)).thenReturn(Collections.emptyList());
+    when(vsumMetaModelService.findAccessibleByProject(5L)).thenReturn(Collections.emptyList());
     Path fakeJar = Files.createTempFile("reactions-ide-", ".jar");
     Files.write(fakeJar, "not-a-real-jar".getBytes());
 
@@ -117,7 +118,7 @@ class LspWebSocketHandlerTest {
 
     handler.afterConnectionEstablished(session);
 
-    verify(metaModelService).findAccessibleByProject(5L);
+    verify(vsumMetaModelService).findAccessibleByProject(5L);
     verify(session, never()).close(any(CloseStatus.class));
   }
 
@@ -137,7 +138,7 @@ class LspWebSocketHandlerTest {
     JwtAuthenticationToken jwtToken = new JwtAuthenticationToken(jwt);
     when(session.getPrincipal()).thenReturn(jwtToken);
 
-    when(metaModelService.findAccessibleByProject(3L)).thenReturn(Collections.emptyList());
+    when(vsumMetaModelService.findAccessibleByProject(3L)).thenReturn(Collections.emptyList());
     Path fakeJar = Files.createTempFile("reactions-ide-", ".jar");
     Files.write(fakeJar, "not-a-real-jar".getBytes());
 
@@ -145,7 +146,7 @@ class LspWebSocketHandlerTest {
 
     handler.afterConnectionEstablished(session);
 
-    verify(metaModelService).findAccessibleByProject(3L);
+    verify(vsumMetaModelService).findAccessibleByProject(3L);
     verify(session, never()).close(any(CloseStatus.class));
   }
 
@@ -164,7 +165,7 @@ class LspWebSocketHandlerTest {
     attributes.put("userId", "88");
     when(session.getAttributes()).thenReturn(attributes);
 
-    when(metaModelService.findAccessibleByProject(2L)).thenReturn(Collections.emptyList());
+    when(vsumMetaModelService.findAccessibleByProject(2L)).thenReturn(Collections.emptyList());
     Path fakeJar = Files.createTempFile("reactions-ide-", ".jar");
     Files.write(fakeJar, "not-a-real-jar".getBytes());
 
@@ -172,7 +173,7 @@ class LspWebSocketHandlerTest {
 
     handler.afterConnectionEstablished(session);
 
-    verify(metaModelService).findAccessibleByProject(2L);
+    verify(vsumMetaModelService).findAccessibleByProject(2L);
     verify(session, never()).close(any(CloseStatus.class));
   }
 
@@ -194,11 +195,11 @@ class LspWebSocketHandlerTest {
 
     ReflectionTestUtils.setField(handler, "jarResource", new FileSystemResource(fakeJar.toFile()));
 
-    when(metaModelService.findAccessibleByProject(10L)).thenReturn(List.of(mm1, mm2));
+    when(vsumMetaModelService.findAccessibleByProject(10L)).thenReturn(List.of(mm1, mm2));
 
     handler.afterConnectionEstablished(session);
 
-    verify(metaModelService).findAccessibleByProject(10L);
+    verify(vsumMetaModelService).findAccessibleByProject(10L);
   }
 
   /**

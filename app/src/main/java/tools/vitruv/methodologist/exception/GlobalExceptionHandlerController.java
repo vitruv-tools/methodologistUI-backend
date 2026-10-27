@@ -105,7 +105,7 @@ public class GlobalExceptionHandlerController {
    * Handles {@link VerificationCodeException} thrown during verification flows.
    *
    * <p>Responds with HTTP 400 (Bad Request) and returns an {@link ErrorResponse} containing: - a
-   * standardized error code from {@link VerificationCodeException#VERIFICATION_COD_IS_NOT_VALID} -
+   * standardized error code from {@link VerificationCodeException#VERIFICATION_CODE_IS_NOT_VALID} -
    * the exception message - the request path where the error occurred
    *
    * @param ex the thrown {@link VerificationCodeException}
@@ -797,10 +797,10 @@ public class GlobalExceptionHandlerController {
    */
   @ExceptionHandler(value = RuntimeException.class)
   @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-  public ErrorResponse uncatchedException(
+  public ErrorResponse uncaughtException(
       RuntimeException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     log.warn(
-        "UncatchedException handled in Controller: {}, message: {}, stackTrace: {}",
+        "Uncaught exception handled in Controller: {}, message: {}, stackTrace: {}",
         handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
         ex.getMessage(),
         ex);

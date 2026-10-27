@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.service;
 
 import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -11,6 +12,8 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.general.service.FileStorageService;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
@@ -34,6 +37,56 @@ public class VsumMetaModelService {
   MetaModelService metaModelService;
   MetaModelRepository metaModelRepository;
   EntityManager entityManager;
+  FileStorageService fileStorageService;
+
+  /**
+   * Finds all metamodels accessible by a given project.
+   *
+   * <p>This method retrieves:
+   *
+   * <ul>
+   *   <li>All metamodels associated with the project via VSUM (if vsumId is provided)
+   * </ul>
+   *
+   * <p>Duplicates are automatically removed by using a Set internally. This method is primarily
+   * used by the Language Server to determine which metamodels should be loaded for a specific
+   * editing session.
+   *
+   * @param vsumId the ID of the project/VSUM whose metamodels should be included (can be null)
+   * @return a list of unique MetaModel instances accessible by the user and/or project
+   */
+  @Transactional(readOnly = true)
+  public List<MetaModel> findAccessibleByProject(Long vsumId) {
+    log.info("findAccessibleByProject called with vsumId: {}", vsumId);
+
+    if (vsumId == null) {
+      log.warn("vsumId is null, returning empty list");
+      return List.of();
+    }
+
+    List<VsumMetaModel> vsumMetaModels = vsumMetaModelRepository.findByVsumId(vsumId);
+    log.info("Found {} VsumMetaModel entries for vsumId {}", vsumMetaModels.size(), vsumId);
+
+    Set<MetaModel> metamodels = new LinkedHashSet<>();
+
+    for (VsumMetaModel vmm : vsumMetaModels) {
+      MetaModel mm = vmm.getMetaModel();
+      log.info(
+          "Processing MetaModel id={}, name={}, hasSource={}",
+          mm.getId(),
+          mm.getName(),
+          mm.getSource() != null);
+
+      if (mm.getSource() != null) {
+        metamodels.add(mm.getSource());
+      } else {
+        metamodels.add(mm);
+      }
+    }
+
+    log.info("Returning {} metamodels", metamodels.size());
+    return new ArrayList<>(metamodels);
+  }
 
   /**
    * Creates {@link VsumMetaModel} links for the given vsum and metamodel IDs. Each metamodel is
@@ -83,18 +136,17 @@ public class VsumMetaModelService {
    * Creates new {@link VsumMetaModel} associations for the given {@link Vsum}.
    *
    * <p>First, all previously cloned {@link MetaModel} instances linked to the given {@code
-   * vsumMetaModels} are removed using {@link MetaModelService#deleteCloned(List)}. Then, the
-   * provided {@link VsumMetaModel} associations are deleted from the repository and detached from
-   * the {@link Vsum}.
+   * vsumMetaModels} are removed using {@link #deleteCloned(List)}. Then, the provided {@link
+   * VsumMetaModel} associations are deleted from the repository and detached from the {@link Vsum}.
    *
    * @param vsum the parent {@link Vsum} whose associations are being recreated
    * @param vsumMetaModels the list of {@link VsumMetaModel} associations to remove before creation
    */
+  @Transactional
   public void delete(Vsum vsum, List<VsumMetaModel> vsumMetaModels) {
     vsumMetaModelRepository.deleteAll(vsumMetaModels);
     vsum.getVsumMetaModels().removeAll(vsumMetaModels);
-    metaModelService.deleteCloned(
-        vsumMetaModels.stream().map(VsumMetaModel::getMetaModel).toList());
+    deleteCloned(vsumMetaModels.stream().map(VsumMetaModel::getMetaModel).toList());
   }
 
   /**
@@ -103,10 +155,28 @@ public class VsumMetaModelService {
    *
    * @param vsum the VSUM whose metamodel associations and cloned metamodels should be deleted
    */
+  @Transactional
   public void delete(Vsum vsum) {
     List<MetaModel> metaModels =
         vsum.getVsumMetaModels().stream().map(VsumMetaModel::getMetaModel).toList();
     vsumMetaModelRepository.deleteVsumMetaModelByVsum(vsum);
-    metaModelService.deleteCloned(metaModels);
+    deleteCloned(metaModels);
+  }
+
+  /**
+   * Deletes the file storage records associated with the given cloned {@link MetaModel} entities.
+   *
+   * <p>Collects all linked Ecore and GenModel files from the provided metamodels and removes them
+   * from persistent storage using {@link
+   * tools.vitruv.methodologist.general.service.FileStorageService}.
+   *
+   * @param metaModels the list of cloned {@link MetaModel} entities whose files should be deleted
+   */
+  void deleteCloned(List<MetaModel> metaModels) {
+    metaModelRepository.deleteAll(metaModels);
+    List<FileStorage> fileStorages = new ArrayList<>();
+    fileStorages.addAll(metaModels.stream().map(MetaModel::getEcoreFile).toList());
+    fileStorages.addAll(metaModels.stream().map(MetaModel::getGenModelFile).toList());
+    fileStorageService.deleteFiles(fileStorages);
   }
 }

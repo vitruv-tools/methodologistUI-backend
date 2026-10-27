@@ -1,6 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
-import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
+import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_BUILD_ARTIFACT_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.VSUM_BUILD_ID_NOT_FOUND_ERROR;
 
@@ -408,8 +408,6 @@ public class VsumBuildService {
   private void deleteUnreferenced(Set<FileStorage> artifacts) {
     for (FileStorage artifact : artifacts) {
       if (vsumBuildRepository.countByArtifact(artifact) == 0) {
-        // Deleting the row alone would leave the JAR behind as an orphaned large object.
-        fileStorageRepository.unlinkData(artifact.getId());
         fileStorageRepository.delete(artifact);
       }
     }
@@ -459,7 +457,7 @@ public class VsumBuildService {
     return vsumUserRepository
         .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
             vsumId, callerEmail)
-        .orElseThrow(() -> new AccessDeniedException(USER_DOSE_NOT_HAVE_ACCESS));
+        .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
   }
 
   private Optional<VsumBuild> findReusable(Vsum vsum, String fingerprint) {

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import jakarta.ws.rs.BadRequestException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +23,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.access.AccessDeniedException;
 import tools.vitruv.methodologist.exception.FileAlreadyExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
@@ -96,7 +98,7 @@ class FileStorageServiceTest {
   }
 
   @Test
-  void storeFile_emptyFile_throwsIllegalArgumentException() {
+  void storeFile_emptyFile_throwsBadRequestException() {
     MockMultipartFile emptyFile =
         new MockMultipartFile("file", "empty.txt", "text/plain", new byte[0]);
 
@@ -104,7 +106,7 @@ class FileStorageServiceTest {
         .thenReturn(Optional.of(testUser));
 
     assertThrows(
-        IllegalArgumentException.class,
+        BadRequestException.class,
         () -> fileStorageService.storeFile("test@example.com", emptyFile, FileEnumType.GEN_MODEL));
   }
 
@@ -222,7 +224,7 @@ class FileStorageServiceTest {
   }
 
   @Test
-  void updateFile_fileBelongsToAnotherUser_throwsIllegalArgumentException() {
+  void updateFile_fileBelongsToAnotherUser_throwsAccessDeniedException() {
     String email = "test@example.com";
 
     User otherUser = new User();
@@ -240,11 +242,11 @@ class FileStorageServiceTest {
         .thenReturn(Optional.of(existing));
 
     assertThrows(
-        IllegalArgumentException.class, () -> fileStorageService.updateFile(email, 1L, testFile));
+        AccessDeniedException.class, () -> fileStorageService.updateFile(email, 1L, testFile));
   }
 
   @Test
-  void updateFile_emptyFile_throwsIllegalArgumentException() {
+  void updateFile_emptyFile_throwsBadRequestException() {
     String email = "test@example.com";
 
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
@@ -262,7 +264,7 @@ class FileStorageServiceTest {
         new MockMultipartFile("file", "empty.txt", "text/plain", new byte[0]);
 
     assertThrows(
-        IllegalArgumentException.class, () -> fileStorageService.updateFile(email, 1L, emptyFile));
+        BadRequestException.class, () -> fileStorageService.updateFile(email, 1L, emptyFile));
   }
 
   @Test

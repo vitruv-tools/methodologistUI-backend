@@ -40,10 +40,10 @@ class ReactionsLspWorkspaceServiceTest {
 
   @TempDir Path tempDir;
 
-  private final MetaModelService metaModelService = mock(MetaModelService.class);
+  private final VsumMetaModelService vsumMetaModelService = mock(VsumMetaModelService.class);
   private final UtilityMethodService utilityMethodService = mock(UtilityMethodService.class);
   private final ReactionsLspWorkspaceService service =
-      new ReactionsLspWorkspaceService(metaModelService, utilityMethodService);
+      new ReactionsLspWorkspaceService(vsumMetaModelService, utilityMethodService);
 
   private Path sessionDir;
   private Path emf;
@@ -59,7 +59,7 @@ class ReactionsLspWorkspaceServiceTest {
     MetaModel metaModel = new MetaModel();
     metaModel.setEcoreFile(
         FileStorage.builder().id(1L).filename("simulink.ecore").data(simulink).build());
-    when(metaModelService.findAccessibleByProject(VSUM_ID)).thenReturn(List.of(metaModel));
+    when(vsumMetaModelService.findAccessibleByProject(VSUM_ID)).thenReturn(List.of(metaModel));
   }
 
   @Test
@@ -106,7 +106,7 @@ class ReactionsLspWorkspaceServiceTest {
 
   @Test
   void prepare_createsAnEmptyWorkspace_withoutVsum() throws IOException {
-    when(metaModelService.findAccessibleByProject(null)).thenReturn(List.of());
+    when(vsumMetaModelService.findAccessibleByProject(null)).thenReturn(List.of());
 
     ReactionsLspWorkspaceService.Workspace workspace = service.prepare(sessionDir, null, emf);
 

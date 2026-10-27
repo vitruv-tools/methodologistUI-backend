@@ -54,7 +54,7 @@ public class ReactionsLspWorkspaceService {
   /** Class file version the language server reads, i.e. the Java version it is built for. */
   private static final String RELEASE = "17";
 
-  private final MetaModelService metaModelService;
+  private final VsumMetaModelService vsumMetaModelService;
   private final UtilityMethodService utilityMethodService;
 
   /**
@@ -112,7 +112,7 @@ public class ReactionsLspWorkspaceService {
     Path projectDir = sessionDir.resolve(PROJECT_DIR);
     Path modelDir = Files.createDirectories(projectDir.resolve(MODEL_DIR));
     List<FileStorage> ecores =
-        metaModelService.findAccessibleByProject(vsumId).stream()
+        vsumMetaModelService.findAccessibleByProject(vsumId).stream()
             .map(MetaModel::getEcoreFile)
             .toList();
 

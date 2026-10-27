@@ -157,8 +157,7 @@ public class KeycloakApiHandler {
 
     return webClient
         .post()
-        .uri(POST_TOKEN_URL) // Example:
-        // http://localhost:8383/realms/investino/protocol/openid-connect/token
+        .uri(POST_TOKEN_URL)
         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
         .body(BodyInserters.fromFormData(formData))
         .retrieve()
