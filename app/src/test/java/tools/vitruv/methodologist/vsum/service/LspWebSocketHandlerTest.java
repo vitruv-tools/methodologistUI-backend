@@ -66,7 +66,7 @@ class LspWebSocketHandlerTest {
 
     handler =
         new LspWebSocketHandler(
-            new ReactionsLspWorkspaceService(metaModelService, mock(HelperService.class)));
+            new ReactionsLspWorkspaceService(metaModelService, mock(UtilityMethodService.class)));
     ReflectionTestUtils.setField(handler, "jarResource", resource);
 
     session = mock(WebSocketSession.class);

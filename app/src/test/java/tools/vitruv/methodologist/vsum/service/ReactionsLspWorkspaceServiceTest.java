@@ -24,26 +24,26 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import tools.vitruv.methodologist.general.model.FileStorage;
-import tools.vitruv.methodologist.vsum.helper.EcoreTypeIndex;
-import tools.vitruv.methodologist.vsum.helper.EmfApiStubs;
-import tools.vitruv.methodologist.vsum.helper.HelperClassGenerator;
-import tools.vitruv.methodologist.vsum.helper.HelperDefinition;
-import tools.vitruv.methodologist.vsum.helper.HelperDefinition.Parameter;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
+import tools.vitruv.methodologist.vsum.utilitymethod.EcoreTypeIndex;
+import tools.vitruv.methodologist.vsum.utilitymethod.EmfApiStubs;
+import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodClassGenerator;
+import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodDefinition;
+import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodDefinition.Parameter;
 
 class ReactionsLspWorkspaceServiceTest {
 
   private static final long VSUM_ID = 7L;
   private static final String MODEL_CLASSES = "tools/vitruv/methodologisttemplate/model/simulink/";
-  private static final String HELPER_CLASS =
-      HelperClassGenerator.QUALIFIED_CLASS_NAME.replace('.', '/') + ".class";
+  private static final String UTILITY_METHOD_CLASS =
+      UtilityMethodClassGenerator.QUALIFIED_CLASS_NAME.replace('.', '/') + ".class";
 
   @TempDir Path tempDir;
 
   private final MetaModelService metaModelService = mock(MetaModelService.class);
-  private final HelperService helperService = mock(HelperService.class);
+  private final UtilityMethodService utilityMethodService = mock(UtilityMethodService.class);
   private final ReactionsLspWorkspaceService service =
-      new ReactionsLspWorkspaceService(metaModelService, helperService);
+      new ReactionsLspWorkspaceService(metaModelService, utilityMethodService);
 
   private Path sessionDir;
   private Path emf;
@@ -53,7 +53,7 @@ class ReactionsLspWorkspaceServiceTest {
   void setUp() throws IOException {
     sessionDir = Files.createDirectory(tempDir.resolve("session"));
     emf = EmfApiStubs.compile(tempDir.resolve("emf"));
-    try (InputStream in = getClass().getResourceAsStream("/helper/simulink.ecore")) {
+    try (InputStream in = getClass().getResourceAsStream("/utilitymethod/simulink.ecore")) {
       simulink = in.readAllBytes();
     }
     MetaModel metaModel = new MetaModel();
@@ -63,9 +63,9 @@ class ReactionsLspWorkspaceServiceTest {
   }
 
   @Test
-  void prepare_compilesModelApiAndHelpers_andNamesTheInstanceClasses() throws IOException {
-    when(helperService.generateEditorSource(eq(VSUM_ID), anyCollection()))
-        .thenReturn(Optional.of(helperSource()));
+  void prepare_compilesModelApiAndUtilityMethods_andNamesTheInstanceClasses() throws IOException {
+    when(utilityMethodService.generateEditorSource(eq(VSUM_ID), anyCollection()))
+        .thenReturn(Optional.of(utilityMethodSource()));
 
     ReactionsLspWorkspaceService.Workspace workspace = service.prepare(sessionDir, VSUM_ID, emf);
 
@@ -75,7 +75,7 @@ class ReactionsLspWorkspaceServiceTest {
     assertThat(workspace.classpath()).containsExactly(classes);
     assertThat(classes.resolve(MODEL_CLASSES + "Gain.class")).exists();
     assertThat(classes.resolve(MODEL_CLASSES + "SimulinkFactory.class")).exists();
-    assertThat(classes.resolve(HELPER_CLASS)).exists();
+    assertThat(classes.resolve(UTILITY_METHOD_CLASS)).exists();
     assertThat(writtenEcore(workspace))
         .contains("instanceClassName=\"tools.vitruv.methodologisttemplate.model.simulink.Gain\"");
   }
@@ -92,8 +92,8 @@ class ReactionsLspWorkspaceServiceTest {
   }
 
   @Test
-  void prepare_keepsTheModelApi_whenTheHelpersDoNotCompile() throws IOException {
-    when(helperService.generateEditorSource(eq(VSUM_ID), anyCollection()))
+  void prepare_keepsTheModelApi_whenTheUtilityMethodsDoNotCompile() throws IOException {
+    when(utilityMethodService.generateEditorSource(eq(VSUM_ID), anyCollection()))
         .thenReturn(Optional.of("package broken; class"));
 
     ReactionsLspWorkspaceService.Workspace workspace = service.prepare(sessionDir, VSUM_ID, emf);
@@ -101,7 +101,7 @@ class ReactionsLspWorkspaceServiceTest {
     Path classes = sessionDir.resolve(ReactionsLspWorkspaceService.CLASSES_DIR);
     assertThat(workspace.classpath()).containsExactly(classes);
     assertThat(classes.resolve(MODEL_CLASSES + "Gain.class")).exists();
-    assertThat(classes.resolve(HELPER_CLASS)).doesNotExist();
+    assertThat(classes.resolve(UTILITY_METHOD_CLASS)).doesNotExist();
   }
 
   @Test
@@ -113,27 +113,21 @@ class ReactionsLspWorkspaceServiceTest {
     assertThat(workspace.classpath()).isEmpty();
     assertThat(workspace.projectDir().resolve(ReactionsLspWorkspaceService.MODEL_DIR))
         .isEmptyDirectory();
-    verifyNoInteractions(helperService);
+    verifyNoInteractions(utilityMethodService);
   }
 
   @Test
-  void launchCommand_runsTheJar_withoutClasspath() throws IOException {
-    Path jar = jar("tools.example.Launcher");
-    ReactionsLspWorkspaceService.Workspace workspace =
-        new ReactionsLspWorkspaceService.Workspace(tempDir, List.of());
-
-    assertThat(workspace.launchCommand("java", jar))
-        .containsExactly("java", "-jar", jar.toString());
-  }
-
-  @Test
-  void launchCommand_putsTheClassesOnTheClasspath_andRunsTheMainClass() throws IOException {
+  void launchCommand_runsTheJar_withTheClassesOnTheClasspath_ifAny() throws IOException {
     Path jar = jar("tools.example.Launcher");
     Path classes = tempDir.resolve("classes");
-    ReactionsLspWorkspaceService.Workspace workspace =
-        new ReactionsLspWorkspaceService.Workspace(tempDir, List.of(classes));
 
-    assertThat(workspace.launchCommand("java", jar))
+    assertThat(
+            new ReactionsLspWorkspaceService.Workspace(tempDir, List.of())
+                .launchCommand("java", jar))
+        .containsExactly("java", "-jar", jar.toString());
+    assertThat(
+            new ReactionsLspWorkspaceService.Workspace(tempDir, List.of(classes))
+                .launchCommand("java", jar))
         .containsExactly(
             "java", "-cp", jar + File.pathSeparator + classes, "tools.example.Launcher");
   }
@@ -151,18 +145,18 @@ class ReactionsLspWorkspaceServiceTest {
 
   // ── fixtures ─────────────────────────────────────────────────────────────
 
-  private String helperSource() {
+  private String utilityMethodSource() {
     EcoreTypeIndex index =
         EcoreTypeIndex.of(List.of(new EcoreTypeIndex.EcoreFile("simulink.ecore", simulink)));
-    HelperDefinition first =
-        new HelperDefinition(
+    UtilityMethodDefinition first =
+        new UtilityMethodDefinition(
             "first",
             null,
             List.of(new Parameter("model", "SimulinkModel")),
             "Block",
             List.of("simulink::*"),
             "model.contains->first()");
-    return HelperClassGenerator.generate(List.of(first), index).source();
+    return UtilityMethodClassGenerator.generate(List.of(first), index).source();
   }
 
   private static String writtenEcore(ReactionsLspWorkspaceService.Workspace workspace)

@@ -25,10 +25,10 @@ import tools.vitruv.methodologist.vsum.model.Vsum;
 
 class VsumBuildInputCollectorTest {
 
-  private final HelperService helperService = mock(HelperService.class);
+  private final UtilityMethodService utilityMethodService = mock(UtilityMethodService.class);
   private final VsumBuildInputCollector collector =
       new VsumBuildInputCollector(
-          new ReactionBuildCollector(new LowCodeReactionService(null)), helperService);
+          new ReactionBuildCollector(new LowCodeReactionService(null)), utilityMethodService);
 
   @Test
   void collect_shouldDeduplicateMetamodels() {
@@ -49,20 +49,20 @@ class VsumBuildInputCollectorTest {
   }
 
   @Test
-  void collect_shouldAppendHelperClass_whenVsumHasHelpers() {
+  void collect_shouldAppendUtilityMethodClass_whenVsumHasUtilityMethods() {
     Vsum vsum = new Vsum();
     FileStorage e = fs(1L, "a.ecore", new byte[] {1});
     FileStorage g = fs(2L, "a.genmodel", new byte[] {2});
     FileStorage r = fs(3L, "a.reactions", new byte[] {3});
     vsum.setMetaModelRelations(Set.of(rel(mm(e, g), null, r)));
-    FileStorage helpers = fs(null, "Utility.java", new byte[] {4});
-    when(helperService.generateBuildFile(eq(vsum), anyCollection()))
-        .thenReturn(Optional.of(helpers));
+    FileStorage utilityMethods = fs(null, "Utility.java", new byte[] {4});
+    when(utilityMethodService.generateBuildFile(eq(vsum), anyCollection()))
+        .thenReturn(Optional.of(utilityMethods));
 
     VsumBuildInputs inputs = collector.collect(vsum);
 
-    assertThat(inputs.reactions()).containsExactly(r, helpers);
-    verify(helperService).generateBuildFile(eq(vsum), argThat(ecores -> ecores.contains(e)));
+    assertThat(inputs.reactions()).containsExactly(r, utilityMethods);
+    verify(utilityMethodService).generateBuildFile(eq(vsum), argThat(ecores -> ecores.contains(e)));
   }
 
   @Test

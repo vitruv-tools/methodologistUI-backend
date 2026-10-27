@@ -25,22 +25,22 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import tools.vitruv.methodologist.general.model.FileStorage;
-import tools.vitruv.methodologist.vsum.helper.EcoreInstanceClassNames;
-import tools.vitruv.methodologist.vsum.helper.EcoreTypeIndex;
-import tools.vitruv.methodologist.vsum.helper.HelperClassGenerator;
-import tools.vitruv.methodologist.vsum.helper.ModelApiSourceGenerator;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
+import tools.vitruv.methodologist.vsum.utilitymethod.EcoreInstanceClassNames;
+import tools.vitruv.methodologist.vsum.utilitymethod.EcoreTypeIndex;
+import tools.vitruv.methodologist.vsum.utilitymethod.ModelApiSourceGenerator;
+import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodClassGenerator;
 
 /**
  * Prepares the workspace of a reactions editor's language server.
  *
  * <p>The language server resolves Java types from its own classpath only and derives the Java type
  * of a metaclass from the metaclass's instance class name. Besides the VSUM's {@code .ecore} files,
- * the workspace therefore gets the API EMF would generate for the metamodels and the helper class,
- * compiled into a directory that is put on the server's classpath, and the {@code .ecore} files
- * name the generated interfaces as instance classes. If that is not possible, for example because
- * the backend runs without a Java compiler, the workspace only gets the plain {@code .ecore} files,
- * and metaclasses and helpers stay unresolved in the editor.
+ * the workspace therefore gets the API EMF would generate for the metamodels and the utility method
+ * class, compiled into a directory that is put on the server's classpath, and the {@code .ecore}
+ * files name the generated interfaces as instance classes. If that is not possible, for example
+ * because the backend runs without a Java compiler, the workspace only gets the plain {@code
+ * .ecore} files, and metaclasses and utility methods stay unresolved in the editor.
  */
 @Slf4j
 @Service
@@ -55,7 +55,7 @@ public class ReactionsLspWorkspaceService {
   private static final String RELEASE = "17";
 
   private final MetaModelService metaModelService;
-  private final HelperService helperService;
+  private final UtilityMethodService utilityMethodService;
 
   /**
    * A prepared workspace.
@@ -123,9 +123,10 @@ public class ReactionsLspWorkspaceService {
           modelDir.resolve(ecore.getFilename()),
           modelCompiled ? withInstanceClassNames(ecore) : ecore.getData());
     }
-    boolean helpersCompiled =
-        vsumId != null && compileHelpers(vsumId, ecores, serverJar, classesDir);
-    List<Path> classpath = modelCompiled || helpersCompiled ? List.of(classesDir) : List.of();
+    boolean utilityMethodsCompiled =
+        vsumId != null && compileUtilityMethods(vsumId, ecores, serverJar, classesDir);
+    List<Path> classpath =
+        modelCompiled || utilityMethodsCompiled ? List.of(classesDir) : List.of();
     return new Workspace(projectDir, classpath);
   }
 
@@ -137,13 +138,13 @@ public class ReactionsLspWorkspaceService {
     return compile("metamodel API", sources, List.of(serverJar), classesDir);
   }
 
-  private boolean compileHelpers(
+  private boolean compileUtilityMethods(
       Long vsumId, List<FileStorage> ecores, Path serverJar, Path classesDir) {
-    Optional<String> source = helperService.generateEditorSource(vsumId, ecores);
+    Optional<String> source = utilityMethodService.generateEditorSource(vsumId, ecores);
     return source.isPresent()
         && compile(
-            "helpers",
-            Map.of(HelperClassGenerator.QUALIFIED_CLASS_NAME, source.get()),
+            "utility methods",
+            Map.of(UtilityMethodClassGenerator.QUALIFIED_CLASS_NAME, source.get()),
             List.of(serverJar, classesDir),
             classesDir);
   }
