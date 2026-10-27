@@ -23,9 +23,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.security.access.AccessDeniedException;
 import tools.vitruv.methodologist.exception.FileAlreadyExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
+import tools.vitruv.methodologist.exception.OwnerRequiredException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
 import tools.vitruv.methodologist.general.mapper.FileStorageMapper;
@@ -224,7 +224,7 @@ class FileStorageServiceTest {
   }
 
   @Test
-  void updateFile_fileBelongsToAnotherUser_throwsAccessDeniedException() {
+  void updateFile_fileBelongsToAnotherUser_throwsOwnerRequiredException() {
     String email = "test@example.com";
 
     User otherUser = new User();
@@ -242,7 +242,7 @@ class FileStorageServiceTest {
         .thenReturn(Optional.of(existing));
 
     assertThrows(
-        AccessDeniedException.class, () -> fileStorageService.updateFile(email, 1L, testFile));
+        OwnerRequiredException.class, () -> fileStorageService.updateFile(email, 1L, testFile));
   }
 
   @Test
