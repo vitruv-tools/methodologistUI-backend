@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.general.model;
 
 import jakarta.persistence.Basic;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -9,7 +10,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
@@ -17,6 +17,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.Length;
 import org.hibernate.annotations.CreationTimestamp;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.user.model.User;
@@ -47,8 +48,10 @@ public class FileStorage {
 
   @NotNull private String sha256;
 
-  @Lob
+  // Stored as bytea, not as a large object (@Lob), so that deleting or overwriting a file also
+  // frees its content. LONG32 keeps H2 from limiting the column to 255 bytes.
   @Basic(fetch = FetchType.LAZY)
+  @Column(length = Length.LONG32)
   @NotNull
   private byte[] data;
 

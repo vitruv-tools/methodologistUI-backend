@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -27,7 +26,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.task.TaskRejectedException;
@@ -267,9 +265,7 @@ class VsumBuildServiceTest {
     assertThat(old.getStatus()).isEqualTo(VsumBuildStatus.SUCCEEDED);
     assertThat(old.getArtifact()).isNull();
     assertThat(deletedArtifacts).containsExactly(oldArtifact);
-    InOrder inOrder = inOrder(fileStorageRepository);
-    inOrder.verify(fileStorageRepository).unlinkData(oldArtifact.getId());
-    inOrder.verify(fileStorageRepository).delete(oldArtifact);
+    verify(fileStorageRepository).delete(oldArtifact);
     assertThat(service.findBuild(EMAIL, VSUM_ID, old.getId()).isArtifactAvailable()).isFalse();
   }
 
@@ -398,7 +394,6 @@ class VsumBuildServiceTest {
 
     assertThat(builds.values()).containsExactly(foreign);
     assertThat(deletedArtifacts).containsExactly(a.getArtifact());
-    verify(fileStorageRepository).unlinkData(a.getArtifact().getId());
   }
 
   // ---- fixtures -------------------------------------------------------------------------------
