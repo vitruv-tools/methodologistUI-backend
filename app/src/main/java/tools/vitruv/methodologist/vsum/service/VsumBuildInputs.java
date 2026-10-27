@@ -15,9 +15,25 @@ import tools.vitruv.methodologist.general.model.FileStorage;
  * @param ecores the metamodel files
  * @param genmodels the genmodel files, one per metamodel, same order
  * @param reactions the reaction files, including generated composites
+ * @param constraints the OCL constraint files, one per rule set and named like it
  */
 public record VsumBuildInputs(
-    List<FileStorage> ecores, List<FileStorage> genmodels, List<FileStorage> reactions) {
+    List<FileStorage> ecores,
+    List<FileStorage> genmodels,
+    List<FileStorage> reactions,
+    List<FileStorage> constraints) {
+
+  /**
+   * Creates the inputs of a VSUM without constraints.
+   *
+   * @param ecores the metamodel files
+   * @param genmodels the genmodel files, one per metamodel, same order
+   * @param reactions the reaction files, including generated composites
+   */
+  public VsumBuildInputs(
+      List<FileStorage> ecores, List<FileStorage> genmodels, List<FileStorage> reactions) {
+    this(ecores, genmodels, reactions, List.of());
+  }
 
   private static final String SHA_256 = "SHA-256";
 
@@ -25,7 +41,7 @@ public record VsumBuildInputs(
    * Version of the canonical form below. Bump it to invalidate every cached build, e.g. when the
    * setup-service starts producing different output for the same inputs.
    */
-  static final int FINGERPRINT_VERSION = 1;
+  static final int FINGERPRINT_VERSION = 2;
 
   /**
    * A SHA-256 hex digest identifying these inputs by content.
@@ -41,6 +57,7 @@ public record VsumBuildInputs(
     addLines(lines, "ecore", ecores);
     addLines(lines, "genmodel", genmodels);
     addLines(lines, "reaction", reactions);
+    addLines(lines, "constraint", constraints);
     lines.sort(null);
 
     MessageDigest digest = sha256();

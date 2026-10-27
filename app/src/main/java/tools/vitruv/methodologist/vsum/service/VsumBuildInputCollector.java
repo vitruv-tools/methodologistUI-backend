@@ -3,17 +3,22 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import tools.vitruv.methodologist.exception.NotFoundException;
+import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.vsum.model.ConstraintRuleSet;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
+import tools.vitruv.methodologist.vsum.model.repository.ConstraintRuleSetRepository;
 
 /**
  * Collects the files a {@link Vsum} is built from.
@@ -26,7 +31,11 @@ import tools.vitruv.methodologist.vsum.model.Vsum;
 @RequiredArgsConstructor
 public class VsumBuildInputCollector {
 
+  private static final String OCL_EXTENSION = ".ocl";
+  private static final String OCL_CONTENT_TYPE = "text/plain";
+
   private final ReactionBuildCollector reactionBuildCollector;
+  private final ConstraintRuleSetRepository ruleSetRepository;
 
   /**
    * Collects the build inputs of the given VSUM.
@@ -73,7 +82,49 @@ public class VsumBuildInputCollector {
     }
 
     return new VsumBuildInputs(
-        new ArrayList<>(ecores.values()), new ArrayList<>(genmodels.values()), reactions);
+        new ArrayList<>(ecores.values()),
+        new ArrayList<>(genmodels.values()),
+        reactions,
+        collectConstraints(vsum));
+  }
+
+  /**
+   * Creates one OCL file per rule set of the VSUM that contains constraints. Each file is named
+   * like its rule set, so the constraints keep their grouping in the built project. The files are
+   * ordered by rule set name and id, so the fingerprint does not depend on the database order.
+   */
+  private List<FileStorage> collectConstraints(Vsum vsum) {
+    if (vsum.getId() == null) {
+      return List.of();
+    }
+    List<FileStorage> constraints = new ArrayList<>();
+    ruleSetRepository.findByVsumId(vsum.getId()).stream()
+        .filter(ruleSet -> ruleSet.getOclFile() != null && ruleSet.getOclFile().getData() != null)
+        .filter(
+            ruleSet ->
+                !new String(ruleSet.getOclFile().getData(), StandardCharsets.UTF_8).isBlank())
+        .sorted(
+            Comparator.comparing(
+                    ConstraintRuleSet::getName, Comparator.nullsFirst(String::compareTo))
+                .thenComparing(ConstraintRuleSet::getId, Comparator.nullsFirst(Long::compareTo)))
+        .forEach(ruleSet -> constraints.add(toConstraintFile(ruleSet)));
+    return constraints;
+  }
+
+  private static FileStorage toConstraintFile(ConstraintRuleSet ruleSet) {
+    byte[] data = ruleSet.getOclFile().getData();
+    String name =
+        ruleSet.getName() == null || ruleSet.getName().isBlank()
+            ? "constraints"
+            : ruleSet.getName();
+    return FileStorage.builder()
+        .filename(name + OCL_EXTENSION)
+        .type(FileEnumType.OCL)
+        .contentType(OCL_CONTENT_TYPE)
+        .sizeBytes(data.length)
+        .sha256(VsumBuildInputs.sha256Hex(data))
+        .data(data)
+        .build();
   }
 
   /**

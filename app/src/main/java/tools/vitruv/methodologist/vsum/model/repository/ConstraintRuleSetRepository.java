@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.model.repository;
 
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import tools.vitruv.methodologist.vsum.model.ConstraintRuleSet;
 
@@ -9,11 +10,13 @@ import tools.vitruv.methodologist.vsum.model.ConstraintRuleSet;
 public interface ConstraintRuleSetRepository extends JpaRepository<ConstraintRuleSet, Long> {
 
   /**
-   * Returns all rule sets belonging to the given VSUM.
+   * Returns all rule sets belonging to the given VSUM, including their OCL files, which all callers
+   * read.
    *
    * @param vsumId the VSUM ID
    * @return list of matching rule sets
    */
+  @EntityGraph(attributePaths = "oclFile")
   List<ConstraintRuleSet> findByVsumId(Long vsumId);
 
   /**

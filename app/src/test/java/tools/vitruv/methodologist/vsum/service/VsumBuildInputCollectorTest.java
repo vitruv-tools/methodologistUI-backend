@@ -19,7 +19,10 @@ import tools.vitruv.methodologist.vsum.model.Vsum;
 class VsumBuildInputCollectorTest {
 
   private final VsumBuildInputCollector collector =
-      new VsumBuildInputCollector(new ReactionBuildCollector(new LowCodeReactionService(null)));
+      new VsumBuildInputCollector(
+          new ReactionBuildCollector(new LowCodeReactionService(null)),
+          org.mockito.Mockito.mock(
+              tools.vitruv.methodologist.vsum.model.repository.ConstraintRuleSetRepository.class));
 
   @Test
   void collect_shouldDeduplicateMetamodels() {

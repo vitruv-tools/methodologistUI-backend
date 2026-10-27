@@ -107,7 +107,8 @@ class VsumBuildServiceTest {
             List.of(fs(3L, "x.reactions", new byte[] {3})));
     lenient().when(inputCollector.collect(vsum)).thenReturn(inputs);
     lenient()
-        .when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
+        .when(
+            setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
         .thenReturn(JAR);
 
     stubInMemoryRepositories();
@@ -120,7 +121,8 @@ class VsumBuildServiceTest {
         .isInstanceOf(AccessDeniedException.class);
 
     assertThat(builds).isEmpty();
-    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
+    verify(setupServiceApiHandler, never())
+        .buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
   }
 
   @Test
@@ -142,7 +144,8 @@ class VsumBuildServiceTest {
     assertThat(build.getArtifact().getFilename()).isEqualTo(VsumBuildService.ARTIFACT_FILENAME);
     assertThat(build.getArtifact().getUser()).isSameAs(user);
     verify(setupServiceApiHandler)
-        .buildVsumJarOrThrow(inputs.ecores(), inputs.genmodels(), inputs.reactions());
+        .buildVsumJarOrThrow(
+            inputs.ecores(), inputs.genmodels(), inputs.reactions(), inputs.constraints());
 
     VsumBuildResponse response = service.findBuild(EMAIL, VSUM_ID, build.getId());
     assertThat(response.getStatus()).isEqualTo(VsumBuildStatus.SUCCEEDED);
@@ -158,7 +161,8 @@ class VsumBuildServiceTest {
     assertThat(request.started()).isFalse();
     assertThat(request.build().getId()).isEqualTo(existing.getId());
     assertThat(builds).hasSize(1);
-    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
+    verify(setupServiceApiHandler, never())
+        .buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
   }
 
   @Test
@@ -172,7 +176,7 @@ class VsumBuildServiceTest {
     assertThat(request.build().isForced()).isTrue();
     assertThat(builds.get(request.build().getId()).getStatus())
         .isEqualTo(VsumBuildStatus.SUCCEEDED);
-    verify(setupServiceApiHandler).buildVsumJarOrThrow(anyList(), anyList(), anyList());
+    verify(setupServiceApiHandler).buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
   }
 
   @Test
@@ -198,7 +202,7 @@ class VsumBuildServiceTest {
 
   @Test
   void requestBuild_marksTheBuildFailed_whenTheSetupServiceFails() {
-    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
         .thenThrow(new SetupServiceException("boom"));
 
     VsumBuildService.BuildRequest request = service.requestBuild(EMAIL, VSUM_ID, false);
@@ -237,7 +241,8 @@ class VsumBuildServiceTest {
 
     assertThat(queued.getStatus()).isEqualTo(VsumBuildStatus.SUCCEEDED);
     assertThat(queued.getArtifact()).isSameAs(twin.getArtifact());
-    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
+    verify(setupServiceApiHandler, never())
+        .buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
   }
 
   @Test
@@ -248,7 +253,8 @@ class VsumBuildServiceTest {
     service.runBuild(999L);
 
     assertThat(failed.getStatus()).isEqualTo(VsumBuildStatus.FAILED);
-    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
+    verify(setupServiceApiHandler, never())
+        .buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
   }
 
   @Test
@@ -299,7 +305,7 @@ class VsumBuildServiceTest {
 
   @Test
   void buildAndWait_throwsSetupServiceException_whenTheBuildFailed() {
-    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
         .thenThrow(new SetupServiceException("boom"));
 
     assertThatThrownBy(() -> service.buildAndWait(EMAIL, VSUM_ID))

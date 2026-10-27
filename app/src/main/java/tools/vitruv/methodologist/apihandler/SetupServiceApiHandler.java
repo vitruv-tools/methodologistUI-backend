@@ -1,9 +1,12 @@
 package tools.vitruv.methodologist.apihandler;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -37,6 +40,7 @@ public class SetupServiceApiHandler {
   public static final String METAMODEL_FILES_PART = "metamodelFiles";
   public static final String GENMODEL_FILES_PART = "genmodelFiles";
   public static final String REACTION_FILES_PART = "reactionFiles";
+  public static final String CONSTRAINT_FILES_PART = "constraintFiles";
   public static final String FILE_PART = "file";
 
   private static final MediaType APPLICATION_ZIP = MediaType.parseMediaType("application/zip");
@@ -94,8 +98,26 @@ public class SetupServiceApiHandler {
       List<FileStorage> metamodelFiles,
       List<FileStorage> genmodelFiles,
       List<FileStorage> reactionFiles) {
+    return buildVsumZipOrThrow(metamodelFiles, genmodelFiles, reactionFiles, List.of());
+  }
+
+  /**
+   * Builds the VSUM project including OCL constraints and returns it as zip archive.
+   *
+   * @param metamodelFiles the metamodel files
+   * @param genmodelFiles the genmodel files, paired with the metamodel files by index
+   * @param reactionFiles the reaction files
+   * @param constraintFiles the OCL constraint files, may be empty
+   * @return the zip archive
+   * @throws SetupServiceException if the setup-service fails or returns no artifact
+   */
+  public byte[] buildVsumZipOrThrow(
+      List<FileStorage> metamodelFiles,
+      List<FileStorage> genmodelFiles,
+      List<FileStorage> reactionFiles,
+      List<FileStorage> constraintFiles) {
     return requestArtifactOrThrow(
-        BUILD_URL, APPLICATION_ZIP, metamodelFiles, genmodelFiles, reactionFiles);
+        BUILD_URL, APPLICATION_ZIP, metamodelFiles, genmodelFiles, reactionFiles, constraintFiles);
   }
 
   /**
@@ -111,8 +133,26 @@ public class SetupServiceApiHandler {
       List<FileStorage> metamodelFiles,
       List<FileStorage> genmodelFiles,
       List<FileStorage> reactionFiles) {
+    return buildVsumJarOrThrow(metamodelFiles, genmodelFiles, reactionFiles, List.of());
+  }
+
+  /**
+   * Builds the VSUM including OCL constraints and returns its executable jar.
+   *
+   * @param metamodelFiles the metamodel files
+   * @param genmodelFiles the genmodel files, paired with the metamodel files by index
+   * @param reactionFiles the reaction files
+   * @param constraintFiles the OCL constraint files, may be empty
+   * @return the jar
+   * @throws SetupServiceException if the setup-service fails or returns no artifact
+   */
+  public byte[] buildVsumJarOrThrow(
+      List<FileStorage> metamodelFiles,
+      List<FileStorage> genmodelFiles,
+      List<FileStorage> reactionFiles,
+      List<FileStorage> constraintFiles) {
     return requestArtifactOrThrow(
-        JAR_URL, APPLICATION_JAR, metamodelFiles, genmodelFiles, reactionFiles);
+        JAR_URL, APPLICATION_JAR, metamodelFiles, genmodelFiles, reactionFiles, constraintFiles);
   }
 
   private byte[] requestArtifactOrThrow(
@@ -120,11 +160,13 @@ public class SetupServiceApiHandler {
       MediaType acceptType,
       List<FileStorage> metamodelFiles,
       List<FileStorage> genmodelFiles,
-      List<FileStorage> reactionFiles) {
+      List<FileStorage> reactionFiles,
+      List<FileStorage> constraintFiles) {
     MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
     addFileParts(bodyBuilder, METAMODEL_FILES_PART, metamodelFiles);
     addFileParts(bodyBuilder, GENMODEL_FILES_PART, genmodelFiles);
     addFileParts(bodyBuilder, REACTION_FILES_PART, reactionFiles);
+    addUtf8NamedFileParts(bodyBuilder, CONSTRAINT_FILES_PART, constraintFiles);
 
     byte[] artifact;
     try {
@@ -295,6 +337,32 @@ public class SetupServiceApiHandler {
     }
     String filename = file.getFilename() == null ? partName : file.getFilename();
     bodyBuilder.part(partName, new ByteArrayResource(file.getData())).filename(filename);
+  }
+
+  /**
+   * Adds file parts whose file names are sent UTF-8 encoded (RFC 5987), so that names with
+   * non-ASCII characters, e.g. rule set names with umlauts, arrive unchanged.
+   */
+  private void addUtf8NamedFileParts(
+      MultipartBodyBuilder bodyBuilder, String partName, List<FileStorage> files) {
+    if (CollectionUtils.isEmpty(files)) {
+      return;
+    }
+    for (FileStorage file : files) {
+      if (file == null || file.getData() == null || file.getData().length == 0) {
+        continue;
+      }
+      String filename = file.getFilename() == null ? partName : file.getFilename();
+      bodyBuilder
+          .part(partName, new ByteArrayResource(file.getData()))
+          .header(
+              HttpHeaders.CONTENT_DISPOSITION,
+              ContentDisposition.formData()
+                  .name(partName)
+                  .filename(filename, StandardCharsets.UTF_8)
+                  .build()
+                  .toString());
+    }
   }
 
   private void addFileParts(

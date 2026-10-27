@@ -12,6 +12,7 @@ import okio.Buffer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
 import tools.vitruv.methodologist.exception.SetupServiceException;
@@ -99,6 +100,43 @@ class SetupServiceApiHandlerTest {
     RecordedRequest recordedRequest = mockWebServer.takeRequest();
     assertThat(recordedRequest.getMethod()).isEqualTo("POST");
     assertThat(recordedRequest.getPath()).isEqualTo(SetupServiceApiHandler.JAR_URL);
+  }
+
+  @Test
+  void buildVsumJarOrThrow_sendsOneConstraintPartPerRuleSet() throws Exception {
+    mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody("jar"));
+
+    setupServiceApiHandler.buildVsumJarOrThrow(
+        metamodelFiles,
+        genmodelFiles,
+        reactionFiles,
+        List.of(
+            fileStorage("Komponenten.ocl", "context m::A inv a: true".getBytes()),
+            fileStorage("Größen & Preise.ocl", "context m::B inv b: true".getBytes())));
+
+    String body = mockWebServer.takeRequest().getBody().readUtf8();
+    List<String> constraintFilenames =
+        body.lines()
+            .filter(line -> line.startsWith("Content-Disposition:"))
+            .map(line -> ContentDisposition.parse(line.substring(line.indexOf(':') + 1).trim()))
+            .filter(
+                disposition ->
+                    SetupServiceApiHandler.CONSTRAINT_FILES_PART.equals(disposition.getName()))
+            .map(ContentDisposition::getFilename)
+            .toList();
+    assertThat(constraintFilenames).containsExactly("Komponenten.ocl", "Größen & Preise.ocl");
+    assertThat(body).contains("context m::B inv b: true");
+  }
+
+  @Test
+  void buildVsumJarOrThrow_omitsConstraintPartWithoutRuleSets() throws Exception {
+    mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody("jar"));
+
+    setupServiceApiHandler.buildVsumJarOrThrow(
+        metamodelFiles, genmodelFiles, reactionFiles, List.of());
+
+    assertThat(mockWebServer.takeRequest().getBody().readUtf8())
+        .doesNotContain(SetupServiceApiHandler.CONSTRAINT_FILES_PART);
   }
 
   @Test

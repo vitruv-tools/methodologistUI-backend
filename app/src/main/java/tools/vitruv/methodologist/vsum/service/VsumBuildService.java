@@ -292,7 +292,7 @@ public class VsumBuildService {
       }
       byte[] jar =
           setupServiceApiHandler.buildVsumJarOrThrow(
-              inputs.ecores(), inputs.genmodels(), inputs.reactions());
+              inputs.ecores(), inputs.genmodels(), inputs.reactions(), inputs.constraints());
       succeed(buildId, jar);
     } catch (RuntimeException e) {
       log.error("VSUM build {} failed: {}", buildId, e.getMessage(), e);
