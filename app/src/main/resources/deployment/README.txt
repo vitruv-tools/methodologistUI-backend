@@ -17,7 +17,7 @@ Contents
 
 Requirements
 ------------
-  Java 17 or newer. If it is not installed yet, get it from
+  Java 21 or newer. If it is not installed yet, get it from
   https://adoptium.net and install it before starting the application.
 
   Alternatively run the application in Docker (see "Run in Docker" below);
@@ -68,8 +68,8 @@ API collection (Postman)
 ------------------------
   "postman_API_collection" is a Postman v2.1 collection that lets you call the
   running application without writing any request by hand. It covers the view
-  API: health, view types, view selector, opening and refreshing a view, and
-  deriving changes.
+  API (health, view types, view selector, opening and refreshing a view,
+  deriving changes) and the constraint API (see "Constraints" below).
 
   To use it:
   1. Start the application as described above.
@@ -82,7 +82,35 @@ API collection (Postman)
   The remaining variables ("baseVapp", "selector-uuid", "select-id-1",
   "select-id-2", "view-uuid") are placeholders that get their values from
   earlier responses - run the requests from top to bottom and copy the ids you
-  receive into them.
+  receive into them. "constraint-id" is the URL-encoded id of the constraint
+  the constraint requests work on.
+
+Constraints
+-----------
+  The constraint rule sets of your VSUM are built into the application. Each
+  invariant is a constraint with the id <metamodel>::<Class>::<invariantName>,
+  e.g. model::Component::hasName.
+
+  List the constraints:
+
+    curl http://localhost:8080/vsum/constraints
+
+  Validate all constraints against the current models:
+
+    curl -X POST -H "Content-Type: application/json" -d "{}" http://localhost:8080/vsum/constraints/validate
+
+  The answer tells per constraint whether it is SATISFIED, VIOLATED or could
+  not be checked (ERROR). Every violation names the UUID of the violating
+  element, its class and its model. Send
+  {"constraintIds": ["model::Component::hasName"]} to validate selected
+  constraints, and "includeModels": true to also receive the affected models,
+  in which every element carries its UUID as "_id".
+
+  Constraints can also be created (POST /vsum/constraints), changed
+  (PUT /vsum/constraints/<id>) and deleted (DELETE /vsum/constraints/<id>)
+  while the application is running; ids in paths are URL-encoded, e.g.
+  model%3A%3AComponent%3A%3AhasName. Such changes are stored with the models
+  and survive a restart. The Postman collection contains all these requests.
 
 Advanced
 --------
