@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -12,6 +13,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -108,6 +110,31 @@ class OclLspWebSocketHandlerTest {
     handler.afterConnectionEstablished(session);
 
     verify(vsumMetaModelService).findAccessibleByProject(10L);
+  }
+
+  @Test
+  void afterConnectionEstablished_withPathTraversalFileName_writesOnlyInsideEcoreDir()
+      throws Exception {
+    URI uri = new URI("ws://localhost/ocl-lsp?vsumId=7");
+    when(session.getUri()).thenReturn(uri);
+
+    MetaModel evil = createMetaModel(1L, "../../../escaped.ecore", "content".getBytes());
+    when(vsumMetaModelService.findAccessibleByProject(7L)).thenReturn(List.of(evil));
+
+    Path fakeJar = Files.createTempFile("vitruvocl-ls-", ".jar");
+    Files.write(fakeJar, "not-a-real-jar".getBytes());
+    ReflectionTestUtils.setField(handler, "jarResource", new FileSystemResource(fakeJar.toFile()));
+
+    handler.afterConnectionEstablished(session);
+
+    Path appTempBase = (Path) ReflectionTestUtils.getField(handler, "appTempBase");
+    try (Stream<Path> files = Files.walk(appTempBase)) {
+      assertThat(files.filter(path -> path.getFileName().toString().equals("escaped.ecore")))
+          .singleElement()
+          .satisfies(
+              path -> assertThat(path.getParent().getFileName().toString()).isEqualTo("ecore"));
+    }
+    handler.afterConnectionClosed(session, CloseStatus.NORMAL);
   }
 
   @Test

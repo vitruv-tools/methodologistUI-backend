@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,6 +37,7 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import tools.vitruv.methodologist.exception.LspProcessException;
+import tools.vitruv.methodologist.general.SafePaths;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.service.VsumMetaModelService;
 
@@ -113,8 +115,12 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
     for (MetaModel mm : metamodels) {
       byte[] ecoreData = mm.getEcoreFile().getData();
       String fileName = mm.getEcoreFile().getFilename();
-      Path ecoreFile = modelDir.resolve(fileName);
-      Files.write(ecoreFile, ecoreData);
+      Optional<Path> ecoreFile = SafePaths.resolveInside(modelDir, fileName);
+      if (ecoreFile.isPresent()) {
+        Files.write(ecoreFile.get(), ecoreData);
+      } else {
+        logger.warn("Skipping ecore file of metamodel {}: unusable file name", mm.getId());
+      }
     }
 
     String jarPath = getJarPath();

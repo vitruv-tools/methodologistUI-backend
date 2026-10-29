@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -198,6 +199,37 @@ class LspWebSocketHandlerTest {
     handler.afterConnectionEstablished(session);
 
     verify(vsumMetaModelService).findAccessibleByProject(10L);
+  }
+
+  /**
+   * Verifies that an Ecore file name containing path elements cannot write outside the session's
+   * model directory.
+   */
+  @Test
+  void afterConnectionEstablished_withPathTraversalFileName_writesOnlyInsideModelDir()
+      throws Exception {
+    when(session.getId()).thenReturn("traversal-session");
+    when(session.getUri()).thenReturn(new URI("ws://localhost/lsp?vsumId=7"));
+    MetaModel evil = createMetaModel(1L, "../../../escaped.ecore", "content".getBytes());
+    when(vsumMetaModelService.findAccessibleByProject(7L)).thenReturn(List.of(evil));
+    Path fakeJar = Files.createTempFile("reactions-ide-", ".jar");
+    Files.write(fakeJar, "not-a-real-jar".getBytes());
+    ReflectionTestUtils.setField(handler, "jarResource", new FileSystemResource(fakeJar.toFile()));
+
+    handler.afterConnectionEstablished(session);
+
+    Path tmp = Path.of(System.getProperty("java.io.tmpdir"));
+    try (var sessionDirs = Files.newDirectoryStream(tmp, "lsp-session-traversal-session*")) {
+      Path sessionDir = sessionDirs.iterator().next();
+      try (var files = Files.walk(sessionDir)) {
+        assertThat(files.filter(path -> path.getFileName().toString().equals("escaped.ecore")))
+            .singleElement()
+            .satisfies(
+                path -> assertThat(path.getParent().getFileName().toString()).isEqualTo("model"));
+      }
+    } finally {
+      handler.afterConnectionClosed(session, CloseStatus.NORMAL);
+    }
   }
 
   /**
