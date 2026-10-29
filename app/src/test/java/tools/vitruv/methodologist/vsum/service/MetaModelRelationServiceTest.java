@@ -39,6 +39,8 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 @ExtendWith(MockitoExtension.class)
 class MetaModelRelationServiceTest {
 
+  private static final String CALLER = "u@ex.com";
+
   @Mock MetaModelRelationRepository metaModelRelationRepository;
 
   @Mock FileStorageRepository fileStorageRepository;
@@ -71,10 +73,10 @@ class MetaModelRelationServiceTest {
 
     when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
         .thenReturn(List.of(vmm1, vmm2));
-    when(fileStorageRepository.findAllByIdInAndType(anySet(), eq(FileEnumType.REACTION)))
+    when(fileStorageRepository.findAttachableReactionFiles(anySet(), eq(CALLER), eq(vsum)))
         .thenReturn(List.of(file));
 
-    service.create(vsum, List.of(req));
+    service.create(CALLER, vsum, List.of(req));
 
     ArgumentCaptor<List<MetaModelRelation>> captor = ArgumentCaptor.forClass(List.class);
     verify(metaModelRelationRepository).saveAll(captor.capture());
@@ -97,7 +99,7 @@ class MetaModelRelationServiceTest {
 
     List<MetaModelRelationRequest> requests = List.of(req);
 
-    assertThrows(NotFoundException.class, () -> service.create(vsum, requests));
+    assertThrows(NotFoundException.class, () -> service.create(CALLER, vsum, requests));
   }
 
   @Test
@@ -109,12 +111,12 @@ class MetaModelRelationServiceTest {
 
     when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
         .thenReturn(List.of(vmm));
-    when(fileStorageRepository.findAllByIdInAndType(anySet(), eq(FileEnumType.REACTION)))
+    when(fileStorageRepository.findAttachableReactionFiles(anySet(), eq(CALLER), eq(vsum)))
         .thenReturn(List.of());
 
     List<MetaModelRelationRequest> requests = List.of(req);
 
-    assertThrows(NotFoundException.class, () -> service.create(vsum, requests));
+    assertThrows(NotFoundException.class, () -> service.create(CALLER, vsum, requests));
     verifyNoInteractions(metaModelRelationRepository);
   }
 
@@ -133,10 +135,10 @@ class MetaModelRelationServiceTest {
 
     when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
         .thenReturn(List.of(vmm1, vmm2));
-    when(fileStorageRepository.findAllByIdInAndType(anySet(), eq(FileEnumType.REACTION)))
+    when(fileStorageRepository.findAttachableReactionFiles(anySet(), eq(CALLER), eq(vsum)))
         .thenReturn(List.of(file));
 
-    service.create(vsum, List.of(r1, r2));
+    service.create(CALLER, vsum, List.of(r1, r2));
 
     verify(metaModelRelationRepository)
         .saveAll(
@@ -150,7 +152,7 @@ class MetaModelRelationServiceTest {
 
   @Test
   void create_doesNothing_whenEmptyInput() {
-    service.create(vsum, List.of());
+    service.create(CALLER, vsum, List.of());
     verifyNoInteractions(
         vsumMetaModelRepository, fileStorageRepository, metaModelRelationRepository);
   }
@@ -187,7 +189,7 @@ class MetaModelRelationServiceTest {
     when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
         .thenReturn(List.of(vmm1, vmm2));
 
-    service.create(vsum, List.of(req));
+    service.create(CALLER, vsum, List.of(req));
 
     ArgumentCaptor<List<MetaModelRelation>> captor = ArgumentCaptor.forClass(List.class);
     verify(metaModelRelationRepository).saveAll(captor.capture());
@@ -215,7 +217,8 @@ class MetaModelRelationServiceTest {
         .thenReturn(List.of(vmm1, vmm2));
 
     List<MetaModelRelationRequest> requests = List.of(req);
-    assertThrows(MetaModelRelationCreationException.class, () -> service.create(vsum, requests));
+    assertThrows(
+        MetaModelRelationCreationException.class, () -> service.create(CALLER, vsum, requests));
     verifyNoInteractions(metaModelRelationRepository);
   }
 
@@ -250,7 +253,7 @@ class MetaModelRelationServiceTest {
     when(vsumMetaModelRepository.findAllByVsumAndMetaModel_source_idIn(eq(vsum), anySet()))
         .thenReturn(List.of(vmm1, vmm2));
 
-    service.update(vsum, Map.of(req, existing));
+    service.update(CALLER, vsum, Map.of(req, existing));
 
     ArgumentCaptor<List<MetaModelRelation>> captor = ArgumentCaptor.forClass(List.class);
     verify(metaModelRelationRepository).saveAll(captor.capture());
@@ -291,7 +294,8 @@ class MetaModelRelationServiceTest {
         .thenReturn(List.of(vmm1, vmm2));
 
     assertThrows(
-        MetaModelRelationCreationException.class, () -> service.update(vsum, requestToRelation));
+        MetaModelRelationCreationException.class,
+        () -> service.update(CALLER, vsum, requestToRelation));
     verifyNoInteractions(metaModelRelationRepository);
   }
 
@@ -329,7 +333,8 @@ class MetaModelRelationServiceTest {
 
     Map<MetaModelRelationRequest, MetaModelRelation> requestToRelation = Map.of(req, existing);
     assertThrows(
-        MetaModelRelationCreationException.class, () -> service.update(vsum, requestToRelation));
+        MetaModelRelationCreationException.class,
+        () -> service.update(CALLER, vsum, requestToRelation));
     verifyNoInteractions(metaModelRelationRepository);
   }
 }

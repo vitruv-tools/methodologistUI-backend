@@ -115,8 +115,8 @@ class VsumSyncServiceTest {
             fineGranularMetaModelRelationService,
             lowCodeReactionRequestMapper);
 
-    lenient().when(metaModelRelationService.create(any(), any())).thenReturn(Map.of());
-    lenient().when(metaModelRelationService.update(any(), any())).thenReturn(Map.of());
+    lenient().when(metaModelRelationService.create(any(), any(), any())).thenReturn(Map.of());
+    lenient().when(metaModelRelationService.update(any(), any(), any())).thenReturn(Map.of());
     lenient().when(vsumViewRepository.findAllByVsum(any(Vsum.class))).thenReturn(List.of());
     lenient()
         .when(vsumViewMetaModelRepository.findAllByVsumViewIn(anyList()))
@@ -177,7 +177,7 @@ class VsumSyncServiceTest {
 
     service.applySyncChanges(vsum, owner, put, true);
 
-    verify(metaModelRelationService).create(vsum, List.of(req));
+    verify(metaModelRelationService).create(email, vsum, List.of(req));
     verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
   }
@@ -275,7 +275,7 @@ class VsumSyncServiceTest {
     verify(vsumMetaModelService).delete(vsum, List.of(v42));
     verify(vsumMetaModelService).create(vsum, Set.of(43L));
     verify(metaModelRelationService).delete(List.of(r30And40));
-    verify(metaModelRelationService).create(vsum, List.of(addRelationReq));
+    verify(metaModelRelationService).create(email, vsum, List.of(addRelationReq));
     verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
   }
@@ -310,8 +310,8 @@ class VsumSyncServiceTest {
     verify(vsumMetaModelService, never()).delete(any(), any());
     verify(vsumMetaModelService, never()).create(any(), any());
     verify(metaModelRelationService, never()).delete(any());
-    verify(metaModelRelationService, never()).create(any(), any());
-    verify(metaModelRelationService, never()).update(any(), any());
+    verify(metaModelRelationService, never()).create(any(), any(), any());
+    verify(metaModelRelationService, never()).update(any(), any(), any());
     verify(vsumHistoryService, never()).create(any(), any());
     verify(vsumRepository).save(vsum);
   }
@@ -336,13 +336,13 @@ class VsumSyncServiceTest {
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelRelationRequests(List.of(updated));
 
-    when(metaModelRelationService.update(eq(vsum), any())).thenReturn(Map.of(updated, r12));
+    when(metaModelRelationService.update(any(), eq(vsum), any())).thenReturn(Map.of(updated, r12));
 
     service.applySyncChanges(vsum, owner, put, true);
 
     verify(metaModelRelationService, never()).delete(any());
-    verify(metaModelRelationService, never()).create(any(), any());
-    verify(metaModelRelationService).update(eq(vsum), eq(Map.of(updated, r12)));
+    verify(metaModelRelationService, never()).create(any(), any(), any());
+    verify(metaModelRelationService).update(eq(email), eq(vsum), eq(Map.of(updated, r12)));
     verify(vsumHistoryService).create(vsum, owner);
     verify(fineGranularMetaModelRelationService).update(eq(email), eq(Map.of(updated, r12)), any());
   }
@@ -372,7 +372,7 @@ class VsumSyncServiceTest {
     VsumView createdView = new VsumView();
     createdView.setId(991L);
     when(vsumViewService.create(vsum, 90L)).thenReturn(createdView);
-    when(metaModelRelationService.update(eq(vsum), any())).thenReturn(Map.of(updated, r12));
+    when(metaModelRelationService.update(any(), eq(vsum), any())).thenReturn(Map.of(updated, r12));
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
     put.setMetaModelRelationRequests(List.of(updated));
@@ -381,7 +381,7 @@ class VsumSyncServiceTest {
 
     service.applySyncChanges(vsum, owner, put, true);
 
-    verify(metaModelRelationService).update(eq(vsum), eq(Map.of(updated, r12)));
+    verify(metaModelRelationService).update(eq(email), eq(vsum), eq(Map.of(updated, r12)));
     verify(fineGranularMetaModelRelationService).update(eq(email), eq(Map.of(updated, r12)), any());
     verify(vsumViewService).create(vsum, 90L);
     verify(vsumHistoryService, times(1)).create(vsum, owner);
