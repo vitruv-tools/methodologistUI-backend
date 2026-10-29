@@ -1,4 +1,6 @@
-FROM eclipse-temurin:21-jre-alpine
+# JDK, not JRE: the backend compiles the metamodel API and the helpers for the reactions
+# editor's language server at runtime (ReactionsLspWorkspaceService).
+FROM eclipse-temurin:21-jdk-alpine
 WORKDIR /app
 
 # Non-root user + writable logs

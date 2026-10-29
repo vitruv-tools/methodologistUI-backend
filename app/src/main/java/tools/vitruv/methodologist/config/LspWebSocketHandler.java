@@ -36,8 +36,7 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import tools.vitruv.methodologist.exception.LspProcessException;
-import tools.vitruv.methodologist.vsum.model.MetaModel;
-import tools.vitruv.methodologist.vsum.service.VsumMetaModelService;
+import tools.vitruv.methodologist.vsum.service.ReactionsLspWorkspaceService;
 
 /** Websocket handler for LSP communication with automatic session cleanup. */
 @Component
@@ -49,18 +48,18 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
   private final ConcurrentHashMap<String, LspServerProcess> sessions = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, Long> lastActivity = new ConcurrentHashMap<>();
   private final ScheduledExecutorService cleanupScheduler = Executors.newScheduledThreadPool(1);
-  private final VsumMetaModelService vsumMetaModelService;
+  private final ReactionsLspWorkspaceService workspaceService;
 
   @Value("${reactions.ide.jar.path}")
   private Resource jarResource;
 
   /**
-   * Constructs a new LspWebSocketHandler with the required metamodel service.
+   * Constructs a new LspWebSocketHandler with the service that prepares the session workspaces.
    *
-   * @param vsumMetaModelService the service for metamodel operations
+   * @param workspaceService the service writing the metamodels and their Java API into a workspace
    */
-  public LspWebSocketHandler(VsumMetaModelService vsumMetaModelService) {
-    this.vsumMetaModelService = vsumMetaModelService;
+  public LspWebSocketHandler(ReactionsLspWorkspaceService workspaceService) {
+    this.workspaceService = workspaceService;
 
     // Start periodic cleanup task
     cleanupScheduler.scheduleAtFixedRate(
@@ -105,23 +104,15 @@ public class LspWebSocketHandler extends TextWebSocketHandler {
       logger.debug("POSIX permissions not supported, using system defaults");
     }
 
-    Path userProject = sessionDir.resolve("UserProject");
-    Path modelDir = userProject.resolve("model");
-    Files.createDirectories(modelDir);
-    List<MetaModel> metamodels = vsumMetaModelService.findAccessibleByProject(vsumId);
-
-    for (MetaModel mm : metamodels) {
-      byte[] ecoreData = mm.getEcoreFile().getData();
-      String fileName = mm.getEcoreFile().getFilename();
-      Path ecoreFile = modelDir.resolve(fileName);
-      Files.write(ecoreFile, ecoreData);
-    }
-
     String jarPath = getJarPath();
+    ReactionsLspWorkspaceService.Workspace workspace =
+        workspaceService.prepare(sessionDir, vsumId, Path.of(jarPath));
+    Path userProject = workspace.projectDir();
 
     String javaHome = System.getProperty("java.home");
     String javaExecutable = javaHome + File.separator + "bin" + File.separator + "java";
-    ProcessBuilder pb = new ProcessBuilder(javaExecutable, "-jar", jarPath);
+    ProcessBuilder pb =
+        new ProcessBuilder(workspace.launchCommand(javaExecutable, Path.of(jarPath)));
     pb.directory(userProject.toFile());
     pb.redirectErrorStream(true);
 
