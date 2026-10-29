@@ -9,15 +9,18 @@ import java.util.List;
 import tools.vitruv.methodologist.general.model.FileStorage;
 
 /**
- * The files a VSUM is built from, in the order the setup-service expects them: genmodels are paired
- * with metamodels by index.
+ * The files a VSUM is built from. The setup-service generates the genmodels from the metamodels.
  *
  * @param ecores the metamodel files
- * @param genmodels the genmodel files, one per metamodel, same order
  * @param reactions the reaction files, including generated composites
+ * @param constraints the VitruvOCL constraint files
+ * @param views the NeoJoin view definition files
  */
 public record VsumBuildInputs(
-    List<FileStorage> ecores, List<FileStorage> genmodels, List<FileStorage> reactions) {
+    List<FileStorage> ecores,
+    List<FileStorage> reactions,
+    List<FileStorage> constraints,
+    List<FileStorage> views) {
 
   private static final String SHA_256 = "SHA-256";
 
@@ -25,7 +28,7 @@ public record VsumBuildInputs(
    * Version of the canonical form below. Bump it to invalidate every cached build, e.g. when the
    * setup-service starts producing different output for the same inputs.
    */
-  static final int FINGERPRINT_VERSION = 1;
+  static final int FINGERPRINT_VERSION = 2;
 
   /**
    * A SHA-256 hex digest identifying these inputs by content.
@@ -39,8 +42,9 @@ public record VsumBuildInputs(
   public String fingerprint() {
     List<String> lines = new ArrayList<>();
     addLines(lines, "ecore", ecores);
-    addLines(lines, "genmodel", genmodels);
     addLines(lines, "reaction", reactions);
+    addLines(lines, "constraint", constraints);
+    addLines(lines, "view", views);
     lines.sort(null);
 
     MessageDigest digest = sha256();

@@ -194,6 +194,31 @@ public class VsumBuildService {
     return artifactBytes(buildId);
   }
 
+  /**
+   * Generates the VSUM's project, laid out like the Methodologist Template, for the user to build
+   * with Maven. Nothing is built, queued, or stored, so this returns within seconds.
+   *
+   * @param callerEmail the requesting user, who must be a member of the VSUM
+   * @param vsumId the VSUM
+   * @return the project as a ZIP archive
+   * @throws AccessDeniedException if the caller is not a member of the VSUM
+   * @throws NotFoundException if the VSUM lacks the files needed for a project
+   * @throws SetupServiceException if the setup-service rejects the inputs or fails
+   */
+  public byte[] generateProject(String callerEmail, Long vsumId) {
+    VsumBuildInputs inputs =
+        transactionTemplate.execute(
+            status -> {
+              VsumBuildInputs collected =
+                  inputCollector.collect(findMember(callerEmail, vsumId).getVsum());
+              loadData(collected);
+              return collected;
+            });
+    Objects.requireNonNull(inputs, "transaction returned no result");
+    return setupServiceApiHandler.generateVsumProjectOrThrow(
+        inputs.ecores(), inputs.reactions(), inputs.constraints(), inputs.views());
+  }
+
   /** Returns one build of the VSUM. */
   public VsumBuildResponse findBuild(String callerEmail, Long vsumId, Long buildId) {
     return transactionTemplate.execute(
@@ -292,7 +317,7 @@ public class VsumBuildService {
       }
       byte[] jar =
           setupServiceApiHandler.buildVsumJarOrThrow(
-              inputs.ecores(), inputs.genmodels(), inputs.reactions());
+              inputs.ecores(), inputs.reactions(), inputs.constraints(), inputs.views());
       succeed(buildId, jar);
     } catch (RuntimeException e) {
       log.error("VSUM build {} failed: {}", buildId, e.getMessage(), e);
@@ -347,9 +372,7 @@ public class VsumBuildService {
           vsumBuildRepository.save(build);
           // Read the file contents while the transaction is open; the setup-service call runs
           // outside of it.
-          loadData(inputs.ecores());
-          loadData(inputs.genmodels());
-          loadData(inputs.reactions());
+          loadData(inputs);
           return inputs;
         });
   }
@@ -478,9 +501,13 @@ public class VsumBuildService {
     return artifact;
   }
 
-  private static void loadData(List<FileStorage> files) {
-    for (FileStorage file : files) {
-      file.getData();
+  /** Loads the file contents so the inputs can be sent after the transaction has ended. */
+  private static void loadData(VsumBuildInputs inputs) {
+    for (List<FileStorage> files :
+        List.of(inputs.ecores(), inputs.reactions(), inputs.constraints(), inputs.views())) {
+      for (FileStorage file : files) {
+        file.getData();
+      }
     }
   }
 

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -111,6 +112,23 @@ class GlobalExceptionHandlerControllerTest {
     assertThat(appender.list).extracting(ILoggingEvent::getLevel).containsExactly(Level.ERROR);
   }
 
+  @Test
+  void setupServiceRejection_isBadRequest() throws Exception {
+    mockMvc
+        .perform(get("/test/setup-service-rejected"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error").value(SetupServiceException.ERROR_TEMPLATE))
+        .andExpect(jsonPath("$.message").value("invalid metamodel"));
+  }
+
+  @Test
+  void setupServiceFailure_isBadGateway() throws Exception {
+    mockMvc
+        .perform(get("/test/setup-service-down"))
+        .andExpect(status().isBadGateway())
+        .andExpect(jsonPath("$.error").value(SetupServiceException.ERROR_TEMPLATE));
+  }
+
   /** Minimal controller whose endpoints trigger the handled exceptions. */
   @RestController
   static class TestController {
@@ -152,6 +170,16 @@ class GlobalExceptionHandlerControllerTest {
     @GetMapping("/test/file-hashing")
     void fileHashing() {
       throw new FileHashingException("Hashing failed");
+    }
+
+    @GetMapping("/test/setup-service-rejected")
+    void setupServiceRejected() {
+      throw new SetupServiceException("invalid metamodel", HttpStatus.BAD_REQUEST);
+    }
+
+    @GetMapping("/test/setup-service-down")
+    void setupServiceDown() {
+      throw new SetupServiceException("connection refused");
     }
 
     @GetMapping("/test/crash")

@@ -829,30 +829,31 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
-   * Handles {@link SetupServiceException} thrown when a call to the external setup-service fails
-   * (the service is unreachable, returns an error status, or responds with an empty artifact).
-   * Responds with HTTP 502 (Bad Gateway) and a standardized {@link ErrorResponse} containing the
-   * failure message and the request path.
+   * Handles failed setup-service calls. Requests the setup-service rejected (4xx, e.g. an invalid
+   * metamodel) are reported as {@code 400 Bad Request}; failures and outages as {@code 502 Bad
+   * Gateway}.
    *
-   * @param ex the thrown {@code SetupServiceException}
-   * @param handlerMethod the controller method where the exception originated
-   * @param request the current {@link ServletWebRequest} providing request context
+   * @param ex the caught SetupServiceException
+   * @param handlerMethod the handler method that threw the exception
+   * @param request the current web request
    * @return an {@link ErrorResponse} describing the setup-service failure
    */
   @ExceptionHandler(value = SetupServiceException.class)
-  @ResponseStatus(HttpStatus.BAD_GATEWAY)
-  @ResponseBody
-  public ErrorResponse setupServiceException(
+  public ResponseEntity<ErrorResponse> setupServiceException(
       SetupServiceException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
     log.warn(
         "SetupServiceException handled in Controller: {}, message: {}",
         handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
         ex.getMessage());
-    return ErrorResponse.builder()
-        .error(SetupServiceException.ERROR_TEMPLATE)
-        .message(Objects.requireNonNull(ex.getMessage()))
-        .path(getPath(request))
-        .build();
+    ErrorResponse errorResponse =
+        ErrorResponse.builder()
+            .error(SetupServiceException.ERROR_TEMPLATE)
+            .message(Objects.requireNonNull(ex.getMessage()))
+            .path(getPath(request))
+            .build();
+    HttpStatus status =
+        ex.isRejectedBySetupService() ? HttpStatus.BAD_REQUEST : HttpStatus.BAD_GATEWAY;
+    return new ResponseEntity<>(errorResponse, status);
   }
 
   /**
