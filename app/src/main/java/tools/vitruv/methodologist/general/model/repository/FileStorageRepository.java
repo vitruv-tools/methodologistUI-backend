@@ -3,10 +3,13 @@ package tools.vitruv.methodologist.general.model.repository;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.query.Param;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
+import tools.vitruv.methodologist.vsum.model.Vsum;
 
 /**
  * Spring Data repository interface for managing StoredFile entities. Provides CRUD operations and
@@ -76,4 +79,78 @@ public interface FileStorageRepository extends CrudRepository<FileStorage, Long>
    */
   @SuppressWarnings("checkstyle:MethodName")
   Optional<FileStorage> findByIdAndUser_EmailAndUser_RemovedAtIsNull(Long id, String callerEmail);
+
+  /**
+   * Checks whether the active user with the given email may read a file: either they uploaded it,
+   * or they are a member of a non-removed VSUM that references it as a metamodel Ecore or GenModel
+   * file, a reaction file, an OCL file, a view file, or a build artifact.
+   *
+   * @param fileId the identifier of the file storage entry
+   * @param callerEmail the email of the requesting user
+   * @return {@code true} if the file exists and the caller may read it
+   */
+  @Query(
+      """
+      select count(f) > 0 from FileStorage f
+      where f.id = :fileId
+        and (
+          (lower(f.user.email) = lower(:callerEmail) and f.user.removedAt is null)
+          or exists (
+            select 1 from VsumUser vu
+            where lower(vu.user.email) = lower(:callerEmail)
+              and vu.user.removedAt is null
+              and vu.vsum.removedAt is null
+              and (
+                exists (
+                  select 1 from VsumMetaModel vmm
+                  where vmm.vsum = vu.vsum
+                    and vmm.removedAt is null
+                    and (vmm.metaModel.ecoreFile = f or vmm.metaModel.genModelFile = f))
+                or exists (
+                  select 1 from MetaModelRelation r
+                  where r.vsum = vu.vsum and r.reactionFileStorage = f)
+                or exists (
+                  select 1 from FineGranularMetaModelRelation g
+                  where g.metaModelRelation.vsum = vu.vsum and g.reactionFileStorage = f)
+                or exists (
+                  select 1 from ConstraintRuleSet c
+                  where c.vsum = vu.vsum and c.oclFile = f)
+                or exists (
+                  select 1 from VsumView v
+                  where v.vsum = vu.vsum and v.fileStorage = f)
+                or exists (
+                  select 1 from VsumBuild b
+                  where b.vsum = vu.vsum and b.artifact = f))))
+      """)
+  boolean isReadableBy(@Param("fileId") Long fileId, @Param("callerEmail") String callerEmail);
+
+  /**
+   * Finds the reaction files among the given ids that may be attached to relations of a VSUM: those
+   * the caller uploaded, and those already used by a relation or fine-granular relation of that
+   * VSUM, so collaborators can keep a reaction file another member uploaded. Files of any other
+   * type, and files that do not exist, are not returned.
+   *
+   * @param fileIds the file ids requested by the caller
+   * @param callerEmail the email of the requesting user
+   * @param vsum the VSUM the relations belong to
+   * @return the matching reaction files; ids that are missing from the result must be rejected
+   */
+  @Query(
+      """
+      SELECT f FROM FileStorage f
+      WHERE f.id IN :fileIds
+        AND f.type = tools.vitruv.methodologist.general.FileEnumType.REACTION
+        AND (
+          (LOWER(f.user.email) = LOWER(:callerEmail) AND f.user.removedAt IS NULL)
+          OR EXISTS (
+            SELECT 1 FROM MetaModelRelation r
+            WHERE r.vsum = :vsum AND r.reactionFileStorage = f)
+          OR EXISTS (
+            SELECT 1 FROM FineGranularMetaModelRelation g
+            WHERE g.metaModelRelation.vsum = :vsum AND g.reactionFileStorage = f))
+      """)
+  List<FileStorage> findAttachableReactionFiles(
+      @Param("fileIds") Set<Long> fileIds,
+      @Param("callerEmail") String callerEmail,
+      @Param("vsum") Vsum vsum);
 }

@@ -117,15 +117,19 @@ public class FileStorageController {
   }
 
   /**
-   * Downloads a file from the server.
+   * Downloads a file from the server. The caller must have uploaded the file or be a member of a
+   * VSUM that uses it; otherwise the file is reported as not found.
    *
+   * @param authentication the Keycloak authentication object for the current user
    * @param id the ID of the file to download
    * @return ResponseEntity containing the file as a ByteArrayResource
    */
   @GetMapping(value = "/files/{id}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
   @PreAuthorize("hasRole('user')")
-  public ResponseEntity<ByteArrayResource> download(@PathVariable Long id) {
-    FileStorage f = fileStorageService.getFile(id);
+  public ResponseEntity<ByteArrayResource> download(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    FileStorage f = fileStorageService.getReadableFile(callerEmail, id);
     byte[] bytes = f.getData();
     return ResponseEntity.ok()
         .contentType(
