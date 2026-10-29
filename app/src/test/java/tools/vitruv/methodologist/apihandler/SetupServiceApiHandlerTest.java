@@ -67,12 +67,12 @@ class SetupServiceApiHandlerTest {
   }
 
   @Test
-  void buildVsumZipOrThrow_isNotARejection_whenTheSetupServiceFails() {
+  void generateVsumProjectOrThrow_isNotARejection_whenTheSetupServiceFails() {
     mockWebServer.enqueue(new MockResponse().setResponseCode(500).setBody("boom"));
 
     assertThatThrownBy(
             () ->
-                setupServiceApiHandler.buildVsumZipOrThrow(
+                setupServiceApiHandler.generateVsumProjectOrThrow(
                     metamodelFiles, reactionFiles, constraintFiles, viewFiles))
         .matches(e -> !((SetupServiceException) e).isRejectedBySetupService());
   }
@@ -119,7 +119,7 @@ class SetupServiceApiHandlerTest {
   }
 
   @Test
-  void buildVsumZipOrThrow_returnsArtifactBytes_andSendsMultipartRequest() throws Exception {
+  void generateVsumProjectOrThrow_returnsArtifactBytes_andSendsMultipartRequest() throws Exception {
     byte[] expected = {1, 2, 3, 4, 5};
     mockWebServer.enqueue(
         new MockResponse()
@@ -128,14 +128,14 @@ class SetupServiceApiHandlerTest {
             .setBody(new Buffer().write(expected)));
 
     byte[] result =
-        setupServiceApiHandler.buildVsumZipOrThrow(
+        setupServiceApiHandler.generateVsumProjectOrThrow(
             metamodelFiles, reactionFiles, constraintFiles, viewFiles);
 
     assertThat(result).containsExactly(expected);
 
     RecordedRequest recordedRequest = mockWebServer.takeRequest();
     assertThat(recordedRequest.getMethod()).isEqualTo("POST");
-    assertThat(recordedRequest.getPath()).isEqualTo(SetupServiceApiHandler.BUILD_URL);
+    assertThat(recordedRequest.getPath()).isEqualTo(SetupServiceApiHandler.PROJECT_URL);
     assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE))
         .startsWith("multipart/form-data");
 
@@ -169,36 +169,37 @@ class SetupServiceApiHandlerTest {
   }
 
   @Test
-  void buildVsumZipOrThrow_throwsSetupServiceException_onErrorStatus() {
+  void generateVsumProjectOrThrow_throwsSetupServiceException_onErrorStatus() {
     mockWebServer.enqueue(new MockResponse().setResponseCode(500).setBody("boom"));
 
     assertThatThrownBy(
             () ->
-                setupServiceApiHandler.buildVsumZipOrThrow(
+                setupServiceApiHandler.generateVsumProjectOrThrow(
                     metamodelFiles, reactionFiles, constraintFiles, viewFiles))
         .isInstanceOf(SetupServiceException.class)
         .hasMessageContaining("boom");
   }
 
   @Test
-  void buildVsumZipOrThrow_throwsSetupServiceException_onEmptyArtifact() {
+  void generateVsumProjectOrThrow_throwsSetupServiceException_onEmptyArtifact() {
     mockWebServer.enqueue(new MockResponse().setResponseCode(200));
 
     assertThatThrownBy(
             () ->
-                setupServiceApiHandler.buildVsumZipOrThrow(
+                setupServiceApiHandler.generateVsumProjectOrThrow(
                     metamodelFiles, reactionFiles, constraintFiles, viewFiles))
         .isInstanceOf(SetupServiceException.class)
         .hasMessageContaining("empty artifact");
   }
 
   @Test
-  void buildVsumZipOrThrow_throwsSetupServiceException_whenServiceUnreachable() throws Exception {
+  void generateVsumProjectOrThrow_throwsSetupServiceException_whenServiceUnreachable()
+      throws Exception {
     mockWebServer.shutdown();
 
     assertThatThrownBy(
             () ->
-                setupServiceApiHandler.buildVsumZipOrThrow(
+                setupServiceApiHandler.generateVsumProjectOrThrow(
                     metamodelFiles, reactionFiles, constraintFiles, viewFiles))
         .isInstanceOf(SetupServiceException.class);
   }

@@ -41,7 +41,7 @@ public class SetupServiceApiHandler {
   public static final int DEFAULT_RESPONSE_TIMEOUT_IN_SECONDS = 960;
 
   public static final int DEFAULT_MAX_RESPONSE_SIZE_IN_BYTES = 524_288_000;
-  public static final String BUILD_URL = "/api/vsum/build";
+  public static final String PROJECT_URL = "/api/vsum/project";
   public static final String JAR_URL = "/api/vsum/jar";
   public static final String PROCESS_GENMODEL_URL = "/api/genmodel/process";
   public static final String INSPECT_GENMODEL_URL = "/api/genmodel/inspect";
@@ -97,7 +97,8 @@ public class SetupServiceApiHandler {
   }
 
   /**
-   * Builds a VSUM via the setup-service and returns the generated project as a ZIP archive.
+   * Generates the VSUM project via the setup-service and returns it as a ZIP archive. The project
+   * follows the Methodologist Template and is not built; the user builds it with Maven.
    *
    * @param metamodelFiles the metamodel (.ecore) files
    * @param reactionFiles the reaction (.reactions) files, may be empty
@@ -106,13 +107,13 @@ public class SetupServiceApiHandler {
    * @return the ZIP archive bytes
    * @throws SetupServiceException if the setup-service call fails or returns an empty artifact
    */
-  public byte[] buildVsumZipOrThrow(
+  public byte[] generateVsumProjectOrThrow(
       List<FileStorage> metamodelFiles,
       List<FileStorage> reactionFiles,
       List<FileStorage> constraintFiles,
       List<FileStorage> viewFiles) {
     return requestArtifactOrThrow(
-        BUILD_URL, APPLICATION_ZIP, metamodelFiles, reactionFiles, constraintFiles, viewFiles);
+        PROJECT_URL, APPLICATION_ZIP, metamodelFiles, reactionFiles, constraintFiles, viewFiles);
   }
 
   /**
