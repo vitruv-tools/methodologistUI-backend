@@ -507,18 +507,20 @@ public class UtilityMethodService {
   }
 
   private UtilityMethodTypeResponse toTypeResponse(ClassifierInfo classifier) {
-    String kind =
-        switch (classifier) {
-          case ClassInfo ignored -> "CLASS";
-          case EnumInfo ignored -> "ENUM";
-          default -> "DATATYPE";
-        };
     return new UtilityMethodTypeResponse(
         String.join("::", classifier.pkg().path()),
         classifier.name(),
         classifier.qualifiedName(),
-        kind,
+        kindOf(classifier),
         classifier.javaQualifiedName());
+  }
+
+  private static String kindOf(ClassifierInfo classifier) {
+    return switch (classifier) {
+      case ClassInfo ignored -> "CLASS";
+      case EnumInfo ignored -> "ENUM";
+      default -> "DATATYPE";
+    };
   }
 
   // ── access ───────────────────────────────────────────────────────────────

@@ -428,8 +428,8 @@ final class OclToJavaTranslator {
     }
     if (call.name().equals("allInstances")) {
       throw new UtilityMethodTranslationException(
-          "allInstances() is not supported because utility methods have no model context. Pass the root"
-              + " element as a parameter and navigate from it instead.",
+          "allInstances() is not supported because utility methods have no model context."
+              + " Pass the root element as a parameter and navigate from it instead.",
           call.pos());
     }
     JExpr source = translate(call.source());
@@ -709,14 +709,8 @@ final class OclToJavaTranslator {
       }
       case "floor", "round", "ceil", "ceiling" -> {
         requireArgs(call, 0);
-        String method =
-            switch (call.name()) {
-              case "floor" -> "floor";
-              case "round" -> "round";
-              default -> "ceil";
-            };
         yield new JExpr(
-            "(int) " + math + "." + method + "(" + source.code() + ")",
+            "(int) " + math + "." + roundingMethod(call.name()) + "(" + source.code() + ")",
             OclType.INTEGER,
             true,
             false);
@@ -740,6 +734,14 @@ final class OclToJavaTranslator {
       default ->
           throw new UtilityMethodTranslationException(
               "Unknown operation '" + call.name() + "' on a number.", call.pos());
+    };
+  }
+
+  private static String roundingMethod(String oclName) {
+    return switch (oclName) {
+      case "floor" -> "floor";
+      case "round" -> "round";
+      default -> "ceil";
     };
   }
 
@@ -1706,16 +1708,21 @@ final class OclToJavaTranslator {
       case EnumType enumType -> imports.ref(enumType.eEnum().javaQualifiedName());
       case JavaType javaType -> imports.ref(javaType.javaName());
       case CollectionType collection -> {
-        String container =
-            switch (collection.kind()) {
-              case SET -> "java.util.Set";
-              case COLLECTION -> "java.util.Collection";
-              default -> "java.util.List";
-            };
-        yield imports.ref(container) + "<" + javaType(collection.element(), true) + ">";
+        yield imports.ref(containerType(collection.kind()))
+            + "<"
+            + javaType(collection.element(), true)
+            + ">";
       }
       case AnyType ignored -> "Object";
       case VoidType ignored -> "Object";
+    };
+  }
+
+  private static String containerType(CollectionKind kind) {
+    return switch (kind) {
+      case SET -> "java.util.Set";
+      case COLLECTION -> "java.util.Collection";
+      default -> "java.util.List";
     };
   }
 
