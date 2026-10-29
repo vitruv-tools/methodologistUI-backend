@@ -36,6 +36,7 @@ class VsumBuildInputCollectorTest {
   private final VsumBuildInputCollector collector =
       new VsumBuildInputCollector(
           new ReactionBuildCollector(new LowCodeReactionService(null)),
+          utilityMethodService,
           constraintRuleSetRepository);
 
   @Test
@@ -73,7 +74,6 @@ class VsumBuildInputCollectorTest {
   }
 
   @Test
-  void collect_shouldThrowNotFound_whenNoMetaModelRelations() {
   void collect_shouldThrowNotFound_whenVsumHasNoMetamodels() {
     Vsum vsum = new Vsum();
     vsum.setMetaModelRelations(null);

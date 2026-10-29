@@ -27,7 +27,7 @@ import tools.vitruv.methodologist.vsum.model.repository.ConstraintRuleSetReposit
  * wins); genmodels are not needed, the setup-service generates them. The reaction files are
  * gathered per relation by the {@link ReactionBuildCollector}, which also generates a composite
  * reaction for pairs that carry more than one file. Constraint rule sets and views are added as
- * they are. If the VSUM has utility methods, the Java utility class generated from them is sent 
+ * they are. If the VSUM has utility methods, the Java utility class generated from them is sent
  * along with the reaction files.
  */
 @Component
@@ -73,9 +73,6 @@ public class VsumBuildInputCollector {
 
     if (ecores.isEmpty()) {
       throw new NotFoundException(METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR);
-    }
-    if (reactions.isEmpty()) {
-      throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
     }
     utilityMethodService.generateBuildFile(vsum, ecores.values()).ifPresent(reactions::add);
 
