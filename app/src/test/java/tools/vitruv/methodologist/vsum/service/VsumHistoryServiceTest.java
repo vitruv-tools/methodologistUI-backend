@@ -26,6 +26,7 @@ import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRepresentation;
+import tools.vitruv.methodologist.vsum.VsumRole;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumHistoryResponse;
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
@@ -272,6 +273,28 @@ class VsumHistoryServiceTest {
   }
 
   @Test
+  void revert_throwsAccessDenied_whenCallerIsAViewer() {
+    String callerEmail = "u@ex.com";
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
+        .thenReturn(Optional.of(new User()));
+    Vsum vsum = new Vsum();
+    vsum.setId(100L);
+    Long historyId = 12L;
+    when(vsumHistoryRepository.findById(historyId))
+        .thenReturn(Optional.of(VsumHistory.builder().id(historyId).vsum(vsum).build()));
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                vsum.getId(), callerEmail))
+        .thenReturn(Optional.of(VsumUser.builder().role(VsumRole.VIEWER).build()));
+
+    assertThatThrownBy(() -> service.revert(callerEmail, historyId))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessageContaining(USER_DOES_NOT_HAVE_ACCESS);
+
+    verify(vsumSyncService, never()).applySyncChanges(any(), any(), any(), anyBoolean());
+  }
+
+  @Test
   void revert_createsAuditSnapshot_thenAppliesRecordedChanges_withoutCreatingHistoryAgain() {
     String callerEmail = "u@ex.com";
 
@@ -304,7 +327,7 @@ class VsumHistoryServiceTest {
     when(vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
                 vsum.getId(), callerEmail))
-        .thenReturn(Optional.of(new VsumUser()));
+        .thenReturn(Optional.of(VsumUser.builder().role(VsumRole.MEMBER).build()));
 
     service.revert(callerEmail, historyId);
 
@@ -348,7 +371,7 @@ class VsumHistoryServiceTest {
     when(vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
                 vsum.getId(), callerEmail))
-        .thenReturn(Optional.of(new VsumUser()));
+        .thenReturn(Optional.of(VsumUser.builder().role(VsumRole.MEMBER).build()));
 
     service.revert(callerEmail, historyId);
 
@@ -394,7 +417,7 @@ class VsumHistoryServiceTest {
     when(vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
                 vsum.getId(), callerEmail))
-        .thenReturn(Optional.of(new VsumUser()));
+        .thenReturn(Optional.of(VsumUser.builder().role(VsumRole.MEMBER).build()));
 
     service.revert(callerEmail, historyId);
 
@@ -437,7 +460,7 @@ class VsumHistoryServiceTest {
     when(vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
                 vsum.getId(), callerEmail))
-        .thenReturn(Optional.of(new VsumUser()));
+        .thenReturn(Optional.of(VsumUser.builder().role(VsumRole.MEMBER).build()));
 
     service.revert(callerEmail, historyId);
 
@@ -484,7 +507,7 @@ class VsumHistoryServiceTest {
     when(vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
                 vsum.getId(), callerEmail))
-        .thenReturn(Optional.of(new VsumUser()));
+        .thenReturn(Optional.of(VsumUser.builder().role(VsumRole.MEMBER).build()));
 
     service.revert(callerEmail, historyId);
 
@@ -538,7 +561,7 @@ class VsumHistoryServiceTest {
     when(vsumUserRepository
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
                 vsum.getId(), callerEmail))
-        .thenReturn(Optional.of(new VsumUser()));
+        .thenReturn(Optional.of(VsumUser.builder().role(VsumRole.MEMBER).build()));
 
     service.revert(callerEmail, historyId);
 

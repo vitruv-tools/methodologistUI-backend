@@ -65,7 +65,7 @@ public class ConstraintRuleSetService {
   @Transactional
   public RuleSetResponse create(String callerEmail, Long vsumId, RuleSetPostRequest request) {
     User user = resolveUser(callerEmail);
-    Vsum vsum = resolveAccessibleVsum(user, vsumId);
+    Vsum vsum = resolveEditableVsum(user, vsumId);
 
     String content = request.oclContent() != null ? request.oclContent() : "";
     FileStorage oclFile = buildFileStorage(request.name(), content, user);
@@ -95,7 +95,7 @@ public class ConstraintRuleSetService {
   public RuleSetResponse update(
       String callerEmail, Long vsumId, Long ruleSetId, RuleSetPutRequest request) {
     final User user = resolveUser(callerEmail);
-    resolveAccessibleVsum(user, vsumId);
+    resolveEditableVsum(user, vsumId);
     ConstraintRuleSet ruleSet =
         ruleSetRepository
             .findByIdAndVsumId(ruleSetId, vsumId)
@@ -124,7 +124,7 @@ public class ConstraintRuleSetService {
   @Transactional
   public void delete(String callerEmail, Long vsumId, Long ruleSetId) {
     User user = resolveUser(callerEmail);
-    resolveAccessibleVsum(user, vsumId);
+    resolveEditableVsum(user, vsumId);
     ConstraintRuleSet ruleSet =
         ruleSetRepository
             .findByIdAndVsumId(ruleSetId, vsumId)
@@ -184,15 +184,34 @@ public class ConstraintRuleSetService {
   }
 
   private Vsum resolveAccessibleVsum(User user, Long vsumId) {
-    Vsum vsum =
-        vsumRepository
-            .findByIdAndRemovedAtIsNull(vsumId)
-            .orElseThrow(() -> new NotFoundException("VSUM"));
-    if (vsum.getVsumUsers() == null
-        || vsum.getVsumUsers().stream().noneMatch(vsumUser -> belongsToUser(vsumUser, user))) {
+    Vsum vsum = findVsum(vsumId);
+    findMembership(vsum, user);
+    return vsum;
+  }
+
+  /** Like {@link #resolveAccessibleVsum}, but also rejects read-only members. */
+  private Vsum resolveEditableVsum(User user, Long vsumId) {
+    Vsum vsum = findVsum(vsumId);
+    if (!findMembership(vsum, user).getRole().canWrite()) {
       throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
     }
     return vsum;
+  }
+
+  private Vsum findVsum(Long vsumId) {
+    return vsumRepository
+        .findByIdAndRemovedAtIsNull(vsumId)
+        .orElseThrow(() -> new NotFoundException("VSUM"));
+  }
+
+  private VsumUser findMembership(Vsum vsum, User user) {
+    if (vsum.getVsumUsers() == null) {
+      throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
+    }
+    return vsum.getVsumUsers().stream()
+        .filter(vsumUser -> belongsToUser(vsumUser, user))
+        .findFirst()
+        .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
   }
 
   private boolean belongsToUser(VsumUser vsumUser, User user) {

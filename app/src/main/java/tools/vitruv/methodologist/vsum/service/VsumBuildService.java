@@ -134,7 +134,7 @@ public class VsumBuildService {
    * @param vsumId the VSUM to build
    * @param force build even if an up-to-date artifact exists
    * @return the build to follow and whether it was newly started
-   * @throws AccessDeniedException if the caller is not a member of the VSUM
+   * @throws AccessDeniedException if the caller is not a member of the VSUM or is a viewer
    * @throws NotFoundException if the VSUM lacks the files needed for a build
    * @throws VsumBuildingException if the build queue is full
    */
@@ -142,7 +142,7 @@ public class VsumBuildService {
     BuildRequest request =
         transactionTemplate.execute(
             status -> {
-              VsumUser member = findMember(callerEmail, vsumId);
+              VsumUser member = findEditor(callerEmail, vsumId);
               Vsum vsum = member.getVsum();
               String fingerprint = inputCollector.collect(vsum).fingerprint();
 
@@ -451,6 +451,14 @@ public class VsumBuildService {
     return vsumBuildRepository
         .findByIdAndVsum(buildId, vsum)
         .orElseThrow(() -> new NotFoundException(VSUM_BUILD_ID_NOT_FOUND_ERROR));
+  }
+
+  private VsumUser findEditor(String callerEmail, Long vsumId) {
+    VsumUser member = findMember(callerEmail, vsumId);
+    if (!member.getRole().canWrite()) {
+      throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
+    }
+    return member;
   }
 
   private VsumUser findMember(String callerEmail, Long vsumId) {

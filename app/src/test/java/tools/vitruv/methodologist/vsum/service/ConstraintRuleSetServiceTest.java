@@ -130,6 +130,43 @@ class ConstraintRuleSetServiceTest {
   }
 
   @Test
+  void findAll_returnsRuleSets_whenCallerIsAViewer() {
+    makeCallerViewer();
+    when(ruleSetRepository.findByVsumId(10L)).thenReturn(List.of(ruleSet));
+
+    assertThat(service.findAll("test@example.com", 10L)).hasSize(1);
+  }
+
+  @Test
+  void writes_throwAccessDenied_whenCallerIsAViewer() {
+    makeCallerViewer();
+
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    "test@example.com", 10L, new RuleSetPostRequest("X", null, null, null)))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(
+            () ->
+                service.update(
+                    "test@example.com", 10L, 100L, new RuleSetPutRequest("X", null, null, null)))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(() -> service.delete("test@example.com", 10L, 100L))
+        .isInstanceOf(AccessDeniedException.class);
+
+    verify(ruleSetRepository, never()).save(any());
+    verify(ruleSetRepository, never()).delete(any());
+  }
+
+  private void makeCallerViewer() {
+    vsum.setVsumUsers(
+        Set.of(VsumUser.builder().vsum(vsum).user(user).role(VsumRole.VIEWER).build()));
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
+        .thenReturn(Optional.of(user));
+    when(vsumRepository.findByIdAndRemovedAtIsNull(10L)).thenReturn(Optional.of(vsum));
+  }
+
+  @Test
   void findAll_throwsAccessDenied_whenCallerHasNoVsumAccess() {
     Vsum inaccessible = Vsum.builder().id(10L).name("TestVsum").vsumUsers(Set.of()).build();
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
