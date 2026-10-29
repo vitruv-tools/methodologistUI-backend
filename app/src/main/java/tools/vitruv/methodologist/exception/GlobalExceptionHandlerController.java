@@ -16,6 +16,7 @@
 
 package tools.vitruv.methodologist.exception;
 
+import jakarta.servlet.ServletException;
 import jakarta.ws.rs.BadRequestException;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -33,6 +35,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 /**
  * Handles exceptions thrown by controllers in the application and returns standardized error
@@ -52,6 +56,8 @@ public class GlobalExceptionHandlerController {
   private static final String BAD_REQUEST_ERROR = "BAD_REQUEST_ERROR";
   private static final String TEMPORARY_UNAVAILABLE_ERROR = "TEMPORARY_UNAVAILABLE_ERROR";
   private static final String LSP_PROCESS_ERROR = "LSP_PROCESS_ERROR";
+  private static final String UNREADABLE_BODY_MESSAGE = "Request body is missing or malformed";
+  private static final String INVALID_PARAMETER_MESSAGE = "Invalid value for parameter '%s'";
 
   /**
    * Handles {@link ValidationCodeNotExpiredYetException} thrown when a previously issued
@@ -137,7 +143,7 @@ public class GlobalExceptionHandlerController {
    * @return an {@link ErrorResponse} with the failure message and request path
    */
   @ExceptionHandler(value = BuildArtifactCreationException.class)
-  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
   @ResponseBody
   public ErrorResponse buildArtifactCreationException(
       BuildArtifactCreationException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
@@ -148,10 +154,11 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
-   * Handles {@link CLIExecuteException} thrown when execution of the external Vitruv-CLI fails.
+   * Handles {@link CLIExecuteException} thrown when execution of the external Vitruv-CLI fails (for
+   * example an I/O error or an interruption while running the process).
    *
-   * <p>Responds with HTTP 400 (Bad Request) and returns a standardized {@link ErrorResponse}
-   * containing the exception message and the request path.
+   * <p>Responds with HTTP 500 (Internal Server Error) and returns a standardized {@link
+   * ErrorResponse} containing the exception message and the request path.
    *
    * @param ex the {@code CLIExecuteException} that was thrown
    * @param handlerMethod the controller method where the exception originated
@@ -159,7 +166,7 @@ public class GlobalExceptionHandlerController {
    * @return an {@link ErrorResponse} with the failure message and request path
    */
   @ExceptionHandler(value = CLIExecuteException.class)
-  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
   @ResponseBody
   public ErrorResponse cliExecuteException(
       CLIExecuteException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
@@ -282,17 +289,17 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
-   * Handles {@link OwnerRequiredException} thrown when an operation requires ownership. Returns an
-   * {@link ErrorResponse} with HTTP 401 (Unauthorized) status, including the error message and
-   * request path.
+   * Handles {@link OwnerRequiredException} thrown when an operation requires ownership. The caller
+   * is authenticated but not allowed, so this returns an {@link ErrorResponse} with HTTP 403
+   * (Forbidden) status, including the error message and request path.
    *
    * @param ex the thrown {@code OwnerRequiredException}
    * @param handlerMethod the controller method where the exception was raised
    * @param request the current {@code ServletWebRequest}
-   * @return a standardized {@code ErrorResponse} describing the unauthorized access
+   * @return a standardized {@code ErrorResponse} describing the forbidden access
    */
   @ExceptionHandler(value = OwnerRequiredException.class)
-  @ResponseStatus(HttpStatus.UNAUTHORIZED)
+  @ResponseStatus(HttpStatus.FORBIDDEN)
   @ResponseBody
   public ErrorResponse ownerRequiredException(
       OwnerRequiredException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
@@ -313,7 +320,7 @@ public class GlobalExceptionHandlerController {
    * @return a standardized {@code ErrorResponse} describing the hashing failure
    */
   @ExceptionHandler(value = FileHashingException.class)
-  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
   @ResponseBody
   public ErrorResponse fileHashingException(
       FileHashingException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
@@ -663,6 +670,67 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
+   * Handles {@link MethodArgumentTypeMismatchException} thrown when a path variable or request
+   * parameter cannot be converted to its declared type (for example text where a numeric id is
+   * expected). Responds with HTTP 400 (Bad Request) instead of letting it reach the generic 500
+   * handler.
+   *
+   * @param ex the thrown {@code MethodArgumentTypeMismatchException}
+   * @param handlerMethod the controller method whose argument could not be converted
+   * @param request the current {@code ServletWebRequest}
+   * @return an {@code ErrorResponse} naming the invalid parameter
+   */
+  @ExceptionHandler(value = MethodArgumentTypeMismatchException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse methodArgumentTypeMismatchException(
+      MethodArgumentTypeMismatchException ex,
+      HandlerMethod handlerMethod,
+      ServletWebRequest request) {
+    log.warn(
+        "MethodArgumentTypeMismatchException handled in controller: {}, parameter: {}",
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getName());
+    return ErrorResponse.builder()
+        .error(FORMAT_ERROR)
+        .message(String.format(INVALID_PARAMETER_MESSAGE, ex.getName()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
+   * Handles a required request parameter or multipart part that is missing from the request.
+   * Responds with HTTP 400 (Bad Request) and an {@link ErrorResponse} carrying Spring's message,
+   * which names the missing parameter or part.
+   *
+   * @param ex the thrown {@code MissingServletRequestParameterException} or {@code
+   *     MissingServletRequestPartException}
+   * @param handlerMethod the controller method whose argument is missing
+   * @param request the current {@code ServletWebRequest}
+   * @return an {@code ErrorResponse} naming the missing parameter or part
+   */
+  @ExceptionHandler(
+      value = {
+        MissingServletRequestParameterException.class,
+        MissingServletRequestPartException.class
+      })
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse missingRequestValueException(
+      ServletException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    log.warn(
+        "{} handled in controller: {}, message: {}",
+        ex.getClass().getSimpleName(),
+        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
+        ex.getMessage());
+    return ErrorResponse.builder()
+        .error(BAD_REQUEST_ERROR)
+        .message(ex.getMessage())
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles access denied exceptions for unauthorized operations.
    *
    * @param ex the caught AccessDeniedException
@@ -788,7 +856,8 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
-   * Handles uncaught runtime exceptions.
+   * Handles uncaught runtime exceptions. These indicate a server-side failure, so they are logged
+   * at ERROR level.
    *
    * @param ex the caught RuntimeException
    * @param handlerMethod the handler method that threw the exception
@@ -799,7 +868,7 @@ public class GlobalExceptionHandlerController {
   @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
   public ErrorResponse uncaughtException(
       RuntimeException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    log.warn(
+    log.error(
         "Uncaught exception handled in Controller: {}, message: {}, stackTrace: {}",
         handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
         ex.getMessage(),
@@ -830,30 +899,33 @@ public class GlobalExceptionHandlerController {
         handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
         ex.getMessage(),
         ex);
-    if (Objects.requireNonNull(ex.getRootCause())
-        .getMessage()
-        .startsWith("Could not resolve type id")) {
-      return ErrorResponse.builder()
-          .error(FORMAT_ERROR)
-          .message(Objects.requireNonNull(ex.getRootCause()).getMessage().split("as")[0].trim())
-          .path(getPath(request))
-          .build();
-    }
-    if (Objects.requireNonNull(ex.getRootCause())
-        .getMessage()
-        .startsWith("Cannot deserialize value of type")) {
-      return ErrorResponse.builder()
-          .error(FORMAT_ERROR)
-          .message(Objects.requireNonNull(ex.getRootCause()).getMessage().split(":")[0].trim())
-          .path(getPath(request))
-          .build();
-    }
-
     return ErrorResponse.builder()
         .error(FORMAT_ERROR)
-        .message(Objects.requireNonNull(ex.getRootCause()).getMessage())
+        .message(unreadableBodyMessage(ex))
         .path(getPath(request))
         .build();
+  }
+
+  /**
+   * Builds the client-facing message for an unreadable request body. A missing body has no root
+   * cause, so a fixed message is returned in that case instead of dereferencing it.
+   *
+   * @param ex the caught HttpMessageNotReadableException
+   * @return the message describing why the request body could not be read
+   */
+  private static String unreadableBodyMessage(HttpMessageNotReadableException ex) {
+    Throwable rootCause = ex.getRootCause();
+    if (rootCause == null || rootCause.getMessage() == null) {
+      return UNREADABLE_BODY_MESSAGE;
+    }
+    String rootMessage = rootCause.getMessage();
+    if (rootMessage.startsWith("Could not resolve type id")) {
+      return rootMessage.split("as")[0].trim();
+    }
+    if (rootMessage.startsWith("Cannot deserialize value of type")) {
+      return rootMessage.split(":")[0].trim();
+    }
+    return rootMessage;
   }
 
   /**
