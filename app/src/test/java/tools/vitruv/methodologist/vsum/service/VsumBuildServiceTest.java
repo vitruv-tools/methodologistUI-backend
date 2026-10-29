@@ -125,6 +125,29 @@ class VsumBuildServiceTest {
   }
 
   @Test
+  void generateProject_sendsTheInputsWithoutQueueingABuild() {
+    byte[] zip = "ZIP".getBytes(StandardCharsets.UTF_8);
+    when(setupServiceApiHandler.generateVsumProjectOrThrow(
+            inputs.ecores(), inputs.reactions(), inputs.constraints(), inputs.views()))
+        .thenReturn(zip);
+
+    assertThat(service.generateProject(EMAIL, VSUM_ID)).isEqualTo(zip);
+
+    assertThat(builds).isEmpty();
+    verify(setupServiceApiHandler, never())
+        .buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
+  }
+
+  @Test
+  void generateProject_throwsAccessDenied_whenCallerIsNotAMember() {
+    assertThatThrownBy(() -> service.generateProject("other@y.com", VSUM_ID))
+        .isInstanceOf(AccessDeniedException.class);
+
+    verify(setupServiceApiHandler, never())
+        .generateVsumProjectOrThrow(anyList(), anyList(), anyList(), anyList());
+  }
+
+  @Test
   void requestBuild_startsABuild_thatStoresTheJarAsArtifact() {
     VsumBuildService.BuildRequest request = service.requestBuild(EMAIL, VSUM_ID, false);
 

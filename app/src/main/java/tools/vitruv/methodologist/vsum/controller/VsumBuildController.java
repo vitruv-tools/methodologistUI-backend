@@ -74,6 +74,32 @@ public class VsumBuildController {
   }
 
   /**
+   * Downloads the VSUM's project, laid out like the Methodologist Template, for the user to build
+   * with {@code mvn clean verify}. The project is generated on request and not built.
+   *
+   * @param authentication the authenticated Keycloak principal
+   * @param id the VSUM identifier
+   * @return the project as {@code vsum-project.zip}
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if the VSUM lacks the files
+   *     needed for a project
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the setup-service rejects
+   *     the inputs or fails
+   */
+  @GetMapping("/v1/vsums/{id}/project")
+  @PreAuthorize("hasRole('user')")
+  public ResponseEntity<byte[]> downloadProject(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    byte[] project = vsumBuildService.generateProject(callerEmail, id);
+
+    HttpHeaders headers = new HttpHeaders();
+    headers.setContentType(APPLICATION_ZIP);
+    headers.setContentDisposition(
+        ContentDisposition.attachment().filename("vsum-project.zip").build());
+    return ResponseEntity.ok().headers(headers).body(project);
+  }
+
+  /**
    * Lists the builds of the VSUM, newest first.
    *
    * @param authentication the authenticated Keycloak principal
