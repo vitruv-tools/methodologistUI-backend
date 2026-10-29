@@ -2,8 +2,11 @@ package tools.vitruv.methodologist.vsum.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -11,15 +14,23 @@ import org.junit.jupiter.api.Test;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.vsum.lowcode.reactions.template.service.LowCodeReactionService;
+import tools.vitruv.methodologist.vsum.model.ConstraintRuleSet;
 import tools.vitruv.methodologist.vsum.model.FineGranularMetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
+import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
+import tools.vitruv.methodologist.vsum.model.VsumView;
+import tools.vitruv.methodologist.vsum.model.repository.ConstraintRuleSetRepository;
 
 class VsumBuildInputCollectorTest {
 
+  private final ConstraintRuleSetRepository constraintRuleSetRepository =
+      mock(ConstraintRuleSetRepository.class);
   private final VsumBuildInputCollector collector =
-      new VsumBuildInputCollector(new ReactionBuildCollector(new LowCodeReactionService(null)));
+      new VsumBuildInputCollector(
+          new ReactionBuildCollector(new LowCodeReactionService(null)),
+          constraintRuleSetRepository);
 
   @Test
   void collect_shouldDeduplicateMetamodels() {
@@ -35,30 +46,81 @@ class VsumBuildInputCollectorTest {
     VsumBuildInputs inputs = collector.collect(vsum);
 
     assertThat(inputs.ecores()).containsExactly(e1);
-    assertThat(inputs.genmodels()).containsExactly(g1);
     assertThat(inputs.reactions()).hasSize(2);
   }
 
   @Test
-  void collect_shouldThrowNotFound_whenNoMetaModelRelations() {
+  void collect_shouldThrowNotFound_whenVsumHasNoMetamodels() {
     Vsum vsum = new Vsum();
     vsum.setMetaModelRelations(null);
+    vsum.setVsumMetaModels(null);
 
     assertThatThrownBy(() -> collector.collect(vsum)).isInstanceOf(NotFoundException.class);
   }
 
   @Test
-  void collect_shouldThrowNotFound_whenNoReactions() {
+  void collect_shouldAllowVsumsWithoutReactions() {
     Vsum vsum = new Vsum();
     FileStorage e = fs(1L, "a.ecore", new byte[] {1});
-    FileStorage g = fs(2L, "a.genmodel", new byte[] {2});
-    vsum.setMetaModelRelations(Set.of(rel(mm(e, g), null, null)));
+    vsum.setMetaModelRelations(Set.of(rel(mm(e, null), null, null)));
 
-    assertThatThrownBy(() -> collector.collect(vsum)).isInstanceOf(NotFoundException.class);
+    VsumBuildInputs inputs = collector.collect(vsum);
+
+    assertThat(inputs.ecores()).containsExactly(e);
+    assertThat(inputs.reactions()).isEmpty();
   }
 
   @Test
-  void collect_shouldThrowNotFound_whenNoMetamodelPair() {
+  void collect_shouldIncludeMetamodelsWithoutGenmodel() {
+    Vsum vsum = new Vsum();
+    FileStorage e1 = fs(1L, "a.ecore", new byte[] {1});
+    FileStorage e2 = fs(2L, "b.ecore", new byte[] {2});
+    vsum.setMetaModelRelations(Set.of(rel(mm(e1, null), mm(e2, null), null)));
+
+    assertThat(collector.collect(vsum).ecores()).containsExactlyInAnyOrder(e1, e2);
+  }
+
+  @Test
+  void collect_shouldIncludeActiveVsumMetamodelsWithoutRelations() {
+    Vsum vsum = new Vsum();
+    FileStorage active = fs(1L, "active.ecore", new byte[] {1});
+    FileStorage removed = fs(2L, "removed.ecore", new byte[] {2});
+    vsum.setMetaModelRelations(Set.of());
+    vsum.setVsumMetaModels(
+        Set.of(
+            VsumMetaModel.builder().id(1L).metaModel(mm(active, null)).build(),
+            VsumMetaModel.builder()
+                .id(2L)
+                .metaModel(mm(removed, null))
+                .removedAt(Instant.now())
+                .build()));
+
+    assertThat(collector.collect(vsum).ecores()).containsExactly(active);
+  }
+
+  @Test
+  void collect_shouldIncludeConstraintsAndViews() {
+    Vsum vsum = new Vsum();
+    vsum.setId(7L);
+    FileStorage e = fs(1L, "a.ecore", new byte[] {1});
+    FileStorage ocl = fs(2L, "rules.ocl", new byte[] {2});
+    FileStorage view = fs(3L, "view.nj", new byte[] {3});
+    vsum.setMetaModelRelations(Set.of(rel(mm(e, null), null, null)));
+    vsum.setViews(Set.of(VsumView.builder().id(1L).fileStorage(view).build()));
+    when(constraintRuleSetRepository.findByVsumId(7L))
+        .thenReturn(
+            List.of(
+                ConstraintRuleSet.builder().oclFile(ocl).build(),
+                ConstraintRuleSet.builder().build()));
+
+    VsumBuildInputs inputs = collector.collect(vsum);
+
+    assertThat(inputs.constraints()).containsExactly(ocl);
+    assertThat(inputs.views()).containsExactly(view);
+  }
+
+  @Test
+  void collect_shouldThrowNotFound_whenNoMetamodel() {
     Vsum vsum = new Vsum();
     FileStorage r = fs(3L, "x.reactions", new byte[] {3});
     vsum.setMetaModelRelations(Set.of(rel(mm(null, null), null, r)));

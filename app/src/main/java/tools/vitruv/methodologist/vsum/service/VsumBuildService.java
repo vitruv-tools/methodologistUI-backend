@@ -292,7 +292,7 @@ public class VsumBuildService {
       }
       byte[] jar =
           setupServiceApiHandler.buildVsumJarOrThrow(
-              inputs.ecores(), inputs.genmodels(), inputs.reactions());
+              inputs.ecores(), inputs.reactions(), inputs.constraints(), inputs.views());
       succeed(buildId, jar);
     } catch (RuntimeException e) {
       log.error("VSUM build {} failed: {}", buildId, e.getMessage(), e);
@@ -348,8 +348,9 @@ public class VsumBuildService {
           // Read the file contents while the transaction is open; the setup-service call runs
           // outside of it.
           loadData(inputs.ecores());
-          loadData(inputs.genmodels());
           loadData(inputs.reactions());
+          loadData(inputs.constraints());
+          loadData(inputs.views());
           return inputs;
         });
   }
