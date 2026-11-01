@@ -351,6 +351,180 @@
       "response": []
     },
     {
+      "name": "constraint-status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/constraints/status",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "constraints",
+            "status"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "constraint-events",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "text/event-stream"
+          }
+        ],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/constraints/events",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "constraints",
+            "events"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "models",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/models",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "models"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "model",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/models/{{model-id}}",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "models",
+            "{{model-id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "model-as-xmi",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/xmi+xml"
+          }
+        ],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/models/{{model-id}}",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "models",
+            "{{model-id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "models-batch",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/models/batch",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "models",
+            "batch"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"ids\": null\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "metamodels",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/metamodels",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "metamodels"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "metamodel",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/metamodels/{{metamodel-nsuri}}",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "metamodels",
+            "{{metamodel-nsuri}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
       "name": "create-constraint",
       "request": {
         "method": "POST",
@@ -506,6 +680,14 @@
     {
       "key": "constraint-id",
       "value": "model%3A%3AComponent%3A%3AhasName"
+    },
+    {
+      "key": "model-id",
+      "value": "%2Fmodel%2Fexample.model"
+    },
+    {
+      "key": "metamodel-nsuri",
+      "value": "http%3A%2F%2Fexample.org%2Fmodel"
     }
   ]
 }

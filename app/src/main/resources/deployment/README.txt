@@ -83,7 +83,9 @@ API collection (Postman)
   "select-id-2", "view-uuid") are placeholders that get their values from
   earlier responses - run the requests from top to bottom and copy the ids you
   receive into them. "constraint-id" is the URL-encoded id of the constraint
-  the constraint requests work on.
+  the constraint requests work on, "model-id" the URL-encoded id of a model
+  (see "Models" below) and "metamodel-nsuri" the URL-encoded namespace URI of
+  a metamodel.
 
 Constraints
 -----------
@@ -111,6 +113,27 @@ Constraints
   while the application is running; ids in paths are URL-encoded, e.g.
   model%3A%3AComponent%3A%3AhasName. Such changes are stored with the models
   and survive a restart. The Postman collection contains all these requests.
+
+  To monitor the consistency, get only the status of all constraints:
+
+    curl http://localhost:8080/vsum/constraints/status
+
+  or subscribe to it; the status is sent right away and after every change:
+
+    curl -N http://localhost:8080/vsum/constraints/events
+
+Models
+------
+  The models of the application can be read directly:
+
+    curl http://localhost:8080/vsum/models
+    curl http://localhost:8080/vsum/models/%2Fmodel%2Fexample.model
+    curl -H "Accept: application/xmi+xml" http://localhost:8080/vsum/models/%2Fmodel%2Fexample.model
+    curl http://localhost:8080/vsum/metamodels
+
+  The id of a model equals the model of a constraint violation, and every
+  element carries its UUID ("_id" in JSON, "xmi:id" in XMI), so violating
+  elements can be located in the returned models.
 
 Advanced
 --------
