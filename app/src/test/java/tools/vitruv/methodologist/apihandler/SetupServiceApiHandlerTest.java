@@ -13,7 +13,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
+import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.exception.SetupServiceException;
 import tools.vitruv.methodologist.general.model.FileStorage;
 
@@ -100,10 +102,181 @@ class SetupServiceApiHandlerTest {
   }
 
   @Test
+  void buildVsumJarOrThrow_keepsTheErrorCodeAndProblems_andResolvesTheirFiles() {
+    FileStorage ecore = fileStorage(11L, "model2.ecore", "e".getBytes());
+    FileStorage reactions = fileStorage(12L, "my.reactions", "r".getBytes());
+    FileStorage composite = fileStorage(null, "compositeReaction1.reactions", "c".getBytes());
+    mockWebServer.enqueue(
+        jsonError(
+            400,
+            "{\"errorCode\":\"VSUM_REACTIONS_ERROR\",\"status\":400,\"message\":\"bad\","
+                + "\"timestamp\":1730000000000,\"path\":\"/api/vsum/jar\",\"problems\":["
+                + "{\"source\":\"REACTIONS\",\"file\":\"my.reactions\",\"line\":51,"
+                + "\"column\":30,\"message\":\"'Entitiy' is not a class\","
+                + "\"excerpt\":\"  new model2::Entitiy\",\"hint\":\"Did you mean 'Entity'?\","
+                + "\"hiddenFollowUpErrors\":3,\"severity\":\"ERROR\"},"
+                + "{\"source\":\"REACTIONS\",\"file\":\"compositeReaction1.reactions\","
+                + "\"message\":\"generated\"},"
+                + "{\"source\":\"METAMODEL\",\"file\":\"model2.ecore\",\"message\":\"m\"},"
+                + "{\"source\":\"REACTIONS\",\"file\":\"unknown.reactions\","
+                + "\"message\":\"u\"},"
+                + "{\"source\":\"INFRASTRUCTURE\",\"message\":\"offline\"},"
+                + "{\"source\":\"REACTIONS\",\"line\":\"not a number\",\"message\":\"x\"},"
+                + "{\"file\":\"my.reactions\"},"
+                + "\"not a problem\"]}"));
+
+    assertThatThrownBy(
+            () ->
+                setupServiceApiHandler.buildVsumJarOrThrow(
+                    List.of(ecore), List.of(composite, reactions), List.of(), List.of()))
+        .isInstanceOfSatisfying(
+            SetupServiceException.class,
+            e -> {
+              assertThat(e.isRejectedBySetupService()).isTrue();
+              assertThat(e.getErrorCode()).isEqualTo("VSUM_REACTIONS_ERROR");
+              assertThat(e)
+                  .hasMessage(
+                      "Setup-service request to '/api/vsum/jar' failed with status 400:"
+                          + " [VSUM_REACTIONS_ERROR] bad");
+              assertThat(e.getProblems())
+                  .containsExactly(
+                      new BuildProblem(
+                          "REACTIONS",
+                          "my.reactions",
+                          12L,
+                          51,
+                          30,
+                          "'Entitiy' is not a class",
+                          "  new model2::Entitiy",
+                          "Did you mean 'Entity'?",
+                          3),
+                      new BuildProblem(
+                          "REACTIONS",
+                          "compositeReaction1.reactions",
+                          null,
+                          null,
+                          null,
+                          "generated",
+                          null,
+                          null,
+                          null),
+                      new BuildProblem(
+                          "METAMODEL", "model2.ecore", 11L, null, null, "m", null, null, null),
+                      new BuildProblem(
+                          "REACTIONS",
+                          "unknown.reactions",
+                          null,
+                          null,
+                          null,
+                          "u",
+                          null,
+                          null,
+                          null),
+                      new BuildProblem(
+                          "INFRASTRUCTURE", null, null, null, null, "offline", null, null, null));
+            });
+  }
+
+  @Test
+  void buildVsumJarOrThrow_resolvesTheFileSentUnderACompletedName() {
+    mockWebServer.enqueue(
+        jsonError(
+            422,
+            "{\"errorCode\":\"VSUM_BUILD_FAILED\",\"message\":\"m\",\"problems\":["
+                + "{\"source\":\"REACTIONS\",\"file\":\"rules-2.reactions\","
+                + "\"message\":\"p\"}]}"));
+
+    assertThatThrownBy(
+            () ->
+                setupServiceApiHandler.buildVsumJarOrThrow(
+                    metamodelFiles,
+                    List.of(
+                        fileStorage(21L, "rules.reactions", "a".getBytes()),
+                        fileStorage(22L, "rules", "b".getBytes())),
+                    List.of(),
+                    List.of()))
+        .isInstanceOfSatisfying(
+            SetupServiceException.class,
+            e -> assertThat(e.getProblems()).extracting(BuildProblem::fileId).containsExactly(22L));
+  }
+
+  @Test
+  void generateVsumProjectOrThrow_keepsTheErrorCode_whenThereAreNoProblems() {
+    mockWebServer.enqueue(
+        jsonError(503, "{\"errorCode\":\"VSUM_BUILD_UNAVAILABLE\",\"message\":\"later\"}"));
+
+    assertThatThrownBy(
+            () ->
+                setupServiceApiHandler.generateVsumProjectOrThrow(
+                    metamodelFiles, reactionFiles, constraintFiles, viewFiles))
+        .isInstanceOfSatisfying(
+            SetupServiceException.class,
+            e -> {
+              assertThat(e.isRejectedBySetupService()).isFalse();
+              assertThat(e.getErrorCode()).isEqualTo("VSUM_BUILD_UNAVAILABLE");
+              assertThat(e.getProblems()).isNull();
+            });
+  }
+
+  @Test
+  void buildVsumJarOrThrow_hasNoErrorCodeOrProblems_forANonJsonBody() {
+    mockWebServer.enqueue(new MockResponse().setResponseCode(502).setBody("<html>bad</html>"));
+
+    assertThatThrownBy(
+            () ->
+                setupServiceApiHandler.buildVsumJarOrThrow(
+                    metamodelFiles, reactionFiles, constraintFiles, viewFiles))
+        .isInstanceOfSatisfying(
+            SetupServiceException.class,
+            e -> {
+              assertThat(e)
+                  .hasMessage(
+                      "Setup-service request to '/api/vsum/jar' failed with status 502:"
+                          + " <html>bad</html>");
+              assertThat(e.getErrorCode()).isNull();
+              assertThat(e.getProblems()).isNull();
+            });
+  }
+
+  @Test
+  void setupServiceError_ignoresProblemsThatAreNotAList() {
+    SetupServiceException e =
+        SetupServiceApiHandler.setupServiceError(
+            SetupServiceApiHandler.JAR_URL,
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "{\"errorCode\":7,\"message\":\"m\",\"problems\":{\"source\":\"REACTIONS\"}}",
+            new UploadedFiles());
+
+    assertThat(e.getErrorCode()).isNull();
+    assertThat(e.getProblems()).isNull();
+    assertThat(
+            SetupServiceApiHandler.setupServiceError(
+                    SetupServiceApiHandler.JAR_URL,
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "[1]",
+                    new UploadedFiles())
+                .getErrorCode())
+        .isNull();
+  }
+
+  @Test
   void describeError_fallsBackToTheRawBody() {
     assertThat(SetupServiceApiHandler.describeError("{\"message\":\"m\"}")).isEqualTo("m");
     assertThat(SetupServiceApiHandler.describeError("not json")).isEqualTo("not json");
     assertThat(SetupServiceApiHandler.describeError("")).isEqualTo("(no response body)");
+  }
+
+  private static MockResponse jsonError(int status, String body) {
+    return new MockResponse()
+        .setResponseCode(status)
+        .setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+        .setBody(body);
+  }
+
+  private static FileStorage fileStorage(Long id, String filename, byte[] data) {
+    FileStorage fileStorage = fileStorage(filename, data);
+    fileStorage.setId(id);
+    return fileStorage;
   }
 
   private static FileStorage fileStorage(String filename, byte[] data) {
