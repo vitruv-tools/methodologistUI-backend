@@ -25,7 +25,9 @@ class VsumBuildInputCollectorConstraintsTest {
       mock(ConstraintRuleSetRepository.class);
   private final VsumBuildInputCollector collector =
       new VsumBuildInputCollector(
-          new ReactionBuildCollector(new LowCodeReactionService(null)), ruleSetRepository);
+          new ReactionBuildCollector(new LowCodeReactionService(null)),
+          mock(UtilityMethodService.class),
+          ruleSetRepository);
 
   private Vsum vsum;
 
