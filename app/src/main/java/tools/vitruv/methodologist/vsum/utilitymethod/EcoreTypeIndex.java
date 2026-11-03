@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.LinkedHashMap;
@@ -11,6 +12,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import javax.xml.XMLConstants;
@@ -37,14 +39,34 @@ public final class EcoreTypeIndex {
 
   static final String ECORE_NS_URI = "http://www.eclipse.org/emf/2002/Ecore";
   private static final String XSI_NS_URI = "http://www.w3.org/2001/XMLSchema-instance";
+  private static final String FALSE = "false";
 
   /**
-   * An {@code .ecore} file to index.
+   * An {@code .ecore} file to index. Equality compares the content of {@code data}.
    *
    * @param filename the file name, used to resolve cross-file references
    * @param data the XMI content
    */
-  public record EcoreFile(String filename, byte[] data) {}
+  public record EcoreFile(String filename, byte[] data) {
+
+    @Override
+    public boolean equals(Object other) {
+      return other instanceof EcoreFile(String otherName, byte[] otherData)
+          && Objects.equals(filename, otherName)
+          && Arrays.equals(data, otherData);
+    }
+
+    @Override
+    public int hashCode() {
+      return 31 * Objects.hashCode(filename) + Arrays.hashCode(data);
+    }
+
+    @Override
+    public String toString() {
+      int size = data == null ? 0 : data.length;
+      return "EcoreFile[filename=" + filename + ", " + size + " bytes]";
+    }
+  }
 
   /** An EPackage. */
   public static final class PackageInfo {
@@ -110,7 +132,7 @@ public final class EcoreTypeIndex {
   }
 
   /** Common view of EClasses, EEnums and EDataTypes. */
-  public abstract static sealed class ClassifierInfo permits ClassInfo, EnumInfo, DataTypeInfo {
+  public abstract static sealed class ClassifierInfo {
     private final String name;
     private final PackageInfo pkg;
 
@@ -525,9 +547,9 @@ public final class EcoreTypeIndex {
         element.getAttribute("name"),
         qualify(typeRef, context),
         many,
-        !"false".equals(element.getAttribute("unique")),
-        !"false".equals(element.getAttribute("ordered")),
-        !"false".equals(element.getAttribute("changeable")));
+        !FALSE.equals(element.getAttribute("unique")),
+        !FALSE.equals(element.getAttribute("ordered")),
+        !FALSE.equals(element.getAttribute("changeable")));
   }
 
   // ── resolving ────────────────────────────────────────────────────────────

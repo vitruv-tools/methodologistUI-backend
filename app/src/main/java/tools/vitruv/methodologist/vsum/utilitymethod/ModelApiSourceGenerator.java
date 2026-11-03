@@ -30,6 +30,10 @@ public final class ModelApiSourceGenerator {
   private static final String E_OBJECT = EMF_ECORE + "EObject";
   private static final String E_LIST = "org.eclipse.emf.common.util.EList";
   private static final String ENUMERATOR = "org.eclipse.emf.common.util.Enumerator";
+  private static final String JAVA_OBJECT = "java.lang.Object";
+  private static final String BOOLEAN = "boolean";
+  private static final String PUBLIC_INTERFACE = "public interface ";
+  private static final String EXTENDS = " extends ";
 
   /**
    * EClasses of the Ecore metamodel, whose generated interfaces live in {@code
@@ -61,7 +65,7 @@ public final class ModelApiSourceGenerator {
   private static final Map<String, String> ECORE_INSTANCE_CLASSES =
       Map.ofEntries(
           Map.entry("EString", "java.lang.String"),
-          Map.entry("EBoolean", "boolean"),
+          Map.entry("EBoolean", BOOLEAN),
           Map.entry("EBooleanObject", "java.lang.Boolean"),
           Map.entry("EInt", "int"),
           Map.entry("EIntegerObject", "java.lang.Integer"),
@@ -80,7 +84,7 @@ public final class ModelApiSourceGenerator {
           Map.entry("EBigInteger", "java.math.BigInteger"),
           Map.entry("EBigDecimal", "java.math.BigDecimal"),
           Map.entry("EDate", "java.util.Date"),
-          Map.entry("EJavaObject", "java.lang.Object"));
+          Map.entry("EJavaObject", JAVA_OBJECT));
 
   /** Other Ecore data types and their instance classes. */
   private static final Map<String, String> OTHER_ECORE_DATA_TYPES =
@@ -164,9 +168,9 @@ public final class ModelApiSourceGenerator {
     }
     return compilationUnit(
         eClass.pkg(),
-        "public interface "
+        PUBLIC_INTERFACE
             + JavaNames.safeName(eClass.name())
-            + " extends "
+            + EXTENDS
             + superTypes
             + " {\n"
             + body
@@ -237,9 +241,9 @@ public final class ModelApiSourceGenerator {
   private static String factorySource(PackageInfo pkg) {
     String name = factoryName(pkg);
     StringBuilder body = new StringBuilder();
-    body.append("public interface ")
+    body.append(PUBLIC_INTERFACE)
         .append(name)
-        .append(" extends ")
+        .append(EXTENDS)
         .append(EMF_ECORE)
         .append("EFactory {\n")
         .append("  ")
@@ -262,9 +266,9 @@ public final class ModelApiSourceGenerator {
   private static String packageSource(PackageInfo pkg) {
     String name = packageName(pkg);
     StringBuilder body = new StringBuilder();
-    body.append("public interface ")
+    body.append(PUBLIC_INTERFACE)
         .append(name)
-        .append(" extends ")
+        .append(EXTENDS)
         .append(EMF_ECORE)
         .append("EPackage {\n")
         .append("  String eNAME = ")
@@ -331,7 +335,7 @@ public final class ModelApiSourceGenerator {
 
   private static String getterName(FeatureInfo feature) {
     String accessor =
-        ("boolean".equals(typeOf(feature)) ? "is" : "get") + JavaNames.capName(feature.name());
+        (BOOLEAN.equals(typeOf(feature)) ? "is" : "get") + JavaNames.capName(feature.name());
     // Object#getClass() is final, so EMF renames the accessor of a feature named "class".
     return "getClass".equals(accessor) ? "getClass_" : accessor;
   }
@@ -349,11 +353,11 @@ public final class ModelApiSourceGenerator {
     }
     if (type instanceof DataTypeInfo dataType) {
       String instanceClass = dataType.instanceClassName();
-      return instanceClass == null || instanceClass.isBlank() ? "java.lang.Object" : instanceClass;
+      return instanceClass == null || instanceClass.isBlank() ? JAVA_OBJECT : instanceClass;
     }
     String builtin = element.builtinType();
     if (builtin == null) {
-      return "java.lang.Object";
+      return JAVA_OBJECT;
     }
     String instanceClass = ECORE_INSTANCE_CLASSES.get(builtin);
     if (instanceClass != null) {
@@ -362,12 +366,12 @@ public final class ModelApiSourceGenerator {
     if (ECORE_CLASSES.contains(builtin)) {
       return EMF_ECORE + builtin;
     }
-    return OTHER_ECORE_DATA_TYPES.getOrDefault(builtin, "java.lang.Object");
+    return OTHER_ECORE_DATA_TYPES.getOrDefault(builtin, JAVA_OBJECT);
   }
 
   private static String boxed(String type) {
     return switch (type) {
-      case "boolean" -> "java.lang.Boolean";
+      case BOOLEAN -> "java.lang.Boolean";
       case "int" -> "java.lang.Integer";
       case "long" -> "java.lang.Long";
       case "double" -> "java.lang.Double";

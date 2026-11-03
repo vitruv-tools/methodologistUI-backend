@@ -138,8 +138,9 @@ class UtilityMethodServiceTest {
   @Test
   void create_rejectsNameUsedByAnotherUtilityMethodIgnoringCase() {
     stored.add(utilityMethod(1L, "GetAllSubSystems", "int", "1"));
+    UtilityMethodRequest request = subSystemsRequest();
 
-    assertThatThrownBy(() -> service.create(EMAIL, VSUM_ID, subSystemsRequest()))
+    assertThatThrownBy(() -> service.create(EMAIL, VSUM_ID, request))
         .isInstanceOf(UtilityMethodValidationException.class)
         .hasMessageContaining("already exists");
     verify(utilityMethodRepository, never()).save(any());
@@ -182,8 +183,9 @@ class UtilityMethodServiceTest {
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
                 VSUM_ID, "other@example.com"))
         .thenReturn(Optional.empty());
+    UtilityMethodRequest request = subSystemsRequest();
 
-    assertThatThrownBy(() -> service.create("other@example.com", VSUM_ID, subSystemsRequest()))
+    assertThatThrownBy(() -> service.create("other@example.com", VSUM_ID, request))
         .isInstanceOf(AccessDeniedException.class);
   }
 
@@ -222,8 +224,9 @@ class UtilityMethodServiceTest {
   @Test
   void update_throwsNotFound_forUtilityMethodOfAnotherVsum() {
     when(utilityMethodRepository.findByIdAndVsumId(99L, VSUM_ID)).thenReturn(Optional.empty());
+    UtilityMethodRequest request = subSystemsRequest();
 
-    assertThatThrownBy(() -> service.update(EMAIL, VSUM_ID, 99L, subSystemsRequest()))
+    assertThatThrownBy(() -> service.update(EMAIL, VSUM_ID, 99L, request))
         .isInstanceOf(NotFoundException.class);
   }
 
@@ -369,8 +372,9 @@ class UtilityMethodServiceTest {
   @Test
   void generateBuildFile_failsTheBuild_whenAUtilityMethodDoesNotCompile() {
     stored.add(firstBlock());
+    List<FileStorage> noEcores = List.of();
 
-    assertThatThrownBy(() -> service.generateBuildFile(vsum, List.of()))
+    assertThatThrownBy(() -> service.generateBuildFile(vsum, noEcores))
         .isInstanceOf(VsumBuildingException.class)
         .hasMessageContaining("first:")
         .hasMessageContaining("SimulinkModel");
