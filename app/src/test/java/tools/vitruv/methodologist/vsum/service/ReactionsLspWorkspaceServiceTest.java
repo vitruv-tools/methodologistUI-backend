@@ -25,11 +25,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
-import tools.vitruv.methodologist.vsum.utilitymethod.EcoreTypeIndex;
 import tools.vitruv.methodologist.vsum.utilitymethod.EmfApiStubs;
 import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodClassGenerator;
-import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodDefinition;
-import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodDefinition.Parameter;
 
 class ReactionsLspWorkspaceServiceTest {
 
@@ -145,18 +142,20 @@ class ReactionsLspWorkspaceServiceTest {
 
   // ── fixtures ─────────────────────────────────────────────────────────────
 
-  private String utilityMethodSource() {
-    EcoreTypeIndex index =
-        EcoreTypeIndex.of(List.of(new EcoreTypeIndex.EcoreFile("simulink.ecore", simulink)));
-    UtilityMethodDefinition first =
-        new UtilityMethodDefinition(
-            "first",
-            null,
-            List.of(new Parameter("model", "SimulinkModel")),
-            "Block",
-            List.of("simulink::*"),
-            "model.contains->first()");
-    return UtilityMethodClassGenerator.generate(List.of(first), index).source();
+  /** A utility class as the Xtend compiler generates it, calling the simulink model API. */
+  private static String utilityMethodSource() {
+    return """
+        package tools.vitruv.methodologisttemplate.consistency.utils;
+
+        import tools.vitruv.methodologisttemplate.model.simulink.Block;
+        import tools.vitruv.methodologisttemplate.model.simulink.SimulinkModel;
+
+        public final class Utility {
+          public static Block first(final SimulinkModel model) {
+            return model.getContains().get(0);
+          }
+        }
+        """;
   }
 
   private static String writtenEcore(ReactionsLspWorkspaceService.Workspace workspace)

@@ -25,8 +25,8 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.UtilityMethodType
 import tools.vitruv.methodologist.vsum.service.UtilityMethodService;
 
 /**
- * REST controller for the utility methods of a VSUM, which are translated into one Java utility
- * class that the VSUM's reactions can call.
+ * REST controller for the utility methods of a VSUM, which are compiled into one Java utility class
+ * that the VSUM's reactions can call.
  */
 @RestController
 @RequestMapping("/api/v1/vsums/{vsumId}/utility-methods")
@@ -117,7 +117,7 @@ public class UtilityMethodController {
   }
 
   /**
-   * Translates an unsaved utility method for live feedback in the editor. Problems are part of the
+   * Compiles an unsaved utility method for live feedback in the editor. Problems are part of the
    * response rather than an error status.
    *
    * @param authentication the current user's authentication
@@ -125,7 +125,7 @@ public class UtilityMethodController {
    * @param utilityMethodId the ID of the utility method being edited; omitted for a new utility
    *     method
    * @param request the utility method
-   * @return the OCL definition, the generated Java method and the problems found
+   * @return the Xtend definition, the generated Java method and the problems found
    */
   @PostMapping("/preview")
   @PreAuthorize("isAuthenticated()")

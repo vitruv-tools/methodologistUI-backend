@@ -2,8 +2,6 @@ package tools.vitruv.methodologist.vsum.service;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -13,14 +11,6 @@ import java.util.Optional;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
-import java.util.stream.Collectors;
-import javax.tools.Diagnostic;
-import javax.tools.DiagnosticCollector;
-import javax.tools.JavaCompiler;
-import javax.tools.JavaFileObject;
-import javax.tools.SimpleJavaFileObject;
-import javax.tools.StandardJavaFileManager;
-import javax.tools.ToolProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,6 +18,7 @@ import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.utilitymethod.EcoreInstanceClassNames;
 import tools.vitruv.methodologist.vsum.utilitymethod.EcoreTypeIndex;
+import tools.vitruv.methodologist.vsum.utilitymethod.JavaSourceCompiler;
 import tools.vitruv.methodologist.vsum.utilitymethod.ModelApiSourceGenerator;
 import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodClassGenerator;
 
@@ -50,9 +41,6 @@ public class ReactionsLspWorkspaceService {
   static final String PROJECT_DIR = "UserProject";
   static final String MODEL_DIR = "model";
   static final String CLASSES_DIR = "classes";
-
-  /** Class file version the language server reads, i.e. the Java version it is built for. */
-  private static final String RELEASE = "17";
 
   private final VsumMetaModelService vsumMetaModelService;
   private final UtilityMethodService utilityMethodService;
@@ -180,65 +168,23 @@ public class ReactionsLspWorkspaceService {
     if (sources.isEmpty()) {
       return false;
     }
-    JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-    if (compiler == null) {
+    if (!JavaSourceCompiler.isAvailable()) {
       log.warn("No Java compiler available, the reactions editor cannot resolve the {}", what);
       return false;
     }
     try {
-      Files.createDirectories(outputDir);
-    } catch (IOException e) {
-      log.warn("Could not create {} for the reactions editor", outputDir, e);
-      return false;
-    }
-    DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-    List<String> options =
-        List.of(
-            "-proc:none",
-            "-nowarn",
-            "--release",
-            RELEASE,
-            "-classpath",
-            classpath.stream().map(Path::toString).collect(Collectors.joining(File.pathSeparator)),
-            "-d",
-            outputDir.toString());
-    List<JavaFileObject> units = new ArrayList<>();
-    sources.forEach((name, source) -> units.add(new SourceUnit(name, source)));
-    boolean compiled;
-    try (StandardJavaFileManager fileManager =
-        compiler.getStandardFileManager(diagnostics, null, StandardCharsets.UTF_8)) {
-      compiled = compiler.getTask(null, fileManager, diagnostics, options, null, units).call();
+      JavaSourceCompiler.Outcome outcome =
+          JavaSourceCompiler.compile(sources, classpath, outputDir);
+      if (!outcome.compiled()) {
+        log.warn(
+            "Could not compile the {} for the reactions editor: {}",
+            what,
+            String.join("; ", outcome.errors()));
+      }
+      return outcome.compiled();
     } catch (IOException e) {
       log.warn("Could not compile the {} for the reactions editor", what, e);
       return false;
-    }
-    if (!compiled) {
-      log.warn(
-          "Could not compile the {} for the reactions editor: {}",
-          what,
-          diagnostics.getDiagnostics().stream()
-              .filter(d -> d.getKind() == Diagnostic.Kind.ERROR)
-              .map(d -> d.getMessage(null))
-              .limit(5)
-              .collect(Collectors.joining("; ")));
-    }
-    return compiled;
-  }
-
-  /** An in-memory source file. */
-  private static final class SourceUnit extends SimpleJavaFileObject {
-    private final String source;
-
-    SourceUnit(String qualifiedName, String source) {
-      super(
-          URI.create("string:///" + qualifiedName.replace('.', '/') + Kind.SOURCE.extension),
-          Kind.SOURCE);
-      this.source = source;
-    }
-
-    @Override
-    public CharSequence getCharContent(boolean ignoreEncodingErrors) {
-      return source;
     }
   }
 }

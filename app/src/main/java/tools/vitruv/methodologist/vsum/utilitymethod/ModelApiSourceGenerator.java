@@ -57,7 +57,32 @@ public final class ModelApiSourceGenerator {
           "EGenericType",
           "ETypeParameter");
 
-  /** Ecore data types whose instance class {@link OclTypeResolver} does not know. */
+  /** Instance classes of the Ecore data types that map to a Java value type. */
+  private static final Map<String, String> ECORE_INSTANCE_CLASSES =
+      Map.ofEntries(
+          Map.entry("EString", "java.lang.String"),
+          Map.entry("EBoolean", "boolean"),
+          Map.entry("EBooleanObject", "java.lang.Boolean"),
+          Map.entry("EInt", "int"),
+          Map.entry("EIntegerObject", "java.lang.Integer"),
+          Map.entry("EShort", "short"),
+          Map.entry("EShortObject", "java.lang.Short"),
+          Map.entry("EByte", "byte"),
+          Map.entry("EByteObject", "java.lang.Byte"),
+          Map.entry("ELong", "long"),
+          Map.entry("ELongObject", "java.lang.Long"),
+          Map.entry("EDouble", "double"),
+          Map.entry("EDoubleObject", "java.lang.Double"),
+          Map.entry("EFloat", "float"),
+          Map.entry("EFloatObject", "java.lang.Float"),
+          Map.entry("EChar", "char"),
+          Map.entry("ECharacterObject", "java.lang.Character"),
+          Map.entry("EBigInteger", "java.math.BigInteger"),
+          Map.entry("EBigDecimal", "java.math.BigDecimal"),
+          Map.entry("EDate", "java.util.Date"),
+          Map.entry("EJavaObject", "java.lang.Object"));
+
+  /** Other Ecore data types and their instance classes. */
   private static final Map<String, String> OTHER_ECORE_DATA_TYPES =
       Map.of(
           "EJavaClass", "java.lang.Class<?>",
@@ -330,7 +355,7 @@ public final class ModelApiSourceGenerator {
     if (builtin == null) {
       return "java.lang.Object";
     }
-    String instanceClass = OclTypeResolver.builtinInstanceClass(builtin);
+    String instanceClass = ECORE_INSTANCE_CLASSES.get(builtin);
     if (instanceClass != null) {
       return instanceClass;
     }

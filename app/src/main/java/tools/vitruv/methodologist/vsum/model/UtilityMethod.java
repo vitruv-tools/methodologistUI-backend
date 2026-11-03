@@ -23,8 +23,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 /**
- * A utility method of a VSUM: a named OCL expression with typed parameters. All utility methods of
- * a VSUM are translated into one Java utility class that the VSUM's reactions can call.
+ * A utility method of a VSUM: a named Xtend method body with typed parameters. All utility methods
+ * of a VSUM are compiled into one Java utility class that the VSUM's reactions can call.
  */
 @Entity
 @Builder
@@ -47,10 +47,10 @@ public class UtilityMethod {
 
   private String description;
 
-  /** The OCL return type, e.g. {@code Sequence(simulink::SubSystem)}. */
+  /** The Xtend/Java return type, e.g. {@code List<SubSystem>}. */
   @NotNull private String returnType;
 
-  /** The OCL expression. */
+  /** The Xtend method body, without the surrounding braces. */
   @NotNull private String body;
 
   @Builder.Default
@@ -61,7 +61,7 @@ public class UtilityMethod {
   @OrderColumn(name = "param_order")
   private List<UtilityMethodParameter> parameters = new ArrayList<>();
 
-  /** Metamodel types usable by their simple name, e.g. {@code simulink::SubSystem}. */
+  /** Java imports, e.g. {@code tools.vitruv.methodologisttemplate.model.simulink.*}. */
   @Builder.Default @NotNull private List<String> imports = new ArrayList<>();
 
   @CreationTimestamp private Instant createdAt;

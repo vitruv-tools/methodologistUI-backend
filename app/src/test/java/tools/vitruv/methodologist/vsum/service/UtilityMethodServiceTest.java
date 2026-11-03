@@ -14,13 +14,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.security.access.AccessDeniedException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UtilityMethodValidationException;
@@ -41,15 +43,25 @@ import tools.vitruv.methodologist.vsum.model.VsumUser;
 import tools.vitruv.methodologist.vsum.model.repository.UtilityMethodRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
+import tools.vitruv.methodologist.vsum.utilitymethod.CompileClasspath;
 import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodClassGenerator;
+import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodCompiler;
+import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodCompilerProperties;
+import tools.vitruv.methodologist.vsum.utilitymethod.XtendUtilityCompiler;
 
+/** Runs the service with the real Xtend compiler and mocked repositories. */
 @ExtendWith(MockitoExtension.class)
 class UtilityMethodServiceTest {
 
   private static final String EMAIL = "test@example.com";
   private static final long VSUM_ID = 10L;
+  private static final String SIMULINK = "tools.vitruv.methodologisttemplate.model.simulink.*";
 
-  @InjectMocks UtilityMethodService service;
+  private static CompileClasspath classpath;
+  private static XtendUtilityCompiler xtendCompiler;
+  private static UtilityMethodCompiler compiler;
+
+  UtilityMethodService service;
   @Mock UtilityMethodRepository utilityMethodRepository;
   @Mock VsumUserRepository vsumUserRepository;
   @Mock VsumMetaModelRepository vsumMetaModelRepository;
@@ -58,8 +70,25 @@ class UtilityMethodServiceTest {
   private FileStorage simulinkEcore;
   private List<UtilityMethod> stored;
 
+  @BeforeAll
+  static void setUpCompiler() {
+    classpath =
+        new CompileClasspath(new ClassPathResource("lsp/tools.vitruv.dsls.reactions.ide.jar"));
+    xtendCompiler = new XtendUtilityCompiler(new UtilityMethodCompilerProperties());
+    compiler = new UtilityMethodCompiler(classpath, xtendCompiler);
+  }
+
+  @AfterAll
+  static void tearDownCompiler() {
+    xtendCompiler.shutdown();
+    classpath.cleanUp();
+  }
+
   @BeforeEach
   void setUp() throws IOException {
+    service =
+        new UtilityMethodService(
+            utilityMethodRepository, vsumUserRepository, vsumMetaModelRepository, compiler);
     vsum = Vsum.builder().id(VSUM_ID).name("TestVsum").build();
     try (InputStream in = getClass().getResourceAsStream("/utilitymethod/simulink.ecore")) {
       simulinkEcore =
@@ -97,20 +126,18 @@ class UtilityMethodServiceTest {
     assertThat(saved.getValue().getVsum()).isSameAs(vsum);
     assertThat(saved.getValue().getParameters())
         .extracting(UtilityMethodParameter::getName, UtilityMethodParameter::getType)
-        .containsExactly(org.assertj.core.groups.Tuple.tuple("model", "simulink::SimulinkModel"));
-    assertThat(saved.getValue().getImports()).containsExactly("simulink::*");
+        .containsExactly(org.assertj.core.groups.Tuple.tuple("model", "SimulinkModel"));
+    assertThat(saved.getValue().getImports()).containsExactly(SIMULINK);
     assertThat(response.problems()).isEmpty();
     assertThat(response.javaMethod())
-        .contains("public static List<SubSystem> getAllSubSystems(SimulinkModel model)");
-    assertThat(response.oclDefinition())
-        .startsWith(
-            "def : getAllSubSystems(model : simulink::SimulinkModel) :"
-                + " Sequence(simulink::SubSystem) =");
+        .contains("public static List<SubSystem> getAllSubSystems(final SimulinkModel model)");
+    assertThat(response.xtendDefinition())
+        .startsWith("def static List<SubSystem> getAllSubSystems(SimulinkModel model) {");
   }
 
   @Test
   void create_rejectsNameUsedByAnotherUtilityMethodIgnoringCase() {
-    stored.add(utilityMethod(1L, "GetAllSubSystems", "Integer", "1"));
+    stored.add(utilityMethod(1L, "GetAllSubSystems", "int", "1"));
 
     assertThatThrownBy(() -> service.create(EMAIL, VSUM_ID, subSystemsRequest()))
         .isInstanceOf(UtilityMethodValidationException.class)
@@ -119,21 +146,34 @@ class UtilityMethodServiceTest {
   }
 
   @Test
-  void create_rejectsUtilityMethodThatDoesNotTranslate_withPosition() {
+  void create_rejectsUtilityMethodThatDoesNotCompile_withPosition() {
     UtilityMethodRequest request =
         new UtilityMethodRequest(
             "broken",
             null,
-            "Integer",
-            List.of(new UtilityMethodParameterDto("model", "simulink::SimulinkModel")),
-            List.of(),
-            "model.contians->size()");
+            "int",
+            List.of(new UtilityMethodParameterDto("model", "SimulinkModel")),
+            List.of(SIMULINK),
+            "model.contians.size");
 
     assertThatThrownBy(() -> service.create(EMAIL, VSUM_ID, request))
         .isInstanceOf(UtilityMethodValidationException.class)
         .hasMessageContaining("Line 1, column 7")
-        .hasMessageContaining("no feature 'contians'");
+        .hasMessageContaining("contians");
     verify(utilityMethodRepository, never()).save(any());
+  }
+
+  @Test
+  void create_acceptsTheFormerlyReservedOclPrefix_butRejectsXtendKeywords() {
+    UtilityMethodRequest ocl =
+        new UtilityMethodRequest("oclHelper", null, "int", List.of(), List.of(), "1");
+    UtilityMethodRequest keyword =
+        new UtilityMethodRequest("def", null, "int", List.of(), List.of(), "1");
+
+    assertThat(service.create(EMAIL, VSUM_ID, ocl).problems()).isEmpty();
+    assertThatThrownBy(() -> service.create(EMAIL, VSUM_ID, keyword))
+        .isInstanceOf(UtilityMethodValidationException.class)
+        .hasMessageContaining("keyword");
   }
 
   @Test
@@ -151,12 +191,12 @@ class UtilityMethodServiceTest {
 
   @Test
   void update_rejectsRenameThatBreaksCallers() {
-    UtilityMethod callee = utilityMethod(1L, "base", "Integer", "1");
+    UtilityMethod callee = utilityMethod(1L, "base", "int", "1");
     stored.add(callee);
-    stored.add(utilityMethod(2L, "caller", "Integer", "base() + 1"));
+    stored.add(utilityMethod(2L, "caller", "int", "base() + 1"));
     when(utilityMethodRepository.findByIdAndVsumId(1L, VSUM_ID)).thenReturn(Optional.of(callee));
     UtilityMethodRequest rename =
-        new UtilityMethodRequest("renamed", null, "Integer", List.of(), List.of(), "1");
+        new UtilityMethodRequest("renamed", null, "int", List.of(), List.of(), "1");
 
     assertThatThrownBy(() -> service.update(EMAIL, VSUM_ID, 1L, rename))
         .isInstanceOf(UtilityMethodValidationException.class)
@@ -166,11 +206,11 @@ class UtilityMethodServiceTest {
 
   @Test
   void update_appliesChanges_whenValid() {
-    UtilityMethod existing = utilityMethod(1L, "answer", "Integer", "1");
+    UtilityMethod existing = utilityMethod(1L, "answer", "int", "1");
     stored.add(existing);
     when(utilityMethodRepository.findByIdAndVsumId(1L, VSUM_ID)).thenReturn(Optional.of(existing));
     UtilityMethodRequest request =
-        new UtilityMethodRequest("answer", "The answer.", "Integer", List.of(), List.of(), " 42 ");
+        new UtilityMethodRequest("answer", "The answer.", "int", List.of(), List.of(), " 42 ");
 
     UtilityMethodResponse response = service.update(EMAIL, VSUM_ID, 1L, request);
 
@@ -191,7 +231,7 @@ class UtilityMethodServiceTest {
 
   @Test
   void delete_removesUnusedUtilityMethod() {
-    UtilityMethod utilityMethod = utilityMethod(1L, "answer", "Integer", "42");
+    UtilityMethod utilityMethod = utilityMethod(1L, "answer", "int", "42");
     stored.add(utilityMethod);
     when(utilityMethodRepository.findByIdAndVsumId(1L, VSUM_ID))
         .thenReturn(Optional.of(utilityMethod));
@@ -203,9 +243,9 @@ class UtilityMethodServiceTest {
 
   @Test
   void delete_rejectsUtilityMethodUsedByAnotherUtilityMethod() {
-    UtilityMethod callee = utilityMethod(1L, "base", "Integer", "1");
+    UtilityMethod callee = utilityMethod(1L, "base", "int", "1");
     stored.add(callee);
-    stored.add(utilityMethod(2L, "caller", "Integer", "thisModule.base() + 1"));
+    stored.add(utilityMethod(2L, "caller", "int", "Utility.base() + 1"));
     when(utilityMethodRepository.findByIdAndVsumId(1L, VSUM_ID)).thenReturn(Optional.of(callee));
 
     assertThatThrownBy(() -> service.delete(EMAIL, VSUM_ID, 1L))
@@ -218,7 +258,7 @@ class UtilityMethodServiceTest {
 
   @Test
   void preview_returnsProblemsInsteadOfThrowing_andIgnoresTheEditedMethodsName() {
-    stored.add(utilityMethod(1L, "getAllSubSystems", "Integer", "1"));
+    stored.add(utilityMethod(1L, "getAllSubSystems", "int", "1"));
 
     UtilityMethodPreviewResponse preview =
         service.preview(EMAIL, VSUM_ID, null, subSystemsRequest());
@@ -228,18 +268,43 @@ class UtilityMethodServiceTest {
         .containsExactly(
             "A utility method named 'getAllSubSystems' already exists in this project.");
     assertThat(preview.javaMethod()).isNull();
-    assertThat(preview.oclDefinition()).contains("closure");
+    assertThat(preview.xtendDefinition()).contains("filter(SubSystem)");
 
     UtilityMethodPreviewResponse ofEdited =
         service.preview(EMAIL, VSUM_ID, 1L, subSystemsRequest());
 
     assertThat(ofEdited.problems()).as("the edited method's own name is free").isEmpty();
-    assertThat(ofEdited.javaMethod()).contains("oclClosure");
+    assertThat(ofEdited.javaMethod()).contains("Iterators.<SubSystem>filter(");
+  }
+
+  @Test
+  void preview_reportsCompilerErrorsWithSeverityAndBodyPosition() {
+    UtilityMethodRequest request =
+        new UtilityMethodRequest(
+            "broken",
+            null,
+            "int",
+            List.of(new UtilityMethodParameterDto("model", "SimulinkModel")),
+            List.of(SIMULINK),
+            "val x = 1\nmodel.contians.size + x");
+
+    UtilityMethodPreviewResponse preview = service.preview(EMAIL, VSUM_ID, null, request);
+
+    assertThat(preview.javaMethod()).isNull();
+    assertThat(preview.problems())
+        .filteredOn(p -> p.message().contains("contians"))
+        .singleElement()
+        .satisfies(
+            p -> {
+              assertThat(p.severity()).isEqualTo("ERROR");
+              assertThat(p.line()).isEqualTo(2);
+              assertThat(p.column()).isEqualTo(7);
+            });
   }
 
   @Test
   void checkName_reportsInvalidAndTakenNames() {
-    stored.add(utilityMethod(1L, "taken", "Integer", "1"));
+    stored.add(utilityMethod(1L, "taken", "int", "1"));
 
     assertThat(service.checkName(EMAIL, VSUM_ID, "free", null).available()).isTrue();
     assertThat(service.checkName(EMAIL, VSUM_ID, "Taken", null).available()).isFalse();
@@ -250,8 +315,8 @@ class UtilityMethodServiceTest {
 
   @Test
   void generatedClass_leavesOutBrokenUtilityMethodsAndReportsThem() {
-    stored.add(utilityMethod(1L, "answer", "Integer", "42"));
-    stored.add(utilityMethod(2L, "broken", "Integer", "nope"));
+    stored.add(utilityMethod(1L, "answer", "int", "42"));
+    stored.add(utilityMethod(2L, "broken", "int", "nope"));
 
     UtilityMethodClassResponse response = service.generatedClass(EMAIL, VSUM_ID);
 
@@ -291,7 +356,7 @@ class UtilityMethodServiceTest {
 
   @Test
   void generateBuildFile_returnsJavaSource() {
-    stored.add(utilityMethod(1L, "answer", "Integer", "42"));
+    stored.add(utilityMethod(1L, "answer", "int", "42"));
 
     FileStorage file = service.generateBuildFile(vsum, List.of(simulinkEcore)).orElseThrow();
 
@@ -302,21 +367,21 @@ class UtilityMethodServiceTest {
   }
 
   @Test
-  void generateBuildFile_failsTheBuild_whenAUtilityMethodDoesNotTranslate() {
+  void generateBuildFile_failsTheBuild_whenAUtilityMethodDoesNotCompile() {
     stored.add(firstBlock());
 
     assertThatThrownBy(() -> service.generateBuildFile(vsum, List.of()))
         .isInstanceOf(VsumBuildingException.class)
         .hasMessageContaining("first:")
-        .hasMessageContaining("Unknown metamodel 'simulink'");
+        .hasMessageContaining("SimulinkModel");
   }
 
   // ── editor ───────────────────────────────────────────────────────────────
 
   @Test
-  void generateEditorSource_leavesOutUtilityMethodsThatDoNotTranslate() {
+  void generateEditorSource_leavesOutUtilityMethodsThatDoNotCompile() {
     stored.add(firstBlock());
-    stored.add(utilityMethod(2L, "answer", "Integer", "42"));
+    stored.add(utilityMethod(2L, "answer", "int", "42"));
 
     String source = service.generateEditorSource(VSUM_ID, List.of()).orElseThrow();
 
@@ -332,17 +397,17 @@ class UtilityMethodServiceTest {
     return new UtilityMethodRequest(
         "getAllSubSystems",
         "All subsystems, including nested ones.",
-        "Sequence(simulink::SubSystem)",
-        List.of(new UtilityMethodParameterDto("model", "simulink::SimulinkModel")),
-        List.of("simulink::*", " "),
-        "model.contains->selectByKind(SubSystem)\n"
-            + "  ->closure(s | s.subBlocks->selectByKind(SubSystem))");
+        "List<SubSystem>",
+        List.of(new UtilityMethodParameterDto("model", "SimulinkModel")),
+        List.of(SIMULINK, " "),
+        "model.eAllContents\n  .filter(SubSystem)\n  .toList");
   }
 
-  /** Needs the simulink metamodel, so it does not translate when no metamodel is passed. */
+  /** Needs the simulink metamodel, so it does not compile when no metamodel is passed. */
   private UtilityMethod firstBlock() {
-    UtilityMethod first = utilityMethod(1L, "first", "simulink::Block", "model.contains->first()");
-    first.getParameters().add(new UtilityMethodParameter("model", "simulink::SimulinkModel"));
+    UtilityMethod first = utilityMethod(1L, "first", "Block", "model.contains.head");
+    first.getParameters().add(new UtilityMethodParameter("model", "SimulinkModel"));
+    first.getImports().add(SIMULINK);
     return first;
   }
 

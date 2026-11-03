@@ -10,15 +10,16 @@ import java.util.List;
  *
  * @param name the utility method name, which becomes the Java method name
  * @param description optional documentation
- * @param returnType the OCL return type, e.g. {@code Sequence(simulink::SubSystem)}
+ * @param returnType the Xtend/Java return type, e.g. {@code List<SubSystem>}
  * @param parameters the parameters in declaration order
- * @param imports metamodel types usable by their simple name, e.g. {@code simulink::SubSystem}
- * @param body the OCL expression
+ * @param imports Java imports without keyword and semicolon, e.g. {@code
+ *     tools.vitruv.methodologisttemplate.model.simulink.*}
+ * @param body the Xtend method body without the surrounding braces
  */
 public record UtilityMethodRequest(
     @NotBlank @Size(max = 255) String name,
     String description,
     @NotBlank @Size(max = 1024) String returnType,
     @Valid List<UtilityMethodParameterDto> parameters,
-    List<String> imports,
-    @NotBlank String body) {}
+    @Size(max = 50) List<@Size(max = 255) String> imports,
+    @NotBlank @Size(max = 20000) String body) {}

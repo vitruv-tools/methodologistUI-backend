@@ -8,7 +8,7 @@ import java.util.List;
  * @param qualifiedClassName the fully qualified class name reactions import
  * @param fileName the file name of the class
  * @param source the Java source; utility methods with problems are left out
- * @param problems the problems of utility methods that could not be translated
+ * @param problems the problems of utility methods that that do not compile
  */
 public record UtilityMethodClassResponse(
     String qualifiedClassName,

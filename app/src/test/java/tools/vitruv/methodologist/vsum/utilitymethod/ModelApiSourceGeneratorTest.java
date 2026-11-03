@@ -13,13 +13,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import tools.vitruv.methodologist.vsum.utilitymethod.EcoreTypeIndex.EcoreFile;
-import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodDefinition.Parameter;
 
 class ModelApiSourceGeneratorTest {
 
@@ -190,28 +188,6 @@ class ModelApiSourceGeneratorTest {
     assertThat(counter.getMethod("getType").getReturnType()).isEqualTo(Class.class);
     assertThat(load(OPS + "OpsPackage").getMethod("getCounter_Owner").getReturnType().getName())
         .isEqualTo("org.eclipse.emf.ecore.EReference");
-  }
-
-  @Test
-  void generate_compilesTogetherWithTheUtilityMethodClass() throws IOException {
-    UtilityMethodDefinition first =
-        new UtilityMethodDefinition(
-            "first",
-            null,
-            List.of(new Parameter("model", "SimulinkModel")),
-            "Block",
-            List.of("simulink::*"),
-            "model.contains->first()");
-    EcoreTypeIndex index = EcoreTypeIndex.of(List.of(resource("simulink.ecore")));
-    String utilityMethods = UtilityMethodClassGenerator.generate(List.of(first), index).source();
-
-    List<String> errors =
-        EmfApiStubs.compile(
-            Map.of(UtilityMethodClassGenerator.QUALIFIED_CLASS_NAME, utilityMethods),
-            List.of(stubs, classes),
-            tempDir.resolve("utility"));
-
-    assertThat(errors).as("utilityMethods compile against the generated API").isEmpty();
   }
 
   private static Class<?> load(String name) throws ClassNotFoundException {

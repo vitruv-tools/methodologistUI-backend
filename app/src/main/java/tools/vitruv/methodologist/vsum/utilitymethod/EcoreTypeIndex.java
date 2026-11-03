@@ -25,10 +25,10 @@ import org.xml.sax.SAXException;
 /**
  * Read-only index of the classifiers declared in a set of {@code .ecore} files.
  *
- * <p>The index parses the XMI directly, so the backend does not need EMF on its classpath. It knows
- * the Java names EMF generates for the classifiers, which follow the genmodels the setup-service
- * creates for every VSUM build: the base package is {@value #MODEL_BASE_PACKAGE}, followed by the
- * (sub)package names.
+ * <p>The index parses the XMI directly, without loading the metamodels into EMF. It knows the Java
+ * names EMF generates for the classifiers, which follow the genmodels the setup-service creates for
+ * every VSUM build: the base package is {@value #MODEL_BASE_PACKAGE}, followed by the (sub)package
+ * names.
  */
 public final class EcoreTypeIndex {
 

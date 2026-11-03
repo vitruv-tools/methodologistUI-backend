@@ -46,15 +46,17 @@ import tools.vitruv.methodologist.vsum.utilitymethod.EcoreTypeIndex.EcoreFile;
 import tools.vitruv.methodologist.vsum.utilitymethod.EcoreTypeIndex.EnumInfo;
 import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodClassGenerator;
 import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodClassGenerator.UtilityMethodError;
+import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodCompilationException;
+import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodCompiler;
 import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodDefinition;
 
 /**
  * Service for the utility methods of a VSUM.
  *
- * <p>Utility methods are stored as OCL and translated to Java on demand: every save validates that
- * the utility method translates against the VSUM's metamodels, and every build generates the
- * utility class from the utility methods that exist at that time. Deleting a utility method
- * therefore also removes its Java code.
+ * <p>Utility methods are stored with an Xtend body and compiled to Java on demand: every save
+ * validates that the utility method compiles against the VSUM's metamodels, and every build
+ * generates the utility class from the utility methods that exist at that time. Deleting a utility
+ * method therefore also removes its Java code.
  */
 @Service
 @AllArgsConstructor
@@ -64,6 +66,7 @@ public class UtilityMethodService {
   UtilityMethodRepository utilityMethodRepository;
   VsumUserRepository vsumUserRepository;
   VsumMetaModelRepository vsumMetaModelRepository;
+  UtilityMethodCompiler utilityMethodCompiler;
 
   /**
    * Returns all utility methods of the given VSUM, each with its generated Java method or its
@@ -78,19 +81,19 @@ public class UtilityMethodService {
     findAccessibleVsum(callerEmail, vsumId);
     List<UtilityMethod> utilityMethods = utilityMethodRepository.findByVsumIdOrderByNameAsc(vsumId);
     UtilityMethodClassGenerator.Result result =
-        generate(definitions(utilityMethods), metamodelIndex(vsumId));
+        compile(definitions(utilityMethods), projectEcores(vsumId));
     return utilityMethods.stream().map(utilityMethod -> toResponse(utilityMethod, result)).toList();
   }
 
   /**
-   * Creates a utility method after checking that its name is free and that it translates to Java.
+   * Creates a utility method after checking that its name is free and that it compiles to Java.
    *
    * @param callerEmail email of the authenticated user
    * @param vsumId the VSUM ID
    * @param request the utility method
    * @return the created utility method
    * @throws UtilityMethodValidationException if the name is taken or the utility method cannot be
-   *     translated
+   *     compiled
    */
   @Transactional
   public UtilityMethodResponse create(
@@ -99,7 +102,7 @@ public class UtilityMethodService {
     List<UtilityMethod> existing = utilityMethodRepository.findByVsumIdOrderByNameAsc(vsumId);
     UtilityMethodDefinition definition = toDefinition(request);
     UtilityMethodClassGenerator.Result result =
-        validate(definition, null, existing, metamodelIndex(vsumId));
+        validate(definition, null, existing, projectEcores(vsumId));
 
     UtilityMethod utilityMethod = UtilityMethod.builder().vsum(vsum).build();
     apply(utilityMethod, request);
@@ -107,7 +110,7 @@ public class UtilityMethodService {
   }
 
   /**
-   * Updates a utility method after checking that its name is free, that it translates to Java and
+   * Updates a utility method after checking that its name is free, that it compiles to Java and
    * that the utility methods calling it still do.
    *
    * @param callerEmail email of the authenticated user
@@ -125,7 +128,7 @@ public class UtilityMethodService {
     List<UtilityMethod> existing = utilityMethodRepository.findByVsumIdOrderByNameAsc(vsumId);
     UtilityMethodDefinition definition = toDefinition(request);
     UtilityMethodClassGenerator.Result result =
-        validate(definition, utilityMethod, existing, metamodelIndex(vsumId));
+        validate(definition, utilityMethod, existing, projectEcores(vsumId));
 
     apply(utilityMethod, request);
     return toResponse(utilityMethodRepository.save(utilityMethod), result);
@@ -144,12 +147,12 @@ public class UtilityMethodService {
     findAccessibleVsum(callerEmail, vsumId);
     UtilityMethod utilityMethod = findUtilityMethod(utilityMethodId, vsumId);
     List<UtilityMethod> existing = utilityMethodRepository.findByVsumIdOrderByNameAsc(vsumId);
-    EcoreTypeIndex index = metamodelIndex(vsumId);
+    List<FileStorage> ecores = projectEcores(vsumId);
     List<UtilityMethodDefinition> before = definitions(existing);
     List<UtilityMethodDefinition> after =
         definitions(
             existing.stream().filter(h -> !Objects.equals(h.getId(), utilityMethodId)).toList());
-    Set<String> broken = newlyBrokenUtilityMethods(generate(before, index), generate(after, index));
+    Set<String> broken = newlyBrokenUtilityMethods(compile(before, ecores), compile(after, ecores));
     if (!broken.isEmpty()) {
       throw new UtilityMethodValidationException(
           "The utility method '"
@@ -162,14 +165,14 @@ public class UtilityMethodService {
   }
 
   /**
-   * Translates an unsaved utility method without storing it, for live feedback in the editor.
+   * Compiles an unsaved utility method without storing it, for live feedback in the editor.
    *
    * @param callerEmail email of the authenticated user
    * @param vsumId the VSUM ID
    * @param utilityMethodId the ID of the utility method being edited, or {@code null} for a new
    *     utility method
    * @param request the utility method
-   * @return the OCL definition, the Java method and the problems found
+   * @return the Xtend definition, the Java method and the problems found
    */
   @Transactional(readOnly = true)
   public UtilityMethodPreviewResponse preview(
@@ -180,14 +183,27 @@ public class UtilityMethodService {
     List<UtilityMethodProblemResponse> problems = new ArrayList<>();
     String nameProblem = nameProblem(request.name(), utilityMethodId, existing);
     if (nameProblem != null) {
-      problems.add(new UtilityMethodProblemResponse(request.name(), nameProblem, null, null));
+      problems.add(
+          new UtilityMethodProblemResponse(
+              request.name(), nameProblem, null, null, UtilityMethodClassGenerator.ERROR));
     }
-    UtilityMethodClassGenerator.Result result =
-        generate(withCandidate(definition, utilityMethodId, existing), metamodelIndex(vsumId));
-    result.errorsOf(definition.name()).stream().map(this::toProblem).forEach(problems::add);
+    String javaMethod = null;
+    try {
+      UtilityMethodClassGenerator.Result result =
+          compile(withCandidate(definition, utilityMethodId, existing), projectEcores(vsumId));
+      result.errorsOf(definition.name()).stream().map(this::toProblem).forEach(problems::add);
+      javaMethod = result.methods().get(definition.name());
+    } catch (UtilityMethodValidationException e) {
+      problems.add(
+          new UtilityMethodProblemResponse(
+              definition.name(), e.getMessage(), null, null, UtilityMethodClassGenerator.ERROR));
+    }
+    boolean hasErrors =
+        problems.stream()
+            .anyMatch(problem -> UtilityMethodClassGenerator.ERROR.equals(problem.severity()));
     return new UtilityMethodPreviewResponse(
-        definition.oclDefinition(),
-        problems.isEmpty() ? result.methods().get(definition.name()) : null,
+        UtilityMethodClassGenerator.xtendDefinition(definition),
+        hasErrors ? null : javaMethod,
         problems);
   }
 
@@ -222,9 +238,9 @@ public class UtilityMethodService {
   public UtilityMethodClassResponse generatedClass(String callerEmail, Long vsumId) {
     findAccessibleVsum(callerEmail, vsumId);
     UtilityMethodClassGenerator.Result result =
-        generate(
+        compile(
             definitions(utilityMethodRepository.findByVsumIdOrderByNameAsc(vsumId)),
-            metamodelIndex(vsumId));
+            projectEcores(vsumId));
     return new UtilityMethodClassResponse(
         UtilityMethodClassGenerator.QUALIFIED_CLASS_NAME,
         UtilityMethodClassGenerator.FILE_NAME,
@@ -242,7 +258,9 @@ public class UtilityMethodService {
   @Transactional(readOnly = true)
   public List<UtilityMethodTypeResponse> availableTypes(String callerEmail, Long vsumId) {
     findAccessibleVsum(callerEmail, vsumId);
-    return metamodelIndex(vsumId).allClassifiers().stream().map(this::toTypeResponse).toList();
+    return EcoreTypeIndex.of(ecoreFiles(projectEcores(vsumId))).allClassifiers().stream()
+        .map(this::toTypeResponse)
+        .toList();
   }
 
   /**
@@ -252,7 +270,7 @@ public class UtilityMethodService {
    * @param ecores the metamodel files of the build
    * @return the Java file to compile with the reactions, or empty if the VSUM has no utility
    *     methods
-   * @throws VsumBuildingException if a utility method cannot be translated
+   * @throws VsumBuildingException if a utility method does not compile
    */
   @Transactional(readOnly = true)
   public Optional<FileStorage> generateBuildFile(Vsum vsum, Collection<FileStorage> ecores) {
@@ -261,13 +279,18 @@ public class UtilityMethodService {
     if (utilityMethods.isEmpty()) {
       return Optional.empty();
     }
-    UtilityMethodClassGenerator.Result result =
-        generate(definitions(utilityMethods), EcoreTypeIndex.of(ecoreFiles(ecores)));
+    UtilityMethodClassGenerator.Result result;
+    try {
+      result = compile(definitions(utilityMethods), ecores);
+    } catch (UtilityMethodValidationException e) {
+      throw new VsumBuildingException(e.getMessage());
+    }
     if (result.hasErrors()) {
       throw new VsumBuildingException(
-          "The utility methods cannot be translated to Java: "
+          "The utility methods do not compile: "
               + result.errors().stream()
-                  .map(error -> error.utilityMethodName() + ": " + error.message())
+                  .filter(UtilityMethodError::isError)
+                  .map(error -> error.utilityMethodName() + ": " + describe(error))
                   .collect(Collectors.joining("; ")));
     }
     byte[] source = result.source().getBytes(StandardCharsets.UTF_8);
@@ -285,7 +308,7 @@ public class UtilityMethodService {
 
   /**
    * Generates the utility class for the reactions editor, using the metamodels the editor is given.
-   * Unlike for a build, utility methods that cannot be translated are left out instead of failing.
+   * Unlike for a build, utility methods that do not compile are left out instead of failing.
    *
    * @param vsumId the VSUM ID
    * @param ecores the metamodel files of the editor's workspace
@@ -297,14 +320,17 @@ public class UtilityMethodService {
     if (utilityMethods.isEmpty()) {
       return Optional.empty();
     }
-    return Optional.of(
-        generate(definitions(utilityMethods), EcoreTypeIndex.of(ecoreFiles(ecores))).source());
+    try {
+      return Optional.of(compile(definitions(utilityMethods), ecores).source());
+    } catch (UtilityMethodValidationException e) {
+      return Optional.empty();
+    }
   }
 
   // ── validation ───────────────────────────────────────────────────────────
 
   /**
-   * Checks the candidate's name and translation and that no other utility method breaks because of
+   * Checks the candidate's name and compilation and that no other utility method breaks because of
    * it.
    *
    * @return the generation result including the candidate
@@ -313,19 +339,20 @@ public class UtilityMethodService {
       UtilityMethodDefinition candidate,
       UtilityMethod replaced,
       List<UtilityMethod> existing,
-      EcoreTypeIndex index) {
+      List<FileStorage> ecores) {
     Long replacedId = replaced == null ? null : replaced.getId();
     String nameProblem = nameProblem(candidate.name(), replacedId, existing);
     if (nameProblem != null) {
       throw new UtilityMethodValidationException(nameProblem);
     }
     UtilityMethodClassGenerator.Result after =
-        generate(withCandidate(candidate, replacedId, existing), index);
-    List<UtilityMethodError> errors = after.errorsOf(candidate.name());
+        compile(withCandidate(candidate, replacedId, existing), ecores);
+    List<UtilityMethodError> errors =
+        after.errorsOf(candidate.name()).stream().filter(UtilityMethodError::isError).toList();
     if (!errors.isEmpty()) {
       throw new UtilityMethodValidationException(describe(errors.get(0)));
     }
-    Set<String> broken = newlyBrokenUtilityMethods(generate(definitions(existing), index), after);
+    Set<String> broken = newlyBrokenUtilityMethods(compile(definitions(existing), ecores), after);
     if (!broken.isEmpty()) {
       throw new UtilityMethodValidationException(
           "Saving would break the utility methods that call '"
@@ -352,15 +379,11 @@ public class UtilityMethodService {
     return taken ? "A utility method named '" + name + "' already exists in this project." : null;
   }
 
-  /** Utility methods that translate in {@code before} but not in {@code after}. */
+  /** Utility methods that compile in {@code before} but not in {@code after}. */
   private static Set<String> newlyBrokenUtilityMethods(
       UtilityMethodClassGenerator.Result before, UtilityMethodClassGenerator.Result after) {
-    Set<String> brokenBefore =
-        before.errors().stream()
-            .map(UtilityMethodError::utilityMethodName)
-            .collect(Collectors.toSet());
-    return after.errors().stream()
-        .map(UtilityMethodError::utilityMethodName)
+    Set<String> brokenBefore = before.failedUtilityMethods();
+    return after.failedUtilityMethods().stream()
         .filter(name -> !brokenBefore.contains(name) && before.methods().containsKey(name))
         .collect(Collectors.toCollection(TreeSet::new));
   }
@@ -374,9 +397,19 @@ public class UtilityMethodService {
 
   // ── generation ───────────────────────────────────────────────────────────
 
-  private static UtilityMethodClassGenerator.Result generate(
-      List<UtilityMethodDefinition> definitions, EcoreTypeIndex index) {
-    return UtilityMethodClassGenerator.generate(definitions, index);
+  /**
+   * Compiles the utility methods.
+   *
+   * @throws UtilityMethodValidationException if compiling fails for a reason other than a problem
+   *     in the utility methods, for example a timeout
+   */
+  private UtilityMethodClassGenerator.Result compile(
+      List<UtilityMethodDefinition> definitions, Collection<FileStorage> ecores) {
+    try {
+      return utilityMethodCompiler.compile(definitions, ecores);
+    } catch (UtilityMethodCompilationException e) {
+      throw new UtilityMethodValidationException(e.getMessage());
+    }
   }
 
   /**
@@ -396,16 +429,14 @@ public class UtilityMethodService {
     return definitions;
   }
 
-  private EcoreTypeIndex metamodelIndex(Long vsumId) {
-    List<FileStorage> ecores =
-        vsumMetaModelRepository.findByVsumId(vsumId).stream()
-            .filter(link -> link.getRemovedAt() == null)
-            .map(VsumMetaModel::getMetaModel)
-            .filter(Objects::nonNull)
-            .map(MetaModel::getEcoreFile)
-            .filter(Objects::nonNull)
-            .toList();
-    return EcoreTypeIndex.of(ecoreFiles(ecores));
+  private List<FileStorage> projectEcores(Long vsumId) {
+    return vsumMetaModelRepository.findByVsumId(vsumId).stream()
+        .filter(link -> link.getRemovedAt() == null)
+        .map(VsumMetaModel::getMetaModel)
+        .filter(Objects::nonNull)
+        .map(MetaModel::getEcoreFile)
+        .filter(Objects::nonNull)
+        .toList();
   }
 
   private static List<EcoreFile> ecoreFiles(Collection<FileStorage> ecores) {
@@ -494,7 +525,7 @@ public class UtilityMethodService {
             .toList(),
         List.copyOf(utilityMethod.getImports()),
         utilityMethod.getBody(),
-        definition.oclDefinition(),
+        UtilityMethodClassGenerator.xtendDefinition(definition),
         result.methods().get(utilityMethod.getName()),
         result.errorsOf(utilityMethod.getName()).stream().map(this::toProblem).toList(),
         utilityMethod.getCreatedAt(),
@@ -503,7 +534,7 @@ public class UtilityMethodService {
 
   private UtilityMethodProblemResponse toProblem(UtilityMethodError error) {
     return new UtilityMethodProblemResponse(
-        error.utilityMethodName(), error.message(), error.line(), error.column());
+        error.utilityMethodName(), error.message(), error.line(), error.column(), error.severity());
   }
 
   private UtilityMethodTypeResponse toTypeResponse(ClassifierInfo classifier) {

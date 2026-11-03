@@ -11,13 +11,14 @@ import tools.vitruv.methodologist.vsum.controller.dto.request.UtilityMethodParam
  * @param vsumId the VSUM the utility method belongs to
  * @param name the utility method name
  * @param description optional documentation
- * @param returnType the OCL return type
+ * @param returnType the Xtend/Java return type
  * @param parameters the parameters in declaration order
- * @param imports the imported metamodel types
- * @param body the OCL expression
- * @param oclDefinition the complete utility method definition in OCL
+ * @param imports the Java imports
+ * @param body the Xtend method body
+ * @param xtendDefinition the utility method as it appears in the generated Xtend class
  * @param javaMethod the generated Java method, or {@code null} if the utility method has problems
- * @param problems the problems that keep the utility method from being translated
+ * @param problems the problems found, including warnings; errors keep the utility method out of the
+ *     class
  * @param createdAt creation time
  * @param updatedAt last modification time
  */
@@ -30,7 +31,7 @@ public record UtilityMethodResponse(
     List<UtilityMethodParameterDto> parameters,
     List<String> imports,
     String body,
-    String oclDefinition,
+    String xtendDefinition,
     String javaMethod,
     List<UtilityMethodProblemResponse> problems,
     Instant createdAt,

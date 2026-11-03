@@ -7,7 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** A parameter of an {@link Utility method}: its name and OCL type. */
+/** A parameter of a {@link UtilityMethod}: its name and Xtend/Java type. */
 @Embeddable
 @Getter
 @Setter

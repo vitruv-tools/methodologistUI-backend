@@ -33,18 +33,18 @@ class UtilityMethodControllerTest {
   @Mock KeycloakAuthentication.ParsedToken parsedToken;
 
   private final UtilityMethodRequest request =
-      new UtilityMethodRequest("answer", null, "Integer", List.of(), List.of(), "42");
+      new UtilityMethodRequest("answer", null, "int", List.of(), List.of(), "42");
   private final UtilityMethodResponse response =
       new UtilityMethodResponse(
           1L,
           10L,
           "answer",
           null,
-          "Integer",
+          "int",
           List.of(),
           List.of(),
           "42",
-          "def : answer() : Integer =\n\t42;",
+          "def static int answer() {\n  42\n}",
           "public static int answer() {}",
           List.of(),
           Instant.now(),

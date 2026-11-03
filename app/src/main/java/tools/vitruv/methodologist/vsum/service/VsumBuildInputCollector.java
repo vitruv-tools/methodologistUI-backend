@@ -46,7 +46,7 @@ public class VsumBuildInputCollector {
    * @return the inputs of the setup-service
    * @throws NotFoundException if the VSUM has no metamodel or a relation is missing
    * @throws tools.vitruv.methodologist.exception.VsumBuildingException if reaction files on a pair
-   *     cannot be composed or a utility method cannot be translated to Java
+   *     cannot be composed or a utility method does not compile
    */
   public VsumBuildInputs collect(Vsum vsum) {
     Map<String, FileStorage> ecores = new LinkedHashMap<>();
