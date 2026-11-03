@@ -29,6 +29,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
 import tools.vitruv.methodologist.config.VsumBuildConfig;
 import tools.vitruv.methodologist.config.VsumBuildProperties;
+import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.SetupServiceException;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
@@ -67,6 +68,7 @@ public class VsumBuildService {
   static final String QUEUE_FULL_ERROR = "Too many builds are waiting, please try again later.";
   static final String RESTART_ERROR = "The build was interrupted by a restart of the backend.";
   static final String TIMEOUT_ERROR = "The build did not finish within %d seconds.";
+  static final String BUILD_FAILED_ERROR = "The build failed.";
 
   private static final Set<VsumBuildStatus> IN_FLIGHT =
       EnumSet.of(VsumBuildStatus.QUEUED, VsumBuildStatus.RUNNING);
@@ -182,14 +184,14 @@ public class VsumBuildService {
    * Requests a build (reusing an up-to-date one if possible), waits for it to finish and returns
    * the built JAR. This is what the synchronous download endpoints use.
    *
-   * @throws SetupServiceException if the build failed
+   * @throws SetupServiceException if the build failed, with the error code and problems the
+   *     setup-service reported for it
    * @throws VsumBuildingException if the build did not finish within the configured wait timeout
    */
   public byte[] buildAndWait(String callerEmail, Long vsumId) {
     Long buildId = requestBuild(callerEmail, vsumId, false).build().getId();
     if (awaitCompletion(buildId) != VsumBuildStatus.SUCCEEDED) {
-      throw new SetupServiceException(
-          vsumBuildRepository.findErrorMessageById(buildId).orElse("The build failed."));
+      throw buildFailure(buildId);
     }
     return artifactBytes(buildId);
   }
@@ -321,7 +323,12 @@ public class VsumBuildService {
       succeed(buildId, jar);
     } catch (RuntimeException e) {
       log.error("VSUM build {} failed: {}", buildId, e.getMessage(), e);
-      fail(buildId, e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+      String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+      if (e instanceof SetupServiceException setupServiceError) {
+        fail(buildId, message, setupServiceError.getErrorCode(), setupServiceError.getProblems());
+      } else {
+        fail(buildId, message);
+      }
     } finally {
       lock.unlock();
     }
@@ -391,6 +398,11 @@ public class VsumBuildService {
   }
 
   private void fail(Long buildId, String message) {
+    fail(buildId, message, null, null);
+  }
+
+  /** Marks the build failed, keeping the error code and problems the setup-service reported. */
+  private void fail(Long buildId, String message, String errorCode, List<BuildProblem> problems) {
     transactionTemplate.executeWithoutResult(
         status ->
             vsumBuildRepository
@@ -399,6 +411,8 @@ public class VsumBuildService {
                     build -> {
                       build.setStatus(VsumBuildStatus.FAILED);
                       build.setErrorMessage(message);
+                      build.setErrorCode(errorCode);
+                      build.setProblems(problems);
                       build.setFinishedAt(Instant.now());
                       vsumBuildRepository.save(build);
                     }));
@@ -459,6 +473,24 @@ public class VsumBuildService {
       }
       sleep(properties.getPollIntervalMillis());
     }
+  }
+
+  /**
+   * Creates the exception reporting a failed build, with the error code and problems stored for it,
+   * read with {@link VsumBuildRepository#findFailureById} for the reason given at {@link
+   * #awaitCompletion}.
+   */
+  private SetupServiceException buildFailure(Long buildId) {
+    return vsumBuildRepository
+        .findFailureById(buildId)
+        .map(
+            failure ->
+                new SetupServiceException(
+                    Objects.requireNonNullElse(failure.getErrorMessage(), BUILD_FAILED_ERROR),
+                    null,
+                    failure.getErrorCode(),
+                    failure.getProblems()))
+        .orElseGet(() -> new SetupServiceException(BUILD_FAILED_ERROR));
   }
 
   private byte[] artifactBytes(Long buildId) {
