@@ -246,6 +246,386 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "constraints",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/constraints",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "constraints"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "constraint",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/constraints/{{constraint-id}}",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "constraints",
+            "{{constraint-id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "validate-constraints",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/constraints/validate",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "constraints",
+            "validate"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "validate-constraint-with-models",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/constraints/validate",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "constraints",
+            "validate"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"constraintIds\": [\n    \"model::Component::hasName\"\n  ],\n  \"includeModels\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "constraint-status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/constraints/status",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "constraints",
+            "status"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "constraint-events",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "text/event-stream"
+          }
+        ],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/constraints/events",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "constraints",
+            "events"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "models",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/models",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "models"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "model",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/models/{{model-id}}",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "models",
+            "{{model-id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "model-as-xmi",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/xmi+xml"
+          }
+        ],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/models/{{model-id}}",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "models",
+            "{{model-id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "models-batch",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/models/batch",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "models",
+            "batch"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"ids\": null\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "metamodels",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/metamodels",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "metamodels"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "metamodel",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/metamodels/{{metamodel-nsuri}}",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "metamodels",
+            "{{metamodel-nsuri}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "create-constraint",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/constraints",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "constraints"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"language\": \"vitruvocl\",\n  \"source\": \"context model::Component inv hasName:\\n  @severity WARNING\\n  @message \\\"Component without name\\\"\\n  self.name != \\\"\\\"\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "update-constraint",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/constraints/{{constraint-id}}",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "constraints",
+            "{{constraint-id}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"source\": \"context model::Component inv hasName:\\n  @severity CRITICAL\\n  @message \\\"Component without name\\\"\\n  self.name != \\\"\\\"\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "delete-constraint",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/constraints/{{constraint-id}}",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "constraints",
+            "{{constraint-id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "constraint-revision",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseVitru}}/vsum/constraints/revision",
+          "host": [
+            "{{baseVitru}}"
+          ],
+          "path": [
+            "vsum",
+            "constraints",
+            "revision"
+          ]
+        }
+      },
+      "response": []
     }
   ],
   "event": [
@@ -296,6 +676,18 @@
     {
       "key": "view-uuid",
       "value": ""
+    },
+    {
+      "key": "constraint-id",
+      "value": "model%3A%3AComponent%3A%3AhasName"
+    },
+    {
+      "key": "model-id",
+      "value": "%2Fmodel%2Fexample.model"
+    },
+    {
+      "key": "metamodel-nsuri",
+      "value": "http%3A%2F%2Fexample.org%2Fmodel"
     }
   ]
 }

@@ -29,6 +29,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPut
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelationResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildCheckResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
@@ -476,5 +477,20 @@ public class VsumService {
    */
   public byte[] getJarfat(String callerEmail, Long id) {
     return vsumBuildService.buildAndWait(callerEmail, id);
+  }
+
+  /**
+   * Builds the VSUM and reports the constraint rule sets it contains.
+   *
+   * @param callerEmail email address of the requesting user
+   * @param id the VSUM identifier
+   * @return the constraint rule sets built into the VSUM, without rule sets if they changed during
+   *     the build
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the build fails, e.g.
+   *     because a constraint refers to an unknown metamodel
+   */
+  public VsumBuildCheckResponse checkBuild(String callerEmail, Long id) {
+    return new VsumBuildCheckResponse(
+        vsumBuildService.buildAndFindConstraintRuleSets(callerEmail, id).orElse(null));
   }
 }

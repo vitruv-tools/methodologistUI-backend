@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 JAR="vsum.jar"
-MIN_JAVA_VERSION=17
+MIN_JAVA_VERSION=21
 
 if [ ! -f "$JAR" ]; then
   echo "ERROR: '$JAR' was not found next to this script." >&2

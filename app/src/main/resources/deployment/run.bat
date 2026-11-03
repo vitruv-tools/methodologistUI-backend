@@ -19,7 +19,7 @@ if not defined JAVA_BIN if exist "%JAVA_HOME%\bin\java.exe" set "JAVA_BIN=%JAVA_
 
 if not defined JAVA_BIN (
   echo ERROR: No Java runtime was found.
-  echo        Install Java 17 or newer from https://adoptium.net
+  echo        Install Java 21 or newer from https://adoptium.net
   echo        and start this script again.
   goto :failed
 )
