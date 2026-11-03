@@ -18,6 +18,7 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 import tools.vitruv.methodologist.exception.DuplicateVsumMembershipException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.OwnerCannotAddSelfAsMemberException;
@@ -139,26 +140,102 @@ class VsumUserServiceTest {
   }
 
   @Test
-  void findAllMemberByVsum_throwsOwnerRequired_whenCallerNotOwner() {
+  void findAllMemberByVsum_returnsAllUsersIncludingOwner_whenCallerIsMember() {
     String caller = "member@x.test";
-    User mem = new User();
-    mem.setId(200L);
-    mem.setEmail(caller);
+    User mem = newUser(200L, caller);
 
     VsumUser ownerMembership =
-        VsumUser.builder().id(1L).vsum(vsum).user(new User()).role(VsumRole.OWNER).build();
+        VsumUser.builder()
+            .id(1L)
+            .vsum(vsum)
+            .user(newUser(100L, "owner@x.test"))
+            .role(VsumRole.OWNER)
+            .build();
     VsumUser memberMembership =
         VsumUser.builder().id(2L).vsum(vsum).user(mem).role(VsumRole.MEMBER).build();
+    VsumUser viewerMembership =
+        VsumUser.builder()
+            .id(3L)
+            .vsum(vsum)
+            .user(newUser(300L, "viewer@x.test"))
+            .role(VsumRole.VIEWER)
+            .build();
 
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(caller))
         .thenReturn(Optional.of(mem));
+    when(vsumUserRepository.findAllByVsum_Id(vsum.getId()))
+        .thenReturn(List.of(ownerMembership, memberMembership, viewerMembership));
+    when(vsumUserMapper.toVsumUserResponse(any()))
+        .thenAnswer(
+            inv -> {
+              VsumUser u = inv.getArgument(0);
+              return VsumUserResponse.builder().id(u.getId()).roleEn(u.getRole().getName()).build();
+            });
+
+    var out = service.findAllMemberByVsum(caller, vsum.getId());
+
+    assertThat(out)
+        .extracting(VsumUserResponse::getRoleEn)
+        .containsExactly("Owner", "Member", "Viewer");
+  }
+
+  @Test
+  void findAllMemberByVsum_throwsAccessDenied_whenCallerIsViewer() {
+    String caller = "viewer@x.test";
+    User viewer = newUser(300L, caller);
+
+    VsumUser ownerMembership =
+        VsumUser.builder()
+            .id(1L)
+            .vsum(vsum)
+            .user(newUser(100L, "owner@x.test"))
+            .role(VsumRole.OWNER)
+            .build();
+    VsumUser viewerMembership =
+        VsumUser.builder().id(3L).vsum(vsum).user(viewer).role(VsumRole.VIEWER).build();
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(caller))
+        .thenReturn(Optional.of(viewer));
+    when(vsumUserRepository.findAllByVsum_Id(vsum.getId()))
+        .thenReturn(List.of(ownerMembership, viewerMembership));
+
+    Long vsumId = vsum.getId();
+
+    assertThatThrownBy(() -> service.findAllMemberByVsum(caller, vsumId))
+        .isInstanceOf(AccessDeniedException.class);
+    verify(vsumUserMapper, never()).toVsumUserResponse(any());
+  }
+
+  @Test
+  void findAllMemberByVsum_throwsAccessDenied_whenCallerNotPartOfVsum() {
+    String caller = "outsider@x.test";
+    User outsider = newUser(400L, caller);
+
+    VsumUser ownerMembership =
+        VsumUser.builder()
+            .id(1L)
+            .vsum(vsum)
+            .user(newUser(100L, "owner@x.test"))
+            .role(VsumRole.OWNER)
+            .build();
+    VsumUser memberMembership =
+        VsumUser.builder()
+            .id(2L)
+            .vsum(vsum)
+            .user(newUser(200L, "member@x.test"))
+            .role(VsumRole.MEMBER)
+            .build();
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(caller))
+        .thenReturn(Optional.of(outsider));
     when(vsumUserRepository.findAllByVsum_Id(vsum.getId()))
         .thenReturn(List.of(ownerMembership, memberMembership));
 
     Long vsumId = vsum.getId();
 
     assertThatThrownBy(() -> service.findAllMemberByVsum(caller, vsumId))
-        .isInstanceOf(OwnerRequiredException.class);
+        .isInstanceOf(AccessDeniedException.class);
+    verify(vsumUserMapper, never()).toVsumUserResponse(any());
   }
 
   @Test
@@ -389,5 +466,12 @@ class VsumUserServiceTest {
     assertThatThrownBy(() -> service.deleteMember(caller, 123L))
         .isInstanceOf(OwnerRoleRemovalException.class);
     verify(vsumUserRepository, never()).delete(any(VsumUser.class));
+  }
+
+  private static User newUser(Long id, String email) {
+    User u = new User();
+    u.setId(id);
+    u.setEmail(email);
+    return u;
   }
 }

@@ -9,31 +9,18 @@ import java.util.List;
 import tools.vitruv.methodologist.general.model.FileStorage;
 
 /**
- * The files a VSUM is built from, in the order the setup-service expects them: genmodels are paired
- * with metamodels by index.
+ * The files a VSUM is built from. The setup-service generates the genmodels from the metamodels.
  *
  * @param ecores the metamodel files
- * @param genmodels the genmodel files, one per metamodel, same order
  * @param reactions the reaction files, including generated composites
- * @param constraints the OCL constraint files, one per rule set and named like it
+ * @param constraints the VitruvOCL constraint files
+ * @param views the NeoJoin view definition files
  */
 public record VsumBuildInputs(
     List<FileStorage> ecores,
-    List<FileStorage> genmodels,
     List<FileStorage> reactions,
-    List<FileStorage> constraints) {
-
-  /**
-   * Creates the inputs of a VSUM without constraints.
-   *
-   * @param ecores the metamodel files
-   * @param genmodels the genmodel files, one per metamodel, same order
-   * @param reactions the reaction files, including generated composites
-   */
-  public VsumBuildInputs(
-      List<FileStorage> ecores, List<FileStorage> genmodels, List<FileStorage> reactions) {
-    this(ecores, genmodels, reactions, List.of());
-  }
+    List<FileStorage> constraints,
+    List<FileStorage> views) {
 
   private static final String SHA_256 = "SHA-256";
 
@@ -55,9 +42,9 @@ public record VsumBuildInputs(
   public String fingerprint() {
     List<String> lines = new ArrayList<>();
     addLines(lines, "ecore", ecores);
-    addLines(lines, "genmodel", genmodels);
     addLines(lines, "reaction", reactions);
     addLines(lines, "constraint", constraints);
+    addLines(lines, "view", views);
     lines.sort(null);
 
     MessageDigest digest = sha256();

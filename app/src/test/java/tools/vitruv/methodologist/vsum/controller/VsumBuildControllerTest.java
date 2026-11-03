@@ -100,6 +100,20 @@ class VsumBuildControllerTest {
   }
 
   @Test
+  void downloadProject_returnsTheGeneratedProjectAsZip() {
+    byte[] zip = "ZIP".getBytes(StandardCharsets.UTF_8);
+    when(vsumBuildService.generateProject(EMAIL, 7L)).thenReturn(zip);
+
+    ResponseEntity<byte[]> response = controller.downloadProject(authentication, 7L);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).isEqualTo(zip);
+    assertThat(response.getHeaders().getContentType()).hasToString("application/zip");
+    assertThat(response.getHeaders().getContentDisposition().getFilename())
+        .isEqualTo("vsum-project.zip");
+  }
+
+  @Test
   void downloadBundle_packagesTheArtifactAsDeploymentBundle() {
     byte[] jar = "JAR".getBytes(StandardCharsets.UTF_8);
     byte[] zip = "ZIP".getBytes(StandardCharsets.UTF_8);

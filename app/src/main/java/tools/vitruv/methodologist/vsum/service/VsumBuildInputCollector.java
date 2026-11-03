@@ -3,102 +3,102 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.REACTION_FILE_IDS_ID_NOT_FOUND_ERROR;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import tools.vitruv.methodologist.exception.NotFoundException;
-import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.vsum.model.ConstraintRuleSet;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
+import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
+import tools.vitruv.methodologist.vsum.model.VsumView;
 import tools.vitruv.methodologist.vsum.model.repository.ConstraintRuleSetRepository;
 
 /**
  * Collects the files a {@link Vsum} is built from.
  *
- * <p>The metamodel/genmodel pairs of every relation are deduplicated (first seen wins) and the
- * reaction files are gathered per relation by the {@link ReactionBuildCollector}, which also
- * generates a composite reaction for pairs that carry more than one file.
+ * <p>The metamodels are those of the VSUM and of its relations, deduplicated by file (first seen
+ * wins); genmodels are not needed, the setup-service generates them. The reaction files are
+ * gathered per relation by the {@link ReactionBuildCollector}, which also generates a composite
+ * reaction for pairs that carry more than one file. Constraint rule sets and views are added as
+ * they are.
  */
 @Component
 @RequiredArgsConstructor
 public class VsumBuildInputCollector {
 
-  private static final String OCL_EXTENSION = ".ocl";
-  private static final String OCL_CONTENT_TYPE = "text/plain";
-  static final String UNNAMED_RULE_SET = "(unnamed)";
-
   private final ReactionBuildCollector reactionBuildCollector;
-  private final ConstraintRuleSetRepository ruleSetRepository;
+  private final ConstraintRuleSetRepository constraintRuleSetRepository;
+
+  /** Name reported for rule sets without a name. */
+  static final String UNNAMED_RULE_SET = "(unnamed)";
 
   /**
    * Collects the build inputs of the given VSUM.
    *
-   * @param vsum the VSUM; its relations and their files must be loadable, i.e. the call has to run
-   *     inside a transaction
-   * @return the inputs in setup-service order
-   * @throws NotFoundException if the VSUM has no relations, no metamodel pair or no reaction file
+   * @param vsum the VSUM; its metamodels, relations, views, and their files must be loadable, i.e.
+   *     the call has to run inside a transaction
+   * @return the inputs of the setup-service
+   * @throws NotFoundException if the VSUM has no metamodel or a relation is missing
    * @throws tools.vitruv.methodologist.exception.VsumBuildingException if reaction files on a pair
    *     cannot be composed
    */
   public VsumBuildInputs collect(Vsum vsum) {
-    if (vsum.getMetaModelRelations() == null || vsum.getMetaModelRelations().isEmpty()) {
-      throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
-    }
-
     Map<String, FileStorage> ecores = new LinkedHashMap<>();
-    Map<String, FileStorage> genmodels = new LinkedHashMap<>();
     List<FileStorage> reactions = new ArrayList<>();
 
-    for (MetaModelRelation relation : vsum.getMetaModelRelations()) {
-      if (relation == null) {
-        throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
+    if (vsum.getVsumMetaModels() != null) {
+      for (VsumMetaModel vsumMetaModel : vsum.getVsumMetaModels()) {
+        if (vsumMetaModel != null && vsumMetaModel.getRemovedAt() == null) {
+          putEcore(ecores, vsumMetaModel.getMetaModel());
+        }
       }
-
-      MetaModel source = relation.getSource();
-      MetaModel target = relation.getTarget();
-
-      if (source != null) {
-        putPair(ecores, genmodels, source.getEcoreFile(), source.getGenModelFile());
-      }
-      if (target != null) {
-        putPair(ecores, genmodels, target.getEcoreFile(), target.getGenModelFile());
-      }
-
-      reactions.addAll(reactionBuildCollector.collectForRelation(relation));
     }
 
-    if (ecores.isEmpty() || genmodels.isEmpty()) {
+    if (vsum.getMetaModelRelations() != null) {
+      for (MetaModelRelation relation : vsum.getMetaModelRelations()) {
+        if (relation == null) {
+          throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
+        }
+        putEcore(ecores, relation.getSource());
+        putEcore(ecores, relation.getTarget());
+        reactions.addAll(reactionBuildCollector.collectForRelation(relation));
+      }
+    }
+
+    if (ecores.isEmpty()) {
       throw new NotFoundException(METAMODEL_IDS_NOT_FOUND_IN_THIS_VSUM_NOT_FOUND_ERROR);
-    }
-    if (reactions.isEmpty()) {
-      throw new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR);
     }
 
     return new VsumBuildInputs(
-        new ArrayList<>(ecores.values()),
-        new ArrayList<>(genmodels.values()),
-        reactions,
-        collectConstraints(vsum));
+        new ArrayList<>(ecores.values()), reactions, collectConstraints(vsum), collectViews(vsum));
   }
 
   /**
-   * Returns the names of the rule sets whose constraints the VSUM is built with.
+   * Returns the names of the rule sets whose constraints the VSUM is built with, i.e. those with a
+   * non-empty OCL file.
    *
    * @param vsum the VSUM; its rule sets must be loadable, i.e. the call has to run inside a
    *     transaction
-   * @return the rule set names in build order, {@value #UNNAMED_RULE_SET} for rule sets without a
-   *     name; empty if the VSUM has no constraints
+   * @return the rule set names, {@value #UNNAMED_RULE_SET} for rule sets without a name; empty if
+   *     the VSUM has no constraints
    */
   public List<String> collectConstraintRuleSetNames(Vsum vsum) {
-    return ruleSetsWithConstraints(vsum).stream()
+    if (vsum.getId() == null) {
+      return List.of();
+    }
+    return constraintRuleSetRepository.findByVsumId(vsum.getId()).stream()
+        .filter(
+            ruleSet ->
+                ruleSet.getOclFile() != null
+                    && ruleSet.getOclFile().getData() != null
+                    && ruleSet.getOclFile().getData().length > 0)
         .map(
             ruleSet ->
                 ruleSet.getName() == null || ruleSet.getName().isBlank()
@@ -107,64 +107,33 @@ public class VsumBuildInputCollector {
         .toList();
   }
 
-  /**
-   * Creates one OCL file per rule set of the VSUM that contains constraints. Each file is named
-   * like its rule set, so the constraints keep their grouping in the built project. The files are
-   * ordered by rule set name and id, so the fingerprint does not depend on the database order.
-   */
   private List<FileStorage> collectConstraints(Vsum vsum) {
-    return ruleSetsWithConstraints(vsum).stream()
-        .map(VsumBuildInputCollector::toConstraintFile)
-        .toList();
-  }
-
-  /** The rule sets of the VSUM that contain constraints, in build order. */
-  private List<ConstraintRuleSet> ruleSetsWithConstraints(Vsum vsum) {
     if (vsum.getId() == null) {
       return List.of();
     }
-    return ruleSetRepository.findByVsumId(vsum.getId()).stream()
-        .filter(ruleSet -> ruleSet.getOclFile() != null && ruleSet.getOclFile().getData() != null)
-        .filter(
-            ruleSet ->
-                !new String(ruleSet.getOclFile().getData(), StandardCharsets.UTF_8).isBlank())
-        .sorted(
-            Comparator.comparing(
-                    ConstraintRuleSet::getName, Comparator.nullsFirst(String::compareTo))
-                .thenComparing(ConstraintRuleSet::getId, Comparator.nullsFirst(Long::compareTo)))
+    return constraintRuleSetRepository.findByVsumId(vsum.getId()).stream()
+        .map(ConstraintRuleSet::getOclFile)
+        .filter(Objects::nonNull)
         .toList();
   }
 
-  private static FileStorage toConstraintFile(ConstraintRuleSet ruleSet) {
-    byte[] data = ruleSet.getOclFile().getData();
-    String name =
-        ruleSet.getName() == null || ruleSet.getName().isBlank()
-            ? "constraints"
-            : ruleSet.getName();
-    return FileStorage.builder()
-        .filename(name + OCL_EXTENSION)
-        .type(FileEnumType.OCL)
-        .contentType(OCL_CONTENT_TYPE)
-        .sizeBytes(data.length)
-        .sha256(VsumBuildInputs.sha256Hex(data))
-        .data(data)
-        .build();
+  private static List<FileStorage> collectViews(Vsum vsum) {
+    if (vsum.getViews() == null) {
+      return List.of();
+    }
+    return vsum.getViews().stream()
+        .filter(Objects::nonNull)
+        .map(VsumView::getFileStorage)
+        .filter(Objects::nonNull)
+        .toList();
   }
 
-  /**
-   * Associates an Ecore/GenModel pair into the provided maps using stable keys. If either file is
-   * {@code null} the pair is ignored; existing entries are preserved (first seen wins).
-   */
-  private static void putPair(
-      Map<String, FileStorage> ecores,
-      Map<String, FileStorage> genmodels,
-      FileStorage ecore,
-      FileStorage genmodel) {
-    if (ecore == null || genmodel == null) {
+  /** Adds the metamodel's ecore file unless it is missing or already present. */
+  private static void putEcore(Map<String, FileStorage> ecores, MetaModel metaModel) {
+    if (metaModel == null || metaModel.getEcoreFile() == null) {
       return;
     }
-    ecores.putIfAbsent(key(ecore), ecore);
-    genmodels.putIfAbsent(key(genmodel), genmodel);
+    ecores.putIfAbsent(key(metaModel.getEcoreFile()), metaModel.getEcoreFile());
   }
 
   /** {@code "id:<id>"} if the storage is persisted, otherwise {@code "name:<filename>"}. */

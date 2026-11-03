@@ -12,7 +12,6 @@ import okio.Buffer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
 import tools.vitruv.methodologist.exception.SetupServiceException;
@@ -27,8 +26,9 @@ class SetupServiceApiHandlerTest {
   private SetupServiceApiHandler setupServiceApiHandler;
 
   private List<FileStorage> metamodelFiles;
-  private List<FileStorage> genmodelFiles;
   private List<FileStorage> reactionFiles;
+  private List<FileStorage> constraintFiles;
+  private List<FileStorage> viewFiles;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -40,8 +40,70 @@ class SetupServiceApiHandlerTest {
             mockWebServer.url("/").toString(), PAYLOAD_SIZE, TIMEOUT_SECONDS);
 
     metamodelFiles = List.of(fileStorage("model.ecore", "ecore".getBytes()));
-    genmodelFiles = List.of(fileStorage("model.genmodel", "genmodel".getBytes()));
     reactionFiles = List.of(fileStorage("templateReactions.reactions", "reactions".getBytes()));
+    constraintFiles = List.of(fileStorage("rules.ocl", "context".getBytes()));
+    viewFiles = List.of(fileStorage("components.nj", "view".getBytes()));
+  }
+
+  @Test
+  void buildVsumJarOrThrow_reportsTheMessageOfTheSetupServiceAndItsStatus() {
+    mockWebServer.enqueue(
+        new MockResponse()
+            .setResponseCode(400)
+            .setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+            .setBody(
+                "{\"errorCode\":\"VSUM_REACTIONS_ERROR\",\"message\":\"imports 'x'\","
+                    + "\"path\":\"/api/vsum/jar\",\"status\":400}"));
+
+    assertThatThrownBy(
+            () ->
+                setupServiceApiHandler.buildVsumJarOrThrow(
+                    metamodelFiles, reactionFiles, constraintFiles, viewFiles))
+        .isInstanceOf(SetupServiceException.class)
+        .hasMessage(
+            "Setup-service request to '/api/vsum/jar' failed with status 400:"
+                + " [VSUM_REACTIONS_ERROR] imports 'x'")
+        .matches(e -> ((SetupServiceException) e).isRejectedBySetupService());
+  }
+
+  @Test
+  void generateVsumProjectOrThrow_isNotARejection_whenTheSetupServiceFails() {
+    mockWebServer.enqueue(new MockResponse().setResponseCode(500).setBody("boom"));
+
+    assertThatThrownBy(
+            () ->
+                setupServiceApiHandler.generateVsumProjectOrThrow(
+                    metamodelFiles, reactionFiles, constraintFiles, viewFiles))
+        .matches(e -> !((SetupServiceException) e).isRejectedBySetupService());
+  }
+
+  @Test
+  void buildVsumJarOrThrow_sendsUniqueFileNamesWithTheExpectedExtension() throws Exception {
+    mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody("jar"));
+
+    setupServiceApiHandler.buildVsumJarOrThrow(
+        List.of(
+            fileStorage("model.ecore", "a".getBytes()),
+            fileStorage("Model.ecore", "b".getBytes()),
+            fileStorage(null, "c".getBytes())),
+        List.of(fileStorage("rules", "d".getBytes())),
+        List.of(),
+        List.of());
+
+    String body = mockWebServer.takeRequest().getBody().readUtf8();
+    assertThat(body)
+        .contains(
+            "filename=\"model.ecore\"",
+            "filename=\"Model-2.ecore\"",
+            "filename=\"metamodelFiles.ecore\"",
+            "filename=\"rules.reactions\"");
+  }
+
+  @Test
+  void describeError_fallsBackToTheRawBody() {
+    assertThat(SetupServiceApiHandler.describeError("{\"message\":\"m\"}")).isEqualTo("m");
+    assertThat(SetupServiceApiHandler.describeError("not json")).isEqualTo("not json");
+    assertThat(SetupServiceApiHandler.describeError("")).isEqualTo("(no response body)");
   }
 
   private static FileStorage fileStorage(String filename, byte[] data) {
@@ -57,7 +119,7 @@ class SetupServiceApiHandlerTest {
   }
 
   @Test
-  void buildVsumZipOrThrow_returnsArtifactBytes_andSendsMultipartRequest() throws Exception {
+  void generateVsumProjectOrThrow_returnsArtifactBytes_andSendsMultipartRequest() throws Exception {
     byte[] expected = {1, 2, 3, 4, 5};
     mockWebServer.enqueue(
         new MockResponse()
@@ -66,21 +128,24 @@ class SetupServiceApiHandlerTest {
             .setBody(new Buffer().write(expected)));
 
     byte[] result =
-        setupServiceApiHandler.buildVsumZipOrThrow(metamodelFiles, genmodelFiles, reactionFiles);
+        setupServiceApiHandler.generateVsumProjectOrThrow(
+            metamodelFiles, reactionFiles, constraintFiles, viewFiles);
 
     assertThat(result).containsExactly(expected);
 
     RecordedRequest recordedRequest = mockWebServer.takeRequest();
     assertThat(recordedRequest.getMethod()).isEqualTo("POST");
-    assertThat(recordedRequest.getPath()).isEqualTo(SetupServiceApiHandler.BUILD_URL);
+    assertThat(recordedRequest.getPath()).isEqualTo(SetupServiceApiHandler.PROJECT_URL);
     assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE))
         .startsWith("multipart/form-data");
 
     String body = recordedRequest.getBody().readUtf8();
     assertThat(body).contains(SetupServiceApiHandler.METAMODEL_FILES_PART);
-    assertThat(body).contains(SetupServiceApiHandler.GENMODEL_FILES_PART);
     assertThat(body).contains(SetupServiceApiHandler.REACTION_FILES_PART);
-    assertThat(body).contains("model.ecore");
+    assertThat(body).contains(SetupServiceApiHandler.CONSTRAINT_FILES_PART);
+    assertThat(body).contains(SetupServiceApiHandler.VIEW_FILES_PART);
+    assertThat(body).contains("model.ecore", "rules.ocl", "components.nj");
+    assertThat(body).doesNotContain("genmodelFiles");
   }
 
   @Test
@@ -93,7 +158,8 @@ class SetupServiceApiHandlerTest {
             .setBody(new Buffer().write(expected)));
 
     byte[] result =
-        setupServiceApiHandler.buildVsumJarOrThrow(metamodelFiles, genmodelFiles, reactionFiles);
+        setupServiceApiHandler.buildVsumJarOrThrow(
+            metamodelFiles, reactionFiles, constraintFiles, viewFiles);
 
     assertThat(result).containsExactly(expected);
 
@@ -103,74 +169,38 @@ class SetupServiceApiHandlerTest {
   }
 
   @Test
-  void buildVsumJarOrThrow_sendsOneConstraintPartPerRuleSet() throws Exception {
-    mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody("jar"));
-
-    setupServiceApiHandler.buildVsumJarOrThrow(
-        metamodelFiles,
-        genmodelFiles,
-        reactionFiles,
-        List.of(
-            fileStorage("Komponenten.ocl", "context m::A inv a: true".getBytes()),
-            fileStorage("Größen & Preise.ocl", "context m::B inv b: true".getBytes())));
-
-    String body = mockWebServer.takeRequest().getBody().readUtf8();
-    List<String> constraintFilenames =
-        body.lines()
-            .filter(line -> line.startsWith("Content-Disposition:"))
-            .map(line -> ContentDisposition.parse(line.substring(line.indexOf(':') + 1).trim()))
-            .filter(
-                disposition ->
-                    SetupServiceApiHandler.CONSTRAINT_FILES_PART.equals(disposition.getName()))
-            .map(ContentDisposition::getFilename)
-            .toList();
-    assertThat(constraintFilenames).containsExactly("Komponenten.ocl", "Größen & Preise.ocl");
-    assertThat(body).contains("context m::B inv b: true");
-  }
-
-  @Test
-  void buildVsumJarOrThrow_omitsConstraintPartWithoutRuleSets() throws Exception {
-    mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody("jar"));
-
-    setupServiceApiHandler.buildVsumJarOrThrow(
-        metamodelFiles, genmodelFiles, reactionFiles, List.of());
-
-    assertThat(mockWebServer.takeRequest().getBody().readUtf8())
-        .doesNotContain(SetupServiceApiHandler.CONSTRAINT_FILES_PART);
-  }
-
-  @Test
-  void buildVsumZipOrThrow_throwsSetupServiceException_onErrorStatus() {
+  void generateVsumProjectOrThrow_throwsSetupServiceException_onErrorStatus() {
     mockWebServer.enqueue(new MockResponse().setResponseCode(500).setBody("boom"));
 
     assertThatThrownBy(
             () ->
-                setupServiceApiHandler.buildVsumZipOrThrow(
-                    metamodelFiles, genmodelFiles, reactionFiles))
+                setupServiceApiHandler.generateVsumProjectOrThrow(
+                    metamodelFiles, reactionFiles, constraintFiles, viewFiles))
         .isInstanceOf(SetupServiceException.class)
         .hasMessageContaining("boom");
   }
 
   @Test
-  void buildVsumZipOrThrow_throwsSetupServiceException_onEmptyArtifact() {
+  void generateVsumProjectOrThrow_throwsSetupServiceException_onEmptyArtifact() {
     mockWebServer.enqueue(new MockResponse().setResponseCode(200));
 
     assertThatThrownBy(
             () ->
-                setupServiceApiHandler.buildVsumZipOrThrow(
-                    metamodelFiles, genmodelFiles, reactionFiles))
+                setupServiceApiHandler.generateVsumProjectOrThrow(
+                    metamodelFiles, reactionFiles, constraintFiles, viewFiles))
         .isInstanceOf(SetupServiceException.class)
         .hasMessageContaining("empty artifact");
   }
 
   @Test
-  void buildVsumZipOrThrow_throwsSetupServiceException_whenServiceUnreachable() throws Exception {
+  void generateVsumProjectOrThrow_throwsSetupServiceException_whenServiceUnreachable()
+      throws Exception {
     mockWebServer.shutdown();
 
     assertThatThrownBy(
             () ->
-                setupServiceApiHandler.buildVsumZipOrThrow(
-                    metamodelFiles, genmodelFiles, reactionFiles))
+                setupServiceApiHandler.generateVsumProjectOrThrow(
+                    metamodelFiles, reactionFiles, constraintFiles, viewFiles))
         .isInstanceOf(SetupServiceException.class);
   }
 

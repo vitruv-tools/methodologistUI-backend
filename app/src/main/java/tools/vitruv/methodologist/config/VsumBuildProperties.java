@@ -23,7 +23,7 @@ public class VsumBuildProperties {
    * How long the synchronous download endpoints wait for a build before giving up. Matches the
    * setup-service response timeout by default.
    */
-  private long waitTimeoutSeconds = 300;
+  private long waitTimeoutSeconds = 960;
 
   /** How often the synchronous download endpoints re-check the build status. */
   private long pollIntervalMillis = 500;

@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -27,7 +26,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.task.TaskRejectedException;
@@ -103,8 +101,9 @@ class VsumBuildServiceTest {
     inputs =
         new VsumBuildInputs(
             List.of(fs(1L, "a.ecore", new byte[] {1})),
-            List.of(fs(2L, "a.genmodel", new byte[] {2})),
-            List.of(fs(3L, "x.reactions", new byte[] {3})));
+            List.of(fs(3L, "x.reactions", new byte[] {3})),
+            List.of(fs(4L, "rules.ocl", new byte[] {4})),
+            List.of(fs(5L, "view.nj", new byte[] {5})));
     lenient().when(inputCollector.collect(vsum)).thenReturn(inputs);
     lenient()
         .when(
@@ -123,6 +122,29 @@ class VsumBuildServiceTest {
     assertThat(builds).isEmpty();
     verify(setupServiceApiHandler, never())
         .buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
+  }
+
+  @Test
+  void generateProject_sendsTheInputsWithoutQueueingABuild() {
+    byte[] zip = "ZIP".getBytes(StandardCharsets.UTF_8);
+    when(setupServiceApiHandler.generateVsumProjectOrThrow(
+            inputs.ecores(), inputs.reactions(), inputs.constraints(), inputs.views()))
+        .thenReturn(zip);
+
+    assertThat(service.generateProject(EMAIL, VSUM_ID)).isEqualTo(zip);
+
+    assertThat(builds).isEmpty();
+    verify(setupServiceApiHandler, never())
+        .buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
+  }
+
+  @Test
+  void generateProject_throwsAccessDenied_whenCallerIsNotAMember() {
+    assertThatThrownBy(() -> service.generateProject("other@y.com", VSUM_ID))
+        .isInstanceOf(AccessDeniedException.class);
+
+    verify(setupServiceApiHandler, never())
+        .generateVsumProjectOrThrow(anyList(), anyList(), anyList(), anyList());
   }
 
   @Test
@@ -145,7 +167,7 @@ class VsumBuildServiceTest {
     assertThat(build.getArtifact().getUser()).isSameAs(user);
     verify(setupServiceApiHandler)
         .buildVsumJarOrThrow(
-            inputs.ecores(), inputs.genmodels(), inputs.reactions(), inputs.constraints());
+            inputs.ecores(), inputs.reactions(), inputs.constraints(), inputs.views());
 
     VsumBuildResponse response = service.findBuild(EMAIL, VSUM_ID, build.getId());
     assertThat(response.getStatus()).isEqualTo(VsumBuildStatus.SUCCEEDED);
@@ -273,9 +295,7 @@ class VsumBuildServiceTest {
     assertThat(old.getStatus()).isEqualTo(VsumBuildStatus.SUCCEEDED);
     assertThat(old.getArtifact()).isNull();
     assertThat(deletedArtifacts).containsExactly(oldArtifact);
-    InOrder inOrder = inOrder(fileStorageRepository);
-    inOrder.verify(fileStorageRepository).unlinkData(oldArtifact.getId());
-    inOrder.verify(fileStorageRepository).delete(oldArtifact);
+    verify(fileStorageRepository).delete(oldArtifact);
     assertThat(service.findBuild(EMAIL, VSUM_ID, old.getId()).isArtifactAvailable()).isFalse();
   }
 
@@ -301,47 +321,6 @@ class VsumBuildServiceTest {
   @Test
   void buildAndWait_returnsTheArtifactOfTheFinishedBuild() {
     assertThat(service.buildAndWait(EMAIL, VSUM_ID)).isEqualTo(JAR);
-  }
-
-  @Test
-  void buildAndFindConstraintRuleSets_reportsTheRuleSetsOfTheBuiltInputs() {
-    when(inputCollector.collectConstraintRuleSetNames(vsum)).thenReturn(List.of("Preise"));
-
-    assertThat(service.buildAndFindConstraintRuleSets(EMAIL, VSUM_ID)).contains(List.of("Preise"));
-  }
-
-  @Test
-  void buildAndFindConstraintRuleSets_reportsNothing_whenTheInputsChangedDuringTheBuild() {
-    VsumBuildInputs changed =
-        new VsumBuildInputs(
-            inputs.ecores(),
-            inputs.genmodels(),
-            inputs.reactions(),
-            List.of(fs(4L, "Neu.ocl", new byte[] {4})));
-    // requested and started with the original inputs, checked afterwards with the changed ones
-    when(inputCollector.collect(vsum)).thenReturn(inputs, inputs, changed);
-
-    assertThat(service.buildAndFindConstraintRuleSets(EMAIL, VSUM_ID)).isEmpty();
-    verify(inputCollector, never()).collectConstraintRuleSetNames(vsum);
-  }
-
-  @Test
-  void buildAndFindConstraintRuleSets_reportsNothing_whenTheInputsAreGoneAfterTheBuild() {
-    when(inputCollector.collect(vsum))
-        .thenReturn(inputs, inputs)
-        .thenThrow(new tools.vitruv.methodologist.exception.NotFoundException("reactions"));
-
-    assertThat(service.buildAndFindConstraintRuleSets(EMAIL, VSUM_ID)).isEmpty();
-  }
-
-  @Test
-  void buildAndFindConstraintRuleSets_throws_whenTheBuildFailed() {
-    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
-        .thenThrow(new SetupServiceException("ocl broken"));
-
-    assertThatThrownBy(() -> service.buildAndFindConstraintRuleSets(EMAIL, VSUM_ID))
-        .isInstanceOf(SetupServiceException.class)
-        .hasMessageContaining("ocl broken");
   }
 
   @Test
@@ -445,7 +424,6 @@ class VsumBuildServiceTest {
 
     assertThat(builds.values()).containsExactly(foreign);
     assertThat(deletedArtifacts).containsExactly(a.getArtifact());
-    verify(fileStorageRepository).unlinkData(a.getArtifact().getId());
   }
 
   // ---- fixtures -------------------------------------------------------------------------------
