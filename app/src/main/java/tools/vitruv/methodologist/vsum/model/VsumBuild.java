@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.model;
 
+import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -12,12 +13,15 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Type;
+import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 
@@ -65,6 +69,15 @@ public class VsumBuild {
 
   @Column(columnDefinition = "text")
   private String errorMessage;
+
+  /** Error code of the setup-service if the build failed there, e.g. {@code VSUM_BUILD_FAILED}. */
+  @Column(length = 64)
+  private String errorCode;
+
+  /** Problems of the failed build, root causes first; {@code null} if none were reported. */
+  @Type(JsonType.class)
+  @Column(columnDefinition = "jsonb")
+  private List<BuildProblem> problems;
 
   /** The built fat JAR; {@code null} until the build succeeds or after retention removed it. */
   @ManyToOne(fetch = FetchType.LAZY)

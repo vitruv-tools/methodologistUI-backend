@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -18,11 +19,13 @@ import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
+import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.exception.SetupServiceException;
 import tools.vitruv.methodologist.general.model.FileStorage;
 
@@ -143,10 +146,11 @@ public class SetupServiceApiHandler {
       List<FileStorage> constraintFiles,
       List<FileStorage> viewFiles) {
     MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
-    addFileParts(bodyBuilder, METAMODEL_FILES_PART, metamodelFiles, ".ecore");
-    addFileParts(bodyBuilder, REACTION_FILES_PART, reactionFiles, ".reactions");
-    addFileParts(bodyBuilder, CONSTRAINT_FILES_PART, constraintFiles, ".ocl");
-    addFileParts(bodyBuilder, VIEW_FILES_PART, viewFiles, null);
+    UploadedFiles uploads = new UploadedFiles();
+    addFileParts(bodyBuilder, uploads, METAMODEL_FILES_PART, metamodelFiles, ".ecore");
+    addFileParts(bodyBuilder, uploads, REACTION_FILES_PART, reactionFiles, ".reactions");
+    addFileParts(bodyBuilder, uploads, CONSTRAINT_FILES_PART, constraintFiles, ".ocl");
+    addFileParts(bodyBuilder, uploads, VIEW_FILES_PART, viewFiles, null);
 
     byte[] artifact;
     try {
@@ -158,18 +162,7 @@ public class SetupServiceApiHandler {
               .accept(acceptType, MediaType.APPLICATION_OCTET_STREAM)
               .body(BodyInserters.fromMultipartData(bodyBuilder.build()))
               .retrieve()
-              .onStatus(
-                  HttpStatusCode::isError,
-                  response ->
-                      response
-                          .bodyToMono(String.class)
-                          .defaultIfEmpty("")
-                          .flatMap(
-                              body ->
-                                  Mono.error(
-                                      new SetupServiceException(
-                                          requestFailedMessage(uri, response.statusCode(), body),
-                                          response.statusCode()))))
+              .onStatus(HttpStatusCode::isError, response -> errorOf(uri, response, uploads))
               .bodyToMono(byte[].class)
               .block();
     } catch (SetupServiceException e) {
@@ -225,17 +218,7 @@ public class SetupServiceApiHandler {
               .body(BodyInserters.fromMultipartData(bodyBuilder.build()))
               .retrieve()
               .onStatus(
-                  HttpStatusCode::isError,
-                  response ->
-                      response
-                          .bodyToMono(String.class)
-                          .defaultIfEmpty("")
-                          .flatMap(
-                              body ->
-                                  Mono.error(
-                                      new SetupServiceException(
-                                          requestFailedMessage(uri, response.statusCode(), body),
-                                          response.statusCode()))))
+                  HttpStatusCode::isError, response -> errorOf(uri, response, new UploadedFiles()))
               .bodyToMono(byte[].class)
               .block();
     } catch (SetupServiceException e) {
@@ -284,16 +267,8 @@ public class SetupServiceApiHandler {
                             == HttpStatus.UNPROCESSABLE_ENTITY.value()) {
                       return response.bodyToMono(GenModelInspectionResponse.class);
                     }
-                    return response
-                        .bodyToMono(String.class)
-                        .defaultIfEmpty("")
-                        .flatMap(
-                            body ->
-                                Mono.error(
-                                    new SetupServiceException(
-                                        requestFailedMessage(
-                                            INSPECT_GENMODEL_URL, response.statusCode(), body),
-                                        response.statusCode())));
+                    return errorOf(INSPECT_GENMODEL_URL, response, new UploadedFiles())
+                        .flatMap(Mono::error);
                   })
               .block();
 
@@ -307,6 +282,75 @@ public class SetupServiceApiHandler {
     } catch (Exception e) {
       throw new SetupServiceException(
           "Failed to call setup-service '" + INSPECT_GENMODEL_URL + "': " + e.getMessage());
+    }
+  }
+
+  /** Reads an error response of the setup-service into a {@link SetupServiceException}. */
+  private static Mono<SetupServiceException> errorOf(
+      String uri, ClientResponse response, UploadedFiles uploads) {
+    return response
+        .bodyToMono(String.class)
+        .defaultIfEmpty("")
+        .map(body -> setupServiceError(uri, response.statusCode(), body, uploads));
+  }
+
+  /**
+   * Creates the exception for an error response of the setup-service. If the body is the JSON error
+   * of the setup-service, its {@code errorCode} and {@code problems} are kept, with each problem
+   * traced back to the uploaded platform file; any other body only ends up in the message.
+   */
+  static SetupServiceException setupServiceError(
+      String uri, HttpStatusCode statusCode, String body, UploadedFiles uploads) {
+    JsonNode error = readJsonObject(body);
+    String errorCode = null;
+    List<BuildProblem> problems = List.of();
+    if (error != null) {
+      JsonNode code = error.get("errorCode");
+      errorCode = code != null && code.isTextual() ? code.asText() : null;
+      problems = uploads.resolve(readProblems(error.get("problems")));
+    }
+    return new SetupServiceException(
+        requestFailedMessage(uri, statusCode, body), statusCode, errorCode, problems);
+  }
+
+  private static JsonNode readJsonObject(String body) {
+    if (body == null || body.isBlank()) {
+      return null;
+    }
+    try {
+      JsonNode node = OBJECT_MAPPER.readTree(body);
+      return node != null && node.isObject() ? node : null;
+    } catch (JsonProcessingException e) {
+      return null;
+    }
+  }
+
+  /**
+   * Reads the reported problems, skipping entries that are malformed or lack the {@code source} or
+   * {@code message} every problem has.
+   */
+  private static List<BuildProblem> readProblems(JsonNode problems) {
+    if (problems == null || !problems.isArray()) {
+      return List.of();
+    }
+    List<BuildProblem> result = new ArrayList<>();
+    for (JsonNode node : problems) {
+      BuildProblem problem = readProblem(node);
+      if (problem != null && problem.source() != null && problem.message() != null) {
+        result.add(problem);
+      }
+    }
+    return result;
+  }
+
+  private static BuildProblem readProblem(JsonNode node) {
+    if (!node.isObject()) {
+      return null;
+    }
+    try {
+      return OBJECT_MAPPER.treeToValue(node, BuildProblem.class);
+    } catch (JsonProcessingException e) {
+      return null;
     }
   }
 
@@ -353,10 +397,12 @@ public class SetupServiceApiHandler {
   /**
    * Adds the non-empty files as parts. The setup-service rejects files without the expected
    * extension and duplicate file names, so names are completed and made unique; the setup-service
-   * itself does not depend on the original names.
+   * itself does not depend on the original names. The names sent are recorded in {@code uploads} to
+   * trace reported problems back to the files.
    */
   private void addFileParts(
       MultipartBodyBuilder bodyBuilder,
+      UploadedFiles uploads,
       String partName,
       List<FileStorage> files,
       String extension) {
@@ -370,6 +416,7 @@ public class SetupServiceApiHandler {
       }
       String filename = uniqueFilename(file.getFilename(), partName, extension, usedNames);
       bodyBuilder.part(partName, new ByteArrayResource(file.getData())).filename(filename);
+      uploads.add(partName, filename, file);
     }
   }
 
