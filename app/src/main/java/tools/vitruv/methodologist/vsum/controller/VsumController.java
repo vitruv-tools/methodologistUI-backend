@@ -34,6 +34,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.request.VsumMetaModelNameP
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPostRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumPutRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildCheckResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.service.VsumDeploymentBundleService;
@@ -321,7 +322,8 @@ public class VsumController {
    *
    * @param authentication the authenticated Keycloak principal
    * @param id the identifier of the VSUM to build
-   * @return a response indicating that the build completed successfully
+   * @return a response indicating that the build completed successfully, listing the constraint
+   *     rule sets built into the VSUM
    * @throws AccessDeniedException if the caller has no access to the VSUM
    * @throws VsumBuildingException if the build fails
    * @deprecated builds are asynchronous now; use {@code POST /v1/vsums/{id}/builds} and poll the
@@ -331,11 +333,13 @@ public class VsumController {
   @Deprecated(since = "334")
   @GetMapping("/v1/vsums/{id}/build/check")
   @PreAuthorize("hasRole('user')")
-  public ResponseTemplateDto<Void> buildOrThrow(
+  public ResponseTemplateDto<VsumBuildCheckResponse> buildOrThrow(
       KeycloakAuthentication authentication, @PathVariable Long id) {
     String callerEmail = authentication.getParsedToken().getEmail();
-    vsumService.getJarfat(callerEmail, id);
-    return ResponseTemplateDto.<Void>builder().message(VSUM_BUILD_WAS_SUCCESSFULLY).build();
+    return ResponseTemplateDto.<VsumBuildCheckResponse>builder()
+        .data(vsumService.checkBuild(callerEmail, id))
+        .message(VSUM_BUILD_WAS_SUCCESSFULLY)
+        .build();
   }
 
   /**

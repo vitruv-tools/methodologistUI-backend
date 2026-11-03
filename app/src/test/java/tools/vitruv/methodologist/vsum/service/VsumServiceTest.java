@@ -37,6 +37,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPut
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelationResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildCheckResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
@@ -627,6 +628,33 @@ class VsumServiceTest {
     when(vsumBuildService.buildAndWait(BUILD_EMAIL, BUILD_ID)).thenReturn(jarBytes);
 
     assertThat(service.getJarfat(BUILD_EMAIL, BUILD_ID)).isEqualTo(jarBytes);
+  }
+
+  @Test
+  void checkBuild_shouldReportTheRuleSetsOfTheBuild() {
+    when(vsumBuildService.buildAndFindConstraintRuleSets(BUILD_EMAIL, BUILD_ID))
+        .thenReturn(java.util.Optional.of(List.of("Komponenten", "Preise")));
+
+    VsumBuildCheckResponse response = service.checkBuild(BUILD_EMAIL, BUILD_ID);
+
+    assertThat(response.constraintRuleSets()).containsExactly("Komponenten", "Preise");
+  }
+
+  @Test
+  void checkBuild_shouldReportNoRuleSets_whenTheyChangedDuringTheBuild() {
+    when(vsumBuildService.buildAndFindConstraintRuleSets(BUILD_EMAIL, BUILD_ID))
+        .thenReturn(java.util.Optional.empty());
+
+    assertThat(service.checkBuild(BUILD_EMAIL, BUILD_ID).constraintRuleSets()).isNull();
+  }
+
+  @Test
+  void checkBuild_shouldPropagateBuildFailures() {
+    when(vsumBuildService.buildAndFindConstraintRuleSets(BUILD_EMAIL, BUILD_ID))
+        .thenThrow(new tools.vitruv.methodologist.exception.SetupServiceException("ocl broken"));
+
+    assertThatThrownBy(() -> service.checkBuild(BUILD_EMAIL, BUILD_ID))
+        .hasMessageContaining("ocl broken");
   }
 
   @Test

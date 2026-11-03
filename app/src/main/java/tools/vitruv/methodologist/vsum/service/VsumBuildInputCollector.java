@@ -38,6 +38,9 @@ public class VsumBuildInputCollector {
   private final UtilityMethodService utilityMethodService;
   private final ConstraintRuleSetRepository constraintRuleSetRepository;
 
+  /** Name reported for rule sets without a name. */
+  static final String UNNAMED_RULE_SET = "(unnamed)";
+
   /**
    * Collects the build inputs of the given VSUM.
    *
@@ -78,6 +81,33 @@ public class VsumBuildInputCollector {
 
     return new VsumBuildInputs(
         new ArrayList<>(ecores.values()), reactions, collectConstraints(vsum), collectViews(vsum));
+  }
+
+  /**
+   * Returns the names of the rule sets whose constraints the VSUM is built with, i.e. those with a
+   * non-empty OCL file.
+   *
+   * @param vsum the VSUM; its rule sets must be loadable, i.e. the call has to run inside a
+   *     transaction
+   * @return the rule set names, {@value #UNNAMED_RULE_SET} for rule sets without a name; empty if
+   *     the VSUM has no constraints
+   */
+  public List<String> collectConstraintRuleSetNames(Vsum vsum) {
+    if (vsum.getId() == null) {
+      return List.of();
+    }
+    return constraintRuleSetRepository.findByVsumId(vsum.getId()).stream()
+        .filter(
+            ruleSet ->
+                ruleSet.getOclFile() != null
+                    && ruleSet.getOclFile().getData() != null
+                    && ruleSet.getOclFile().getData().length > 0)
+        .map(
+            ruleSet ->
+                ruleSet.getName() == null || ruleSet.getName().isBlank()
+                    ? UNNAMED_RULE_SET
+                    : ruleSet.getName())
+        .toList();
   }
 
   private List<FileStorage> collectConstraints(Vsum vsum) {
