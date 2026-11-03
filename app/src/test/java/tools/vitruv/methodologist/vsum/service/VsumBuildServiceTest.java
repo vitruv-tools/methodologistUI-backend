@@ -30,10 +30,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.PlatformTransactionManager;
 import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
 import tools.vitruv.methodologist.config.VsumBuildProperties;
+import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.SetupServiceException;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
@@ -60,6 +62,9 @@ class VsumBuildServiceTest {
   private static final String EMAIL = "x@y.com";
   private static final Long VSUM_ID = 7L;
   private static final byte[] JAR = "FAKEJAR".getBytes(StandardCharsets.UTF_8);
+  private static final BuildProblem PROBLEM =
+      new BuildProblem(
+          "REACTIONS", "x.reactions", 3L, 51, 30, "unknown class", null, "Did you mean?", null);
 
   @Mock private VsumUserRepository vsumUserRepository;
   @Mock private VsumBuildRepository vsumBuildRepository;
@@ -232,8 +237,46 @@ class VsumBuildServiceTest {
     VsumBuild build = builds.get(request.build().getId());
     assertThat(build.getStatus()).isEqualTo(VsumBuildStatus.FAILED);
     assertThat(build.getErrorMessage()).isEqualTo("boom");
+    assertThat(build.getErrorCode()).isNull();
+    assertThat(build.getProblems()).isNull();
     assertThat(build.getArtifact()).isNull();
     assertThat(build.getFinishedAt()).isNotNull();
+  }
+
+  @Test
+  void requestBuild_storesTheErrorCodeAndProblems_whenTheSetupServiceRejectsTheInputs() {
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
+        .thenThrow(
+            new SetupServiceException(
+                "rejected", HttpStatus.BAD_REQUEST, "VSUM_REACTIONS_ERROR", List.of(PROBLEM)));
+
+    VsumBuildService.BuildRequest request = service.requestBuild(EMAIL, VSUM_ID, false);
+
+    VsumBuild build = builds.get(request.build().getId());
+    assertThat(build.getStatus()).isEqualTo(VsumBuildStatus.FAILED);
+    assertThat(build.getErrorMessage()).isEqualTo("rejected");
+    assertThat(build.getErrorCode()).isEqualTo("VSUM_REACTIONS_ERROR");
+    assertThat(build.getProblems()).containsExactly(PROBLEM);
+
+    VsumBuildResponse response = service.findBuild(EMAIL, VSUM_ID, build.getId());
+    assertThat(response.getErrorCode()).isEqualTo("VSUM_REACTIONS_ERROR");
+    assertThat(response.getProblems()).containsExactly(PROBLEM);
+  }
+
+  @Test
+  void buildAndWait_passesOnTheErrorCodeAndProblems_whenTheBuildFailed() {
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
+        .thenThrow(
+            new SetupServiceException(
+                "rejected", HttpStatus.BAD_REQUEST, "VSUM_BUILD_FAILED", List.of(PROBLEM)));
+
+    assertThatThrownBy(() -> service.buildAndWait(EMAIL, VSUM_ID))
+        .isInstanceOfSatisfying(
+            SetupServiceException.class,
+            e -> {
+              assertThat(e.getErrorCode()).isEqualTo("VSUM_BUILD_FAILED");
+              assertThat(e.getProblems()).containsExactly(PROBLEM);
+            });
   }
 
   @Test
@@ -361,12 +404,38 @@ class VsumBuildServiceTest {
     service = newService(task -> {});
     when(vsumBuildRepository.findStatusById(anyLong()))
         .thenReturn(Optional.of(VsumBuildStatus.FAILED));
-    when(vsumBuildRepository.findErrorMessageById(anyLong()))
-        .thenReturn(Optional.of("compilation failed"));
+    VsumBuild stored = new VsumBuild();
+    stored.setErrorMessage("compilation failed");
+    stored.setErrorCode("VSUM_BUILD_FAILED");
+    stored.setProblems(List.of(PROBLEM));
+    when(vsumBuildRepository.findFailureById(anyLong())).thenReturn(Optional.of(failure(stored)));
 
     assertThatThrownBy(() -> service.buildAndWait(EMAIL, VSUM_ID))
-        .isInstanceOf(SetupServiceException.class)
-        .hasMessage("compilation failed");
+        .isInstanceOfSatisfying(
+            SetupServiceException.class,
+            e -> {
+              assertThat(e).hasMessage("compilation failed");
+              assertThat(e.getErrorCode()).isEqualTo("VSUM_BUILD_FAILED");
+              assertThat(e.getProblems()).containsExactly(PROBLEM);
+            });
+  }
+
+  @Test
+  void buildAndWait_reportsAGenericError_whenTheFailedBuildHasNoMessage() {
+    service = newService(task -> {});
+    when(vsumBuildRepository.findStatusById(anyLong()))
+        .thenReturn(Optional.of(VsumBuildStatus.FAILED));
+    when(vsumBuildRepository.findFailureById(anyLong()))
+        .thenReturn(Optional.of(failure(new VsumBuild())));
+
+    assertThatThrownBy(() -> service.buildAndWait(EMAIL, VSUM_ID))
+        .isInstanceOfSatisfying(
+            SetupServiceException.class,
+            e -> {
+              assertThat(e).hasMessage(VsumBuildService.BUILD_FAILED_ERROR);
+              assertThat(e.getErrorCode()).isNull();
+              assertThat(e.getProblems()).isNull();
+            });
   }
 
   @Test
@@ -476,6 +545,26 @@ class VsumBuildServiceTest {
     return f;
   }
 
+  /** What {@link VsumBuildRepository#findFailureById} reads for the given build. */
+  private static VsumBuildRepository.Failure failure(VsumBuild build) {
+    return new VsumBuildRepository.Failure() {
+      @Override
+      public String getErrorMessage() {
+        return build.getErrorMessage();
+      }
+
+      @Override
+      public String getErrorCode() {
+        return build.getErrorCode();
+      }
+
+      @Override
+      public List<BuildProblem> getProblems() {
+        return build.getProblems();
+      }
+    };
+  }
+
   /** Makes the mocked repositories behave like a tiny in-memory database. */
   private void stubInMemoryRepositories() {
     lenient()
@@ -499,11 +588,11 @@ class VsumBuildServiceTest {
                 Optional.ofNullable(builds.get(inv.<Long>getArgument(0)))
                     .map(VsumBuild::getStatus));
     lenient()
-        .when(vsumBuildRepository.findErrorMessageById(anyLong()))
+        .when(vsumBuildRepository.findFailureById(anyLong()))
         .thenAnswer(
             inv ->
                 Optional.ofNullable(builds.get(inv.<Long>getArgument(0)))
-                    .map(VsumBuild::getErrorMessage));
+                    .map(VsumBuildServiceTest::failure));
     lenient()
         .when(vsumBuildRepository.findArtifactDataById(anyLong()))
         .thenAnswer(

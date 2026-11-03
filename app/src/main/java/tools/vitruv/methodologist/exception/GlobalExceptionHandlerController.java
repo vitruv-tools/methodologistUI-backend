@@ -831,7 +831,8 @@ public class GlobalExceptionHandlerController {
   /**
    * Handles failed setup-service calls. Requests the setup-service rejected (4xx, e.g. an invalid
    * metamodel) are reported as {@code 400 Bad Request}; failures and outages as {@code 502 Bad
-   * Gateway}.
+   * Gateway}. The error code and problems of the setup-service are passed on, so that clients can
+   * tell faulty uploads from an unavailable build environment and show where the uploads are wrong.
    *
    * @param ex the caught SetupServiceException
    * @param handlerMethod the handler method that threw the exception
@@ -850,6 +851,8 @@ public class GlobalExceptionHandlerController {
             .error(SetupServiceException.ERROR_TEMPLATE)
             .message(Objects.requireNonNull(ex.getMessage()))
             .path(getPath(request))
+            .errorCode(ex.getErrorCode())
+            .problems(ex.getProblems())
             .build();
     HttpStatus status =
         ex.isRejectedBySetupService() ? HttpStatus.BAD_REQUEST : HttpStatus.BAD_GATEWAY;
