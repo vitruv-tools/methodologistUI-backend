@@ -468,6 +468,29 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
+   * Handles {@link UtilityMethodValidationException} thrown when a utility method cannot be saved
+   * or deleted.
+   *
+   * <p>Responds with HTTP 400 (Bad Request) and returns an {@link ErrorResponse} containing the
+   * exception message and the request path.
+   *
+   * @param ex the thrown {@code UtilityMethodValidationException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the problem
+   */
+  @ExceptionHandler(value = UtilityMethodValidationException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseBody
+  public ErrorResponse utilityMethodValidationException(
+      UtilityMethodValidationException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles {@link DataIntegrityViolationException} thrown when a database operation violates a
    * constraint — most commonly when deleting a {@code FileStorage} that is still referenced (for
    * example by a {@code MetaModel}'s {@code ecore_file_id}/{@code gen_model_file_id}). Returns HTTP
