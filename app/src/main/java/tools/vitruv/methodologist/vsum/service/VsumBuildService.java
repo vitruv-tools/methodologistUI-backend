@@ -33,6 +33,7 @@ import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.SetupServiceException;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
 import tools.vitruv.methodologist.general.FileEnumType;
+import tools.vitruv.methodologist.general.Sha256;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.user.model.User;
@@ -474,7 +475,7 @@ public class VsumBuildService {
     artifact.setType(FileEnumType.VSUM_JAR);
     artifact.setContentType(ARTIFACT_CONTENT_TYPE);
     artifact.setSizeBytes(jar.length);
-    artifact.setSha256(VsumBuildInputs.sha256Hex(jar));
+    artifact.setSha256(Sha256.hex(jar));
     artifact.setData(jar);
     artifact.setUser(owner);
     return artifact;

@@ -1,12 +1,8 @@
 package tools.vitruv.methodologist.general.service;
 
-import static tools.vitruv.methodologist.messages.Error.FILE_HASHING_EXCEPTION;
 import static tools.vitruv.methodologist.messages.Error.FILE_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -15,9 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import tools.vitruv.methodologist.exception.FileAlreadyExistsException;
-import tools.vitruv.methodologist.exception.FileHashingException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.general.FileEnumType;
+import tools.vitruv.methodologist.general.Sha256;
 import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
 import tools.vitruv.methodologist.general.mapper.FileStorageMapper;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -48,27 +44,6 @@ public class FileStorageService {
    */
   private static boolean rejectsDuplicateContent(FileEnumType type) {
     return type != FileEnumType.ECORE && type != FileEnumType.GEN_MODEL;
-  }
-
-  /**
-   * Computes the SHA\-256 digest of the given bytes and returns its lowercase hexadecimal string.
-   *
-   * <p>Uses {@link java.security.MessageDigest} with the {@code SHA\-256} algorithm and wraps any
-   * algorithm lookup failure into {@link
-   * tools.vitruv.methodologist.exception.FileHashingException}.
-   *
-   * @param data the bytes to hash; must not be {@code null}
-   * @return lowercase hex representation of the SHA\-256 digest
-   * @throws tools.vitruv.methodologist.exception.FileHashingException if hashing cannot be
-   *     performed
-   */
-  private String sha256Hex(byte[] data) {
-    try {
-      MessageDigest md = MessageDigest.getInstance("SHA-256");
-      return HexFormat.of().formatHex(md.digest(data));
-    } catch (NoSuchAlgorithmException e) {
-      throw new FileHashingException(FILE_HASHING_EXCEPTION, e);
-    }
   }
 
   /**
@@ -118,7 +93,7 @@ public class FileStorageService {
       throw new IllegalArgumentException("File is empty");
     }
 
-    String sha = sha256Hex(data);
+    String sha = Sha256.hex(data);
 
     if (rejectsDuplicateContent(type)
         && fileStorageRepository.existsByUserAndSha256AndSizeBytes(user, sha, data.length)) {
@@ -230,7 +205,7 @@ public class FileStorageService {
       throw new IllegalArgumentException("File is empty");
     }
 
-    String sha = sha256Hex(data);
+    String sha = Sha256.hex(data);
 
     existing.setFilename(fileName);
     existing.setType(FileEnumType.REACTION);
@@ -290,7 +265,7 @@ public class FileStorageService {
   public FileStorage overwriteStoredContent(FileStorage fileStorage, byte[] data) {
     byte[] safeData = data == null ? new byte[0] : data;
     fileStorage.setSizeBytes(safeData.length);
-    fileStorage.setSha256(sha256Hex(safeData));
+    fileStorage.setSha256(Sha256.hex(safeData));
     fileStorage.setData(safeData);
     return fileStorageRepository.save(fileStorage);
   }
