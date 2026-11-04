@@ -3,9 +3,6 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.USER_DOSE_NOT_HAVE_ACCESS;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -17,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.general.FileEnumType;
+import tools.vitruv.methodologist.general.Sha256;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
@@ -160,6 +158,8 @@ public class ConstraintRuleSetService {
         .sizeBytes(bytes.length)
         .sha256(sha256(bytes))
         .data(bytes)
+        .sha256(Sha256.hex(bytes))
+        .data(bytes)
         .user(user)
         .build();
   }
@@ -168,22 +168,6 @@ public class ConstraintRuleSetService {
     return name.replaceAll("[^A-Za-z0-9_\\-]", "_");
   }
 
-  private String sha256(byte[] bytes) {
-    try {
-      MessageDigest digest = MessageDigest.getInstance("SHA-256");
-      return HexFormat.of().formatHex(digest.digest(bytes));
-    } catch (NoSuchAlgorithmException e) {
-      throw new IllegalStateException("SHA-256 not available", e);
-    }
-  }
-
-  private User resolveUser(String email) {
-    return userRepository
-        .findByEmailIgnoreCaseAndRemovedAtIsNull(email)
-        .orElseThrow(UnauthorizedException::new);
-  }
-
-  private Vsum resolveAccessibleVsum(User user, Long vsumId) {
     Vsum vsum =
         vsumRepository
             .findByIdAndRemovedAtIsNull(vsumId)
