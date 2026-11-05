@@ -278,4 +278,30 @@ class VsumMetaModelServiceTest {
     verify(metaModelRepository).deleteAll(empty);
     verify(fileStorageService).deleteFiles(List.of());
   }
+
+  @Test
+  void findEcoreFiles_returnsFilenameAndContentOfEachLinkedMetaModel() {
+    Vsum vsum = new Vsum();
+    vsum.setId(7L);
+    MetaModel first = newOriginalMetaModel(1L);
+    first.setEcoreFile(FileStorage.builder().filename("a.ecore").data(new byte[] {1}).build());
+    MetaModel second = newOriginalMetaModel(2L);
+    second.setEcoreFile(FileStorage.builder().filename("b.ecore").data(new byte[] {2}).build());
+    when(vsumMetaModelRepository.findAllWithEcoreFileByVsum_Id(7L))
+        .thenReturn(List.of(vsumMetaModel(vsum, first), vsumMetaModel(vsum, second)));
+
+    List<VsumMetaModelService.EcoreFile> result = service.findEcoreFiles(7L);
+
+    assertThat(result)
+        .extracting(VsumMetaModelService.EcoreFile::filename)
+        .containsExactly("a.ecore", "b.ecore");
+    assertThat(result.get(1).data()).containsExactly(2);
+  }
+
+  @Test
+  void findEcoreFiles_withoutLinkedMetaModels_returnsEmptyList() {
+    when(vsumMetaModelRepository.findAllWithEcoreFileByVsum_Id(7L)).thenReturn(List.of());
+
+    assertThat(service.findEcoreFiles(7L)).isEmpty();
+  }
 }

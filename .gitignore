@@ -13,6 +13,7 @@
 # Package Files #
 *.jar
 !app/src/main/resources/lsp/vitruvocl-language-server.jar
+!app/src/main/resources/lsp/tools.vitruv.neojoin.frontend.ide.jar
 *.war
 *.nar
 *.ear

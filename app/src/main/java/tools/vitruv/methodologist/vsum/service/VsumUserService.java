@@ -187,4 +187,23 @@ public class VsumUserService {
 
     vsumUserRepository.delete(vsumUser);
   }
+
+  /**
+   * Checks whether the user with the given email is an active member of the given VSUM, in any
+   * role.
+   *
+   * @param vsumId the ID of the VSUM
+   * @param email the user's email
+   * @return {@code true} if both the user and the VSUM exist and are not removed and the user is a
+   *     member; {@code false} otherwise, including for {@code null} or blank arguments
+   */
+  @Transactional(readOnly = true)
+  public boolean isMember(Long vsumId, String email) {
+    if (vsumId == null || email == null || email.isBlank()) {
+      return false;
+    }
+    return vsumUserRepository
+        .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(vsumId, email)
+        .isPresent();
+  }
 }
