@@ -12,6 +12,7 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -21,6 +22,7 @@ import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.OwnerRequiredException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
+import tools.vitruv.methodologist.general.event.ReactionFileUpdatedEvent;
 import tools.vitruv.methodologist.general.mapper.FileStorageMapper;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
@@ -39,6 +41,7 @@ public class FileStorageService {
   FileStorageRepository fileStorageRepository;
   UserRepository userRepository;
   FileStorageMapper fileStorageMapper;
+  ApplicationEventPublisher applicationEventPublisher;
 
   /**
    * Ecore and GenModel files may be stored more than once with identical content. Each metamodel
@@ -244,6 +247,7 @@ public class FileStorageService {
     existing.setData(data);
 
     fileStorageRepository.save(existing);
+    applicationEventPublisher.publishEvent(new ReactionFileUpdatedEvent(existing.getId()));
 
     return FileStorageResponse.builder().id(existing.getId()).build();
   }

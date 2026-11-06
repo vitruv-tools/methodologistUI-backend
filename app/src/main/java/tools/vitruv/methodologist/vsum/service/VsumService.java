@@ -14,10 +14,13 @@ import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.user.model.User;
@@ -61,6 +64,7 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
  * @see tools.vitruv.methodologist.vsum.mapper.VsumMapper
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumService {
@@ -81,6 +85,7 @@ public class VsumService {
   MetaModelService metaModelService;
   VsumSyncService vsumSyncService;
   VsumCleanupService vsumCleanupService;
+  VsumValidationService vsumValidationService;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -155,8 +160,11 @@ public class VsumService {
       throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
     }
 
-    return vsumSyncService.applySyncChanges(
-        vsumUser.getVsum(), vsumUser.getUser(), vsumSyncChangesPutRequest, true);
+    Vsum vsum =
+        vsumSyncService.applySyncChanges(
+            vsumUser.getVsum(), vsumUser.getUser(), vsumSyncChangesPutRequest, true);
+    requestValidationAfterCommit(id);
+    return vsum;
   }
 
   /**
@@ -183,6 +191,7 @@ public class VsumService {
     vsumHistoryService.create(vsumUser.getVsum(), vsumUser.getUser());
     vsumMetaModel.setName(name);
     vsumMetaModelRepository.save(vsumMetaModel);
+    requestValidationAfterCommit(vsumId);
   }
 
   /**
@@ -207,6 +216,24 @@ public class VsumService {
     MetaModel projectMetaModel =
         findVsumMetaModel(vsumUser.getVsum(), sourceMetaModelId).getMetaModel();
     metaModelService.updateProjectEcore(projectMetaModel, ecore.getBytes(StandardCharsets.UTF_8));
+    requestValidationAfterCommit(vsumId);
+  }
+
+  private void requestValidationAfterCommit(Long vsumId) {
+    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+      return;
+    }
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCommit() {
+            try {
+              vsumValidationService.requestValidation(vsumId);
+            } catch (RuntimeException e) {
+              log.warn("Validation of VSUM {} could not be requested: {}", vsumId, e.getMessage());
+            }
+          }
+        });
   }
 
   private VsumUser findEditingVsumUser(String callerEmail, Long vsumId) {
