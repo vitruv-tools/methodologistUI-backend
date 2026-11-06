@@ -71,10 +71,18 @@ public class SecurityConfiguration {
                     // otherwise leave every other one open.
                     .requestMatchers("/actuator/**")
                     .hasRole("user")
+                    // The NeoJoin LSP handshake carries its token as a WebSocket subprotocol,
+                    // see NeoJoinWebSocketBearerTokenResolver.
+                    .requestMatchers(
+                        HttpMethod.GET, NeoJoinWebSocketBearerTokenResolver.NEOJOIN_LSP_PATH)
+                    .hasRole("user")
                     .anyRequest()
                     .permitAll())
         .oauth2ResourceServer(
-            oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(customJwtConverter())))
+            oauth2 ->
+                oauth2
+                    .bearerTokenResolver(new NeoJoinWebSocketBearerTokenResolver())
+                    .jwt(jwt -> jwt.jwtAuthenticationConverter(customJwtConverter())))
         .addFilterAfter(new UserEmailMdcFilter(), BearerTokenAuthenticationFilter.class)
         .build();
   }

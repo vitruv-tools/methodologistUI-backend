@@ -179,4 +179,27 @@ public class VsumMetaModelService {
     fileStorages.addAll(metaModels.stream().map(MetaModel::getGenModelFile).toList());
     fileStorageService.deleteFiles(fileStorages);
   }
+
+  /**
+   * Filename and content of a metamodel's Ecore file, detached from the persistence context.
+   *
+   * @param filename the stored filename
+   * @param data the file content
+   */
+  public record EcoreFile(String filename, byte[] data) {}
+
+  /**
+   * Returns the Ecore files of all metamodels linked to the given VSUM. The files are read inside
+   * the transaction, so callers outside of it (e.g. WebSocket handlers) can use them safely.
+   *
+   * @param vsumId the ID of the VSUM
+   * @return the VSUM's Ecore files; empty if the VSUM has no metamodels
+   */
+  @Transactional(readOnly = true)
+  public List<EcoreFile> findEcoreFiles(Long vsumId) {
+    return vsumMetaModelRepository.findAllWithEcoreFileByVsum_Id(vsumId).stream()
+        .map(vsumMetaModel -> vsumMetaModel.getMetaModel().getEcoreFile())
+        .map(file -> new EcoreFile(file.getFilename(), file.getData()))
+        .toList();
+  }
 }
