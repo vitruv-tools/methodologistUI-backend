@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -23,8 +24,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
-import tools.vitruv.methodologist.config.OclLspWebSocketHandler;
 import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.lsp.OclLspWebSocketHandler;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 
 /**
@@ -148,6 +149,25 @@ class OclLspWebSocketHandlerTest {
     handler.afterConnectionClosed(session, CloseStatus.NORMAL);
 
     verify(session, never()).close(any(CloseStatus.class));
+  }
+
+  @Test
+  void shutdown_destroysSessionsAndDeletesApplicationTempBase() throws Exception {
+    URI uri = new URI("ws://localhost/ocl-lsp?vsumId=1");
+    when(session.getUri()).thenReturn(uri);
+    when(vsumMetaModelService.findAccessibleByProject(1L)).thenReturn(Collections.emptyList());
+
+    Path fakeJar = Files.createTempFile("vitruvocl-ls-", ".jar");
+    Files.write(fakeJar, "not-a-real-jar".getBytes());
+    ReflectionTestUtils.setField(handler, "jarResource", new FileSystemResource(fakeJar.toFile()));
+
+    handler.afterConnectionEstablished(session);
+    Path appTempBase = (Path) ReflectionTestUtils.getField(handler, "appTempBase");
+    assertThat(appTempBase).isNotEmptyDirectory();
+
+    handler.shutdown();
+
+    assertThat(appTempBase).doesNotExist();
   }
 
   private MetaModel createMetaModel(Long id, String filename, byte[] content) {
