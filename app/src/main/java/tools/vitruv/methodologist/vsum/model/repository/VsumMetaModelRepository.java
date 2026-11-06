@@ -96,4 +96,15 @@ public interface VsumMetaModelRepository extends CrudRepository<VsumMetaModel, L
    * @return list of VsumMetaModel associations for that VSUM
    */
   List<VsumMetaModel> findByVsumId(Long vsumid);
+
+  /**
+   * Finds all VsumMetaModel associations for a given VSUM ID, fetching each metamodel together with
+   * its Ecore file in the same query.
+   *
+   * @param vsumId the ID of the VSUM
+   * @return list of VsumMetaModel associations for that VSUM
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  @EntityGraph(attributePaths = {"metaModel", "metaModel.ecoreFile"})
+  List<VsumMetaModel> findAllWithEcoreFileByVsum_Id(Long vsumId);
 }
