@@ -12,6 +12,15 @@ public class Error {
   public static final String VSUM_BUILD_ARTIFACT_NOT_FOUND_ERROR = "Vsum build artifact";
   public static final String USER_DOES_NOT_HAVE_ACCESS = "You don't have access";
   public static final String VIEW_FILE_ID_NOT_FOUND_ERROR = "View file id";
+  public static final String VIEW_NAME_NOT_UNIQUE_ERROR =
+      "The views of a VSUM need different names, but this name is used more than once: %s";
+  public static final String VIEW_NAME_TOO_LONG_ERROR =
+      "A view name must not be longer than %d characters";
+  public static final String VIEW_FILE_REQUIRED_ERROR = "A view needs a NeoJoin file: %s";
+  public static final String VIEW_ID_NOT_UNIQUE_ERROR =
+      "Each view may only be described once, but this view id is used more than once: %s";
+  public static final String NEO_JOIN_FILE_EXTENSION_ERROR =
+      "The name of a NeoJoin file must end in .nj";
   public static final String ECORE_FILE_ID_NOT_FOUND_ERROR = "Ecore file id";
   public static final String USER_EMAIL_NOT_FOUND_ERROR = "Email";
   public static final String USER_WRONG_PASSWORD_ERROR = "Wrong password";

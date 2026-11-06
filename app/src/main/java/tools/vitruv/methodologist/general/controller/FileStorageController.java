@@ -117,6 +117,48 @@ public class FileStorageController {
   }
 
   /**
+   * Overwrites the content of an existing NeoJoin file (a view definition) with a newly uploaded
+   * file.
+   *
+   * <p>The file keeps its ID, so the views that use it see the new content. The uploaded file's
+   * name must end in {@code .nj}.
+   *
+   * @param authentication the Keycloak authentication object containing user details
+   * @param file the new multipart file whose content will overwrite the existing file
+   * @param id the ID of the existing NeoJoin file to update
+   * @return ResponseTemplateDto containing the updated file's information
+   * @throws Exception if the uploaded file cannot be read
+   */
+  @Operation(
+      summary = "Update an existing NeoJoin file",
+      description =
+          "Overwrite a stored NeoJoin view definition with a new uploaded .nj file; the file keeps"
+              + " its ID")
+  @PostMapping(
+      value = "/upload/{id}/update-neojoin",
+      consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+      produces = MediaType.APPLICATION_JSON_VALUE)
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<FileStorageResponse> updateNeoJoin(
+      KeycloakAuthentication authentication,
+      @Parameter(
+              description = "New file content",
+              content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE))
+          @RequestParam("file")
+          MultipartFile file,
+      @PathVariable Long id)
+      throws Exception {
+    String email = authentication.getParsedToken().getEmail();
+    FileStorageResponse response =
+        fileStorageService.updateFile(email, id, FileEnumType.NEO_JOIN, file);
+
+    return ResponseTemplateDto.<FileStorageResponse>builder()
+        .data(response)
+        .message(FILE_UPLOADED_SUCCESSFULLY)
+        .build();
+  }
+
+  /**
    * Downloads a file from the server.
    *
    * @param id the ID of the file to download

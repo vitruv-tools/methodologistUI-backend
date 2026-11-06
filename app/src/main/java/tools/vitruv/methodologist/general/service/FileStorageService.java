@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.general.service;
 
 import static tools.vitruv.methodologist.messages.Error.FILE_HASHING_EXCEPTION;
 import static tools.vitruv.methodologist.messages.Error.FILE_ID_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.NEO_JOIN_FILE_EXTENSION_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
 import jakarta.ws.rs.BadRequestException;
@@ -38,6 +39,9 @@ import tools.vitruv.methodologist.user.model.repository.UserRepository;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class FileStorageService {
+  /** File name extension of NeoJoin view definitions. */
+  public static final String NEO_JOIN_EXTENSION = ".nj";
+
   FileStorageRepository fileStorageRepository;
   UserRepository userRepository;
   FileStorageMapper fileStorageMapper;
@@ -53,6 +57,20 @@ public class FileStorageService {
    */
   private static boolean rejectsDuplicateContent(FileEnumType type) {
     return type != FileEnumType.ECORE && type != FileEnumType.GEN_MODEL;
+  }
+
+  /**
+   * Rejects a NeoJoin file whose name does not end in {@value #NEO_JOIN_EXTENSION}.
+   *
+   * @param type the type of the file
+   * @param fileName the name of the file
+   * @throws BadRequestException if the file is a NeoJoin file with another name
+   */
+  private static void checkFileName(FileEnumType type, String fileName) {
+    if (type == FileEnumType.NEO_JOIN
+        && (fileName == null || !fileName.endsWith(NEO_JOIN_EXTENSION))) {
+      throw new BadRequestException(NEO_JOIN_FILE_EXTENSION_ERROR);
+    }
   }
 
   /**
@@ -86,7 +104,8 @@ public class FileStorageService {
    * @return FileStorageResponse containing the stored file's ID
    * @throws Exception if file hashing fails
    * @throws NotFoundException if the user email is not found
-   * @throws BadRequestException if the file is empty
+   * @throws BadRequestException if the file is empty, or it is a NeoJoin file whose name does not
+   *     end in {@value #NEO_JOIN_EXTENSION}
    * @throws FileAlreadyExistsException if a non-metamodel file with the same content already exists
    *     for the user
    */
@@ -108,7 +127,8 @@ public class FileStorageService {
    * @param type the type of file being stored
    * @return FileStorageResponse containing the stored file's ID
    * @throws NotFoundException if the user email is not found
-   * @throws BadRequestException if the file is empty
+   * @throws BadRequestException if the file is empty, or it is a NeoJoin file whose name does not
+   *     end in {@value #NEO_JOIN_EXTENSION}
    * @throws FileAlreadyExistsException if a non-metamodel file with the same content already exists
    *     for the user
    */
@@ -122,6 +142,7 @@ public class FileStorageService {
     if (data == null || data.length == 0) {
       throw new BadRequestException("File is empty");
     }
+    checkFileName(type, fileName);
 
     String sha = sha256Hex(data);
 
@@ -192,9 +213,27 @@ public class FileStorageService {
   @Transactional(rollbackFor = Exception.class)
   public FileStorageResponse updateFile(String callerUserEmail, Long fileId, MultipartFile file)
       throws Exception {
+    return updateFile(callerUserEmail, fileId, FileEnumType.REACTION, file);
+  }
+
+  /**
+   * Updates an existing file of the given type with the content of an uploaded file. The checks
+   * match {@link #updateFile(String, Long, FileEnumType, byte[], String, String)}.
+   *
+   * @param callerUserEmail email of the user requesting the update
+   * @param fileId the ID of the existing file to update
+   * @param type the type the existing file must have; it is kept
+   * @param file the new MultipartFile whose content will replace the existing file content
+   * @return FileStorageResponse containing the updated file's ID
+   * @throws Exception if the uploaded file cannot be read
+   */
+  @Transactional(rollbackFor = Exception.class)
+  public FileStorageResponse updateFile(
+      String callerUserEmail, Long fileId, FileEnumType type, MultipartFile file) throws Exception {
     return updateFile(
         callerUserEmail,
         fileId,
+        type,
         file.getBytes(),
         file.getOriginalFilename(),
         file.getContentType());
@@ -217,6 +256,34 @@ public class FileStorageService {
   @Transactional(rollbackFor = Exception.class)
   public FileStorageResponse updateFile(
       String callerUserEmail, Long fileId, byte[] data, String fileName, String contentType) {
+    return updateFile(callerUserEmail, fileId, FileEnumType.REACTION, data, fileName, contentType);
+  }
+
+  /**
+   * Overwrites the content and name of an existing file of the given type from raw bytes. The type
+   * of the file does not change.
+   *
+   * @param callerUserEmail email of the user requesting the update
+   * @param fileId the ID of the existing file to update
+   * @param type the type the existing file must have
+   * @param data the replacement file contents
+   * @param fileName the name of the file
+   * @param contentType the MIME type of the file
+   * @return FileStorageResponse containing the updated file's ID
+   * @throws NotFoundException if the user email is not found, or no file of the given type has the
+   *     ID
+   * @throws BadRequestException if the file is empty, or it is a NeoJoin file whose name does not
+   *     end in {@value #NEO_JOIN_EXTENSION}
+   * @throws OwnerRequiredException if file does not belong to the caller
+   */
+  @Transactional(rollbackFor = Exception.class)
+  public FileStorageResponse updateFile(
+      String callerUserEmail,
+      Long fileId,
+      FileEnumType type,
+      byte[] data,
+      String fileName,
+      String contentType) {
     User user =
         userRepository
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerUserEmail)
@@ -224,7 +291,7 @@ public class FileStorageService {
 
     FileStorage existing =
         fileStorageRepository
-            .findByIdAndType(fileId, FileEnumType.REACTION)
+            .findByIdAndType(fileId, type)
             .orElseThrow(() -> new NotFoundException("File"));
 
     if (existing.getUser() == null
@@ -236,11 +303,12 @@ public class FileStorageService {
     if (data == null || data.length == 0) {
       throw new BadRequestException("File is empty");
     }
+    checkFileName(type, fileName);
 
     String sha = sha256Hex(data);
 
     existing.setFilename(fileName);
-    existing.setType(FileEnumType.REACTION);
+    existing.setType(type);
     existing.setContentType(contentType == null ? "application/octet-stream" : contentType);
     existing.setSizeBytes(data.length);
     existing.setSha256(sha);

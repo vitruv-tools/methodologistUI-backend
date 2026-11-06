@@ -60,7 +60,10 @@ public class VsumRepresentation implements Serializable {
     private Map<String, Object> lowCodeReactionTemplateParams;
   }
 
-  /** Describes The View. */
+  /**
+   * Describes a view: its NeoJoin file and the source IDs of its meta models. Snapshots taken
+   * before views had names have no {@code id}, {@code name} and {@code description}.
+   */
   @Getter
   @Setter
   @NoArgsConstructor
@@ -68,6 +71,9 @@ public class VsumRepresentation implements Serializable {
   @Builder
   public static class View implements Serializable {
     @Serial private static final long serialVersionUID = 1L;
+    private Long id;
+    private String name;
+    private String description;
     private List<Long> metaModelIds;
     private Long fileStorageId;
   }
