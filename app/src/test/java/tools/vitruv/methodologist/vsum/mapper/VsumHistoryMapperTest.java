@@ -14,6 +14,8 @@ import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumHistory;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
+import tools.vitruv.methodologist.vsum.model.VsumView;
+import tools.vitruv.methodologist.vsum.model.VsumViewMetaModel;
 
 /** Unit tests for {@link VsumHistoryMapper} relation snapshot mapping. */
 class VsumHistoryMapperTest {
@@ -84,5 +86,39 @@ class VsumHistoryMapperTest {
     VsumRepresentation result = mapper.toVsumRepresentation(vsum);
 
     assertThat(result.getMetaModelNames()).containsEntry(19L, "Project name");
+  }
+
+  @Test
+  void toView_mapsIdNameDescriptionFileAndSortedSourceMetaModelIds() {
+    VsumView view =
+        VsumView.builder()
+            .id(7L)
+            .name("Brake")
+            .description("brake components")
+            .fileStorage(FileStorage.builder().id(70L).build())
+            .viewMetaModels(new HashSet<>())
+            .build();
+    for (long sourceId : new long[] {3L, 1L}) {
+      MetaModel cloned =
+          MetaModel.builder()
+              .id(100L + sourceId)
+              .source(MetaModel.builder().id(sourceId).build())
+              .build();
+      view.getViewMetaModels()
+          .add(VsumViewMetaModel.builder().vsumView(view).metaModel(cloned).build());
+    }
+
+    Set<VsumRepresentation.View> result = mapper.toView(Set.of(view));
+
+    assertThat(result)
+        .singleElement()
+        .satisfies(
+            snapshot -> {
+              assertThat(snapshot.getId()).isEqualTo(7L);
+              assertThat(snapshot.getName()).isEqualTo("Brake");
+              assertThat(snapshot.getDescription()).isEqualTo("brake components");
+              assertThat(snapshot.getFileStorageId()).isEqualTo(70L);
+              assertThat(snapshot.getMetaModelIds()).containsExactly(1L, 3L);
+            });
   }
 }

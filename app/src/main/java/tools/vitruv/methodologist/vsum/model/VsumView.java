@@ -25,7 +25,8 @@ import tools.vitruv.methodologist.general.model.FileStorage;
 /**
  * Represents a NeoJoin configuration (view) within a VSUM.
  *
- * <p>Each view is backed by a NeoJoin file and can be associated with multiple metamodels.
+ * <p>Each view is backed by a NeoJoin file and can be associated with multiple metamodels. Its name
+ * is unique within the VSUM.
  */
 @Getter
 @Setter
@@ -48,6 +49,10 @@ public class VsumView {
   @JoinColumn(name = "vsum_id", nullable = false)
   @ToString.Exclude
   private Vsum vsum;
+
+  @NotNull @ToString.Include private String name;
+
+  private String description;
 
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY)

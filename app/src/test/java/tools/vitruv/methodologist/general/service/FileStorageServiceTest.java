@@ -444,4 +444,135 @@ class FileStorageServiceTest {
                         && file.getSha256() != null
                         && !file.getSha256().isBlank()));
   }
+
+  @Test
+  void storeFile_bytes_neoJoinFile_success() {
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
+        .thenReturn(Optional.of(testUser));
+    when(fileStorageRepository.existsByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
+        .thenReturn(false);
+    when(fileStorageRepository.save(any(FileStorage.class))).thenReturn(testFileStorage);
+    byte[] data = "export Brake to \"http://brake\"".getBytes();
+
+    fileStorageService.storeFile(
+        "test@example.com", data, "Brake.nj", "text/plain", FileEnumType.NEO_JOIN);
+
+    verify(fileStorageRepository)
+        .save(
+            argThat(
+                file ->
+                    "Brake.nj".equals(file.getFilename())
+                        && file.getType() == FileEnumType.NEO_JOIN));
+  }
+
+  @Test
+  void storeFile_neoJoinFileWithoutNjExtension_throwsBadRequestException() {
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
+        .thenReturn(Optional.of(testUser));
+    MockMultipartFile view =
+        new MockMultipartFile("file", "Brake.txt", "text/plain", "export Brake".getBytes());
+
+    assertThrows(
+        BadRequestException.class,
+        () -> fileStorageService.storeFile("test@example.com", view, FileEnumType.NEO_JOIN));
+    verify(fileStorageRepository, never()).save(any());
+  }
+
+  @Test
+  void storeFile_bytes_neoJoinFileWithoutName_throwsBadRequestException() {
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
+        .thenReturn(Optional.of(testUser));
+    byte[] data = "export Brake".getBytes();
+
+    assertThrows(
+        BadRequestException.class,
+        () ->
+            fileStorageService.storeFile(
+                "test@example.com", data, null, "text/plain", FileEnumType.NEO_JOIN));
+    verify(fileStorageRepository, never()).save(any());
+  }
+
+  @Test
+  void storeFile_bytes_otherTypesDoNotNeedNjExtension() {
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
+        .thenReturn(Optional.of(testUser));
+    when(fileStorageRepository.existsByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
+        .thenReturn(false);
+    when(fileStorageRepository.save(any(FileStorage.class))).thenReturn(testFileStorage);
+
+    fileStorageService.storeFile(
+        "test@example.com", "context X".getBytes(), "rules.txt", null, FileEnumType.OCL);
+
+    verify(fileStorageRepository).save(argThat(file -> "rules.txt".equals(file.getFilename())));
+  }
+
+  @Test
+  void updateFile_neoJoin_overwritesNeoJoinFileAndKeepsItsType() throws Exception {
+    String email = "test@example.com";
+    Long fileId = 20L;
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(testUser));
+    FileStorage existing = new FileStorage();
+    existing.setId(fileId);
+    existing.setUser(testUser);
+    existing.setType(FileEnumType.NEO_JOIN);
+    existing.setFilename("Brake.nj");
+    when(fileStorageRepository.findByIdAndType(fileId, FileEnumType.NEO_JOIN))
+        .thenReturn(Optional.of(existing));
+    when(fileStorageRepository.save(any(FileStorage.class))).thenAnswer(inv -> inv.getArgument(0));
+    MockMultipartFile view =
+        new MockMultipartFile("file", "Braking.nj", "text/plain", "export Braking".getBytes());
+
+    FileStorageResponse response =
+        fileStorageService.updateFile(email, fileId, FileEnumType.NEO_JOIN, view);
+
+    assertEquals(fileId, response.getId());
+    verify(fileStorageRepository)
+        .save(
+            argThat(
+                fs ->
+                    fs == existing
+                        && "Braking.nj".equals(fs.getFilename())
+                        && fs.getType() == FileEnumType.NEO_JOIN
+                        && Arrays.equals(fs.getData(), "export Braking".getBytes())));
+  }
+
+  @Test
+  void updateFile_neoJoinWithoutNjExtension_throwsBadRequestException_andKeepsTheFile()
+      throws Exception {
+    String email = "test@example.com";
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(testUser));
+    FileStorage existing = new FileStorage();
+    existing.setId(21L);
+    existing.setUser(testUser);
+    existing.setType(FileEnumType.NEO_JOIN);
+    existing.setFilename("Brake.nj");
+    when(fileStorageRepository.findByIdAndType(21L, FileEnumType.NEO_JOIN))
+        .thenReturn(Optional.of(existing));
+    MockMultipartFile view =
+        new MockMultipartFile("file", "Brake.NJ", "text/plain", "export Brake".getBytes());
+
+    assertThrows(
+        BadRequestException.class,
+        () -> fileStorageService.updateFile(email, 21L, FileEnumType.NEO_JOIN, view));
+    assertEquals("Brake.nj", existing.getFilename());
+    verify(fileStorageRepository, never()).save(any());
+  }
+
+  @Test
+  void updateFile_neoJoin_onFileOfAnotherType_throwsNotFoundException() {
+    String email = "test@example.com";
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(testUser));
+    when(fileStorageRepository.findByIdAndType(22L, FileEnumType.NEO_JOIN))
+        .thenReturn(Optional.empty());
+    MockMultipartFile view =
+        new MockMultipartFile("file", "Brake.nj", "text/plain", "export Brake".getBytes());
+
+    assertThrows(
+        NotFoundException.class,
+        () -> fileStorageService.updateFile(email, 22L, FileEnumType.NEO_JOIN, view));
+    verify(fileStorageRepository, never()).save(any());
+  }
 }
