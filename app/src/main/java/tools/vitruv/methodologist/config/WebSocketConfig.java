@@ -7,6 +7,8 @@ import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
+import tools.vitruv.methodologist.lsp.LspWebSocketHandler;
+import tools.vitruv.methodologist.lsp.OclLspWebSocketHandler;
 
 /** Configuration class for setting up WebSocket endpoints. */
 @Configuration
