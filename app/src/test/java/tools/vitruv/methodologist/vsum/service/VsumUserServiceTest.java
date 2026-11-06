@@ -474,4 +474,34 @@ class VsumUserServiceTest {
     u.setEmail(email);
     return u;
   }
+
+  @Test
+  void isMember_returnsTrue_whenActiveMembershipExists() {
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                5L, "member@example.com"))
+        .thenReturn(Optional.of(new VsumUser()));
+
+    assertThat(service.isMember(5L, "member@example.com")).isTrue();
+  }
+
+  @Test
+  void isMember_returnsFalse_whenNoActiveMembershipExists() {
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                5L, "stranger@example.com"))
+        .thenReturn(Optional.empty());
+
+    assertThat(service.isMember(5L, "stranger@example.com")).isFalse();
+  }
+
+  @Test
+  void isMember_returnsFalse_withoutQuerying_forMissingArguments() {
+    assertThat(service.isMember(null, "member@example.com")).isFalse();
+    assertThat(service.isMember(5L, null)).isFalse();
+    assertThat(service.isMember(5L, " ")).isFalse();
+
+    verify(vsumUserRepository, never())
+        .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(any(), any());
+  }
 }
