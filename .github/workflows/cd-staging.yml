@@ -5,6 +5,10 @@ on:
     branches:
       - develop
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   deploy-stage:
     runs-on: ubuntu-latest
@@ -13,8 +17,21 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Set image tag
-        id: meta
         run: echo "TAG=stage-${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Set image name
+        run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Set up Java
+        uses: actions/setup-java@v4.7.1
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      # Tests run in the CI workflow on the same push; this job only needs the jar.
+      - name: Build backend jar
+        run: ./mvnw --batch-mode --no-transfer-progress -pl app -am -DskipTests clean package
 
       - name: Login to registry
         uses: docker/login-action@v3
@@ -23,14 +40,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set image name
-        run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
+      # The Dockerfile copies app.jar from the build context, so the context is app/target.
       - name: Build backend image
         run: |
-          docker build -t ghcr.io/$IMAGE_NAME/backend:$TAG .
+          docker build -f Dockerfile -t ghcr.io/$IMAGE_NAME/backend:$TAG app/target
           docker push ghcr.io/$IMAGE_NAME/backend:$TAG
 
+      # The frontend is deployed from its own repository, so only the backend tag is replaced
+      # and only the backend service is restarted.
       - name: Deploy to staging server
         uses: appleboy/ssh-action@v1
         with:
@@ -38,8 +55,10 @@ jobs:
           username: ${{ secrets.STAGE_SSH_USER }}
           key: ${{ secrets.STAGE_SSH_KEY }}
           script: |
+            set -e
             cd /opt/methodologist
-            echo "BACKEND_IMAGE_TAG=$TAG" > .deploy.env
-            echo "FRONTEND_IMAGE_TAG=$TAG" >> .deploy.env
-            docker compose --env-file .deploy.env pull
-            docker compose --env-file .deploy.env up -d
+            touch .deploy.env
+            sed -i '/^BACKEND_IMAGE_TAG=/d' .deploy.env
+            echo "BACKEND_IMAGE_TAG=${{ env.TAG }}" >> .deploy.env
+            docker compose --env-file .deploy.env pull backend
+            docker compose --env-file .deploy.env up -d backend
