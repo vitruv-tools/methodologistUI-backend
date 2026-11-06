@@ -439,6 +439,78 @@ class VsumServiceTest {
   }
 
   @Test
+  void findVsumWithDetails_returnsOwnerRole_whenCallerIsOwner() {
+    assertThat(findVsumWithDetailsAsCallerWithRole(VsumRole.OWNER).getRole())
+        .isEqualTo(VsumRole.OWNER);
+  }
+
+  @Test
+  void findVsumWithDetails_returnsMemberRole_whenCallerIsMember() {
+    assertThat(findVsumWithDetailsAsCallerWithRole(VsumRole.MEMBER).getRole())
+        .isEqualTo(VsumRole.MEMBER);
+  }
+
+  @Test
+  void findVsumWithDetails_returnsViewerRole_whenCallerIsViewer() {
+    assertThat(findVsumWithDetailsAsCallerWithRole(VsumRole.VIEWER).getRole())
+        .isEqualTo(VsumRole.VIEWER);
+  }
+
+  @Test
+  void findVsumWithDetails_throwsAccessDenied_whenCallerIsNotProjectUser() {
+    String email = "outsider@ex.com";
+
+    User caller = new User();
+    caller.setId(1L);
+    caller.setEmail(email);
+
+    User owner = new User();
+    owner.setId(2L);
+    owner.setEmail("owner@ex.com");
+
+    Vsum vsum = new Vsum();
+    vsum.setId(80L);
+
+    VsumUser ownerVsumUser = new VsumUser();
+    ownerVsumUser.setUser(owner);
+    ownerVsumUser.setVsum(vsum);
+    ownerVsumUser.setRole(VsumRole.OWNER);
+    vsum.setVsumUsers(Set.of(ownerVsumUser));
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(caller));
+    when(vsumRepository.findByIdAndRemovedAtIsNull(80L)).thenReturn(Optional.of(vsum));
+
+    assertThatThrownBy(() -> service.findVsumWithDetails(email, 80L))
+        .isInstanceOf(AccessDeniedException.class);
+
+    verifyNoInteractions(vsumMapper, vsumViewRepository);
+  }
+
+  private VsumMetaModelResponse findVsumWithDetailsAsCallerWithRole(VsumRole role) {
+    String email = "u@ex.com";
+
+    User user = new User();
+    user.setEmail(email);
+
+    Vsum vsum = new Vsum();
+    vsum.setId(79L);
+
+    VsumUser vsumUser = new VsumUser();
+    vsumUser.setUser(user);
+    vsumUser.setVsum(vsum);
+    vsumUser.setRole(role);
+    vsum.setVsumUsers(Set.of(vsumUser));
+
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+    when(vsumRepository.findByIdAndRemovedAtIsNull(79L)).thenReturn(Optional.of(vsum));
+    when(vsumMapper.toVsumMetaModelResponse(vsum)).thenReturn(new VsumMetaModelResponse());
+
+    return service.findVsumWithDetails(email, 79L);
+  }
+
+  @Test
   void findAllByUser_mapsList() {
     Vsum a = new Vsum();
     a.setId(1L);
