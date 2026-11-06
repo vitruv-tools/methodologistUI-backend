@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,15 +20,18 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockMultipartFile;
 import tools.vitruv.methodologist.exception.FileAlreadyExistsException;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.OwnerRequiredException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
+import tools.vitruv.methodologist.general.event.ReactionFileUpdatedEvent;
 import tools.vitruv.methodologist.general.mapper.FileStorageMapper;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
@@ -42,6 +46,8 @@ class FileStorageServiceTest {
   @Mock private UserRepository userRepository;
 
   @Mock private FileStorageMapper fileStorageMapper;
+
+  @Mock private ApplicationEventPublisher applicationEventPublisher;
 
   @InjectMocks private FileStorageService fileStorageService;
 
@@ -199,6 +205,45 @@ class FileStorageServiceTest {
                         && "text/plain".equals(fs.getContentType())
                         && fs.getType() == FileEnumType.REACTION
                         && Arrays.equals(fs.getData(), "new-content".getBytes())));
+  }
+
+  @Test
+  void updateFile_publishesReactionFileUpdatedEvent_afterSaving() {
+    String email = "test@example.com";
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(testUser));
+    FileStorage existing = new FileStorage();
+    existing.setId(10L);
+    existing.setUser(testUser);
+    existing.setType(FileEnumType.REACTION);
+    when(fileStorageRepository.findByIdAndType(10L, FileEnumType.REACTION))
+        .thenReturn(Optional.of(existing));
+
+    fileStorageService.updateFile(email, 10L, "new".getBytes(), "r.reactions", "text/plain");
+
+    InOrder order = inOrder(fileStorageRepository, applicationEventPublisher);
+    order.verify(fileStorageRepository).save(existing);
+    order.verify(applicationEventPublisher).publishEvent(new ReactionFileUpdatedEvent(10L));
+  }
+
+  @Test
+  void updateFile_doesNotPublishAnEvent_whenTheUpdateIsRejected() {
+    String email = "test@example.com";
+    User otherUser = new User();
+    otherUser.setId(99L);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(testUser));
+    FileStorage existing = new FileStorage();
+    existing.setId(1L);
+    existing.setUser(otherUser);
+    existing.setType(FileEnumType.REACTION);
+    when(fileStorageRepository.findByIdAndType(1L, FileEnumType.REACTION))
+        .thenReturn(Optional.of(existing));
+
+    assertThrows(
+        OwnerRequiredException.class,
+        () -> fileStorageService.updateFile(email, 1L, "x".getBytes(), "r.reactions", null));
+    verify(applicationEventPublisher, never()).publishEvent(any(Object.class));
   }
 
   @Test

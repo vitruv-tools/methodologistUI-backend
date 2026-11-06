@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -26,7 +27,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.vitruv.methodologist.exception.NotFoundException;
+import tools.vitruv.methodologist.exception.SetupServiceException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
@@ -61,6 +67,7 @@ class VsumServiceTest {
 
   private static final String BUILD_EMAIL = "x@y.com";
   private static final Long BUILD_ID = 1L;
+  private static final String EDITOR_EMAIL = "editor@example.com";
 
   @Mock private VsumMapper vsumMapper;
   @Mock private VsumRepository vsumRepository;
@@ -78,6 +85,7 @@ class VsumServiceTest {
   @Mock private MetaModelService metaModelService;
   @Mock private VsumSyncService vsumSyncService;
   @Mock private VsumCleanupService vsumCleanupService;
+  @Mock private VsumValidationService vsumValidationService;
 
   private VsumService service;
 
@@ -145,7 +153,8 @@ class VsumServiceTest {
             vsumBuildService,
             metaModelService,
             vsumSyncService,
-            vsumCleanupService);
+            vsumCleanupService,
+            vsumValidationService);
 
     lenient().when(vsumViewRepository.findAllByVsum(any(Vsum.class))).thenReturn(List.of());
     lenient()
@@ -664,5 +673,178 @@ class VsumServiceTest {
 
     assertThatThrownBy(() -> service.getJarfat(BUILD_EMAIL, BUILD_ID))
         .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+  }
+
+  @Test
+  void updateMetaModelEcore_requestsValidationOnlyAfterTheCommit() {
+    givenEditableMetaModel();
+    TransactionTemplate transaction = new TransactionTemplate(new NoOpTransactionManager());
+
+    transaction.executeWithoutResult(
+        status -> {
+          service.updateMetaModelEcore(EDITOR_EMAIL, 1L, 10L, "<edited/>");
+          verifyNoInteractions(vsumValidationService);
+        });
+
+    verify(vsumValidationService).requestValidation(1L);
+  }
+
+  @Test
+  void updateMetaModelEcore_doesNotRequestValidation_whenTheTransactionRollsBack() {
+    givenEditableMetaModel();
+    TransactionTemplate transaction = new TransactionTemplate(new NoOpTransactionManager());
+
+    transaction.executeWithoutResult(
+        status -> {
+          service.updateMetaModelEcore(EDITOR_EMAIL, 1L, 10L, "<edited/>");
+          status.setRollbackOnly();
+        });
+
+    verifyNoInteractions(vsumValidationService);
+  }
+
+  @Test
+  void updateMetaModelEcore_doesNotRequestValidation_whenTheUpdateFails() {
+    MetaModel projectMetaModel = givenEditableMetaModel();
+    doThrow(new SetupServiceException("genmodel"))
+        .when(metaModelService)
+        .updateProjectEcore(projectMetaModel, "<edited/>".getBytes(StandardCharsets.UTF_8));
+    TransactionTemplate transaction = new TransactionTemplate(new NoOpTransactionManager());
+
+    assertThatThrownBy(
+            () ->
+                transaction.executeWithoutResult(
+                    status -> service.updateMetaModelEcore(EDITOR_EMAIL, 1L, 10L, "<edited/>")))
+        .isInstanceOf(SetupServiceException.class);
+
+    verifyNoInteractions(vsumValidationService);
+  }
+
+  @Test
+  void updateMetaModelEcore_doesNotRequestValidation_withoutATransaction() {
+    givenEditableMetaModel();
+
+    service.updateMetaModelEcore(EDITOR_EMAIL, 1L, 10L, "<edited/>");
+
+    verifyNoInteractions(vsumValidationService);
+  }
+
+  @Test
+  void updateMetaModelEcore_keepsTheCommittedSave_whenRequestingValidationFails() {
+    givenEditableMetaModel();
+    doThrow(new IllegalStateException("executor gone"))
+        .when(vsumValidationService)
+        .requestValidation(1L);
+    TransactionTemplate transaction = new TransactionTemplate(new NoOpTransactionManager());
+
+    transaction.executeWithoutResult(
+        status -> service.updateMetaModelEcore(EDITOR_EMAIL, 1L, 10L, "<edited/>"));
+
+    verify(vsumValidationService).requestValidation(1L);
+  }
+
+  @Test
+  void updateMetaModelName_requestsValidationAfterTheCommit_whenTheNameChanged() {
+    Vsum vsum = new Vsum();
+    givenVsumMember(EDITOR_EMAIL, vsum, VsumRole.OWNER);
+    VsumMetaModel vsumMetaModel = vsumMetaModel(vsum, clonedMetaModel(101L, 10L));
+    vsumMetaModel.setName("Old");
+    when(vsumMetaModelRepository.findByVsumAndMetaModel_Source_Id(vsum, 10L))
+        .thenReturn(Optional.of(vsumMetaModel));
+    TransactionTemplate transaction = new TransactionTemplate(new NoOpTransactionManager());
+
+    transaction.executeWithoutResult(
+        status -> service.updateMetaModelName(EDITOR_EMAIL, 1L, 10L, "New"));
+
+    verify(vsumValidationService).requestValidation(1L);
+  }
+
+  @Test
+  void updateMetaModelName_doesNotRequestValidation_whenTheNameIsUnchanged() {
+    Vsum vsum = new Vsum();
+    givenVsumMember(EDITOR_EMAIL, vsum, VsumRole.MEMBER);
+    VsumMetaModel vsumMetaModel = vsumMetaModel(vsum, clonedMetaModel(101L, 10L));
+    vsumMetaModel.setName("Same");
+    when(vsumMetaModelRepository.findByVsumAndMetaModel_Source_Id(vsum, 10L))
+        .thenReturn(Optional.of(vsumMetaModel));
+    TransactionTemplate transaction = new TransactionTemplate(new NoOpTransactionManager());
+
+    transaction.executeWithoutResult(
+        status -> service.updateMetaModelName(EDITOR_EMAIL, 1L, 10L, "Same"));
+
+    verifyNoInteractions(vsumValidationService);
+  }
+
+  @Test
+  void update_requestsValidationAfterTheCommitOfTheSyncChanges() {
+    Vsum vsum = new Vsum();
+    vsum.setId(1L);
+    User member = new User();
+    VsumUser vsumUser = vsumUser(vsum, member);
+    vsumUser.setRole(VsumRole.MEMBER);
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                1L, EDITOR_EMAIL))
+        .thenReturn(Optional.of(vsumUser));
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    when(vsumSyncService.applySyncChanges(vsum, member, put, true)).thenReturn(vsum);
+    TransactionTemplate transaction = new TransactionTemplate(new NoOpTransactionManager());
+
+    transaction.executeWithoutResult(
+        status -> {
+          service.update(EDITOR_EMAIL, 1L, put);
+          verifyNoInteractions(vsumValidationService);
+        });
+
+    verify(vsumValidationService).requestValidation(1L);
+  }
+
+  @Test
+  void update_doesNotRequestValidation_whenTheSyncTransactionRollsBack() {
+    Vsum vsum = new Vsum();
+    User member = new User();
+    VsumUser vsumUser = vsumUser(vsum, member);
+    vsumUser.setRole(VsumRole.MEMBER);
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                1L, EDITOR_EMAIL))
+        .thenReturn(Optional.of(vsumUser));
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    when(vsumSyncService.applySyncChanges(vsum, member, put, true)).thenReturn(vsum);
+    TransactionTemplate transaction = new TransactionTemplate(new NoOpTransactionManager());
+
+    transaction.executeWithoutResult(
+        status -> {
+          service.update(EDITOR_EMAIL, 1L, put);
+          status.setRollbackOnly();
+        });
+
+    verifyNoInteractions(vsumValidationService);
+  }
+
+  private MetaModel givenEditableMetaModel() {
+    Vsum vsum = new Vsum();
+    givenVsumMember(EDITOR_EMAIL, vsum, VsumRole.MEMBER);
+    MetaModel projectMetaModel = clonedMetaModel(101L, 10L);
+    when(vsumMetaModelRepository.findByVsumAndMetaModel_Source_Id(vsum, 10L))
+        .thenReturn(Optional.of(vsumMetaModel(vsum, projectMetaModel)));
+    return projectMetaModel;
+  }
+
+  private static final class NoOpTransactionManager extends AbstractPlatformTransactionManager {
+
+    @Override
+    protected Object doGetTransaction() {
+      return new Object();
+    }
+
+    @Override
+    protected void doBegin(Object transaction, TransactionDefinition definition) {}
+
+    @Override
+    protected void doCommit(DefaultTransactionStatus status) {}
+
+    @Override
+    protected void doRollback(DefaultTransactionStatus status) {}
   }
 }

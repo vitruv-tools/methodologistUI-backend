@@ -25,6 +25,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
+import tools.vitruv.methodologist.apihandler.dto.response.VsumValidationResult;
 import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.exception.SetupServiceException;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -46,6 +47,7 @@ public class SetupServiceApiHandler {
   public static final int DEFAULT_MAX_RESPONSE_SIZE_IN_BYTES = 524_288_000;
   public static final String PROJECT_URL = "/api/vsum/project";
   public static final String JAR_URL = "/api/vsum/jar";
+  public static final String VALIDATE_URL = "/api/vsum/validate";
   public static final String PROCESS_GENMODEL_URL = "/api/genmodel/process";
   public static final String INSPECT_GENMODEL_URL = "/api/genmodel/inspect";
   public static final String GENERATE_GENMODEL_URL = "/api/genmodel/generate";
@@ -136,6 +138,60 @@ public class SetupServiceApiHandler {
       List<FileStorage> viewFiles) {
     return requestArtifactOrThrow(
         JAR_URL, APPLICATION_JAR, metamodelFiles, reactionFiles, constraintFiles, viewFiles);
+  }
+
+  /**
+   * Validates a VSUM via the setup-service without building it. An invalid VSUM is reported in the
+   * result, not as an exception.
+   *
+   * @param metamodelFiles the metamodel (.ecore) files
+   * @param reactionFiles the reaction (.reactions) files, may be empty
+   * @param constraintFiles the VitruvOCL (.ocl) constraint files, may be empty
+   * @param viewFiles the NeoJoin view definition files, may be empty
+   * @return whether the VSUM is valid and the problems found
+   * @throws SetupServiceException if the setup-service call fails or returns a malformed result
+   */
+  public VsumValidationResult validateVsum(
+      List<FileStorage> metamodelFiles,
+      List<FileStorage> reactionFiles,
+      List<FileStorage> constraintFiles,
+      List<FileStorage> viewFiles) {
+
+    MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
+    UploadedFiles uploads = new UploadedFiles();
+
+    addFileParts(bodyBuilder, uploads, METAMODEL_FILES_PART, metamodelFiles, ".ecore");
+    addFileParts(bodyBuilder, uploads, REACTION_FILES_PART, reactionFiles, ".reactions");
+    addFileParts(bodyBuilder, uploads, CONSTRAINT_FILES_PART, constraintFiles, ".ocl");
+    addFileParts(bodyBuilder, uploads, VIEW_FILES_PART, viewFiles, null);
+
+    JsonNode response;
+    try {
+      response =
+          webClient
+              .post()
+              .uri(VALIDATE_URL)
+              .contentType(MediaType.MULTIPART_FORM_DATA)
+              .accept(MediaType.APPLICATION_JSON)
+              .body(BodyInserters.fromMultipartData(bodyBuilder.build()))
+              .retrieve()
+              .onStatus(HttpStatusCode::isError, error -> errorOf(VALIDATE_URL, error, uploads))
+              .bodyToMono(JsonNode.class)
+              .block();
+    } catch (SetupServiceException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new SetupServiceException("Failed to call setup-service validation: " + e.getMessage());
+    }
+
+    if (response == null
+        || !response.path("valid").isBoolean()
+        || !response.path("problems").isArray()) {
+      throw new SetupServiceException("Invalid validation response");
+    }
+
+    return new VsumValidationResult(
+        response.get("valid").asBoolean(), uploads.resolve(readProblems(response.get("problems"))));
   }
 
   private byte[] requestArtifactOrThrow(

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
+import tools.vitruv.methodologist.apihandler.dto.response.VsumValidationResult;
 import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.exception.SetupServiceException;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -271,6 +272,106 @@ class SetupServiceApiHandlerTest {
         .setResponseCode(status)
         .setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
         .setBody(body);
+  }
+
+  @Test
+  void validateVsum_parsesTheResult_andResolvesTheFileIdsOfTheProblems() throws Exception {
+    mockWebServer.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+            .setBody(
+                "{\"valid\":false,\"problems\":["
+                    + "{\"source\":\"REACTIONS\",\"file\":\"rules.reactions\",\"line\":3,"
+                    + "\"message\":\"unknown class\"},"
+                    + "{\"source\":\"INFRASTRUCTURE\",\"message\":\"warning\"},"
+                    + "{\"source\":\"REACTIONS\"}]}"));
+
+    VsumValidationResult result =
+        setupServiceApiHandler.validateVsum(
+            metamodelFiles,
+            List.of(fileStorage(21L, "rules.reactions", "a".getBytes())),
+            List.of(),
+            List.of());
+
+    assertThat(result.valid()).isFalse();
+    assertThat(result.problems())
+        .containsExactly(
+            new BuildProblem(
+                "REACTIONS", "rules.reactions", 21L, 3, null, "unknown class", null, null, null),
+            new BuildProblem(
+                "INFRASTRUCTURE", null, null, null, null, "warning", null, null, null));
+    RecordedRequest request = mockWebServer.takeRequest();
+    assertThat(request.getPath()).isEqualTo(SetupServiceApiHandler.VALIDATE_URL);
+    assertThat(request.getHeader(HttpHeaders.ACCEPT)).contains("application/json");
+  }
+
+  @Test
+  void validateVsum_returnsAValidResultWithoutProblems() {
+    mockWebServer.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+            .setBody("{\"valid\":true,\"problems\":[]}"));
+
+    VsumValidationResult result =
+        setupServiceApiHandler.validateVsum(
+            metamodelFiles, reactionFiles, constraintFiles, viewFiles);
+
+    assertThat(result.valid()).isTrue();
+    assertThat(result.problems()).isEmpty();
+  }
+
+  @Test
+  void validateVsum_throws_whenTheResponseIsMalformed() {
+    mockWebServer.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+            .setBody("{\"valid\":\"yes\",\"problems\":[]}"));
+
+    assertThatThrownBy(
+            () ->
+                setupServiceApiHandler.validateVsum(
+                    metamodelFiles, reactionFiles, constraintFiles, viewFiles))
+        .isInstanceOf(SetupServiceException.class)
+        .hasMessage("Invalid validation response");
+  }
+
+  @Test
+  void validateVsum_keepsTheErrorCodeAndProblems_whenTheSetupServiceFails() {
+    mockWebServer.enqueue(
+        jsonError(
+            422,
+            "{\"errorCode\":\"VSUM_REACTIONS_ERROR\",\"message\":\"m\",\"problems\":["
+                + "{\"source\":\"REACTIONS\",\"file\":\"rules.reactions\","
+                + "\"message\":\"p\"}]}"));
+
+    assertThatThrownBy(
+            () ->
+                setupServiceApiHandler.validateVsum(
+                    metamodelFiles,
+                    List.of(fileStorage(21L, "rules.reactions", "a".getBytes())),
+                    List.of(),
+                    List.of()))
+        .isInstanceOfSatisfying(
+            SetupServiceException.class,
+            e -> {
+              assertThat(e.getErrorCode()).isEqualTo("VSUM_REACTIONS_ERROR");
+              assertThat(e.getProblems()).extracting(BuildProblem::fileId).containsExactly(21L);
+            });
+  }
+
+  @Test
+  void validateVsum_throws_whenTheSetupServiceIsUnreachable() throws Exception {
+    mockWebServer.shutdown();
+
+    assertThatThrownBy(
+            () ->
+                setupServiceApiHandler.validateVsum(
+                    metamodelFiles, reactionFiles, constraintFiles, viewFiles))
+        .isInstanceOf(SetupServiceException.class)
+        .hasMessageStartingWith("Failed to call setup-service validation");
   }
 
   private static FileStorage fileStorage(Long id, String filename, byte[] data) {
