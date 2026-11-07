@@ -314,12 +314,14 @@ public class VsumService {
             .findByIdAndRemovedAtIsNull(id)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
 
-    vsum.getVsumUsers().stream()
-        .filter(vsumUser -> vsumUser.getUser().equals(user))
-        .findFirst()
-        .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
+    VsumUser callerVsumUser =
+        vsum.getVsumUsers().stream()
+            .filter(vsumUser -> vsumUser.getUser().equals(user))
+            .findFirst()
+            .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
 
     VsumMetaModelResponse response = vsumMapper.toVsumMetaModelResponse(vsum);
+    response.setRole(callerVsumUser.getRole());
 
     List<VsumMetaModel> vsumMetaModels =
         vsum.getVsumMetaModels() == null ? List.of() : List.copyOf(vsum.getVsumMetaModels());
