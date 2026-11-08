@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.vsum.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -13,6 +14,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -23,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import tools.vitruv.methodologist.exception.InvalidLayoutException;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.vsum.controller.dto.request.FineGranularMetaModelRelationRequest;
@@ -615,5 +619,67 @@ class VsumSyncServiceTest {
     verify(vsumMetaModelService).create(vsum, Set.of(13L));
     verifyNoInteractions(vsumHistoryService);
     verify(vsumRepository).save(vsum);
+  }
+
+  private Vsum emptyVsum() {
+    Vsum vsum = new Vsum();
+    vsum.setId(1L);
+    vsum.setMetaModelRelations(new java.util.HashSet<>());
+    vsum.setVsumMetaModels(new java.util.HashSet<>());
+    return vsum;
+  }
+
+  private JsonNode json(String content) throws Exception {
+    return new ObjectMapper().readTree(content);
+  }
+
+  @Test
+  void applySyncChanges_storesLayout_whenProvided() throws Exception {
+    Vsum vsum = emptyVsum();
+    JsonNode layout = json("{\"metaModels\":{\"12\":{\"x\":100,\"y\":40}}}");
+
+    service.applySyncChanges(
+        vsum, new User(), VsumSyncChangesPutRequest.builder().layout(layout).build(), false);
+
+    assertThat(vsum.getLayout()).isEqualTo(layout);
+  }
+
+  @Test
+  void applySyncChanges_keepsStoredLayout_whenLayoutMissingOrJsonNull() throws Exception {
+    Vsum vsum = emptyVsum();
+    JsonNode stored = json("{\"metaModels\":{}}");
+    vsum.setLayout(stored);
+
+    service.applySyncChanges(vsum, new User(), new VsumSyncChangesPutRequest(), false);
+    assertThat(vsum.getLayout()).isEqualTo(stored);
+
+    // Jackson deserializes a JSON null for a JsonNode field to a NullNode, not to Java null.
+    service.applySyncChanges(
+        vsum, new User(), VsumSyncChangesPutRequest.builder().layout(json("null")).build(), false);
+    assertThat(vsum.getLayout()).isEqualTo(stored);
+  }
+
+  @Test
+  void applySyncChanges_rejectsLayout_whenNotJsonObject() throws Exception {
+    Vsum vsum = emptyVsum();
+
+    for (String invalid : List.of("[]", "\"text\"", "5")) {
+      var request = VsumSyncChangesPutRequest.builder().layout(json(invalid)).build();
+      assertThatThrownBy(() -> service.applySyncChanges(vsum, new User(), request, false))
+          .isInstanceOf(InvalidLayoutException.class);
+    }
+    assertThat(vsum.getLayout()).isNull();
+    verifyNoInteractions(vsumRepository);
+  }
+
+  @Test
+  void applySyncChanges_rejectsLayout_whenLargerThanOneMegabyte() throws Exception {
+    Vsum vsum = emptyVsum();
+    JsonNode tooLarge = json("{\"blob\":\"" + "a".repeat(1024 * 1024) + "\"}");
+    var request = VsumSyncChangesPutRequest.builder().layout(tooLarge).build();
+
+    assertThatThrownBy(() -> service.applySyncChanges(vsum, new User(), request, false))
+        .isInstanceOf(InvalidLayoutException.class);
+    assertThat(vsum.getLayout()).isNull();
   }
 }

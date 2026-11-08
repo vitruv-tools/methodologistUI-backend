@@ -1,5 +1,10 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import static tools.vitruv.methodologist.messages.Error.LAYOUT_MUST_BE_JSON_OBJECT_ERROR;
+import static tools.vitruv.methodologist.messages.Error.LAYOUT_TOO_LARGE_ERROR;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -13,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.exception.InvalidLayoutException;
 import tools.vitruv.methodologist.general.MemoizedSupplier;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
@@ -41,6 +47,8 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumSyncService {
+
+  static final int MAX_LAYOUT_BYTES = 1024 * 1024;
 
   VsumRepository vsumRepository;
   VsumMetaModelService vsumMetaModelService;
@@ -82,6 +90,12 @@ public class VsumSyncService {
       User user,
       VsumSyncChangesPutRequest vsumSyncChangesPutRequest,
       boolean createHistory) {
+
+    JsonNode layout = vsumSyncChangesPutRequest.getLayout();
+    boolean replaceLayout = layout != null && !layout.isNull();
+    if (replaceLayout) {
+      validateLayout(layout);
+    }
 
     List<MetaModelRelationRequest> desiredMetaModelRelation =
         normalizeMetaModelRelationRequests(
@@ -251,8 +265,21 @@ public class VsumSyncService {
     fineGranularMetaModelRelationService.update(
         user.getEmail(), requestToRelation, vsumHistorySaveSupplier);
 
+    if (replaceLayout) {
+      vsum.setLayout(layout);
+    }
+
     vsumRepository.save(vsum);
     return vsum;
+  }
+
+  private void validateLayout(JsonNode layout) {
+    if (!layout.isObject()) {
+      throw new InvalidLayoutException(LAYOUT_MUST_BE_JSON_OBJECT_ERROR);
+    }
+    if (layout.toString().getBytes(StandardCharsets.UTF_8).length > MAX_LAYOUT_BYTES) {
+      throw new InvalidLayoutException(LAYOUT_TOO_LARGE_ERROR);
+    }
   }
 
   private String projectMetaModelName(VsumMetaModel vsumMetaModel) {

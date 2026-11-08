@@ -1,6 +1,9 @@
 package tools.vitruv.methodologist.vsum.model;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -21,6 +24,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Type;
 import org.hibernate.annotations.UpdateTimestamp;
 import tools.vitruv.methodologist.user.model.User;
 
@@ -54,6 +58,11 @@ public class Vsum {
 
   @UpdateTimestamp private Instant updatedAt;
   private Instant removedAt;
+
+  @Type(JsonType.class)
+  @Column(columnDefinition = "jsonb")
+  @ToString.Exclude
+  private JsonNode layout;
 
   @ToString.Exclude
   @OneToMany(mappedBy = "vsum", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
