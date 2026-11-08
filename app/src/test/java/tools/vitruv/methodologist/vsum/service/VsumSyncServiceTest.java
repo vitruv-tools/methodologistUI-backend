@@ -663,9 +663,10 @@ class VsumSyncServiceTest {
   void applySyncChanges_rejectsLayout_whenNotJsonObject() throws Exception {
     Vsum vsum = emptyVsum();
 
+    User user = new User();
     for (String invalid : List.of("[]", "\"text\"", "5")) {
       var request = VsumSyncChangesPutRequest.builder().layout(json(invalid)).build();
-      assertThatThrownBy(() -> service.applySyncChanges(vsum, new User(), request, false))
+      assertThatThrownBy(() -> service.applySyncChanges(vsum, user, request, false))
           .isInstanceOf(InvalidLayoutException.class);
     }
     assertThat(vsum.getLayout()).isNull();
@@ -677,8 +678,9 @@ class VsumSyncServiceTest {
     Vsum vsum = emptyVsum();
     JsonNode tooLarge = json("{\"blob\":\"" + "a".repeat(1024 * 1024) + "\"}");
     var request = VsumSyncChangesPutRequest.builder().layout(tooLarge).build();
+    User user = new User();
 
-    assertThatThrownBy(() -> service.applySyncChanges(vsum, new User(), request, false))
+    assertThatThrownBy(() -> service.applySyncChanges(vsum, user, request, false))
         .isInstanceOf(InvalidLayoutException.class);
     assertThat(vsum.getLayout()).isNull();
   }

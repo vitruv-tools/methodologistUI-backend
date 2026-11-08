@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
@@ -91,11 +92,7 @@ public class VsumSyncService {
       VsumSyncChangesPutRequest vsumSyncChangesPutRequest,
       boolean createHistory) {
 
-    JsonNode layout = vsumSyncChangesPutRequest.getLayout();
-    boolean replaceLayout = layout != null && !layout.isNull();
-    if (replaceLayout) {
-      validateLayout(layout);
-    }
+    Optional<JsonNode> layoutToStore = validatedLayout(vsumSyncChangesPutRequest);
 
     List<MetaModelRelationRequest> desiredMetaModelRelation =
         normalizeMetaModelRelationRequests(
@@ -265,21 +262,30 @@ public class VsumSyncService {
     fineGranularMetaModelRelationService.update(
         user.getEmail(), requestToRelation, vsumHistorySaveSupplier);
 
-    if (replaceLayout) {
-      vsum.setLayout(layout);
-    }
+    layoutToStore.ifPresent(vsum::setLayout);
 
     vsumRepository.save(vsum);
     return vsum;
   }
 
-  private void validateLayout(JsonNode layout) {
+  /**
+   * Returns the layout to store, or empty if the request carries none (missing or JSON {@code
+   * null}), in which case the stored layout is kept.
+   *
+   * @throws InvalidLayoutException if the layout is not a JSON object or is larger than 1 MB
+   */
+  private Optional<JsonNode> validatedLayout(VsumSyncChangesPutRequest request) {
+    JsonNode layout = request.getLayout();
+    if (layout == null || layout.isNull()) {
+      return Optional.empty();
+    }
     if (!layout.isObject()) {
       throw new InvalidLayoutException(LAYOUT_MUST_BE_JSON_OBJECT_ERROR);
     }
     if (layout.toString().getBytes(StandardCharsets.UTF_8).length > MAX_LAYOUT_BYTES) {
       throw new InvalidLayoutException(LAYOUT_TOO_LARGE_ERROR);
     }
+    return Optional.of(layout);
   }
 
   private String projectMetaModelName(VsumMetaModel vsumMetaModel) {
