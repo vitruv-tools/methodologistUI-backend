@@ -48,4 +48,6 @@ public class Error {
   public static final String VITRUV_CLI_EXECUTION_FAILED_ERROR = "Vitruv-CLI execution failed: ";
   public static final String VITRUV_CLI_ERROR = "Vitruv-CLI Error: ";
   public static final String LSP_PROCESS_WAIT_ERROR = "Failed to wait for LSP process to exit";
+  public static final String LAYOUT_MUST_BE_JSON_OBJECT_ERROR = "The layout must be a JSON object";
+  public static final String LAYOUT_TOO_LARGE_ERROR = "The layout must not be larger than 1 MB";
 }

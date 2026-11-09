@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.controller.dto.response;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Instant;
 import java.util.List;
 import lombok.AllArgsConstructor;
@@ -29,4 +30,5 @@ public class VsumMetaModelResponse {
   private List<MetaModelRelationResponse> metaModelsRelation;
   private List<ViewsResponse> views;
   private VsumRole role;
+  private JsonNode layout;
 }

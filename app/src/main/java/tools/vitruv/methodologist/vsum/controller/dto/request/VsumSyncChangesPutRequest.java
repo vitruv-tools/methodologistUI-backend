@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.controller.dto.request;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
@@ -24,4 +25,5 @@ public class VsumSyncChangesPutRequest {
   private Map<Long, @NotBlank String> metaModelNames;
   @Valid private List<MetaModelRelationRequest> metaModelRelationRequests;
   private List<ViewRequest> viewRequests;
+  private JsonNode layout;
 }
