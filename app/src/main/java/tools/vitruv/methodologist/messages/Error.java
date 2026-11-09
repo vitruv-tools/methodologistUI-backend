@@ -10,6 +10,9 @@ public class Error {
   public static final String VSUM_HISTORY_ID_NOT_FOUND_ERROR = "Vsum history id";
   public static final String VSUM_BUILD_ID_NOT_FOUND_ERROR = "Vsum build id";
   public static final String VSUM_BUILD_ARTIFACT_NOT_FOUND_ERROR = "Vsum build artifact";
+  public static final String VSUM_VERSION_NOT_FOUND_ERROR = "Vsum version";
+  public static final String PUBLISH_IN_PROGRESS_ERROR =
+      "This project is already being published, please wait until that build has finished.";
   public static final String USER_DOES_NOT_HAVE_ACCESS = "You don't have access";
   public static final String VIEW_FILE_ID_NOT_FOUND_ERROR = "View file id";
   public static final String ECORE_FILE_ID_NOT_FOUND_ERROR = "Ecore file id";

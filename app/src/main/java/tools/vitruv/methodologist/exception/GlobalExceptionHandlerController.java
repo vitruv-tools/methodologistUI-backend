@@ -200,6 +200,29 @@ public class GlobalExceptionHandlerController {
   }
 
   /**
+   * Handles {@link PublishInProgressException} thrown when a VSUM is published while an earlier
+   * publish of it is still building.
+   *
+   * <p>Responds with HTTP 409 (Conflict) and returns an {@link ErrorResponse} containing the
+   * exception message and the request path.
+   *
+   * @param ex the thrown {@code PublishInProgressException}
+   * @param handlerMethod the controller method where the exception was raised
+   * @param request the current {@code ServletWebRequest}
+   * @return a standardized {@code ErrorResponse} describing the conflict
+   */
+  @ExceptionHandler(value = PublishInProgressException.class)
+  @ResponseStatus(HttpStatus.CONFLICT)
+  @ResponseBody
+  public ErrorResponse publishInProgressException(
+      PublishInProgressException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    return ErrorResponse.builder()
+        .message(Objects.requireNonNull(ex.getMessage()))
+        .path(getPath(request))
+        .build();
+  }
+
+  /**
    * Handles {@link OwnerCannotAddSelfAsMemberException} thrown when an owner attempts to add
    * themselves as a member to a VSUM. Returns an {@link ErrorResponse} with HTTP 400 (Bad Request)
    * status, including the error message and request path.

@@ -11,5 +11,7 @@ public enum FileEnumType {
   NEO_JOIN,
   OCL,
   /** A fat JAR produced by a VSUM build, see {@code VsumBuild}. */
-  VSUM_JAR
+  VSUM_JAR,
+  /** Copy of a build input that belongs to a stable VSUM version and must never change. */
+  VSUM_VERSION_FILE
 }
