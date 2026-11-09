@@ -187,8 +187,11 @@ public class OclLspWebSocketHandler
         char[] buf = new char[len];
         int read = reader.read(buf, 0, len);
         session.sendMessage(new TextMessage(new String(buf, 0, read)));
+      } catch (NumberFormatException e) {
+        logger.warn("Invalid Content-Length header from OCL-LSP for session {}", session.getId());
       } catch (Exception e) {
-        logger.error("OCL-LSP read error for {}: {}", session.getId(), e.getMessage());
+        // usually the client has disconnected
+        logger.debug("Could not relay an OCL-LSP message to session {}", session.getId(), e);
       }
     }
 

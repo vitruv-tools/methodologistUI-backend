@@ -24,7 +24,7 @@ public class SetupServiceException extends RuntimeException {
    * @param reason the detail message describing why the setup-service call failed
    */
   public SetupServiceException(String reason) {
-    this(reason, null);
+    this(reason, (HttpStatusCode) null);
   }
 
   /**
@@ -55,6 +55,20 @@ public class SetupServiceException extends RuntimeException {
     this.upstreamStatus = upstreamStatus;
     this.errorCode = errorCode;
     this.problems = problems == null || problems.isEmpty() ? null : List.copyOf(problems);
+  }
+
+  /**
+   * Creates an exception for a setup-service call that failed with the given cause, for example
+   * because the setup-service could not be reached.
+   *
+   * @param reason the failure description
+   * @param cause the exception the call failed with
+   */
+  public SetupServiceException(String reason, Throwable cause) {
+    super(reason, cause);
+    this.upstreamStatus = null;
+    this.errorCode = null;
+    this.problems = null;
   }
 
   /**

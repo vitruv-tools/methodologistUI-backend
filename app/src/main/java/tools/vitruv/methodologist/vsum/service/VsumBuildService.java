@@ -32,6 +32,7 @@ import tools.vitruv.methodologist.config.VsumBuildProperties;
 import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.SetupServiceException;
+import tools.vitruv.methodologist.exception.StoredBuildFailureException;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -354,7 +355,7 @@ public class VsumBuildService {
               inputs.ecores(), inputs.reactions(), inputs.constraints(), inputs.views());
       succeed(buildId, jar);
     } catch (RuntimeException e) {
-      log.error("VSUM build {} failed: {}", buildId, e.getMessage(), e);
+      logBuildFailure(buildId, e);
       String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
       if (e instanceof SetupServiceException setupServiceError) {
         fail(buildId, message, setupServiceError.getErrorCode(), setupServiceError.getProblems());
@@ -364,6 +365,32 @@ public class VsumBuildService {
     } finally {
       lock.unlock();
     }
+  }
+
+  /**
+   * Logs a failed build: at WARN without stack trace if the inputs of the VSUM are at fault, at
+   * ERROR with the stack trace otherwise. The message of a setup-service error may repeat its
+   * response, so it is not logged.
+   */
+  private static void logBuildFailure(Long buildId, RuntimeException e) {
+    boolean inputsAtFault =
+        e instanceof VsumBuildingException
+            || e instanceof NotFoundException
+            || (e instanceof SetupServiceException setupServiceError
+                && setupServiceError.isRejectedBySetupService());
+    if (inputsAtFault) {
+      log.warn("VSUM build {} failed because of its inputs ({})", buildId, describe(e));
+    } else {
+      log.error("VSUM build {} failed", buildId, e);
+    }
+  }
+
+  private static String describe(RuntimeException e) {
+    if (e instanceof SetupServiceException setupServiceError
+        && setupServiceError.getErrorCode() != null) {
+      return setupServiceError.getErrorCode();
+    }
+    return e.getClass().getSimpleName();
   }
 
   private void submit(Long buildId) {
@@ -517,12 +544,11 @@ public class VsumBuildService {
         .findFailureById(buildId)
         .map(
             failure ->
-                new SetupServiceException(
+                new StoredBuildFailureException(
                     Objects.requireNonNullElse(failure.getErrorMessage(), BUILD_FAILED_ERROR),
-                    null,
                     failure.getErrorCode(),
                     failure.getProblems()))
-        .orElseGet(() -> new SetupServiceException(BUILD_FAILED_ERROR));
+        .orElseGet(() -> new StoredBuildFailureException(BUILD_FAILED_ERROR, null, null));
   }
 
   private byte[] artifactBytes(Long buildId) {

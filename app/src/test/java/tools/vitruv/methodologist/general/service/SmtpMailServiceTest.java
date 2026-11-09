@@ -1,7 +1,8 @@
 package tools.vitruv.methodologist.general.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -131,7 +132,7 @@ public class SmtpMailServiceTest {
   @Test
   void sendOtpMail_mailSenderThrowsException_throwsMailSendingException() {
     when(mailSender.createMimeMessage()).thenReturn(mimeMessageMock);
-    doThrow(new MailSendException("SMTP Connection dropped"))
+    doThrow(new MailSendException("550 <" + recipientEmail + ">: Recipient address rejected"))
         .when(mailSender)
         .send(any(MimeMessage.class));
 
@@ -140,8 +141,11 @@ public class SmtpMailServiceTest {
             MailSendingException.class,
             () -> smtpMailService.sendOtpMail(recipientEmail, recipientName, "123456", 5));
 
+    // the failure is logged where it is handled, so it must not carry the recipient's address
     assertTrue(exception.getMessage().contains("Failed to send email via SMTP"));
-    assertNotNull(exception.getCause());
+    assertTrue(exception.getMessage().contains("MailSendException"));
+    assertFalse(exception.getMessage().contains(recipientEmail));
+    assertNull(exception.getCause());
   }
 
   @Test
@@ -201,7 +205,7 @@ public class SmtpMailServiceTest {
             () -> smtpMailService.sendForgotPasswordMail(recipientEmail, recipientName, "pw"));
 
     assertTrue(exception.getMessage().contains("Failed to send email via SMTP"));
-    assertNotNull(exception.getCause());
+    assertNull(exception.getCause());
   }
 
   @Test

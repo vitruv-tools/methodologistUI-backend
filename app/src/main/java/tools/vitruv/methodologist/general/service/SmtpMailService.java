@@ -175,8 +175,21 @@ public class SmtpMailService {
       helper.setText(html, true); // true => HTML
       mailSender.send(msg);
     } catch (MessagingException | MailException | java.io.UnsupportedEncodingException e) {
-      throw new MailSendingException("Failed to send email via SMTP: " + e.getMessage(), e);
+      // The messages of the causes contain the recipient's address, which must not reach the
+      // logs, so only their types are kept.
+      throw new MailSendingException("Failed to send email via SMTP: " + exceptionTypes(e));
     }
+  }
+
+  /** Returns the types of the exception and its causes, e.g. {@code MailSendException <- ...}. */
+  private static String exceptionTypes(Throwable throwable) {
+    StringBuilder types = new StringBuilder(throwable.getClass().getSimpleName());
+    for (Throwable cause = throwable.getCause();
+        cause != null && cause != cause.getCause();
+        cause = cause.getCause()) {
+      types.append(" <- ").append(cause.getClass().getSimpleName());
+    }
+    return types.toString();
   }
 
   /**

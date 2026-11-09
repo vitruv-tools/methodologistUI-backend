@@ -98,7 +98,8 @@ public class VsumValidationService {
       executor.execute(() -> runValidation(vsumId, state));
     } catch (RejectedExecutionException e) {
       state.stop();
-      log.warn("Validation of VSUM {} could not be scheduled: {}", vsumId, e.getMessage());
+      // only happens while the application shuts down
+      log.debug("Validation of VSUM {} not scheduled: executor shut down", vsumId);
     }
   }
 
@@ -165,7 +166,7 @@ public class VsumValidationService {
           snapshot.get().fingerprint(),
           new LatestValidation(result.valid(), result.problems(), Instant.now()));
     } catch (RuntimeException e) {
-      log.warn("Validation of VSUM {} failed: {}", vsumId, e.getMessage());
+      log.error("Validation of VSUM {} failed", vsumId, e);
     }
   }
 

@@ -11,6 +11,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -21,6 +24,7 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
@@ -108,6 +112,25 @@ class VsumCleanupServiceTest {
     order.verify(vsumBuildService).deleteByVsum(entity);
     verify(vsumHistoryService).delete(entity);
     verify(vsumUserService).delete(entity);
+  }
+
+  @Test
+  void deleteProjectData_recordsThePermanentDeletion() {
+    Vsum entity = new Vsum();
+    entity.setId(42L);
+    Logger logger = (Logger) LoggerFactory.getLogger(VsumCleanupService.class);
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+    try {
+      service.deleteProjectData(entity);
+    } finally {
+      logger.detachAppender(appender);
+    }
+
+    assertThat(appender.list)
+        .extracting(ILoggingEvent::getFormattedMessage)
+        .containsExactly("VSUM 42 deleted permanently");
   }
 
   @Test

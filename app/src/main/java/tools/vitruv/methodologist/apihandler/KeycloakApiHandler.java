@@ -11,6 +11,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
@@ -36,6 +38,9 @@ import tools.vitruv.methodologist.exception.UncheckedRuntimeException;
 public class KeycloakApiHandler {
   public static final int RESPONSE_TIMEOUT_IN_SECONDS = 5;
   public static final String POST_TOKEN_URL = "/realms/methodologist/protocol/openid-connect/token";
+  private static final String OAUTH_ERROR = "error";
+  private static final String INVALID_GRANT = "invalid_grant";
+  private static final String UNREADABLE_ERROR = "unreadable";
   private final WebClient webClient;
   private final ObjectMapper mapper = new ObjectMapper();
 
@@ -89,10 +94,9 @@ public class KeycloakApiHandler {
         .body(BodyInserters.fromFormData(formData))
         .retrieve()
         .bodyToMono(KeycloakWebToken.class)
-        .doOnError(
-            (exception) -> {
-              throw new UncheckedRuntimeException(exception.getMessage());
-            })
+        .onErrorMap(
+            exception ->
+                new UncheckedRuntimeException("Token exchange with Keycloak failed", exception))
         .block();
   }
 
@@ -102,9 +106,12 @@ public class KeycloakApiHandler {
    * @param username the user's username
    * @param password the user's password
    * @return KeycloakWebToken containing the access token information
-   * @throws tools.vitruv.methodologist.exception.UnauthorizedException if credentials are invalid
-   * @throws tools.vitruv.methodologist.exception.UncheckedRuntimeException if the token request
-   *     fails
+   * @throws tools.vitruv.methodologist.exception.UnauthorizedException if Keycloak rejects the
+   *     credentials
+   * @throws tools.vitruv.methodologist.exception.UncheckedRuntimeException if Keycloak answers the
+   *     token request with another error
+   * @throws org.springframework.web.reactive.function.client.WebClientException if Keycloak cannot
+   *     be reached
    */
   public KeycloakWebToken getAccessTokenOrThrow(String username, String password) {
     LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<String, String>();
@@ -119,23 +126,8 @@ public class KeycloakApiHandler {
         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
         .body(BodyInserters.fromFormData(formData))
         .retrieve()
-        .onStatus(
-            HttpStatusCode::isError,
-            response ->
-                response
-                    .bodyToMono(String.class)
-                    .handle(
-                        (body, handler) -> {
-                          if (response.statusCode().equals(HttpStatus.UNAUTHORIZED)) {
-                            throw new UnauthorizedException();
-                          }
-                          throw new UncheckedRuntimeException(body);
-                        }))
+        .onStatus(HttpStatusCode::isError, KeycloakApiHandler::tokenRequestError)
         .bodyToMono(KeycloakWebToken.class)
-        .doOnError(
-            exception -> {
-              throw new UncheckedRuntimeException(exception.getMessage());
-            })
         .block();
   }
 
@@ -144,10 +136,12 @@ public class KeycloakApiHandler {
    *
    * @param refreshToken the refresh token to use
    * @return KeycloakWebToken containing the new access token information
-   * @throws tools.vitruv.methodologist.exception.UnauthorizedException if the refresh token is
-   *     invalid
-   * @throws tools.vitruv.methodologist.exception.UncheckedRuntimeException if the token refresh
-   *     request fails
+   * @throws tools.vitruv.methodologist.exception.UnauthorizedException if Keycloak rejects the
+   *     refresh token, e.g. because it expired
+   * @throws tools.vitruv.methodologist.exception.UncheckedRuntimeException if Keycloak answers the
+   *     token request with another error
+   * @throws org.springframework.web.reactive.function.client.WebClientException if Keycloak cannot
+   *     be reached
    */
   public KeycloakWebToken getAccessTokenByRefreshToken(String refreshToken) {
     LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<String, String>();
@@ -161,21 +155,38 @@ public class KeycloakApiHandler {
         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
         .body(BodyInserters.fromFormData(formData))
         .retrieve()
-        .onStatus(
-            HttpStatusCode::is4xxClientError,
-            response -> {
-              if (response.statusCode().equals(HttpStatus.UNAUTHORIZED)) {
-                return Mono.error(new UnauthorizedException());
-              }
-              return Mono.error(
-                  new UncheckedRuntimeException("Client error: " + response.statusCode()));
-            })
-        .onStatus(
-            HttpStatusCode::is5xxServerError,
-            response ->
-                Mono.error(new UncheckedRuntimeException("Client error: " + response.statusCode())))
+        .onStatus(HttpStatusCode::isError, KeycloakApiHandler::tokenRequestError)
         .bodyToMono(KeycloakWebToken.class)
         .block();
+  }
+
+  /**
+   * Turns an error response of the token endpoint into an exception. A grant that Keycloak rejects
+   * (OAuth error {@code invalid_grant}: wrong credentials, a disabled account, an expired refresh
+   * token) becomes an {@link UnauthorizedException}; any other error, such as a misconfigured
+   * client or a failing Keycloak, becomes an {@link UncheckedRuntimeException}. The response body
+   * is not put into the exception, only the status and the OAuth error code.
+   */
+  private static Mono<Throwable> tokenRequestError(ClientResponse response) {
+    int status = response.statusCode().value();
+    return response
+        .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+        .map(body -> String.valueOf(body.get(OAUTH_ERROR)))
+        .onErrorReturn(UNREADABLE_ERROR)
+        .defaultIfEmpty(UNREADABLE_ERROR)
+        .map(error -> toTokenRequestException(status, error));
+  }
+
+  private static Throwable toTokenRequestException(int status, String error) {
+    boolean rejectedGrant =
+        INVALID_GRANT.equals(error)
+            || (status == HttpStatus.UNAUTHORIZED.value() && UNREADABLE_ERROR.equals(error));
+    if (rejectedGrant) {
+      return new UnauthorizedException();
+    }
+    return new UncheckedRuntimeException(
+        String.format(
+            "Keycloak answered the token request with status %d and error '%s'", status, error));
   }
 
   /** DTO for token exchange request body parameters. */

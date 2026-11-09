@@ -7,6 +7,7 @@ import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.NotAuthorizedException;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,7 @@ import tools.vitruv.methodologist.user.controller.dto.KeycloakUser;
  * updates.
  */
 @Component
+@Slf4j
 public class KeycloakService {
   public static final String USER_CONFIRMED;
   public static final String ROLE_TYPE;
@@ -120,6 +122,7 @@ public class KeycloakService {
     final KeycloakGateway.UserCreationResult creationResult =
         keycloakGateway.createUser(userRepresentation);
     if (creationResult.status() != HttpStatus.CREATED.value()) {
+      log.warn("Keycloak refused to create a user with status {}", creationResult.status());
       throw new ClientErrorException(creationResult.reasonPhrase(), creationResult.status());
     }
 
@@ -128,6 +131,7 @@ public class KeycloakService {
     try {
       assignUserRole(userName, keycloakUser.getRole());
     } catch (Exception any) {
+      log.error("Assigning the role to a new Keycloak user failed, removing the user again", any);
       removeUser(userName);
       throw any;
     }
@@ -172,7 +176,7 @@ public class KeycloakService {
     } catch (NotAuthorizedException | BadRequestException wrongPasswordException) {
       throw new BadRequestException(USER_WRONG_PASSWORD_ERROR);
     } catch (Exception e) {
-      throw new UncheckedRuntimeException(e.getMessage());
+      throw new UncheckedRuntimeException("Verifying the password with Keycloak failed", e);
     }
   }
 

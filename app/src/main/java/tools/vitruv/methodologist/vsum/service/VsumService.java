@@ -23,6 +23,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
+import tools.vitruv.methodologist.log.AuditLog;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
@@ -230,7 +231,7 @@ public class VsumService {
             try {
               vsumValidationService.requestValidation(vsumId);
             } catch (RuntimeException e) {
-              log.warn("Validation of VSUM {} could not be requested: {}", vsumId, e.getMessage());
+              log.error("Validation of VSUM {} could not be requested", vsumId, e);
             }
           }
         });
@@ -289,6 +290,7 @@ public class VsumService {
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
     vsum.setRemovedAt(Instant.now());
     vsumRepository.save(vsum);
+    AuditLog.afterCommit(() -> log.info("VSUM {} moved to the trash", id));
     return vsum;
   }
 
@@ -485,6 +487,7 @@ public class VsumService {
 
     vsum.setRemovedAt(null);
     vsumRepository.save(vsum);
+    AuditLog.afterCommit(() -> log.info("VSUM {} restored from the trash", id));
   }
 
   /**

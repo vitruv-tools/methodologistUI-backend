@@ -13,11 +13,19 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/** Adds the authenticated caller email to the MDC for request and error logs. */
-public class UserEmailMdcFilter extends OncePerRequestFilter {
+/**
+ * Adds the Keycloak user ID of the authenticated caller (the {@code sub} claim of the token) to the
+ * MDC, so that the log entries of a request show who made it without containing an email address.
+ */
+public class UserIdMdcFilter extends OncePerRequestFilter {
+
+  /** MDC key of the caller's Keycloak user ID. */
+  public static final String USER_ID = "user_id";
+
+  private static final String ANONYMOUS = "anonymous";
 
   /**
-   * Populates MDC with the caller email and continues the filter chain.
+   * Populates MDC with the caller's user ID and continues the filter chain.
    *
    * @param request the incoming HTTP request
    * @param response the outgoing HTTP response
@@ -31,43 +39,27 @@ public class UserEmailMdcFilter extends OncePerRequestFilter {
       @NonNull HttpServletResponse response,
       @NonNull FilterChain filterChain)
       throws ServletException, IOException {
-    MDC.put("user_email", resolveUserEmail());
+    MDC.put(USER_ID, resolveUserId());
     try {
       filterChain.doFilter(request, response);
     } finally {
-      MDC.remove("user_email");
+      MDC.remove(USER_ID);
     }
   }
 
   /**
-   * Resolves the caller email from the current Spring Security authentication.
+   * Resolves the caller's Keycloak user ID from the current Spring Security authentication.
    *
-   * @return the authenticated caller email or {@code anonymous} when unavailable
+   * @return the {@code sub} claim of the caller's token, or {@code anonymous} when unavailable
    */
-  private String resolveUserEmail() {
+  private static String resolveUserId() {
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-    if (authentication == null) {
-      return "anonymous";
-    }
-
-    if (authentication instanceof KeycloakAuthentication keycloakAuthentication) {
-      String email = keycloakAuthentication.getParsedToken().getEmail();
-      if (StringUtils.hasText(email)) {
-        return email;
-      }
-    }
-
     if (authentication instanceof JwtAuthenticationToken jwtAuthenticationToken) {
-      String email = jwtAuthenticationToken.getToken().getClaimAsString("email");
-      if (StringUtils.hasText(email)) {
-        return email;
+      String subject = jwtAuthenticationToken.getToken().getSubject();
+      if (StringUtils.hasText(subject)) {
+        return subject;
       }
     }
-
-    if (StringUtils.hasText(authentication.getName())) {
-      return authentication.getName();
-    }
-
-    return "anonymous";
+    return ANONYMOUS;
   }
 }

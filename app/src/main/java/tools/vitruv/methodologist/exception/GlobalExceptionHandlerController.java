@@ -21,6 +21,7 @@ import jakarta.ws.rs.BadRequestException;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -46,9 +47,6 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 @RestControllerAdvice(basePackages = "tools.vitruv.methodologist")
 @RequiredArgsConstructor
 public class GlobalExceptionHandlerController {
-  private static final String METHOD_ARGUMENT_NOT_VALID_EXCEPTION =
-      "MethodArgumentNotValidException handled in controller: {}, message: {}";
-  private static final String STACKTRACE_LOG = "Stacktrace: {}";
   private static final String FORMAT_ERROR = "FORMAT_ERROR";
   private static final String INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR";
   private static final String NOT_FOUND_ERROR = "NOT_FOUND";
@@ -147,6 +145,7 @@ public class GlobalExceptionHandlerController {
   @ResponseBody
   public ErrorResponse buildArtifactCreationException(
       BuildArtifactCreationException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    logServerError(ex, handlerMethod);
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
@@ -170,6 +169,7 @@ public class GlobalExceptionHandlerController {
   @ResponseBody
   public ErrorResponse cliExecuteException(
       CLIExecuteException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    logServerError(ex, handlerMethod);
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
@@ -324,6 +324,7 @@ public class GlobalExceptionHandlerController {
   @ResponseBody
   public ErrorResponse fileHashingException(
       FileHashingException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
+    logServerError(ex, handlerMethod);
     return ErrorResponse.builder()
         .message(Objects.requireNonNull(ex.getMessage()))
         .path(getPath(request))
@@ -529,11 +530,14 @@ public class GlobalExceptionHandlerController {
   @ResponseBody
   public ErrorResponse dataIntegrityViolationException(
       DataIntegrityViolationException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    log.warn(
-        "DataIntegrityViolationException handled in controller: {}, message: {}",
-        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
-        ex.getMessage());
-    log.debug(STACKTRACE_LOG, ex.toString());
+    // the message may contain the values that violate the constraint, so only its name is logged
+    log.debug(
+        "{} handled in {} (constraint {})",
+        ex.getClass().getSimpleName(),
+        controllerName(handlerMethod),
+        ex.getCause() instanceof ConstraintViolationException violation
+            ? violation.getConstraintName()
+            : "unknown");
     return ErrorResponse.builder()
         .error("CONFLICT")
         .message("This resource is still in use and cannot be deleted.")
@@ -618,11 +622,7 @@ public class GlobalExceptionHandlerController {
       HttpClientErrorException.BadRequest ex,
       HandlerMethod handlerMethod,
       ServletWebRequest request) {
-    log.warn(
-        BAD_REQUEST_ERROR,
-        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
-        ex.getMessage());
-    log.debug(STACKTRACE_LOG, ex.toString());
+    logClientError(ex, handlerMethod);
     return ErrorResponse.builder()
         .error(BAD_REQUEST_ERROR)
         .message(Objects.requireNonNull(ex.getMessage()))
@@ -643,11 +643,7 @@ public class GlobalExceptionHandlerController {
   @ResponseBody
   public ErrorResponse badRequestException(
       BadRequestException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    log.warn(
-        BAD_REQUEST_ERROR,
-        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
-        ex.getMessage());
-    log.debug(STACKTRACE_LOG, ex.toString());
+    logClientError(ex, handlerMethod);
     return ErrorResponse.builder()
         .error(BAD_REQUEST_ERROR)
         .message(Objects.requireNonNull(ex.getMessage()))
@@ -668,11 +664,7 @@ public class GlobalExceptionHandlerController {
   @ResponseBody
   public ErrorResponse methodArgumentNotValidException(
       MethodArgumentNotValidException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    log.warn(
-        METHOD_ARGUMENT_NOT_VALID_EXCEPTION,
-        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
-        ex.getMessage());
-    log.debug(STACKTRACE_LOG, ex.toString());
+    logClientError(ex, handlerMethod);
     var fieldError = ex.getBindingResult().getFieldError();
 
     String clientMessage;
@@ -710,10 +702,7 @@ public class GlobalExceptionHandlerController {
       MethodArgumentTypeMismatchException ex,
       HandlerMethod handlerMethod,
       ServletWebRequest request) {
-    log.warn(
-        "MethodArgumentTypeMismatchException handled in controller: {}, parameter: {}",
-        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
-        ex.getName());
+    logClientError(ex, handlerMethod);
     return ErrorResponse.builder()
         .error(FORMAT_ERROR)
         .message(String.format(INVALID_PARAMETER_MESSAGE, ex.getName()))
@@ -741,11 +730,7 @@ public class GlobalExceptionHandlerController {
   @ResponseBody
   public ErrorResponse missingRequestValueException(
       ServletException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    log.warn(
-        "{} handled in controller: {}, message: {}",
-        ex.getClass().getSimpleName(),
-        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
-        ex.getMessage());
+    logClientError(ex, handlerMethod);
     return ErrorResponse.builder()
         .error(BAD_REQUEST_ERROR)
         .message(ex.getMessage())
@@ -766,11 +751,7 @@ public class GlobalExceptionHandlerController {
   @ResponseBody
   public ErrorResponse accessDeniedException(
       AccessDeniedException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    log.warn(
-        METHOD_ARGUMENT_NOT_VALID_EXCEPTION,
-        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
-        ex.getMessage());
-    log.debug(STACKTRACE_LOG, ex.toString());
+    logClientError(ex, handlerMethod);
     return ErrorResponse.builder()
         .error(FORBIDDEN_ERROR)
         .message(ex.getMessage())
@@ -789,11 +770,7 @@ public class GlobalExceptionHandlerController {
   @ExceptionHandler(value = HttpClientErrorException.class)
   public ResponseEntity<ErrorResponse> clientErrorException(
       HttpClientErrorException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    log.warn(
-        "ClientErrorException handled in controller: {}, message: {} ",
-        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
-        ex.getMessage());
-    log.debug(STACKTRACE_LOG, ex.toString());
+    logClientError(ex, handlerMethod);
     ErrorResponse errorResponse =
         ErrorResponse.builder().error(ex.getMessage().toUpperCase()).path(getPath(request)).build();
     return new ResponseEntity<>(errorResponse, ex.getStatusCode());
@@ -811,11 +788,7 @@ public class GlobalExceptionHandlerController {
   @ResponseStatus(HttpStatus.NOT_FOUND)
   public ErrorResponse notFoundException(
       NotFoundException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    log.warn(
-        "notFoundException handled in Controller: {}, message: {}, stackTrace: {}",
-        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
-        ex.getMessage(),
-        ex);
+    logClientError(ex, handlerMethod);
     return ErrorResponse.builder()
         .error(NOT_FOUND_ERROR)
         .message(ex.getMessage())
@@ -839,11 +812,7 @@ public class GlobalExceptionHandlerController {
   @ResponseBody
   public ErrorResponse lspProcessException(
       LspProcessException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    log.error(
-        "LspProcessException handled in Controller: {}, message: {}, stackTrace: {}",
-        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
-        ex.getMessage(),
-        ex);
+    logServerError(ex, handlerMethod);
     return ErrorResponse.builder()
         .error(LSP_PROCESS_ERROR)
         .message(ex.getMessage())
@@ -856,6 +825,8 @@ public class GlobalExceptionHandlerController {
    * metamodel) are reported as {@code 400 Bad Request}; failures and outages as {@code 502 Bad
    * Gateway}. The error code and problems of the setup-service are passed on, so that clients can
    * tell faulty uploads from an unavailable build environment and show where the uploads are wrong.
+   * Rejections and the failures of finished builds, which the build logged already, are logged at
+   * DEBUG only.
    *
    * @param ex the caught SetupServiceException
    * @param handlerMethod the handler method that threw the exception
@@ -865,10 +836,11 @@ public class GlobalExceptionHandlerController {
   @ExceptionHandler(value = SetupServiceException.class)
   public ResponseEntity<ErrorResponse> setupServiceException(
       SetupServiceException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    log.warn(
-        "SetupServiceException handled in Controller: {}, message: {}",
-        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
-        ex.getMessage());
+    if (ex.isRejectedBySetupService() || ex instanceof StoredBuildFailureException) {
+      logClientError(ex, handlerMethod);
+    } else {
+      logServerError(ex, handlerMethod);
+    }
     ErrorResponse errorResponse =
         ErrorResponse.builder()
             .error(SetupServiceException.ERROR_TEMPLATE)
@@ -895,11 +867,7 @@ public class GlobalExceptionHandlerController {
   @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
   public ErrorResponse uncaughtException(
       RuntimeException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    log.error(
-        "Uncaught exception handled in Controller: {}, message: {}, stackTrace: {}",
-        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
-        ex.getMessage(),
-        ex);
+    logServerError(ex, handlerMethod);
 
     return ErrorResponse.builder()
         .error(INTERNAL_SERVER_ERROR)
@@ -921,11 +889,7 @@ public class GlobalExceptionHandlerController {
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   public ErrorResponse httpMessageNotReadableException(
       HttpMessageNotReadableException ex, HandlerMethod handlerMethod, ServletWebRequest request) {
-    log.warn(
-        "HttpMessageNotReadableException handled in Controller: {}, message: {}, stackTrace: {}",
-        handlerMethod.getMethod().getDeclaringClass().getSimpleName(),
-        ex.getMessage(),
-        ex);
+    logClientError(ex, handlerMethod);
     return ErrorResponse.builder()
         .error(FORMAT_ERROR)
         .message(unreadableBodyMessage(ex))
@@ -953,6 +917,26 @@ public class GlobalExceptionHandlerController {
       return rootMessage.split(":")[0].trim();
     }
     return rootMessage;
+  }
+
+  /**
+   * Logs an expected client error at DEBUG, without its message and stack trace. The request filter
+   * already logs the request with its status; the message may repeat user input such as rejected
+   * values, parts of an unreadable body or the values of a violated database constraint.
+   */
+  private static void logClientError(Exception ex, HandlerMethod handlerMethod) {
+    log.debug("{} handled in {}", ex.getClass().getSimpleName(), controllerName(handlerMethod));
+  }
+
+  /** Logs an unexpected failure at ERROR with its stack trace. */
+  private static void logServerError(Exception ex, HandlerMethod handlerMethod) {
+    log.error("{} handled in {}", ex.getClass().getSimpleName(), controllerName(handlerMethod), ex);
+  }
+
+  private static String controllerName(HandlerMethod handlerMethod) {
+    return handlerMethod == null
+        ? "unknown"
+        : handlerMethod.getMethod().getDeclaringClass().getSimpleName();
   }
 
   /**

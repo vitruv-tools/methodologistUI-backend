@@ -210,6 +210,10 @@ public class CompileClasspath {
       walk.sorted(Comparator.reverseOrder()).forEach(CompileClasspath::deleteFile);
     } catch (IOException e) {
       log.warn("Could not delete {}", path, e);
+      return;
+    }
+    if (Files.exists(path)) {
+      log.warn("Could not fully delete {}", path);
     }
   }
 
@@ -217,7 +221,7 @@ public class CompileClasspath {
     try {
       Files.deleteIfExists(path);
     } catch (IOException e) {
-      log.warn("Could not delete {}", path, e);
+      log.debug("Could not delete {}", path, e);
     }
   }
 }

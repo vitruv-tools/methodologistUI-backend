@@ -2,321 +2,85 @@ package tools.vitruv.methodologist.log;
 
 import static net.logstash.logback.marker.Markers.append;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
-import java.util.Set;
+import java.util.List;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import net.logstash.logback.marker.LogstashMarker;
 import org.slf4j.MDC;
-import org.springframework.http.MediaType;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.web.util.ContentCachingRequestWrapper;
-import org.springframework.web.util.ContentCachingResponseWrapper;
 
 /**
- * Servlet filter that logs HTTP request and response details, including bodies, for auditing and
- * debugging.
+ * Servlet filter that writes exactly one log entry per HTTP request, with its method, path, status
+ * and duration.
  *
- * <p>Sensitive fields and paths are masked to avoid leaking confidential information. Supports JSON
- * and non-JSON payloads, with recursive masking for JSON. Skips logging for multipart requests and
- * certain sensitive endpoints.
+ * <p>Bodies, query strings, headers and the client's IP address are never logged, because they can
+ * contain personal data, credentials and models. The entry is logged at INFO for successful
+ * requests, at WARN for client errors (4xx) and at ERROR for server errors (5xx). Requests for
+ * health checks and the API documentation are logged at DEBUG only.
+ *
+ * <p>While the request is handled, the MDC holds its ID, method and path, so that all log entries
+ * of a request can be found together.
  */
 @Slf4j
 @Component
 public class RequestResponseLoggingFilter extends OncePerRequestFilter {
-  private static final String STATUS = "status";
 
-  /** Normalized sensitive base keys (lowercase, non-alnum removed). */
-  private static final Set<String> SENSITIVE_KEYS =
-      Set.of(
-          "password",
-          "currentpassword",
-          "newpassword",
-          "oldpassword",
-          "confirmpassword",
-          "token",
-          "accesstoken",
-          "refreshtoken",
-          "secret",
-          "clientsecret",
-          "authorization");
+  /** MDC key of the ID of the current request. */
+  public static final String REQUEST_ID = "requestId";
 
-  private static final Set<String> FILE_BODYLESS_PATH_PREFIXES =
-      Set.of("/api/files", "/api/upload");
+  private static final String API = "api";
+  private static final String METHOD = "method";
+  private static final String TYPE = "type";
+  private static final String MESSAGE = "{} {} -> {} in {} ms";
 
-  private static final Set<String> BINARY_BODYLESS_PATH_PREFIXES = Set.of("/api/v1/vsums");
+  /** Paths that are requested often and tell nothing about what users do. */
+  private static final List<String> HOUSEKEEPING_PATHS =
+      List.of("/actuator", "/swagger-ui", "/v3/api-docs");
 
-  private static final Set<String> BINARY_CONTENT_TYPES =
-      Set.of(
-          "application/octet-stream",
-          "application/java-archive",
-          "application/zip",
-          "application/x-zip-compressed");
-
-  private static final String MASK = "***";
-  private final ObjectMapper mapper = new ObjectMapper();
-
-  private static boolean isMultipart(String contentType) {
-    return contentType != null && contentType.toLowerCase().contains("multipart/");
-  }
-
-  private static boolean isJson(String contentType) {
-    if (contentType == null) {
-      return false;
-    }
-    String ct = contentType.toLowerCase();
-    return ct.contains(MediaType.APPLICATION_JSON_VALUE) || ct.matches(".*\\+json(;.*)?$");
-  }
-
-  private static boolean isBinaryContentType(String contentType) {
-    if (contentType == null) {
-      return false;
-    }
-    String ct = contentType.toLowerCase();
-    return BINARY_CONTENT_TYPES.stream().anyMatch(ct::contains);
-  }
-
-  private static String contentTypeOrEmpty(String ct) {
-    return ct == null ? "" : ct;
-  }
-
-  private static Charset charsetOrDefault(String enc) {
-    try {
-      return enc == null ? StandardCharsets.UTF_8 : Charset.forName(enc);
-    } catch (Exception e) {
-      return StandardCharsets.UTF_8;
-    }
-  }
-
-  private static String safeString(byte[] bytes, Charset charset) {
-    if (bytes == null || bytes.length == 0) {
-      return "";
-    }
-    return new String(bytes, charset);
-  }
-
-  private boolean isFileEndpoint(HttpServletRequest request) {
-    String uri = request.getRequestURI();
-    return FILE_BODYLESS_PATH_PREFIXES.stream().anyMatch(uri::startsWith);
-  }
-
-  private boolean isArtifactEndpoint(HttpServletRequest request) {
-    String uri = request.getRequestURI();
-    if (uri == null) {
-      return false;
-    }
-    return uri.matches("^/api/v1/vsums/\\d+/(build/(artifact|check)|project)$");
-  }
-
-  private boolean isBinaryEndpoint(HttpServletRequest request) {
-    String uri = request.getRequestURI();
-    if (uri == null) {
-      return false;
-    }
-    return isArtifactEndpoint(request)
-        || BINARY_BODYLESS_PATH_PREFIXES.stream().anyMatch(uri::startsWith);
-  }
-
-  /**
-   * Filters each HTTP request/response, logs details, and masks sensitive data.
-   *
-   * @param request the incoming HTTP request
-   * @param response the outgoing HTTP response
-   * @param filterChain the filter chain to continue processing
-   * @throws ServletException if a servlet error occurs
-   * @throws IOException if an I/O error occurs
-   */
   @Override
   protected void doFilterInternal(
-      HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+      @NonNull HttpServletRequest request,
+      @NonNull HttpServletResponse response,
+      @NonNull FilterChain filterChain)
       throws ServletException, IOException {
-
-    long startTime = System.currentTimeMillis();
-
-    MDC.put("requestId", UUID.randomUUID().toString());
-    MDC.put("api", request.getRequestURI());
-    MDC.put("method", request.getMethod());
-    MDC.put("ip", request.getRemoteHost());
-    MDC.put("type", "SERVED_API");
-
-    ContentCachingRequestWrapper requestWrapper = new ContentCachingRequestWrapper(request);
-    ContentCachingResponseWrapper responseWrapper = new ContentCachingResponseWrapper(response);
-
+    long startTime = System.nanoTime();
+    MDC.put(REQUEST_ID, UUID.randomUUID().toString());
+    MDC.put(API, request.getRequestURI());
+    MDC.put(METHOD, request.getMethod());
+    MDC.put(TYPE, "SERVED_API");
     try {
-      filterChain.doFilter(requestWrapper, responseWrapper);
+      filterChain.doFilter(request, response);
     } finally {
-      LinkedHashMap<String, Object> logEntry = new LinkedHashMap<>();
-
-      boolean skipBodyLogging =
-          request.getRequestURI().contains("swagger")
-              || request.getRequestURI().contains("actuator")
-              || isMultipart(request.getContentType())
-              || isFileEndpoint(request)
-              || isBinaryEndpoint(request)
-              || isBinaryContentType(responseWrapper.getContentType());
-
-      if (!skipBodyLogging) {
-        String reqBody =
-            safeString(
-                requestWrapper.getContentAsByteArray(),
-                charsetOrDefault(request.getCharacterEncoding()));
-        String resBody =
-            safeString(
-                responseWrapper.getContentAsByteArray(),
-                charsetOrDefault(responseWrapper.getCharacterEncoding()));
-
-        String sanitizedReq = sanitizeBody(reqBody, contentTypeOrEmpty(request.getContentType()));
-        String sanitizedRes =
-            sanitizeBody(resBody, contentTypeOrEmpty(responseWrapper.getContentType()));
-
-        logEntry.put("request", tryParseJson(sanitizedReq, isJson(request.getContentType())));
-        logEntry.put(
-            "response", tryParseJson(sanitizedRes, isJson(responseWrapper.getContentType())));
-      } else {
-        logEntry.put("request", "");
-        logEntry.put("response", "");
-        logEntry.put("response_content_type", responseWrapper.getContentType());
-        String cl = responseWrapper.getHeader("Content-Length");
-        if (cl != null) {
-          logEntry.put("response_content_length", cl);
-        }
-      }
-
-      responseWrapper.copyBodyToResponse();
-      long durationMs = System.currentTimeMillis() - startTime;
-
-      if (responseWrapper.getStatus() == 200 || responseWrapper.getStatus() == 201) {
-        logger.info(
-            append(STATUS, responseWrapper.getStatus())
-                .and(append("duration_in_ms", durationMs).and(append("detail", logEntry))));
-      } else {
-        logger.error(
-            append(STATUS, responseWrapper.getStatus())
-                .and(append("duration_in_ms", durationMs).and(append("detail", logEntry))));
-      }
-
-      MDC.clear();
+      logRequest(request, response.getStatus(), (System.nanoTime() - startTime) / 1_000_000);
+      MDC.remove(REQUEST_ID);
+      MDC.remove(API);
+      MDC.remove(METHOD);
+      MDC.remove(TYPE);
     }
   }
 
-  /**
-   * Attempts to parse the body as JSON if indicated, otherwise returns the raw body.
-   *
-   * @param body the body string to parse
-   * @param shouldParse whether to attempt JSON parsing
-   * @return parsed JsonNode or raw string if parsing fails
-   */
-  private Object tryParseJson(String body, boolean shouldParse) {
-    if (!shouldParse) {
-      return body;
-    }
-    try {
-      return mapper.readTree(body);
-    } catch (Exception e) {
-      return body;
+  private static void logRequest(HttpServletRequest request, int status, long durationMs) {
+    LogstashMarker fields = append("status", status).and(append("duration_in_ms", durationMs));
+    Object[] arguments = {request.getMethod(), request.getRequestURI(), status, durationMs};
+    if (status >= 500) {
+      log.error(fields, MESSAGE, arguments);
+    } else if (isHousekeeping(request.getRequestURI())) {
+      log.debug(fields, MESSAGE, arguments);
+    } else if (status >= 400) {
+      log.warn(fields, MESSAGE, arguments);
+    } else {
+      log.info(fields, MESSAGE, arguments);
     }
   }
 
-  /**
-   * Sanitizes the request or response body by masking sensitive fields. For JSON, uses recursive
-   * field masking; for other types, uses regex.
-   *
-   * @param body the raw body string
-   * @param contentType the content type of the body
-   * @return the sanitized body string
-   */
-  private String sanitizeBody(String body, String contentType) {
-    if (body == null || body.isEmpty()) {
-      return body;
-    }
-
-    if (isJson(contentType)) {
-      try {
-        JsonNode node = mapper.readTree(body);
-        redactJson(node);
-        return mapper.writeValueAsString(node);
-      } catch (Exception e) {
-        log.error("Failed to parse JSON body: " + e.getMessage() + " for body: " + body);
-      }
-    }
-    return redactWithRegex(body);
-  }
-
-  /**
-   * Recursively masks sensitive fields in a JSON node.
-   *
-   * @param node the JSON node to redact
-   */
-  private void redactJson(JsonNode node) {
-    if (node == null) {
-      return;
-    }
-
-    if (node.isObject()) {
-      ObjectNode obj = (ObjectNode) node;
-      obj.fieldNames()
-          .forEachRemaining(
-              field -> {
-                JsonNode child = obj.get(field);
-                if (isSensitiveField(field)) {
-                  obj.put(field, MASK);
-                } else {
-                  redactJson(child);
-                }
-              });
-    } else if (node.isArray()) {
-      node.forEach(this::redactJson);
-    }
-  }
-
-  /**
-   * Determines if a field name is considered sensitive and should be masked.
-   *
-   * @param field the field name to check
-   * @return true if the field is sensitive, false otherwise
-   */
-  private boolean isSensitiveField(String field) {
-    if (field == null) {
-      return false;
-    }
-    String normalized = field.toLowerCase().replaceAll("[^a-z0-9]", "");
-    if (SENSITIVE_KEYS.contains(normalized)) {
-      return true;
-    }
-
-    return normalized.contains("token");
-  }
-
-  /**
-   * Masks sensitive fields in non-JSON bodies using regular expressions.
-   *
-   * @param raw the raw body string
-   * @return the masked body string
-   */
-  private String redactWithRegex(String raw) {
-    return raw.replaceAll("(?i)(\"password\"\\s*:\\s*\")[^\"]*(\")", "$1" + MASK + "$2")
-        .replaceAll(
-            "(?i)(\"(currentPassword|newPassword|oldPassword|confirmPassword)"
-                + "\"\\s*:\\s*\")[^\"]*(\")",
-            "$1" + MASK + "$3")
-        .replaceAll(
-            "(?i)(\"(accessToken|refreshToken|token|access_token|refresh_token|id_token)"
-                + "\"\\s*:\\s*\")[^\"]*(\")",
-            "$1" + MASK + "$3")
-        .replaceAll(
-            "(?i)(currentPassword|newPassword|oldPassword|confirmPassword|password|accessToken"
-                + "|refreshToken|access_token|refresh_token)=[^\\s&]+",
-            "$1=" + MASK)
-        .replaceAll("(?i)(Authorization\\s*:\\s*Bearer\\s+)[A-Z0-9._~-]+", "$1" + MASK);
+  private static boolean isHousekeeping(String path) {
+    return path != null && HOUSEKEEPING_PATHS.stream().anyMatch(path::startsWith);
   }
 }

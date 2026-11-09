@@ -57,26 +57,17 @@ public class VsumMetaModelService {
    */
   @Transactional(readOnly = true)
   public List<MetaModel> findAccessibleByProject(Long vsumId) {
-    log.info("findAccessibleByProject called with vsumId: {}", vsumId);
-
     if (vsumId == null) {
-      log.warn("vsumId is null, returning empty list");
+      log.debug("No VSUM given, so no metamodels are accessible");
       return List.of();
     }
 
     List<VsumMetaModel> vsumMetaModels = vsumMetaModelRepository.findByVsumId(vsumId);
-    log.info("Found {} VsumMetaModel entries for vsumId {}", vsumMetaModels.size(), vsumId);
 
     Set<MetaModel> metamodels = new LinkedHashSet<>();
 
     for (VsumMetaModel vmm : vsumMetaModels) {
       MetaModel mm = vmm.getMetaModel();
-      log.info(
-          "Processing MetaModel id={}, name={}, hasSource={}",
-          mm.getId(),
-          mm.getName(),
-          mm.getSource() != null);
-
       if (mm.getSource() != null) {
         metamodels.add(mm.getSource());
       } else {
@@ -84,7 +75,7 @@ public class VsumMetaModelService {
       }
     }
 
-    log.info("Returning {} metamodels", metamodels.size());
+    log.debug("VSUM {} gives access to {} metamodels", vsumId, metamodels.size());
     return new ArrayList<>(metamodels);
   }
 

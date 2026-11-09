@@ -29,6 +29,7 @@ import tools.vitruv.methodologist.exception.ValidationCodeExpiredException;
 import tools.vitruv.methodologist.exception.ValidationCodeNotExpiredYetException;
 import tools.vitruv.methodologist.exception.VerificationCodeException;
 import tools.vitruv.methodologist.general.service.SmtpMailService;
+import tools.vitruv.methodologist.log.AuditLog;
 import tools.vitruv.methodologist.user.RoleType;
 import tools.vitruv.methodologist.user.controller.dto.KeycloakUser;
 import tools.vitruv.methodologist.user.controller.dto.request.PostAccessTokenByRefreshTokenRequest;
@@ -138,6 +139,7 @@ public class UserService {
     }
     user.setVerified(true);
     userRepository.save(user);
+    AuditLog.afterCommit(() -> log.info("User {} verified the account", user.getId()));
   }
 
   /**
@@ -182,7 +184,11 @@ public class UserService {
               postAccessTokenRequest.getUsername(), postAccessTokenRequest.getPassword());
 
       return userMapper.toUserWebToken(response);
-    } catch (Exception e) {
+    } catch (UnauthorizedException e) {
+      log.warn("Login rejected by Keycloak: invalid credentials or inactive account");
+      throw e;
+    } catch (RuntimeException e) {
+      log.error("Login failed: the token request to Keycloak failed", e);
       throw new UnauthorizedException();
     }
   }
@@ -201,7 +207,11 @@ public class UserService {
               postAccessTokenByRefreshTokenRequest.getRefreshToken());
 
       return userMapper.toUserWebToken(response);
-    } catch (Exception e) {
+    } catch (UnauthorizedException e) {
+      log.info("Token refresh rejected by Keycloak: invalid or expired refresh token");
+      throw e;
+    } catch (RuntimeException e) {
+      log.error("Token refresh failed: the token request to Keycloak failed", e);
       throw new UnauthorizedException();
     }
   }
@@ -236,6 +246,7 @@ public class UserService {
             .roleType(user.getRoleType())
             .build();
     keycloakService.createUser(keycloakUser);
+    AuditLog.afterCommit(() -> log.info("User {} signed up", user.getId()));
     return user;
   }
 
@@ -431,6 +442,8 @@ public class UserService {
 
     String newPassword = new RandomPasswordGenerator().generateSecureRandomPassword();
     keycloakService.setPassword(user.getUsername(), newPassword);
+    // Keycloak does not take part in the transaction: the password is reset even if the mail fails
+    log.info("Password of user {} was reset", user.getId());
 
     mailService.sendForgotPasswordMail(user.getEmail(), user.getLastName(), newPassword);
   }
@@ -461,10 +474,18 @@ public class UserService {
     try {
       keycloakApiHandler.getAccessTokenOrThrow(
           user.getUsername(), userPutChangePasswordRequest.getCurrentPassword());
-    } catch (Exception exception) {
+    } catch (UnauthorizedException exception) {
+      log.warn("Password change of user {} rejected: wrong current password", user.getId());
+      throw new BadRequestException(USER_WRONG_PASSWORD_ERROR);
+    } catch (RuntimeException exception) {
+      log.error(
+          "Password change of user {} failed: the token request to Keycloak failed",
+          user.getId(),
+          exception);
       throw new BadRequestException(USER_WRONG_PASSWORD_ERROR);
     }
     keycloakService.setPassword(user.getUsername(), userPutChangePasswordRequest.getNewPassword());
+    log.info("User {} changed the password", user.getId());
   }
 
   /**
@@ -480,6 +501,7 @@ public class UserService {
     User user = findOwnAccountOrThrow(callerEmail, id);
     user.setRemovedAt(Instant.now());
     userRepository.save(user);
+    AuditLog.afterCommit(() -> log.info("User {} removed the account", user.getId()));
     return user;
   }
 
