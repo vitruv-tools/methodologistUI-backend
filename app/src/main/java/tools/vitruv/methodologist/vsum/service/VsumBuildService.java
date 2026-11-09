@@ -467,6 +467,11 @@ public class VsumBuildService {
     transactionTemplate.executeWithoutResult(
         status -> {
           VsumBuild build = vsumBuildRepository.findById(buildId).orElseThrow();
+          if (build.getStatus().isTerminal()) {
+            // Abandoned while it ran (see VsumVersionService); the late result is dropped.
+            log.warn("VSUM build {} finished after it had been abandoned; result dropped", buildId);
+            return;
+          }
           FileStorage artifact = fileStorageRepository.save(artifact(build.getRequestedBy(), jar));
           build.setArtifact(artifact);
           build.setStatus(VsumBuildStatus.SUCCEEDED);
@@ -478,7 +483,8 @@ public class VsumBuildService {
   }
 
   /**
-   * Marks the build failed; a pending version built by it is deleted.
+   * Marks the build failed unless it has already finished; a pending version built by it is deleted
+   * either way.
    *
    * @param buildId the build
    * @param message why it failed
@@ -495,12 +501,15 @@ public class VsumBuildService {
                 .findById(buildId)
                 .ifPresent(
                     build -> {
-                      build.setStatus(VsumBuildStatus.FAILED);
-                      build.setErrorMessage(message);
-                      build.setErrorCode(errorCode);
-                      build.setProblems(problems);
-                      build.setFinishedAt(Instant.now());
-                      vsumBuildRepository.save(build);
+                      // A finished build keeps its outcome, e.g. one abandoned while it ran.
+                      if (!build.getStatus().isTerminal()) {
+                        build.setStatus(VsumBuildStatus.FAILED);
+                        build.setErrorMessage(message);
+                        build.setErrorCode(errorCode);
+                        build.setProblems(problems);
+                        build.setFinishedAt(Instant.now());
+                        vsumBuildRepository.save(build);
+                      }
                       vsumVersionRepository
                           .findByBuildId(buildId)
                           .filter(version -> version.getNumber() == null)

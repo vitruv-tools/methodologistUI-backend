@@ -556,6 +556,59 @@ class VsumBuildServiceTest {
   }
 
   @Test
+  void runBuild_dropsALateSuccess_whenTheBuildWasAbandonedWhileItRan() {
+    VsumVersion version = pendingVersion();
+    VsumBuild build = service.queue(vsum, user, "pending");
+    version.setBuild(build);
+    when(vsumVersionRepository.findByBuildId(build.getId())).thenReturn(Optional.of(version));
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
+        .thenAnswer(
+            inv -> {
+              abandon(build);
+              return JAR;
+            });
+
+    service.runBuild(build.getId());
+
+    assertThat(build.getStatus()).isEqualTo(VsumBuildStatus.FAILED);
+    assertThat(build.getErrorMessage()).isEqualTo(VsumVersionService.STUCK_ERROR);
+    assertThat(build.getArtifact()).isNull();
+    assertThat(version.getNumber()).isNull();
+    verify(fileStorageRepository, never()).save(any(FileStorage.class));
+  }
+
+  @Test
+  void runBuild_keepsTheAbandonment_whenTheBuildFailsLater() {
+    VsumBuild build = service.queue(vsum, user, "pending");
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
+        .thenAnswer(
+            inv -> {
+              abandon(build);
+              throw new SetupServiceException("timeout");
+            });
+
+    service.runBuild(build.getId());
+
+    assertThat(build.getStatus()).isEqualTo(VsumBuildStatus.FAILED);
+    assertThat(build.getErrorMessage()).isEqualTo(VsumVersionService.STUCK_ERROR);
+  }
+
+  @Test
+  void fail_keepsTheOutcomeOfAFinishedBuild_butDeletesItsPendingVersion() {
+    VsumBuild finished = save(build(inputs.fingerprint(), VsumBuildStatus.FAILED, false));
+    finished.setErrorMessage("original problem");
+    VsumVersion leftOver = pendingVersion();
+    leftOver.setBuild(finished);
+    when(vsumVersionRepository.findByBuildId(finished.getId())).thenReturn(Optional.of(leftOver));
+
+    service.fail(finished.getId(), VsumVersionService.STUCK_ERROR);
+
+    assertThat(finished.getErrorMessage()).isEqualTo("original problem");
+    verify(vsumVersionRepository).delete(leftOver);
+    verify(fileStorageRepository).deleteAll(leftOver.allFiles());
+  }
+
+  @Test
   void succeed_neverRemovesTheArtifactOfAVersion_perRetention() {
     properties.setRetentionKeep(1);
     VsumBuild versionBuild =
@@ -609,6 +662,13 @@ class VsumBuildServiceTest {
         properties,
         executor,
         transactionManager);
+  }
+
+  /** What abandoning a publish does to its build, see {@code VsumVersionService}. */
+  private static void abandon(VsumBuild build) {
+    build.setStatus(VsumBuildStatus.FAILED);
+    build.setErrorMessage(VsumVersionService.STUCK_ERROR);
+    build.setFinishedAt(Instant.now());
   }
 
   /** A pending version whose copies differ from the working copy's inputs. */

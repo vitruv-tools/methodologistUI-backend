@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -21,12 +22,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.PlatformTransactionManager;
-import tools.vitruv.methodologist.config.VsumBuildProperties;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.PublishInProgressException;
 import tools.vitruv.methodologist.general.FileEnumType;
@@ -54,6 +55,8 @@ class VsumVersionServiceTest {
   private static final String EMAIL = "owner@example.com";
   private static final Long VSUM_ID = 7L;
   private static final Long BUILD_ID = 42L;
+  private static final long TIMEOUT_SECONDS = 960;
+  private static final Long PENDING_BUILD_ID = 99L;
 
   @Mock private VsumUserRepository vsumUserRepository;
   @Mock private VsumVersionRepository vsumVersionRepository;
@@ -63,7 +66,6 @@ class VsumVersionServiceTest {
   @Mock private VsumHistoryMapper vsumHistoryMapper;
   @Mock private PlatformTransactionManager transactionManager;
 
-  private final VsumBuildProperties properties = new VsumBuildProperties();
   private final AtomicLong fileIds = new AtomicLong(1000);
 
   private Vsum vsum;
@@ -129,7 +131,7 @@ class VsumVersionServiceTest {
             vsumHistoryMapper,
             Mappers.getMapper(VsumBuildMapper.class),
             Mappers.getMapper(VsumVersionMapper.class),
-            properties,
+            TIMEOUT_SECONDS,
             transactionManager);
   }
 
@@ -198,7 +200,7 @@ class VsumVersionServiceTest {
   @Test
   void publish_isRejected_whileAnotherPublishIsBuilding() {
     when(vsumVersionRepository.findFirstByVsumAndNumberIsNull(vsum))
-        .thenReturn(Optional.of(pending(VsumBuildStatus.RUNNING, Instant.now())));
+        .thenReturn(Optional.of(pending(VsumBuildStatus.RUNNING, Instant.now(), Instant.now())));
 
     assertThatThrownBy(() -> service.publish(EMAIL, VSUM_ID))
         .isInstanceOf(PublishInProgressException.class);
@@ -219,34 +221,80 @@ class VsumVersionServiceTest {
   }
 
   @Test
-  void publish_abandonsAPublishThatDidNotFinishInTime() {
-    properties.setWaitTimeoutSeconds(60);
-    VsumVersion stuck = pending(VsumBuildStatus.RUNNING, Instant.now().minus(1, ChronoUnit.DAYS));
+  void publish_isRejected_whileTheEarlierPublishIsStillQueued_howeverLongItWaits() {
+    VsumVersion queued =
+        pending(VsumBuildStatus.QUEUED, Instant.now().minus(1, ChronoUnit.DAYS), null);
+    when(vsumVersionRepository.findFirstByVsumAndNumberIsNull(vsum))
+        .thenReturn(Optional.of(queued));
+
+    assertThatThrownBy(() -> service.publish(EMAIL, VSUM_ID))
+        .isInstanceOf(PublishInProgressException.class);
+
+    verify(vsumBuildService, never()).fail(anyLong(), anyString());
+  }
+
+  @Test
+  void publish_isRejected_whileTheEarlierBuildRunsWithinTheSetupServiceTimeout() {
+    Instant startedAt = Instant.now().minusSeconds(TIMEOUT_SECONDS);
+    VsumVersion running = pending(VsumBuildStatus.RUNNING, startedAt, startedAt);
+    when(vsumVersionRepository.findFirstByVsumAndNumberIsNull(vsum))
+        .thenReturn(Optional.of(running));
+
+    assertThatThrownBy(() -> service.publish(EMAIL, VSUM_ID))
+        .isInstanceOf(PublishInProgressException.class);
+
+    verify(vsumBuildService, never()).fail(anyLong(), anyString());
+  }
+
+  @Test
+  void publish_abandonsAPublishWhoseBuildRanLongerThanTheSetupServiceTimeout() {
+    Instant startedAt =
+        Instant.now()
+            .minusSeconds(TIMEOUT_SECONDS)
+            .minus(VsumVersionService.ABANDON_MARGIN)
+            .minus(1, ChronoUnit.MINUTES);
+    VsumVersion stuck = pending(VsumBuildStatus.RUNNING, startedAt, startedAt);
     when(vsumVersionRepository.findFirstByVsumAndNumberIsNull(vsum)).thenReturn(Optional.of(stuck));
 
     service.publish(EMAIL, VSUM_ID);
 
-    verify(vsumBuildService)
-        .fail(stuck.getBuild().getId(), String.format(VsumVersionService.STUCK_ERROR, 60L));
+    InOrder order = inOrder(vsumBuildService, vsumVersionRepository);
+    order.verify(vsumBuildService).fail(PENDING_BUILD_ID, VsumVersionService.STUCK_ERROR);
+    order.verify(vsumVersionRepository).flush();
+    order.verify(vsumVersionRepository).save(any(VsumVersion.class));
     verify(vsumBuildService).submit(BUILD_ID);
   }
 
   @Test
   void publish_abandonsAPendingVersionWhoseBuildAlreadyFinished() {
-    VsumVersion leftOver = pending(VsumBuildStatus.FAILED, Instant.now());
+    VsumVersion leftOver = pending(VsumBuildStatus.FAILED, Instant.now(), Instant.now());
     when(vsumVersionRepository.findFirstByVsumAndNumberIsNull(vsum))
         .thenReturn(Optional.of(leftOver));
 
     service.publish(EMAIL, VSUM_ID);
 
-    verify(vsumBuildService).fail(anyLong(), anyString());
+    verify(vsumBuildService).fail(PENDING_BUILD_ID, VsumVersionService.STUCK_ERROR);
     verify(vsumBuildService).submit(BUILD_ID);
+  }
+
+  @Test
+  void publish_leavesTheEarlierPublishAlone_whenTheNewSnapshotCannotBeTaken() {
+    Instant longAgo = Instant.now().minus(1, ChronoUnit.DAYS);
+    lenient()
+        .when(vsumVersionRepository.findFirstByVsumAndNumberIsNull(vsum))
+        .thenReturn(Optional.of(pending(VsumBuildStatus.RUNNING, longAgo, longAgo)));
+    when(inputCollector.collect(vsum)).thenThrow(new NotFoundException("metamodels"));
+
+    assertThatThrownBy(() -> service.publish(EMAIL, VSUM_ID)).isInstanceOf(NotFoundException.class);
+
+    verify(vsumBuildService, never()).fail(anyLong(), anyString());
+    verify(vsumBuildService, never()).submit(anyLong());
   }
 
   @Test
   void findLatest_returnsTheNewestStableVersion() {
     member.setRole(VsumRole.VIEWER);
-    VsumVersion latest = pending(VsumBuildStatus.SUCCEEDED, Instant.now());
+    VsumVersion latest = pending(VsumBuildStatus.SUCCEEDED, Instant.now(), Instant.now());
     latest.setNumber(3);
     when(vsumVersionRepository.findFirstByVsumAndNumberIsNotNullOrderByNumberDesc(vsum))
         .thenReturn(Optional.of(latest));
@@ -291,10 +339,12 @@ class VsumVersionServiceTest {
     assertThat(copy.getContentType()).isEqualTo(VsumVersionService.DEFAULT_CONTENT_TYPE);
   }
 
-  private VsumVersion pending(VsumBuildStatus buildStatus, Instant createdAt) {
+  /** A version created at {@code createdAt} whose build started at {@code startedAt}, if at all. */
+  private VsumVersion pending(VsumBuildStatus buildStatus, Instant createdAt, Instant startedAt) {
     VsumBuild build =
         VsumBuild.builder()
-            .id(99L)
+            .id(PENDING_BUILD_ID)
+            .startedAt(startedAt)
             .vsum(vsum)
             .requestedBy(user)
             .fingerprint("f")
