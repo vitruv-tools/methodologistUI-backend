@@ -33,6 +33,8 @@ public class Message {
   public static final String VSUM_BUILD_WAS_SUCCESSFULLY = "The build was successful.";
   public static final String VSUM_BUILD_STARTED = "The build was started.";
   public static final String VSUM_BUILD_REUSED = "An up-to-date build already exists.";
+  public static final String VSUM_PUBLISH_STARTED =
+      "The publish was started; the version is created once its build succeeds.";
   public static final String VSUM_HISTORY_REVERT_WAS_SUCCESSFULLY =
       "The vsum history was reverted.";
   public static final String VSUM_USER_DELETED_SUCCESSFULLY =

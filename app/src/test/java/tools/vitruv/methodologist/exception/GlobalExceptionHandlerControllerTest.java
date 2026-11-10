@@ -89,6 +89,23 @@ class GlobalExceptionHandlerControllerTest {
         .andExpect(jsonPath("$.message").value(OwnerRequiredException.MESSAGE_TEMPLATE));
   }
 
+  @Test
+  void vsumBuildingFailure_isBadRequest() throws Exception {
+    mockMvc
+        .perform(get("/test/vsum-building"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error").value(VsumBuildingException.ERROR_TEMPLATE))
+        .andExpect(jsonPath("$.message").value("queue full"));
+  }
+
+  @Test
+  void publishInProgress_isConflict() throws Exception {
+    mockMvc
+        .perform(get("/test/publish-in-progress"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.message").value("already publishing"));
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"/test/cli", "/test/build-artifact", "/test/file-hashing"})
   void serverSideFailures_areInternalServerError(String path) throws Exception {
@@ -194,6 +211,16 @@ class GlobalExceptionHandlerControllerTest {
     @GetMapping("/test/owner")
     void owner() {
       throw new OwnerRequiredException();
+    }
+
+    @GetMapping("/test/vsum-building")
+    void vsumBuilding() {
+      throw new VsumBuildingException("queue full");
+    }
+
+    @GetMapping("/test/publish-in-progress")
+    void publishInProgress() {
+      throw new PublishInProgressException("already publishing");
     }
 
     @GetMapping("/test/cli")
