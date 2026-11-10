@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.inOrder;
@@ -342,7 +343,8 @@ class FileStorageServiceTest {
     byte[] data = "generated-reaction".getBytes();
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
         .thenReturn(Optional.of(testUser));
-    when(fileStorageRepository.existsByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
+    when(fileStorageRepository.existsByUserAndSha256AndSizeBytesAndTypeNot(
+            any(), any(), anyLong(), any()))
         .thenReturn(false);
     when(fileStorageRepository.save(any(FileStorage.class))).thenReturn(testFileStorage);
 
@@ -380,7 +382,7 @@ class FileStorageServiceTest {
 
     assertEquals(42L, response.getId());
     verify(fileStorageRepository, never())
-        .existsByUserAndSha256AndSizeBytes(any(), any(), anyLong());
+        .existsByUserAndSha256AndSizeBytesAndTypeNot(any(), any(), anyLong(), any());
     verify(fileStorageRepository)
         .save(
             argThat(
@@ -409,7 +411,7 @@ class FileStorageServiceTest {
 
     assertEquals(43L, response.getId());
     verify(fileStorageRepository, never())
-        .existsByUserAndSha256AndSizeBytes(any(), any(), anyLong());
+        .existsByUserAndSha256AndSizeBytesAndTypeNot(any(), any(), anyLong(), any());
     verify(fileStorageRepository)
         .save(
             argThat(
@@ -419,11 +421,27 @@ class FileStorageServiceTest {
   }
 
   @Test
+  void storeFile_bytes_ignoresTheCopiesOfStableVersions_inTheDuplicateCheck() {
+    byte[] data = "published-reaction".getBytes();
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
+        .thenReturn(Optional.of(testUser));
+    when(fileStorageRepository.save(any(FileStorage.class))).thenReturn(testFileStorage);
+
+    fileStorageService.storeFile(
+        "test@example.com", data, "again.reactions", "text/plain", FileEnumType.REACTION);
+
+    verify(fileStorageRepository)
+        .existsByUserAndSha256AndSizeBytesAndTypeNot(
+            eq(testUser), any(), eq((long) data.length), eq(FileEnumType.VSUM_VERSION_FILE));
+  }
+
+  @Test
   void storeFile_bytes_duplicateHash_throwsFileAlreadyExistsException() {
     byte[] data = "generated-reaction".getBytes();
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("test@example.com"))
         .thenReturn(Optional.of(testUser));
-    when(fileStorageRepository.existsByUserAndSha256AndSizeBytes(any(), any(), anyLong()))
+    when(fileStorageRepository.existsByUserAndSha256AndSizeBytesAndTypeNot(
+            any(), any(), anyLong(), any()))
         .thenReturn(true);
 
     assertThrows(

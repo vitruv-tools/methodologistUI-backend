@@ -15,15 +15,18 @@ import tools.vitruv.methodologist.user.model.User;
 public interface FileStorageRepository extends CrudRepository<FileStorage, Long> {
 
   /**
-   * Checks if a file with the specified user, SHA-256 hash, and size already exists in storage.
-   * This method helps prevent duplicate file storage by comparing file attributes.
+   * Checks if a file with the specified user, SHA-256 hash, and size already exists in storage,
+   * ignoring files of one type. This method helps prevent duplicate file storage by comparing file
+   * attributes.
    *
    * @param user the user who owns the file
    * @param sha256 the SHA-256 hash of the file content
    * @param sizeBytes the size of the file in bytes
-   * @return true if a matching file exists, false otherwise
+   * @param ignoredType files of this type do not count, e.g. the copies held by stable versions
+   * @return true if a matching file of another type exists, false otherwise
    */
-  boolean existsByUserAndSha256AndSizeBytes(User user, String sha256, long sizeBytes);
+  boolean existsByUserAndSha256AndSizeBytesAndTypeNot(
+      User user, String sha256, long sizeBytes, FileEnumType ignoredType);
 
   /**
    * Finds a {@link tools.vitruv.methodologist.general.model.FileStorage} by its unique identifier
