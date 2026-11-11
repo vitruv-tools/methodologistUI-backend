@@ -1,7 +1,5 @@
 package tools.vitruv.methodologist.lsp;
 
-import static tools.vitruv.methodologist.messages.Error.LSP_PROCESS_WAIT_ERROR;
-
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -20,7 +18,6 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
-import tools.vitruv.methodologist.exception.LspProcessException;
 import tools.vitruv.methodologist.vsum.service.ReactionsLspWorkspaceService;
 
 /** Websocket handler for LSP communication with automatic session cleanup. */
@@ -127,7 +124,7 @@ public class LspWebSocketHandler
       return null;
 
     } catch (Exception e) {
-      logger.error("Error extracting vsumId from WebSocket session", e);
+      logger.warn("Ignoring an invalid vsumId of LSP session {}", session.getId());
       return null;
     }
   }
@@ -162,10 +159,9 @@ public class LspWebSocketHandler
 
         String separatorLine = reader.readLine();
         if (separatorLine == null || !separatorLine.isEmpty()) {
-          logger.warn(
-              "Expected empty line after Content-Length header for session: {}, but got: '{}'",
-              session.getId(),
-              separatorLine);
+          logger.debug(
+              "Unexpected line after the Content-Length header from LSP for session {}",
+              session.getId());
         }
 
         char[] content = new char[contentLength];
@@ -176,10 +172,10 @@ public class LspWebSocketHandler
 
         return true;
       } catch (NumberFormatException e) {
-        logger.error("Invalid Content-Length header from LSP for session: {}", session.getId(), e);
+        logger.warn("Invalid Content-Length header from LSP for session {}", session.getId());
         return true;
       } catch (IOException e) {
-        logger.error("Failed to send LSP message to WebSocket session: {}", session.getId(), e);
+        logger.debug("Could not relay an LSP message to session {}", session.getId(), e);
         return false;
       }
     }
@@ -199,7 +195,7 @@ public class LspWebSocketHandler
           }
         }
       } catch (IOException e) {
-        logger.error("LSP process stream closed for session: {}", session.getId(), e);
+        logger.debug("LSP output closed for session {}", session.getId(), e);
       } finally {
         logger.debug("LSP reader thread terminated for session: {}", session.getId());
       }
@@ -221,17 +217,15 @@ public class LspWebSocketHandler
       try {
         writer.close();
       } catch (IOException e) {
-        logger.error("Error closing LSP writer", e);
+        logger.debug("Could not close the LSP input for session {}", session.getId(), e);
       }
 
       // Kill process
       process.destroy();
 
-      // CRITICAL: Wait for process to actually exit (especially important on Windows)
+      // CRITICAL: Wait for process to actually exit (especially important on Windows). A process
+      // that has exited already, e.g. after a crash, needs no waiting.
       try {
-        if (!process.isAlive()) {
-          throw new IOException("LSP process is not alive (already exited)");
-        }
         boolean exited = process.waitFor(5, TimeUnit.SECONDS);
         if (!exited) {
           logger.warn(
@@ -241,10 +235,8 @@ public class LspWebSocketHandler
         }
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
-        logger.warn("Interrupted while waiting for LSP process to exit");
+        logger.warn("Interrupted while waiting for the LSP process of session {}", session.getId());
         process.destroyForcibly();
-      } catch (IOException e) {
-        throw new LspProcessException(LSP_PROCESS_WAIT_ERROR, e);
       }
     }
   }

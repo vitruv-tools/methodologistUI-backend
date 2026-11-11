@@ -62,8 +62,8 @@ public class ReactionFileValidationListener {
     try {
       executor.execute(() -> requestValidationForAffectedVsums(fileId));
     } catch (RejectedExecutionException e) {
-      log.warn(
-          "Validation for reaction file {} could not be scheduled: {}", fileId, e.getMessage());
+      // only happens while the application shuts down
+      log.debug("Validation for reaction file {} not scheduled: executor shut down", fileId);
     }
   }
 
@@ -79,8 +79,7 @@ public class ReactionFileValidationListener {
       vsumIds.addAll(fineGranularMetaModelRelationRepository.findVsumIdsByReactionFileId(fileId));
       vsumIds.forEach(vsumValidationService::requestValidation);
     } catch (RuntimeException e) {
-      log.warn(
-          "Validation for reaction file {} could not be requested: {}", fileId, e.getMessage());
+      log.error("Validation for reaction file {} could not be requested", fileId, e);
     }
   }
 }

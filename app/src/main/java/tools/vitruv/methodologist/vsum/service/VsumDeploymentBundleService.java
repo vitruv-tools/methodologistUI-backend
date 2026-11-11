@@ -115,8 +115,8 @@ public class VsumDeploymentBundleService {
       writeBundle(bundle, jar);
       return Files.readAllBytes(bundle);
     } catch (IOException e) {
-      log.error("Failed to assemble the deployment bundle", e);
-      throw new BuildArtifactCreationException(e.getMessage());
+      // logged with its cause where it is handled
+      throw new BuildArtifactCreationException(e.getMessage(), e);
     } finally {
       deleteQuietly(workDirectory);
     }

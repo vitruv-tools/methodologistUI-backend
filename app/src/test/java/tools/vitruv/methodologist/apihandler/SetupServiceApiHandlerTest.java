@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
 import tools.vitruv.methodologist.apihandler.dto.response.VsumValidationResult;
 import tools.vitruv.methodologist.exception.BuildProblem;
@@ -371,7 +372,8 @@ class SetupServiceApiHandlerTest {
                 setupServiceApiHandler.validateVsum(
                     metamodelFiles, reactionFiles, constraintFiles, viewFiles))
         .isInstanceOf(SetupServiceException.class)
-        .hasMessageStartingWith("Failed to call setup-service validation");
+        .hasMessageStartingWith("Failed to call setup-service validation")
+        .hasCauseInstanceOf(WebClientRequestException.class);
   }
 
   private static FileStorage fileStorage(Long id, String filename, byte[] data) {

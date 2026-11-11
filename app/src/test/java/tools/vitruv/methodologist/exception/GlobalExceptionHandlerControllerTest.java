@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -128,6 +129,95 @@ class GlobalExceptionHandlerControllerTest {
     }
 
     assertThat(appender.list).extracting(ILoggingEvent::getLevel).containsExactly(Level.ERROR);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"/test/cli", "/test/build-artifact", "/test/file-hashing"})
+  void serverSideFailures_areLoggedAsErrorWithTheirStackTrace(String path) throws Exception {
+    List<ILoggingEvent> events = logsOf(() -> mockMvc.perform(get(path)));
+
+    assertThat(events).extracting(ILoggingEvent::getLevel).containsExactly(Level.ERROR);
+    assertThat(events.getFirst().getThrowableProxy()).isNotNull();
+  }
+
+  @Test
+  void notFound_isLoggedAtDebugOnly_withoutStackTrace() throws Exception {
+    List<ILoggingEvent> events =
+        logsOf(() -> mockMvc.perform(get("/test/not-found")).andExpect(status().isNotFound()));
+
+    assertThat(events).extracting(ILoggingEvent::getLevel).containsOnly(Level.DEBUG);
+    assertThat(events).allSatisfy(event -> assertThat(event.getThrowableProxy()).isNull());
+  }
+
+  @Test
+  void clientErrors_areLoggedWithoutTheirMessage_whichMayContainPersonalData() throws Exception {
+    List<ILoggingEvent> events =
+        logsOf(
+            () -> {
+              mockMvc.perform(get("/test/conflict")).andExpect(status().isConflict());
+              mockMvc
+                  .perform(
+                      put("/test/body")
+                          .contentType(MediaType.APPLICATION_JSON)
+                          .content("{\"email\": alice@example.com}"))
+                  .andExpect(status().isBadRequest());
+            });
+
+    assertThat(events).hasSize(2);
+    assertThat(events)
+        .allSatisfy(
+            event -> {
+              assertThat(event.getLevel()).isEqualTo(Level.DEBUG);
+              assertThat(event.getFormattedMessage()).doesNotContain("alice@example.com");
+              assertThat(event.getThrowableProxy()).isNull();
+            });
+  }
+
+  @Test
+  void setupServiceRejection_isLoggedAtDebug_andAnUnavailableSetupServiceAsError()
+      throws Exception {
+    assertThat(logsOf(() -> mockMvc.perform(get("/test/setup-service-rejected"))))
+        .extracting(ILoggingEvent::getLevel)
+        .containsExactly(Level.DEBUG);
+    assertThat(logsOf(() -> mockMvc.perform(get("/test/setup-service-down"))))
+        .extracting(ILoggingEvent::getLevel)
+        .containsExactly(Level.ERROR);
+  }
+
+  @Test
+  void storedBuildFailure_isLoggedAtDebugOnly_andStillBadGateway() throws Exception {
+    List<ILoggingEvent> logs =
+        logsOf(
+            () ->
+                mockMvc
+                    .perform(get("/test/stored-build-failure"))
+                    .andExpect(status().isBadGateway())
+                    .andExpect(jsonPath("$.errorCode").value("VSUM_BUILD_FAILED")));
+
+    // the build logged the failure already when it happened
+    assertThat(logs).extracting(ILoggingEvent::getLevel).containsExactly(Level.DEBUG);
+  }
+
+  /** Runs the requests and returns what the handler logged, at any level. */
+  private static List<ILoggingEvent> logsOf(ThrowingRunnable requests) throws Exception {
+    Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandlerController.class);
+    Level previousLevel = logger.getLevel();
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+    logger.setLevel(Level.DEBUG);
+    try {
+      requests.run();
+    } finally {
+      logger.detachAppender(appender);
+      logger.setLevel(previousLevel);
+    }
+    return appender.list;
+  }
+
+  @FunctionalInterface
+  private interface ThrowingRunnable {
+    void run() throws Exception;
   }
 
   @Test
@@ -273,6 +363,22 @@ class GlobalExceptionHandlerControllerTest {
     @GetMapping("/test/setup-service-down")
     void setupServiceDown() {
       throw new SetupServiceException("connection refused");
+    }
+
+    @GetMapping("/test/stored-build-failure")
+    void storedBuildFailure() {
+      throw new StoredBuildFailureException("does not compile", "VSUM_BUILD_FAILED", null);
+    }
+
+    @GetMapping("/test/not-found")
+    void notFound() {
+      throw new NotFoundException("Vsum id");
+    }
+
+    @GetMapping("/test/conflict")
+    void conflict() {
+      throw new DataIntegrityViolationException(
+          "duplicate key: Key (email)=(alice@example.com) already exists");
     }
 
     @GetMapping("/test/crash")

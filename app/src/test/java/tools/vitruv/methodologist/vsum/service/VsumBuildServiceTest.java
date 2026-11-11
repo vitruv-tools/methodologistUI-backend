@@ -39,6 +39,7 @@ import tools.vitruv.methodologist.config.VsumBuildProperties;
 import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.SetupServiceException;
+import tools.vitruv.methodologist.exception.StoredBuildFailureException;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -416,7 +417,7 @@ class VsumBuildServiceTest {
 
     assertThatThrownBy(() -> service.buildAndWait(EMAIL, VSUM_ID))
         .isInstanceOfSatisfying(
-            SetupServiceException.class,
+            StoredBuildFailureException.class,
             e -> {
               assertThat(e).hasMessage("compilation failed");
               assertThat(e.getErrorCode()).isEqualTo("VSUM_BUILD_FAILED");
@@ -434,7 +435,7 @@ class VsumBuildServiceTest {
 
     assertThatThrownBy(() -> service.buildAndWait(EMAIL, VSUM_ID))
         .isInstanceOfSatisfying(
-            SetupServiceException.class,
+            StoredBuildFailureException.class,
             e -> {
               assertThat(e).hasMessage(VsumBuildService.BUILD_FAILED_ERROR);
               assertThat(e.getErrorCode()).isNull();

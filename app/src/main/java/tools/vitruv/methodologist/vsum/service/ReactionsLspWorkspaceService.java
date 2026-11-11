@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -37,6 +38,9 @@ import tools.vitruv.methodologist.vsum.utilitymethod.UtilityMethodClassGenerator
 @Service
 @RequiredArgsConstructor
 public class ReactionsLspWorkspaceService {
+
+  /** Whether the missing Java compiler was logged, so that it is logged only once. */
+  private static final AtomicBoolean NO_COMPILER_LOGGED = new AtomicBoolean();
 
   static final String PROJECT_DIR = "UserProject";
   static final String MODEL_DIR = "model";
@@ -141,7 +145,10 @@ public class ReactionsLspWorkspaceService {
     try {
       return EcoreInstanceClassNames.add(ecore.getData());
     } catch (IOException e) {
-      log.warn("Metamodel {} keeps unresolved types in the reactions editor", ecore.getId(), e);
+      log.warn(
+          "Metamodel file {} keeps unresolved types in the reactions editor: {}",
+          ecore.getId(),
+          e.toString());
       return ecore.getData();
     }
   }
@@ -169,14 +176,19 @@ public class ReactionsLspWorkspaceService {
       return false;
     }
     if (!JavaSourceCompiler.isAvailable()) {
-      log.warn("No Java compiler available, the reactions editor cannot resolve the {}", what);
+      if (NO_COMPILER_LOGGED.compareAndSet(false, true)) {
+        log.warn(
+            "No Java compiler available (a JRE instead of a JDK?), the reactions editor cannot"
+                + " resolve metamodel types and utility methods");
+      }
       return false;
     }
     try {
       JavaSourceCompiler.Outcome outcome =
           JavaSourceCompiler.compile(sources, classpath, outputDir);
       if (!outcome.compiled()) {
-        log.warn(
+        // the user sees these errors in the editor; for utility methods they are user mistakes
+        log.debug(
             "Could not compile the {} for the reactions editor: {}",
             what,
             String.join("; ", outcome.errors()));

@@ -83,7 +83,7 @@ public class SecurityConfiguration {
                 oauth2
                     .bearerTokenResolver(new NeoJoinWebSocketBearerTokenResolver())
                     .jwt(jwt -> jwt.jwtAuthenticationConverter(customJwtConverter())))
-        .addFilterAfter(new UserEmailMdcFilter(), BearerTokenAuthenticationFilter.class)
+        .addFilterAfter(new UserIdMdcFilter(), BearerTokenAuthenticationFilter.class)
         .build();
   }
 

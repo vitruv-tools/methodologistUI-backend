@@ -67,8 +67,9 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
         CLEANUP_INTERVAL_SECONDS,
         TimeUnit.SECONDS);
 
-    logger.info(
-        "🧹 LSP Cleanup scheduler started (checking every {}s, timeout: {}min)",
+    logger.debug(
+        "{} cleanup scheduler started (checking every {}s, timeout: {}min)",
+        serverName(),
         CLEANUP_INTERVAL_SECONDS,
         TIMEOUT_MS / 60000);
   }
@@ -119,7 +120,7 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
   @Override
   public void afterConnectionEstablished(WebSocketSession session) throws Exception {
     String sessionId = session.getId();
-    logger.info("{} WebSocket connection established: {}", serverName(), sessionId);
+    logger.debug("{} WebSocket connection established: {}", serverName(), sessionId);
 
     lastActivity.put(sessionId, System.currentTimeMillis());
 
@@ -151,8 +152,19 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
             () -> {
               try {
                 int code = process.waitFor();
-                logger.error(
-                    "{} process exited for session {} with code {}", serverName(), sessionId, code);
+                if (sessions.containsKey(sessionId)) {
+                  logger.warn(
+                      "{} process for session {} stopped unexpectedly with code {}",
+                      serverName(),
+                      sessionId,
+                      code);
+                } else {
+                  logger.debug(
+                      "{} process for session {} exited with code {}",
+                      serverName(),
+                      sessionId,
+                      code);
+                }
               } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
               }
@@ -171,8 +183,12 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
                         projectDir.toUri().toString());
                 session.sendMessage(new TextMessage(rootUriMessage));
               } catch (Exception e) {
-                logger.error(
-                    "Failed to send workspaceReady for {}: {}", serverName(), e.getMessage());
+                // usually the client has disconnected in the meantime
+                logger.debug(
+                    "Could not send workspaceReady to {} session {}",
+                    serverName(),
+                    session.getId(),
+                    e);
               }
             });
   }
@@ -186,7 +202,8 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
       try {
         proc.sendToLsp(message.getPayload());
       } catch (IOException e) {
-        logger.error("Failed to forward message to LSP for session {}", sessionId, e);
+        // the process has stopped, which is logged once when it happens
+        logger.debug("Could not forward a message to {} session {}", serverName(), sessionId, e);
       }
     }
   }
@@ -194,20 +211,17 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
   @Override
   public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
     String sessionId = session.getId();
-    logger.info(
-        "🔌 Connection closed: {} - Status: {} (code: {}, reason: '{}')",
-        sessionId,
-        status,
-        status.getCode(),
-        status.getReason());
+    logger.debug(
+        "{} WebSocket connection closed: {} (code {})", serverName(), sessionId, status.getCode());
 
-    cleanupSession(sessionId, "connection closed: " + status.getReason());
+    cleanupSession(sessionId, "connection closed");
   }
 
   @Override
   public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
     String sessionId = session.getId();
-    logger.error("WebSocket transport error for session: {}", sessionId, exception);
+    // usually the client has disconnected
+    logger.debug("{} transport error for session {}", serverName(), sessionId, exception);
 
     cleanupSession(sessionId, "transport error");
   }
@@ -224,16 +238,16 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
     lastActivity.remove(sessionId);
 
     if (serverProcess != null) {
-      logger.info("🧹 Cleaning up session: {} - Reason: {}", sessionId, reason);
+      logger.debug("Cleaning up {} session {} ({})", serverName(), sessionId, reason);
       try {
         serverProcess.destroy();
-        cleanupTempDir(serverProcess.tempDir());
-        logger.info("✅ Session cleanup completed for: {}", sessionId);
       } catch (Exception e) {
-        logger.error("❌ Error during session cleanup: {}", e.getMessage());
+        logger.warn("Stopping the {} process of session {} failed", serverName(), sessionId, e);
+      } finally {
+        cleanupTempDir(serverProcess.tempDir());
       }
     } else {
-      logger.debug("⚠️ No LSP process found for session: {} (already cleaned up)", sessionId);
+      logger.debug("No {} process for session {}, already cleaned up", serverName(), sessionId);
     }
   }
 
@@ -267,19 +281,22 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
                 try {
                   Files.delete(path);
                 } catch (IOException e) {
-                  logger.warn("⚠️ Failed to delete: {}", path);
+                  logger.debug("Could not delete {}", path, e);
                 }
               });
-      logger.info("🗑️ Temp directory cleaned: {}", tempDir);
     } catch (IOException e) {
-      logger.warn("⚠️ Failed to walk directory {}: {}", tempDir, e.getMessage());
+      logger.warn("Could not delete the directory {}", tempDir, e);
+      return;
+    }
+    if (Files.exists(tempDir)) {
+      logger.warn("Could not fully delete the directory {}", tempDir);
     }
   }
 
   /** Stops the cleanup scheduler and cleans up all remaining sessions. */
   @PreDestroy
   public void shutdown() {
-    logger.info("🛑 Shutting down LSP WebSocket handler...");
+    logger.info("Shutting down the {} WebSocket handler", serverName());
 
     cleanupScheduler.shutdown();
     try {
@@ -291,14 +308,12 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
       Thread.currentThread().interrupt();
     }
 
-    logger.info("🧹 Cleaning up {} remaining sessions...", sessions.size());
+    logger.debug("Cleaning up {} remaining {} sessions", sessions.size(), serverName());
 
     List<String> remainingSessions = new ArrayList<>(sessions.keySet());
     for (String sessionId : remainingSessions) {
       cleanupSession(sessionId, "application shutdown");
     }
-
-    logger.info("✅ LSP WebSocket handler shutdown complete");
   }
 
   /**

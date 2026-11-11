@@ -181,7 +181,8 @@ public class SetupServiceApiHandler {
     } catch (SetupServiceException e) {
       throw e;
     } catch (Exception e) {
-      throw new SetupServiceException("Failed to call setup-service validation: " + e.getMessage());
+      throw new SetupServiceException(
+          "Failed to call setup-service validation: " + e.getMessage(), e);
     }
 
     if (response == null
@@ -225,7 +226,7 @@ public class SetupServiceApiHandler {
       throw e;
     } catch (Exception e) {
       throw new SetupServiceException(
-          "Failed to call setup-service '" + uri + "': " + e.getMessage());
+          "Failed to call setup-service '" + uri + "': " + e.getMessage(), e);
     }
 
     if (artifact == null || artifact.length == 0) {
@@ -281,7 +282,7 @@ public class SetupServiceApiHandler {
       throw e;
     } catch (Exception e) {
       throw new SetupServiceException(
-          "Failed to call setup-service '" + uri + "': " + e.getMessage());
+          "Failed to call setup-service '" + uri + "': " + e.getMessage(), e);
     }
 
     if (genModel == null || genModel.length == 0) {
@@ -337,7 +338,7 @@ public class SetupServiceApiHandler {
       throw e;
     } catch (Exception e) {
       throw new SetupServiceException(
-          "Failed to call setup-service '" + INSPECT_GENMODEL_URL + "': " + e.getMessage());
+          "Failed to call setup-service '" + INSPECT_GENMODEL_URL + "': " + e.getMessage(), e);
     }
   }
 
