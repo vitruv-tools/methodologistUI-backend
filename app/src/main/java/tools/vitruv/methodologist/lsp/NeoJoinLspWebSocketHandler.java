@@ -1,4 +1,4 @@
-package tools.vitruv.methodologist.config;
+package tools.vitruv.methodologist.lsp;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -6,13 +6,13 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import jakarta.annotation.PreDestroy;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,11 +21,9 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -38,25 +36,26 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.adapter.NativeWebSocketSession;
-import org.springframework.web.socket.handler.TextWebSocketHandler;
-import org.springframework.web.util.UriComponentsBuilder;
 import tools.vitruv.methodologist.exception.LspProcessException;
 import tools.vitruv.methodologist.vsum.service.VsumMetaModelService;
 import tools.vitruv.methodologist.vsum.service.VsumMetaModelService.EcoreFile;
-import tools.vitruv.methodologist.vsum.service.VsumUserService;
 
 /**
  * WebSocket handler for NeoJoin LSP connections.
  *
- * <p>The handshake is authenticated by Spring Security (see {@link
- * NeoJoinWebSocketBearerTokenResolver}); this handler additionally checks that the caller is a
- * member of the requested VSUM. For each connection it writes the VSUM's metamodels into a private
- * temporary directory, starts the NeoJoin language server on them and bridges LSP messages between
- * the WebSocket and the process's standard streams.
+ * <p>The handshake is authenticated and the VSUM membership checked before this handler is reached,
+ * see {@code LspVsumAccessInterceptor}; the handler works only with the VSUM that was authorized
+ * there. For each connection it writes the VSUM's metamodels into a private temporary directory,
+ * starts the NeoJoin language server on them and bridges LSP messages between the WebSocket and the
+ * process's standard streams.
+ *
+ * <p>On top of the shared lifecycle it limits the number of running language servers and the heap
+ * of each, stops idle connections, and checks every client message before it reaches the server.
  */
 @Slf4j
 @Component
-public class NeoJoinLspWebSocketHandler extends TextWebSocketHandler {
+public class NeoJoinLspWebSocketHandler
+    extends AbstractLspWebSocketHandler<NeoJoinLspWebSocketHandler.NeoJoinProcess> {
 
   private static final int MAX_HEADER_BYTES = 8 * 1024;
   private static final int MAX_MESSAGE_BYTES = 4 * 1024 * 1024;
@@ -73,8 +72,6 @@ public class NeoJoinLspWebSocketHandler extends TextWebSocketHandler {
   private static final String CONTENT_LENGTH = "Content-Length:";
 
   private final VsumMetaModelService vsumMetaModelService;
-  private final VsumUserService vsumUserService;
-  private final Map<String, NeoJoinSession> sessions = new ConcurrentHashMap<>();
   private final Semaphore processSlots;
   private final int maxProcesses;
   private final long idleTimeoutMillis;
@@ -83,20 +80,16 @@ public class NeoJoinLspWebSocketHandler extends TextWebSocketHandler {
   @Value("${neojoin.ide.jar.path:classpath:lsp/tools.vitruv.neojoin.frontend.ide.jar}")
   private Resource jarResource;
 
-  private record NeoJoinSession(Path directory, Process process) {}
-
   /**
    * Constructs a new {@code NeoJoinLspWebSocketHandler}.
    *
    * @param vsumMetaModelService service providing the VSUM's Ecore files
-   * @param vsumUserService service used to check VSUM membership
    * @param maxProcesses maximum number of language servers running at the same time
    * @param idleTimeoutSeconds time without traffic after which a connection is closed
    * @param maxHeap maximum heap size of each language server JVM, e.g. {@code 512m}
    */
   public NeoJoinLspWebSocketHandler(
       VsumMetaModelService vsumMetaModelService,
-      VsumUserService vsumUserService,
       @Value("${neojoin.lsp.max-processes:10}") int maxProcesses,
       @Value("${neojoin.lsp.idle-timeout-seconds:1800}") long idleTimeoutSeconds,
       @Value("${neojoin.lsp.max-heap:512m}") String maxHeap) {
@@ -110,7 +103,6 @@ public class NeoJoinLspWebSocketHandler extends TextWebSocketHandler {
       throw new IllegalArgumentException("neojoin.lsp.max-heap must be a JVM size such as 512m");
     }
     this.vsumMetaModelService = vsumMetaModelService;
-    this.vsumUserService = vsumUserService;
     this.processSlots = new Semaphore(maxProcesses);
     this.maxProcesses = maxProcesses;
     this.idleTimeoutMillis = TimeUnit.SECONDS.toMillis(idleTimeoutSeconds);
@@ -118,111 +110,92 @@ public class NeoJoinLspWebSocketHandler extends TextWebSocketHandler {
   }
 
   @Override
-  public void afterConnectionEstablished(WebSocketSession session) throws IOException {
-    Long vsumId = extractVsumId(session);
-    if (vsumId == null) {
-      session.close(CloseStatus.BAD_DATA);
-      return;
-    }
-    if (!isMember(session, vsumId)) {
-      log.debug("Rejected NeoJoin LSP session {} for VSUM {}", session.getId(), vsumId);
-      session.close(CloseStatus.POLICY_VIOLATION);
-      return;
+  protected String serverName() {
+    return "NeoJoin LSP";
+  }
+
+  /**
+   * Accepts a connection only for a VSUM authorized during the handshake and while a process slot
+   * is free; the slot is taken here and given back when the language server has stopped.
+   */
+  @Override
+  protected Optional<CloseStatus> rejectConnection(WebSocketSession session) {
+    if (authorizedVsumId(session) == null) {
+      return Optional.of(CloseStatus.BAD_DATA);
     }
     if (!processSlots.tryAcquire()) {
       log.warn(
           "Rejected NeoJoin LSP session {}: limit of {} language servers reached",
           session.getId(),
           maxProcesses);
-      session.close(CloseStatus.SERVICE_OVERLOAD);
-      return;
+      return Optional.of(CloseStatus.SERVICE_OVERLOAD);
     }
+    return Optional.empty();
+  }
 
-    NeoJoinSession neoJoinSession;
-    try {
-      neoJoinSession = start(vsumId);
-    } catch (IOException | RuntimeException e) {
-      log.error("Failed to start NeoJoin LSP for session {}", session.getId(), e);
-      session.close(CloseStatus.SERVER_ERROR);
-      return;
-    }
+  @Override
+  protected void launchFailed(WebSocketSession session) {
+    processSlots.release();
+  }
 
-    // Registered first, so a close callback arriving from now on releases the server.
-    sessions.put(session.getId(), neoJoinSession);
+  /** The error output is discarded: it may contain the user's query or metamodel content. */
+  @Override
+  protected void configureProcess(ProcessBuilder builder) {
+    builder.redirectError(ProcessBuilder.Redirect.DISCARD);
+  }
+
+  @Override
+  protected void sessionRegistered(WebSocketSession session) {
     applyIdleTimeout(session);
-    // Sent before the reader thread starts, so the session is never written concurrently.
-    if (!sendWorkspaceReady(session, neoJoinSession)) {
-      stopSession(session.getId());
-      closeQuietly(session);
-      return;
-    }
-    // The client may have disconnected while the server was starting.
-    if (!session.isOpen()) {
-      stopSession(session.getId());
-      return;
-    }
-    Thread.ofVirtual()
-        .name("neojoin-lsp-" + session.getId())
-        .start(() -> readFromNeoJoin(session, neoJoinSession));
   }
 
   @Override
-  protected void handleTextMessage(WebSocketSession session, TextMessage message)
-      throws IOException {
-    NeoJoinSession neoJoinSession = sessions.get(session.getId());
-    if (neoJoinSession == null) {
-      session.close(CloseStatus.SERVER_ERROR);
-      return;
-    }
+  protected boolean announceWorkspaceBeforeReading() {
+    return true;
+  }
 
-    Optional<String> forwarded;
+  @Override
+  protected long inactivityTimeoutMillis() {
+    return idleTimeoutMillis;
+  }
+
+  @Override
+  protected void noSessionProcess(WebSocketSession session) throws IOException {
+    session.close(CloseStatus.SERVER_ERROR);
+  }
+
+  /**
+   * Prepares the session directory: the VSUM's metamodels, an empty workspace and the language
+   * server jar. If a step fails, everything created here is removed.
+   */
+  @Override
+  protected LspLaunch prepareLaunch(WebSocketSession session) throws IOException {
+    Long vsumId = authorizedVsumId(session);
+    Path sessionDir = null;
     try {
-      forwarded =
-          restrictToWorkspace(
-              message.getPayload(), neoJoinSession.directory().resolve(WORKSPACE_DIRECTORY));
-    } catch (LspProcessException e) {
-      // The message is not logged, as it may contain the user's query.
-      log.debug("Rejected message on NeoJoin LSP session {}: {}", session.getId(), e.getMessage());
-      session.close(CloseStatus.BAD_DATA);
-      return;
-    }
-    if (forwarded.isEmpty()) {
-      return;
-    }
-
-    byte[] payload = forwarded.get().getBytes(StandardCharsets.UTF_8);
-    byte[] header =
-        (CONTENT_LENGTH + " " + payload.length + "\r\n\r\n").getBytes(StandardCharsets.US_ASCII);
-
-    OutputStream output = neoJoinSession.process().getOutputStream();
-    synchronized (output) {
-      output.write(header);
-      output.write(payload);
-      output.flush();
+      sessionDir = createSessionDirectory();
+      Path ecoreDir = Files.createDirectory(sessionDir.resolve("ecore"));
+      Path workspaceDir = Files.createDirectory(sessionDir.resolve(WORKSPACE_DIRECTORY));
+      writeEcoreFiles(ecoreDir, vsumMetaModelService.findEcoreFiles(vsumId));
+      Path jarPath = sessionDir.resolve("neojoin-ide.jar");
+      try (InputStream input = jarResource.getInputStream()) {
+        Files.copy(input, jarPath);
+      }
+      return new LspLaunch(sessionDir, workspaceDir, neoJoinCommand(jarPath, ecoreDir));
+    } catch (IOException | RuntimeException e) {
+      deleteDirectory(sessionDir);
+      throw e;
     }
   }
 
   @Override
-  public void handleTransportError(WebSocketSession session, Throwable exception) {
-    log.debug("NeoJoin LSP transport error for session {}", session.getId(), exception);
-    stopSession(session.getId());
-  }
-
-  @Override
-  public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-    stopSession(session.getId());
-  }
-
-  /** Stops all running NeoJoin language servers and deletes their temporary directories. */
-  @PreDestroy
-  public void shutdown() {
-    List.copyOf(sessions.keySet()).forEach(this::stopSession);
-  }
-
-  private boolean isMember(WebSocketSession session, Long vsumId) {
-    return session.getPrincipal() instanceof KeycloakAuthentication authentication
-        && authentication.isAuthenticated()
-        && vsumUserService.isMember(vsumId, authentication.getParsedToken().getEmail());
+  protected NeoJoinProcess createProcess(
+      WebSocketSession session,
+      Process process,
+      BufferedWriter writer,
+      BufferedReader reader,
+      Path sessionDir) {
+    return new NeoJoinProcess(session, process, sessionDir);
   }
 
   /**
@@ -283,40 +256,6 @@ public class NeoJoinLspWebSocketHandler extends TextWebSocketHandler {
     }
   }
 
-  /**
-   * Prepares the session directory and starts the language server. The caller must hold a process
-   * slot; if a step fails, everything created here is removed and the slot is released.
-   */
-  private NeoJoinSession start(Long vsumId) throws IOException {
-    Path sessionDir = null;
-    Process process = null;
-    try {
-      sessionDir = createSessionDirectory();
-      Path ecoreDir = Files.createDirectory(sessionDir.resolve("ecore"));
-      Path workspaceDir = Files.createDirectory(sessionDir.resolve(WORKSPACE_DIRECTORY));
-      writeEcoreFiles(ecoreDir, vsumMetaModelService.findEcoreFiles(vsumId));
-      process = startNeoJoin(sessionDir, ecoreDir, workspaceDir);
-      return new NeoJoinSession(sessionDir, process);
-    } catch (IOException | RuntimeException e) {
-      release(process, sessionDir);
-      throw e;
-    }
-  }
-
-  private static boolean sendWorkspaceReady(
-      WebSocketSession session, NeoJoinSession neoJoinSession) {
-    URI rootUri = neoJoinSession.directory().resolve(WORKSPACE_DIRECTORY).toUri();
-    try {
-      session.sendMessage(
-          new TextMessage(
-              String.format("{\"type\":\"workspaceReady\",\"rootUri\":\"%s\"}", rootUri)));
-      return true;
-    } catch (IOException | IllegalStateException e) {
-      log.debug("Could not send workspaceReady to NeoJoin LSP session {}", session.getId(), e);
-      return false;
-    }
-  }
-
   private static Path createSessionDirectory() throws IOException {
     try {
       return Files.createTempDirectory(
@@ -351,20 +290,6 @@ public class NeoJoinLspWebSocketHandler extends TextWebSocketHandler {
     }
   }
 
-  private Process startNeoJoin(Path sessionDir, Path ecoreDir, Path workspaceDir)
-      throws IOException {
-    Path jarPath = sessionDir.resolve("neojoin-ide.jar");
-    try (InputStream input = jarResource.getInputStream()) {
-      Files.copy(input, jarPath);
-    }
-
-    ProcessBuilder builder = new ProcessBuilder(neoJoinCommand(jarPath, ecoreDir));
-    builder.directory(workspaceDir.toFile());
-    // Discarded: it may contain the user's query or metamodel content.
-    builder.redirectError(ProcessBuilder.Redirect.DISCARD);
-    return builder.start();
-  }
-
   List<String> neoJoinCommand(Path jarPath, Path ecoreDir) {
     String javaExecutable = Path.of(System.getProperty("java.home"), "bin", "java").toString();
     return List.of(
@@ -374,34 +299,6 @@ public class NeoJoinLspWebSocketHandler extends TextWebSocketHandler {
         jarPath.toString(),
         "--meta-model-path",
         ecoreDir.toString());
-  }
-
-  private void readFromNeoJoin(WebSocketSession session, NeoJoinSession neoJoinSession) {
-    try (InputStream input = neoJoinSession.process().getInputStream()) {
-      int contentLength;
-      while (session.isOpen() && (contentLength = readContentLength(input)) != -1) {
-        byte[] payload = input.readNBytes(contentLength);
-        if (payload.length != contentLength) {
-          throw new EOFException("Incomplete LSP message");
-        }
-        session.sendMessage(new TextMessage(new String(payload, StandardCharsets.UTF_8)));
-      }
-    } catch (IOException | IllegalStateException e) {
-      // IllegalStateException: Tomcat refuses to send once the client has closed the session.
-      log.debug("NeoJoin LSP output closed for session {}", session.getId(), e);
-    } finally {
-      boolean clientConnected = session.isOpen();
-      // Released here as well, so cleanup does not depend on a WebSocket close callback. If another
-      // caller stopped the server first (client close, shutdown), its output ended for that reason.
-      if (stopSession(session.getId()) && clientConnected) {
-        Process process = neoJoinSession.process();
-        log.warn(
-            "NeoJoin LSP for session {} stopped unexpectedly (exit code {})",
-            session.getId(),
-            process.isAlive() ? "none" : process.exitValue());
-        closeQuietly(session);
-      }
-    }
   }
 
   /**
@@ -450,33 +347,6 @@ public class NeoJoinLspWebSocketHandler extends TextWebSocketHandler {
       throw new IOException("Invalid LSP message size");
     }
     return contentLength;
-  }
-
-  private static void closeQuietly(WebSocketSession session) {
-    try {
-      session.close(CloseStatus.SERVER_ERROR);
-    } catch (IOException e) {
-      log.debug("Could not close NeoJoin LSP session {}", session.getId(), e);
-    }
-  }
-
-  /**
-   * Stops the session's language server once; later calls for the same session do nothing.
-   *
-   * @return {@code true} if this call stopped it
-   */
-  private boolean stopSession(String sessionId) {
-    NeoJoinSession neoJoinSession = sessions.remove(sessionId);
-    if (neoJoinSession == null) {
-      return false;
-    }
-    release(neoJoinSession.process(), neoJoinSession.directory());
-    return true;
-  }
-
-  /** Stops the process and deletes the directory, then frees the process slot. */
-  private void release(Process process, Path directory) {
-    stop(process, directory).whenComplete((ignored, error) -> processSlots.release());
   }
 
   /**
@@ -538,19 +408,80 @@ public class NeoJoinLspWebSocketHandler extends TextWebSocketHandler {
     }
   }
 
-  private static Long extractVsumId(WebSocketSession session) {
-    if (session.getUri() == null) {
-      return null;
+  /**
+   * A NeoJoin language server bound to one WebSocket session. Unlike the other servers it is framed
+   * byte-exact and its stopping, including deleting the session directory, is deferred until the
+   * process has really exited, so it manages its directory itself.
+   */
+  final class NeoJoinProcess implements LspSessionProcess {
+    private final WebSocketSession session;
+    private final Process process;
+    private final Path directory;
+
+    NeoJoinProcess(WebSocketSession session, Process process, Path directory) {
+      this.session = session;
+      this.process = process;
+      this.directory = directory;
     }
-    List<String> parameters =
-        UriComponentsBuilder.fromUri(session.getUri()).build().getQueryParams().get("vsumId");
-    if (parameters == null || parameters.size() != 1) {
-      return null;
+
+    @Override
+    public void sendToLsp(String message) throws IOException {
+      Optional<String> forwarded =
+          restrictToWorkspace(message, directory.resolve(WORKSPACE_DIRECTORY));
+      if (forwarded.isEmpty()) {
+        return;
+      }
+
+      byte[] payload = forwarded.get().getBytes(StandardCharsets.UTF_8);
+      byte[] header =
+          (CONTENT_LENGTH + " " + payload.length + "\r\n\r\n").getBytes(StandardCharsets.US_ASCII);
+
+      OutputStream output = process.getOutputStream();
+      synchronized (output) {
+        output.write(header);
+        output.write(payload);
+        output.flush();
+      }
     }
-    try {
-      long vsumId = Long.parseLong(parameters.get(0));
-      return vsumId > 0 ? vsumId : null;
-    } catch (NumberFormatException e) {
+
+    @Override
+    public void readFromLsp() {
+      try (InputStream input = process.getInputStream()) {
+        int contentLength;
+        while (session.isOpen() && (contentLength = readContentLength(input)) != -1) {
+          byte[] payload = input.readNBytes(contentLength);
+          if (payload.length != contentLength) {
+            throw new EOFException("Incomplete LSP message");
+          }
+          session.sendMessage(new TextMessage(new String(payload, StandardCharsets.UTF_8)));
+        }
+      } catch (IOException | IllegalStateException e) {
+        // IllegalStateException: Tomcat refuses to send once the client has closed the session.
+        log.debug("NeoJoin LSP output closed for session {}", session.getId(), e);
+      } finally {
+        boolean clientConnected = session.isOpen();
+        // Released here as well, so cleanup does not depend on a WebSocket close callback. If
+        // another caller stopped the server first (client close, shutdown), its output ended for
+        // that reason.
+        if (cleanupSession(session.getId(), "language server output ended") && clientConnected) {
+          log.warn(
+              "NeoJoin LSP for session {} stopped unexpectedly (exit code {})",
+              session.getId(),
+              process.isAlive() ? "none" : process.exitValue());
+          closeQuietly(session);
+        }
+      }
+    }
+
+    /** Stops the process and deletes the directory, then frees the process slot. */
+    @Override
+    public void destroy() {
+      stop(process, directory).whenComplete((ignored, error) -> processSlots.release());
+    }
+
+    /** {@code null}: {@link #destroy()} deletes the directory once the process has exited. */
+    @Override
+    public Path tempDir() {
       return null;
     }
   }

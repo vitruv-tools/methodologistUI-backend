@@ -1,4 +1,4 @@
-package tools.vitruv.methodologist.config;
+package tools.vitruv.methodologist.lsp;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -24,6 +24,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,7 +39,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.springframework.core.io.FileSystemResource;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -47,7 +47,6 @@ import org.springframework.web.socket.adapter.NativeWebSocketSession;
 import tools.vitruv.methodologist.exception.LspProcessException;
 import tools.vitruv.methodologist.vsum.service.VsumMetaModelService;
 import tools.vitruv.methodologist.vsum.service.VsumMetaModelService.EcoreFile;
-import tools.vitruv.methodologist.vsum.service.VsumUserService;
 
 /** Unit tests for {@link NeoJoinLspWebSocketHandler}. */
 class NeoJoinLspWebSocketHandlerTest {
@@ -60,14 +59,12 @@ class NeoJoinLspWebSocketHandlerTest {
   @TempDir Path tempDir;
 
   private VsumMetaModelService vsumMetaModelService;
-  private VsumUserService vsumUserService;
   private NeoJoinLspWebSocketHandler handler;
   private WebSocketSession session;
 
   @BeforeEach
   void setUp() {
     vsumMetaModelService = mock(VsumMetaModelService.class);
-    vsumUserService = mock(VsumUserService.class);
     handler = newHandler(MAX_PROCESSES, "512m");
     // A native session, so the idle timeout can be observed.
     session = mock(NativeWebSocketSession.class);
@@ -75,48 +72,26 @@ class NeoJoinLspWebSocketHandlerTest {
   }
 
   @Test
-  void afterConnectionEstablished_withoutVsumId_closesWithBadData() throws Exception {
+  void afterConnectionEstablished_withoutAuthorizedVsum_closesWithBadData() throws Exception {
     when(session.getUri()).thenReturn(URI.create("ws://localhost/neojoin-lsp"));
 
     handler.afterConnectionEstablished(session);
 
     verify(session).close(CloseStatus.BAD_DATA);
-    verifyNoInteractions(vsumUserService, vsumMetaModelService);
+    verifyNoInteractions(vsumMetaModelService);
+    assertThat(processSlots().availablePermits()).isEqualTo(MAX_PROCESSES);
   }
 
   @Test
-  void afterConnectionEstablished_withInvalidVsumId_closesWithBadData() throws Exception {
-    for (String query : List.of("vsumId=abc", "vsumId=0", "vsumId=-1", "vsumId=1&vsumId=2")) {
-      WebSocketSession invalid = mock(WebSocketSession.class);
-      when(invalid.getUri()).thenReturn(URI.create("ws://localhost/neojoin-lsp?" + query));
-
-      handler.afterConnectionEstablished(invalid);
-
-      verify(invalid).close(CloseStatus.BAD_DATA);
-    }
-    verifyNoInteractions(vsumUserService, vsumMetaModelService);
-  }
-
-  @Test
-  void afterConnectionEstablished_withoutPrincipal_closesWithPolicyViolation() throws Exception {
+  void afterConnectionEstablished_ignoresVsumIdInTheUrl_withoutAuthorizedVsum() throws Exception {
+    // Membership is checked by the handshake interceptor, which stores the checked ID; the
+    // handler never trusts the URL.
     when(session.getUri()).thenReturn(URI.create("ws://localhost/neojoin-lsp?vsumId=5"));
 
     handler.afterConnectionEstablished(session);
 
-    verify(session).close(CloseStatus.POLICY_VIOLATION);
-    verifyNoInteractions(vsumUserService, vsumMetaModelService);
-  }
-
-  @Test
-  void afterConnectionEstablished_forNonMember_closesWithPolicyViolation() throws Exception {
-    when(session.getUri()).thenReturn(URI.create("ws://localhost/neojoin-lsp?vsumId=5"));
-    when(session.getPrincipal()).thenReturn(authentication());
-    when(vsumUserService.isMember(5L, EMAIL)).thenReturn(false);
-
-    handler.afterConnectionEstablished(session);
-
-    verify(session).close(CloseStatus.POLICY_VIOLATION);
-    verify(vsumMetaModelService, never()).findEcoreFiles(anyLong());
+    verify(session).close(CloseStatus.BAD_DATA);
+    verifyNoInteractions(vsumMetaModelService);
   }
 
   @Test
@@ -288,9 +263,7 @@ class NeoJoinLspWebSocketHandlerTest {
     for (String heap : List.of("", "0m", "512 m", "512m -Dx=y", "-Xmx1g")) {
       assertThatThrownBy(() -> newHandler(1, heap)).isInstanceOf(IllegalArgumentException.class);
     }
-    assertThatThrownBy(
-            () ->
-                new NeoJoinLspWebSocketHandler(vsumMetaModelService, vsumUserService, 1, 0, "512m"))
+    assertThatThrownBy(() -> new NeoJoinLspWebSocketHandler(vsumMetaModelService, 1, 0, "512m"))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -402,7 +375,7 @@ class NeoJoinLspWebSocketHandlerTest {
   }
 
   @Test
-  void closeTransportErrorAndShutdown_withoutRunningServer_doNothing() {
+  void closeTransportErrorAndShutdown_withoutRunningServer_doNothing() throws Exception {
     handler.afterConnectionClosed(session, CloseStatus.NORMAL);
     handler.handleTransportError(session, new IOException("connection reset"));
     handler.shutdown();
@@ -475,15 +448,16 @@ class NeoJoinLspWebSocketHandlerTest {
 
   private void givenMemberSession() {
     when(session.getUri()).thenReturn(URI.create("ws://localhost/neojoin-lsp?vsumId=5"));
-    when(session.getPrincipal()).thenReturn(authentication());
-    when(vsumUserService.isMember(5L, EMAIL)).thenReturn(true);
+    // As stored by the handshake interceptor after it checked the membership.
+    when(session.getAttributes())
+        .thenReturn(new HashMap<>(Map.of(AbstractLspWebSocketHandler.VSUM_ID_ATTRIBUTE, 5L)));
     when(vsumMetaModelService.findEcoreFiles(5L))
         .thenReturn(List.of(new EcoreFile("model.ecore", new byte[] {1})));
   }
 
   private NeoJoinLspWebSocketHandler newHandler(int maxProcesses, String maxHeap) {
     return new NeoJoinLspWebSocketHandler(
-        vsumMetaModelService, vsumUserService, maxProcesses, IDLE_TIMEOUT_SECONDS, maxHeap);
+        vsumMetaModelService, maxProcesses, IDLE_TIMEOUT_SECONDS, maxHeap);
   }
 
   private Semaphore processSlots() {
@@ -502,11 +476,6 @@ class NeoJoinLspWebSocketHandlerTest {
   @SuppressWarnings("unchecked") // the field's declared type is Map<String, NeoJoinSession>
   private Map<String, ?> sessions() {
     return (Map<String, ?>) ReflectionTestUtils.getField(handler, "sessions");
-  }
-
-  private static KeycloakAuthentication authentication() {
-    Jwt jwt = Jwt.withTokenValue("token").header("alg", "none").claim("email", EMAIL).build();
-    return new KeycloakAuthentication(jwt, List.of());
   }
 
   private static InputStream stream(String content) {

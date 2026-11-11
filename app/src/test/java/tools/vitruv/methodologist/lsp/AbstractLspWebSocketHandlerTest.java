@@ -13,7 +13,9 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -151,12 +153,18 @@ class AbstractLspWebSocketHandlerTest {
   }
 
   @Test
-  void extractQueryParam_parsesNumericValuesOnly() throws Exception {
-    when(session.getUri()).thenReturn(new URI("ws://localhost/lsp?foo=bar&vsumId=7&bad=x"));
+  void authorizedVsumId_readsOnlyTheAttributeSetByTheHandshake() throws Exception {
+    when(session.getUri()).thenReturn(new URI("ws://localhost/lsp?vsumId=7"));
+    Map<String, Object> attributes = new HashMap<>();
+    when(session.getAttributes()).thenReturn(attributes);
 
-    assertThat(handler.extractQueryParam(session, "vsumId")).isEqualTo(7L);
-    assertThat(handler.extractQueryParam(session, "missing")).isNull();
-    assertThat(handler.extractQueryParam(session, "bad")).isNull();
+    assertThat(handler.authorizedVsumId(session)).isNull();
+
+    attributes.put(AbstractLspWebSocketHandler.VSUM_ID_ATTRIBUTE, 9L);
+    assertThat(handler.authorizedVsumId(session)).isEqualTo(9L);
+
+    attributes.put(AbstractLspWebSocketHandler.VSUM_ID_ATTRIBUTE, "9");
+    assertThat(handler.authorizedVsumId(session)).isNull();
   }
 
   private ScheduledThreadPoolExecutor scheduler() {

@@ -103,7 +103,7 @@ public class OclLspWebSocketHandler
   @Override
   protected LspLaunch prepareLaunch(WebSocketSession session) throws IOException {
     String sessionId = session.getId();
-    Long vsumId = extractQueryParam(session, "vsumId");
+    Long vsumId = authorizedVsumId(session);
 
     // Session dir lives inside the private app base — never directly in /tmp
     Path sessionDir = createPrivateDirectory(appTempBase, "ocl-lsp-" + sessionId + "-");

@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static tools.vitruv.methodologist.lsp.AbstractLspWebSocketHandler.VSUM_ID_ATTRIBUTE;
 
 import java.net.URI;
 import java.nio.file.Files;
@@ -65,6 +66,7 @@ class OclLspWebSocketHandlerTest {
   void afterConnectionEstablished_withVsumId_loadsMetamodels() throws Exception {
     URI uri = new URI("ws://localhost/ocl-lsp?vsumId=1");
     when(session.getUri()).thenReturn(uri);
+    session.getAttributes().put(VSUM_ID_ATTRIBUTE, 1L);
 
     MetaModel metamodel = createMetaModel(1L, "test.ecore", "test content".getBytes());
     when(vsumMetaModelService.findAccessibleByProject(1L)).thenReturn(List.of(metamodel));
@@ -77,6 +79,18 @@ class OclLspWebSocketHandlerTest {
 
     verify(vsumMetaModelService).findAccessibleByProject(1L);
     verify(session, never()).close(any(CloseStatus.class));
+  }
+
+  @Test
+  void afterConnectionEstablished_ignoresVsumIdInTheUrl_withoutAuthorizedVsum() throws Exception {
+    when(session.getUri()).thenReturn(new URI("ws://localhost/ocl-lsp?vsumId=1"));
+    Path fakeJar = Files.createTempFile("vitruvocl-ls-", ".jar");
+    Files.write(fakeJar, "not-a-real-jar".getBytes());
+    ReflectionTestUtils.setField(handler, "jarResource", new FileSystemResource(fakeJar.toFile()));
+
+    handler.afterConnectionEstablished(session);
+
+    verify(vsumMetaModelService, never()).findAccessibleByProject(any());
   }
 
   @Test
@@ -98,6 +112,7 @@ class OclLspWebSocketHandlerTest {
   void afterConnectionEstablished_withMultipleMetamodels_writesAllEcoreFiles() throws Exception {
     URI uri = new URI("ws://localhost/ocl-lsp?vsumId=10");
     when(session.getUri()).thenReturn(uri);
+    session.getAttributes().put(VSUM_ID_ATTRIBUTE, 10L);
 
     MetaModel mm1 = createMetaModel(1L, "model1.ecore", "content1".getBytes());
     MetaModel mm2 = createMetaModel(2L, "model2.ecore", "content2".getBytes());
@@ -117,6 +132,7 @@ class OclLspWebSocketHandlerTest {
       throws Exception {
     URI uri = new URI("ws://localhost/ocl-lsp?vsumId=7");
     when(session.getUri()).thenReturn(uri);
+    session.getAttributes().put(VSUM_ID_ATTRIBUTE, 7L);
 
     MetaModel evil = createMetaModel(1L, "../../../escaped.ecore", "content".getBytes());
     when(vsumMetaModelService.findAccessibleByProject(7L)).thenReturn(List.of(evil));
@@ -141,6 +157,7 @@ class OclLspWebSocketHandlerTest {
   void afterConnectionEstablished_withEmptyMetamodelList_succeeds() throws Exception {
     URI uri = new URI("ws://localhost/ocl-lsp?vsumId=5");
     when(session.getUri()).thenReturn(uri);
+    session.getAttributes().put(VSUM_ID_ATTRIBUTE, 5L);
 
     when(vsumMetaModelService.findAccessibleByProject(5L)).thenReturn(Collections.emptyList());
 
@@ -158,6 +175,7 @@ class OclLspWebSocketHandlerTest {
   void afterConnectionClosed_removesSession() throws Exception {
     URI uri = new URI("ws://localhost/ocl-lsp?vsumId=1");
     when(session.getUri()).thenReturn(uri);
+    session.getAttributes().put(VSUM_ID_ATTRIBUTE, 1L);
     when(vsumMetaModelService.findAccessibleByProject(1L)).thenReturn(Collections.emptyList());
 
     Path fakeJar = Files.createTempFile("vitruvocl-ls-", ".jar");
@@ -181,6 +199,7 @@ class OclLspWebSocketHandlerTest {
   void shutdown_destroysSessionsAndDeletesApplicationTempBase() throws Exception {
     URI uri = new URI("ws://localhost/ocl-lsp?vsumId=1");
     when(session.getUri()).thenReturn(uri);
+    session.getAttributes().put(VSUM_ID_ATTRIBUTE, 1L);
     when(vsumMetaModelService.findAccessibleByProject(1L)).thenReturn(Collections.emptyList());
 
     Path fakeJar = Files.createTempFile("vitruvocl-ls-", ".jar");
