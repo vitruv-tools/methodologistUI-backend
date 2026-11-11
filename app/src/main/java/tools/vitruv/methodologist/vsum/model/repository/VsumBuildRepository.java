@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumBuild;
@@ -41,13 +42,16 @@ public interface VsumBuildRepository extends CrudRepository<VsumBuild, Long> {
   Optional<VsumBuildStatus> findStatusById(@Param("id") Long id);
 
   /**
-   * Reads the current error message of a build from the database, see {@link #findStatusById}.
+   * Reads why a build failed from the database, see {@link #findStatusById}.
    *
    * @param id the build id
-   * @return the error message, or empty if the build does not exist or has none
+   * @return the error message, error code and problems of the build, or empty if the build does not
+   *     exist
    */
-  @Query("SELECT b.errorMessage FROM VsumBuild b WHERE b.id = :id")
-  Optional<String> findErrorMessageById(@Param("id") Long id);
+  @Query(
+      "SELECT b.errorMessage AS errorMessage, b.errorCode AS errorCode, b.problems AS problems"
+          + " FROM VsumBuild b WHERE b.id = :id")
+  Optional<Failure> findFailureById(@Param("id") Long id);
 
   /**
    * Reads the JAR of a build from the database, see {@link #findStatusById}.
@@ -104,4 +108,16 @@ public interface VsumBuildRepository extends CrudRepository<VsumBuild, Long> {
    * @return the number of builds referencing it
    */
   long countByArtifact(FileStorage artifact);
+
+  /** Why a build failed; all values are {@code null} unless it did. */
+  interface Failure {
+    /** The error message of the build. */
+    String getErrorMessage();
+
+    /** The error code of the setup-service. */
+    String getErrorCode();
+
+    /** The problems the setup-service reported. */
+    List<BuildProblem> getProblems();
+  }
 }

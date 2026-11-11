@@ -16,6 +16,7 @@ import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.OwnerCannotAddSelfAsMemberException;
 import tools.vitruv.methodologist.exception.VsumInvitationAlreadyExistsException;
 import tools.vitruv.methodologist.general.service.SmtpMailService;
+import tools.vitruv.methodologist.log.AuditLog;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumInvitationStatus;
@@ -138,6 +139,13 @@ public class VsumInvitationService {
     invitation.setStatus(VsumInvitationStatus.ACCEPTED);
     invitation.setAcceptedAt(Instant.now());
     vsumInvitationRepository.save(invitation);
+    AuditLog.afterCommit(
+        () ->
+            log.info(
+                "Invited user {} to VSUM {} (invitation {})",
+                invitee.getId(),
+                vsum.getId(),
+                invitation.getId()));
   }
 
   private void inviteUnregisteredEmail(Vsum vsum, User inviter, String inviteeEmail) {
@@ -149,6 +157,12 @@ public class VsumInvitationService {
     VsumInvitation invitation = newInvitation(vsum, inviter, inviteeEmail);
     invitation.setStatus(VsumInvitationStatus.PENDING);
     vsumInvitationRepository.save(invitation);
+    AuditLog.afterCommit(
+        () ->
+            log.info(
+                "Invited an unregistered email address to VSUM {} (invitation {})",
+                vsum.getId(),
+                invitation.getId()));
   }
 
   /**
@@ -184,6 +198,13 @@ public class VsumInvitationService {
       invitation.setStatus(VsumInvitationStatus.ACCEPTED);
       invitation.setAcceptedAt(Instant.now());
       vsumInvitationRepository.save(invitation);
+      AuditLog.afterCommit(
+          () ->
+              log.info(
+                  "Applied invitation {} to VSUM {} for user {}",
+                  invitation.getId(),
+                  vsum.getId(),
+                  user.getId()));
     }
   }
 

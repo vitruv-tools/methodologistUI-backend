@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
 import java.util.List;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
@@ -28,4 +29,16 @@ public interface MetaModelRelationRepository extends CrudRepository<MetaModelRel
    * @param vsum the VSUM whose metamodel relations should be deleted
    */
   void deleteMetaModelRelationByVsum(Vsum vsum);
+
+  /**
+   * Returns the ids of the VSUMs whose relations use the given reaction file.
+   *
+   * @param reactionFileId the id of the reaction file
+   * @return the distinct VSUM ids; empty if no relation uses the file
+   */
+  @Query(
+      """
+          select distinct r.vsum.id from MetaModelRelation r
+          where r.reactionFileStorage.id = ?1""")
+  List<Long> findVsumIdsByReactionFileId(Long reactionFileId);
 }

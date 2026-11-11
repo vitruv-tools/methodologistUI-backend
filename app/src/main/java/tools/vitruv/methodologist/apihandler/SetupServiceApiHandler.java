@@ -1,7 +1,14 @@
 package tools.vitruv.methodologist.apihandler;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpStatus;
@@ -12,36 +19,49 @@ import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 import tools.vitruv.methodologist.apihandler.dto.response.GenModelInspectionResponse;
+import tools.vitruv.methodologist.apihandler.dto.response.VsumValidationResult;
+import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.exception.SetupServiceException;
 import tools.vitruv.methodologist.general.model.FileStorage;
 
 /**
  * Component responsible for handling API calls to the external setup-service. Provides
- * functionality to build a VSUM from the supplied metamodel, genmodel and reaction files and
- * download the generated artifact (ZIP or JAR) as raw bytes.
+ * functionality to build a VSUM from the supplied metamodel, reaction, constraint and view files
+ * and download the generated artifact (ZIP or JAR) as raw bytes. The setup-service generates the
+ * genmodels itself.
  */
 @Component
 public class SetupServiceApiHandler {
-  public static final int DEFAULT_RESPONSE_TIMEOUT_IN_SECONDS = 300;
+  /**
+   * Must exceed the setup-service's own build timeout (15 minutes by default), since a build runs a
+   * full Maven build and may wait for a free build slot.
+   */
+  public static final int DEFAULT_RESPONSE_TIMEOUT_IN_SECONDS = 960;
+
   public static final int DEFAULT_MAX_RESPONSE_SIZE_IN_BYTES = 524_288_000;
-  public static final String BUILD_URL = "/api/vsum/build";
+  public static final String PROJECT_URL = "/api/vsum/project";
   public static final String JAR_URL = "/api/vsum/jar";
+  public static final String VALIDATE_URL = "/api/vsum/validate";
   public static final String PROCESS_GENMODEL_URL = "/api/genmodel/process";
   public static final String INSPECT_GENMODEL_URL = "/api/genmodel/inspect";
   public static final String GENERATE_GENMODEL_URL = "/api/genmodel/generate";
   public static final String METAMODEL_FILES_PART = "metamodelFiles";
-  public static final String GENMODEL_FILES_PART = "genmodelFiles";
   public static final String REACTION_FILES_PART = "reactionFiles";
+  public static final String CONSTRAINT_FILES_PART = "constraintFiles";
+  public static final String VIEW_FILES_PART = "viewFiles";
   public static final String FILE_PART = "file";
 
   private static final MediaType APPLICATION_ZIP = MediaType.parseMediaType("application/zip");
   private static final MediaType APPLICATION_JAR =
       MediaType.parseMediaType("application/java-archive");
+
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private final WebClient webClient;
 
@@ -82,49 +102,112 @@ public class SetupServiceApiHandler {
   }
 
   /**
-   * Builds a VSUM and downloads the result as a ZIP archive.
+   * Generates the VSUM project via the setup-service and returns it as a ZIP archive. The project
+   * follows the Methodologist Template and is not built; the user builds it with Maven.
    *
    * @param metamodelFiles the metamodel (.ecore) files
-   * @param genmodelFiles the genmodel (.genmodel) files
-   * @param reactionFiles the reaction (.reactions) files
-   * @return the generated ZIP artifact as a byte array
+   * @param reactionFiles the reaction (.reactions) files, may be empty
+   * @param constraintFiles the VitruvOCL (.ocl) constraint files, may be empty
+   * @param viewFiles the NeoJoin view definition files, may be empty
+   * @return the ZIP archive bytes
    * @throws SetupServiceException if the setup-service call fails or returns an empty artifact
    */
-  public byte[] buildVsumZipOrThrow(
+  public byte[] generateVsumProjectOrThrow(
       List<FileStorage> metamodelFiles,
-      List<FileStorage> genmodelFiles,
-      List<FileStorage> reactionFiles) {
+      List<FileStorage> reactionFiles,
+      List<FileStorage> constraintFiles,
+      List<FileStorage> viewFiles) {
     return requestArtifactOrThrow(
-        BUILD_URL, APPLICATION_ZIP, metamodelFiles, genmodelFiles, reactionFiles);
+        PROJECT_URL, APPLICATION_ZIP, metamodelFiles, reactionFiles, constraintFiles, viewFiles);
   }
 
   /**
-   * Builds a VSUM and downloads the result as a JAR file.
+   * Builds a VSUM via the setup-service and returns its executable jar-with-dependencies.
    *
    * @param metamodelFiles the metamodel (.ecore) files
-   * @param genmodelFiles the genmodel (.genmodel) files
-   * @param reactionFiles the reaction (.reactions) files
-   * @return the generated JAR artifact as a byte array
+   * @param reactionFiles the reaction (.reactions) files, may be empty
+   * @param constraintFiles the VitruvOCL (.ocl) constraint files, may be empty
+   * @param viewFiles the NeoJoin view definition files, may be empty
+   * @return the JAR bytes
    * @throws SetupServiceException if the setup-service call fails or returns an empty artifact
    */
   public byte[] buildVsumJarOrThrow(
       List<FileStorage> metamodelFiles,
-      List<FileStorage> genmodelFiles,
-      List<FileStorage> reactionFiles) {
+      List<FileStorage> reactionFiles,
+      List<FileStorage> constraintFiles,
+      List<FileStorage> viewFiles) {
     return requestArtifactOrThrow(
-        JAR_URL, APPLICATION_JAR, metamodelFiles, genmodelFiles, reactionFiles);
+        JAR_URL, APPLICATION_JAR, metamodelFiles, reactionFiles, constraintFiles, viewFiles);
+  }
+
+  /**
+   * Validates a VSUM via the setup-service without building it. An invalid VSUM is reported in the
+   * result, not as an exception.
+   *
+   * @param metamodelFiles the metamodel (.ecore) files
+   * @param reactionFiles the reaction (.reactions) files, may be empty
+   * @param constraintFiles the VitruvOCL (.ocl) constraint files, may be empty
+   * @param viewFiles the NeoJoin view definition files, may be empty
+   * @return whether the VSUM is valid and the problems found
+   * @throws SetupServiceException if the setup-service call fails or returns a malformed result
+   */
+  public VsumValidationResult validateVsum(
+      List<FileStorage> metamodelFiles,
+      List<FileStorage> reactionFiles,
+      List<FileStorage> constraintFiles,
+      List<FileStorage> viewFiles) {
+
+    MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
+    UploadedFiles uploads = new UploadedFiles();
+
+    addFileParts(bodyBuilder, uploads, METAMODEL_FILES_PART, metamodelFiles, ".ecore");
+    addFileParts(bodyBuilder, uploads, REACTION_FILES_PART, reactionFiles, ".reactions");
+    addFileParts(bodyBuilder, uploads, CONSTRAINT_FILES_PART, constraintFiles, ".ocl");
+    addFileParts(bodyBuilder, uploads, VIEW_FILES_PART, viewFiles, null);
+
+    JsonNode response;
+    try {
+      response =
+          webClient
+              .post()
+              .uri(VALIDATE_URL)
+              .contentType(MediaType.MULTIPART_FORM_DATA)
+              .accept(MediaType.APPLICATION_JSON)
+              .body(BodyInserters.fromMultipartData(bodyBuilder.build()))
+              .retrieve()
+              .onStatus(HttpStatusCode::isError, error -> errorOf(VALIDATE_URL, error, uploads))
+              .bodyToMono(JsonNode.class)
+              .block();
+    } catch (SetupServiceException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new SetupServiceException(
+          "Failed to call setup-service validation: " + e.getMessage(), e);
+    }
+
+    if (response == null
+        || !response.path("valid").isBoolean()
+        || !response.path("problems").isArray()) {
+      throw new SetupServiceException("Invalid validation response");
+    }
+
+    return new VsumValidationResult(
+        response.get("valid").asBoolean(), uploads.resolve(readProblems(response.get("problems"))));
   }
 
   private byte[] requestArtifactOrThrow(
       String uri,
       MediaType acceptType,
       List<FileStorage> metamodelFiles,
-      List<FileStorage> genmodelFiles,
-      List<FileStorage> reactionFiles) {
+      List<FileStorage> reactionFiles,
+      List<FileStorage> constraintFiles,
+      List<FileStorage> viewFiles) {
     MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
-    addFileParts(bodyBuilder, METAMODEL_FILES_PART, metamodelFiles);
-    addFileParts(bodyBuilder, GENMODEL_FILES_PART, genmodelFiles);
-    addFileParts(bodyBuilder, REACTION_FILES_PART, reactionFiles);
+    UploadedFiles uploads = new UploadedFiles();
+    addFileParts(bodyBuilder, uploads, METAMODEL_FILES_PART, metamodelFiles, ".ecore");
+    addFileParts(bodyBuilder, uploads, REACTION_FILES_PART, reactionFiles, ".reactions");
+    addFileParts(bodyBuilder, uploads, CONSTRAINT_FILES_PART, constraintFiles, ".ocl");
+    addFileParts(bodyBuilder, uploads, VIEW_FILES_PART, viewFiles, null);
 
     byte[] artifact;
     try {
@@ -136,24 +219,14 @@ public class SetupServiceApiHandler {
               .accept(acceptType, MediaType.APPLICATION_OCTET_STREAM)
               .body(BodyInserters.fromMultipartData(bodyBuilder.build()))
               .retrieve()
-              .onStatus(
-                  HttpStatusCode::isError,
-                  response ->
-                      response
-                          .bodyToMono(String.class)
-                          .defaultIfEmpty("")
-                          .flatMap(
-                              body ->
-                                  Mono.error(
-                                      new SetupServiceException(
-                                          requestFailedMessage(uri, response.statusCode(), body)))))
+              .onStatus(HttpStatusCode::isError, response -> errorOf(uri, response, uploads))
               .bodyToMono(byte[].class)
               .block();
     } catch (SetupServiceException e) {
       throw e;
     } catch (Exception e) {
       throw new SetupServiceException(
-          "Failed to call setup-service '" + uri + "': " + e.getMessage());
+          "Failed to call setup-service '" + uri + "': " + e.getMessage(), e);
     }
 
     if (artifact == null || artifact.length == 0) {
@@ -202,23 +275,14 @@ public class SetupServiceApiHandler {
               .body(BodyInserters.fromMultipartData(bodyBuilder.build()))
               .retrieve()
               .onStatus(
-                  HttpStatusCode::isError,
-                  response ->
-                      response
-                          .bodyToMono(String.class)
-                          .defaultIfEmpty("")
-                          .flatMap(
-                              body ->
-                                  Mono.error(
-                                      new SetupServiceException(
-                                          requestFailedMessage(uri, response.statusCode(), body)))))
+                  HttpStatusCode::isError, response -> errorOf(uri, response, new UploadedFiles()))
               .bodyToMono(byte[].class)
               .block();
     } catch (SetupServiceException e) {
       throw e;
     } catch (Exception e) {
       throw new SetupServiceException(
-          "Failed to call setup-service '" + uri + "': " + e.getMessage());
+          "Failed to call setup-service '" + uri + "': " + e.getMessage(), e);
     }
 
     if (genModel == null || genModel.length == 0) {
@@ -260,15 +324,8 @@ public class SetupServiceApiHandler {
                             == HttpStatus.UNPROCESSABLE_ENTITY.value()) {
                       return response.bodyToMono(GenModelInspectionResponse.class);
                     }
-                    return response
-                        .bodyToMono(String.class)
-                        .defaultIfEmpty("")
-                        .flatMap(
-                            body ->
-                                Mono.error(
-                                    new SetupServiceException(
-                                        requestFailedMessage(
-                                            INSPECT_GENMODEL_URL, response.statusCode(), body))));
+                    return errorOf(INSPECT_GENMODEL_URL, response, new UploadedFiles())
+                        .flatMap(Mono::error);
                   })
               .block();
 
@@ -281,12 +338,109 @@ public class SetupServiceApiHandler {
       throw e;
     } catch (Exception e) {
       throw new SetupServiceException(
-          "Failed to call setup-service '" + INSPECT_GENMODEL_URL + "': " + e.getMessage());
+          "Failed to call setup-service '" + INSPECT_GENMODEL_URL + "': " + e.getMessage(), e);
+    }
+  }
+
+  /** Reads an error response of the setup-service into a {@link SetupServiceException}. */
+  private static Mono<SetupServiceException> errorOf(
+      String uri, ClientResponse response, UploadedFiles uploads) {
+    return response
+        .bodyToMono(String.class)
+        .defaultIfEmpty("")
+        .map(body -> setupServiceError(uri, response.statusCode(), body, uploads));
+  }
+
+  /**
+   * Creates the exception for an error response of the setup-service. If the body is the JSON error
+   * of the setup-service, its {@code errorCode} and {@code problems} are kept, with each problem
+   * traced back to the uploaded platform file; any other body only ends up in the message.
+   */
+  static SetupServiceException setupServiceError(
+      String uri, HttpStatusCode statusCode, String body, UploadedFiles uploads) {
+    JsonNode error = readJsonObject(body);
+    String errorCode = null;
+    List<BuildProblem> problems = List.of();
+    if (error != null) {
+      JsonNode code = error.get("errorCode");
+      errorCode = code != null && code.isTextual() ? code.asText() : null;
+      problems = uploads.resolve(readProblems(error.get("problems")));
+    }
+    return new SetupServiceException(
+        requestFailedMessage(uri, statusCode, body), statusCode, errorCode, problems);
+  }
+
+  private static JsonNode readJsonObject(String body) {
+    if (body == null || body.isBlank()) {
+      return null;
+    }
+    try {
+      JsonNode node = OBJECT_MAPPER.readTree(body);
+      return node != null && node.isObject() ? node : null;
+    } catch (JsonProcessingException e) {
+      return null;
+    }
+  }
+
+  /**
+   * Reads the reported problems, skipping entries that are malformed or lack the {@code source} or
+   * {@code message} every problem has.
+   */
+  private static List<BuildProblem> readProblems(JsonNode problems) {
+    if (problems == null || !problems.isArray()) {
+      return List.of();
+    }
+    List<BuildProblem> result = new ArrayList<>();
+    for (JsonNode node : problems) {
+      BuildProblem problem = readProblem(node);
+      if (problem != null && problem.source() != null && problem.message() != null) {
+        result.add(problem);
+      }
+    }
+    return result;
+  }
+
+  private static BuildProblem readProblem(JsonNode node) {
+    if (!node.isObject()) {
+      return null;
+    }
+    try {
+      return OBJECT_MAPPER.treeToValue(node, BuildProblem.class);
+    } catch (JsonProcessingException e) {
+      return null;
     }
   }
 
   private static String requestFailedMessage(String uri, HttpStatusCode statusCode, String body) {
-    return "Setup-service request to '" + uri + "' failed with status " + statusCode + ": " + body;
+    return "Setup-service request to '"
+        + uri
+        + "' failed with status "
+        + statusCode.value()
+        + ": "
+        + describeError(body);
+  }
+
+  /**
+   * Extracts the human-readable part of a setup-service error response. The setup-service answers
+   * with JSON containing {@code errorCode} and {@code message}; other bodies are returned as is.
+   */
+  static String describeError(String body) {
+    if (body == null || body.isBlank()) {
+      return "(no response body)";
+    }
+    try {
+      JsonNode error = OBJECT_MAPPER.readTree(body);
+      JsonNode message = error.get("message");
+      if (message == null || !message.isTextual()) {
+        return body;
+      }
+      JsonNode errorCode = error.get("errorCode");
+      return errorCode != null && errorCode.isTextual()
+          ? "[" + errorCode.asText() + "] " + message.asText()
+          : message.asText();
+    } catch (JsonProcessingException e) {
+      return body;
+    }
   }
 
   private void addFilePart(MultipartBodyBuilder bodyBuilder, String partName, FileStorage file) {
@@ -297,17 +451,45 @@ public class SetupServiceApiHandler {
     bodyBuilder.part(partName, new ByteArrayResource(file.getData())).filename(filename);
   }
 
+  /**
+   * Adds the non-empty files as parts. The setup-service rejects files without the expected
+   * extension and duplicate file names, so names are completed and made unique; the setup-service
+   * itself does not depend on the original names. The names sent are recorded in {@code uploads} to
+   * trace reported problems back to the files.
+   */
   private void addFileParts(
-      MultipartBodyBuilder bodyBuilder, String partName, List<FileStorage> files) {
+      MultipartBodyBuilder bodyBuilder,
+      UploadedFiles uploads,
+      String partName,
+      List<FileStorage> files,
+      String extension) {
     if (CollectionUtils.isEmpty(files)) {
       return;
     }
+    Set<String> usedNames = new HashSet<>();
     for (FileStorage file : files) {
       if (file == null || file.getData() == null || file.getData().length == 0) {
         continue;
       }
-      String filename = file.getFilename() == null ? partName : file.getFilename();
+      String filename = uniqueFilename(file.getFilename(), partName, extension, usedNames);
       bodyBuilder.part(partName, new ByteArrayResource(file.getData())).filename(filename);
+      uploads.add(partName, filename, file);
     }
+  }
+
+  static String uniqueFilename(
+      String filename, String fallback, String extension, Set<String> usedNames) {
+    String name = filename == null || filename.isBlank() ? fallback : filename;
+    if (extension != null && !name.toLowerCase(Locale.ROOT).endsWith(extension)) {
+      name = name + extension;
+    }
+    int dot = extension != null ? name.length() - extension.length() : name.lastIndexOf('.');
+    String base = dot > 0 ? name.substring(0, dot) : name;
+    String suffix = dot > 0 ? name.substring(dot) : "";
+    String candidate = name;
+    for (int counter = 2; !usedNames.add(candidate.toLowerCase(Locale.ROOT)); counter++) {
+      candidate = base + "-" + counter + suffix;
+    }
+    return candidate;
   }
 }

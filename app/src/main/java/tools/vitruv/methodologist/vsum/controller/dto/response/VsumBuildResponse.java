@@ -1,11 +1,14 @@
 package tools.vitruv.methodologist.vsum.controller.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.vsum.model.VsumBuildStatus;
 
 /** State of one VSUM build as returned by the build endpoints. */
@@ -25,6 +28,15 @@ public class VsumBuildResponse {
   private boolean artifactAvailable;
 
   private String errorMessage;
+
+  /** Error code of the setup-service if the build failed there; absent otherwise. */
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  private String errorCode;
+
+  /** Problems of the failed build, root causes first; absent if none were reported. */
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  private List<BuildProblem> problems;
+
   private String requestedBy;
   private Instant createdAt;
   private Instant startedAt;

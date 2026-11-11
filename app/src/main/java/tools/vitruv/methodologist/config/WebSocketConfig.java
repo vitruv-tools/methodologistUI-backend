@@ -7,6 +7,9 @@ import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
+import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
+import tools.vitruv.methodologist.lsp.LspWebSocketHandler;
+import tools.vitruv.methodologist.lsp.OclLspWebSocketHandler;
 
 /** Configuration class for setting up WebSocket endpoints. */
 @Configuration
@@ -15,23 +18,41 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
   private final LspWebSocketHandler lspWebSocketHandler;
   private final OclLspWebSocketHandler oclLspWebSocketHandler;
+  private final NeoJoinLspWebSocketHandler neoJoinLspWebSocketHandler;
+
+  @Value("${allowed.origins:*}")
+  private String allowedOrigins;
 
   /**
    * Constructs a new {@code WebSocketConfig} with the given WebSocket handlers.
    *
    * @param lspWebSocketHandler the handler for LSP WebSocket connections
    * @param oclLspWebSocketHandler the handler for OCL LSP WebSocket connections
+   * @param neoJoinLspWebSocketHandler the handler for NeoJoin LSP WebSocket connections
    */
   public WebSocketConfig(
-      LspWebSocketHandler lspWebSocketHandler, OclLspWebSocketHandler oclLspWebSocketHandler) {
+      LspWebSocketHandler lspWebSocketHandler,
+      OclLspWebSocketHandler oclLspWebSocketHandler,
+      NeoJoinLspWebSocketHandler neoJoinLspWebSocketHandler) {
     this.lspWebSocketHandler = lspWebSocketHandler;
     this.oclLspWebSocketHandler = oclLspWebSocketHandler;
+    this.neoJoinLspWebSocketHandler = neoJoinLspWebSocketHandler;
   }
 
   @Override
   public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
     registry.addHandler(lspWebSocketHandler, "/lsp").setAllowedOrigins("*");
     registry.addHandler(oclLspWebSocketHandler, "/ocl-lsp").setAllowedOrigins("*");
+
+    // Browsers reject the handshake unless the server selects the "bearer" subprotocol they sent.
+    DefaultHandshakeHandler neoJoinHandshakeHandler = new DefaultHandshakeHandler();
+    neoJoinHandshakeHandler.setSupportedProtocols(
+        NeoJoinWebSocketBearerTokenResolver.BEARER_PROTOCOL);
+    registry
+        .addHandler(
+            neoJoinLspWebSocketHandler, NeoJoinWebSocketBearerTokenResolver.NEOJOIN_LSP_PATH)
+        .setHandshakeHandler(neoJoinHandshakeHandler)
+        .setAllowedOriginPatterns(allowedOrigins.split(","));
   }
 
   /**

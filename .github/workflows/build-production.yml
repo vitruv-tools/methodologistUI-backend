@@ -5,6 +5,10 @@ on:
     tags:
       - "v*.*.*"
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build-prod:
     runs-on: ubuntu-latest
@@ -15,6 +19,20 @@ jobs:
       - name: Set tag
         run: echo "TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
 
+      - name: Set image name
+        run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Set up Java
+        uses: actions/setup-java@v4.7.1
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      # A release must pass its tests, so they are not skipped here.
+      - name: Build backend jar
+        run: ./mvnw --batch-mode --no-transfer-progress -pl app -am clean package
+
       - name: Login to registry
         uses: docker/login-action@v3
         with:
@@ -22,12 +40,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build backend
+      # The Dockerfile copies app.jar from the build context, so the context is app/target.
+      # The frontend image is built in the frontend repository.
+      - name: Build backend image
         run: |
-          docker build -t ghcr.io/${{ github.repository }}/backend:$TAG ./backend
-          docker push ghcr.io/${{ github.repository }}/backend:$TAG
-
-      - name: Build frontend
-        run: |
-          docker build -t ghcr.io/${{ github.repository }}/frontend:$TAG ./frontend
-          docker push ghcr.io/${{ github.repository }}/frontend:$TAG
+          docker build -f Dockerfile -t ghcr.io/$IMAGE_NAME/backend:$TAG app/target
+          docker push ghcr.io/$IMAGE_NAME/backend:$TAG

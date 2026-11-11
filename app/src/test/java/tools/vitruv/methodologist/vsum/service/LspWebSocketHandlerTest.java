@@ -28,8 +28,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
-import tools.vitruv.methodologist.config.LspWebSocketHandler;
 import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.lsp.LspWebSocketHandler;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 
 /**
@@ -55,8 +55,8 @@ class LspWebSocketHandlerTest {
   /**
    * Sets up test fixtures before each test.
    *
-   * <p>Initializes mocked MetaModelService and WebSocketSession, and injects the service into the
-   * handler using reflection.
+   * <p>Initializes mocked MetaModelService and WebSocketSession, and passes the service to the
+   * handler through the workspace service.
    */
   @BeforeEach
   void setUp() throws Exception {
@@ -65,9 +65,11 @@ class LspWebSocketHandlerTest {
     // Nutze die injizierte Property
     Resource resource = new FileSystemResource(testJarPath);
 
-    handler = new LspWebSocketHandler(vsumMetaModelService);
+    handler =
+        new LspWebSocketHandler(
+            new ReactionsLspWorkspaceService(
+                vsumMetaModelService, mock(UtilityMethodService.class)));
     ReflectionTestUtils.setField(handler, "jarResource", resource);
-    setField(handler, "vsumMetaModelService", vsumMetaModelService);
 
     session = mock(WebSocketSession.class);
     when(session.getId()).thenReturn("test-session-123");
@@ -250,26 +252,5 @@ class LspWebSocketHandlerTest {
     mm.setEcoreFile(ecoreFile);
 
     return mm;
-  }
-
-  /**
-   * Uses reflection to inject a mocked dependency into a private field.
-   *
-   * <p>Required because the handler uses @Autowired which doesn't work in unit tests without Spring
-   * context.
-   *
-   * @param target the object to inject into
-   * @param fieldName the name of the field to set
-   * @param value the value to inject
-   * @throws RuntimeException if field access fails
-   */
-  private void setField(Object target, String fieldName, Object value) {
-    try {
-      java.lang.reflect.Field field = target.getClass().getDeclaredField(fieldName);
-      field.setAccessible(true);
-      field.set(target, value);
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to set field: " + fieldName, e);
-    }
   }
 }

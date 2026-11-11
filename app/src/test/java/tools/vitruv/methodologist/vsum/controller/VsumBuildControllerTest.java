@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Message.VSUM_BUILD_REUSED;
 import static tools.vitruv.methodologist.messages.Message.VSUM_BUILD_STARTED;
+import static tools.vitruv.methodologist.messages.Message.VSUM_PUBLISH_STARTED;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -19,9 +20,11 @@ import org.springframework.http.ResponseEntity;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumVersionResponse;
 import tools.vitruv.methodologist.vsum.model.VsumBuildStatus;
 import tools.vitruv.methodologist.vsum.service.VsumBuildService;
 import tools.vitruv.methodologist.vsum.service.VsumDeploymentBundleService;
+import tools.vitruv.methodologist.vsum.service.VsumVersionService;
 
 @ExtendWith(MockitoExtension.class)
 class VsumBuildControllerTest {
@@ -31,6 +34,7 @@ class VsumBuildControllerTest {
   @InjectMocks VsumBuildController controller;
   @Mock VsumBuildService vsumBuildService;
   @Mock VsumDeploymentBundleService vsumDeploymentBundleService;
+  @Mock VsumVersionService vsumVersionService;
   @Mock KeycloakAuthentication authentication;
   @Mock KeycloakAuthentication.ParsedToken parsedToken;
 
@@ -100,6 +104,20 @@ class VsumBuildControllerTest {
   }
 
   @Test
+  void downloadProject_returnsTheGeneratedProjectAsZip() {
+    byte[] zip = "ZIP".getBytes(StandardCharsets.UTF_8);
+    when(vsumBuildService.generateProject(EMAIL, 7L)).thenReturn(zip);
+
+    ResponseEntity<byte[]> response = controller.downloadProject(authentication, 7L);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).isEqualTo(zip);
+    assertThat(response.getHeaders().getContentType()).hasToString("application/zip");
+    assertThat(response.getHeaders().getContentDisposition().getFilename())
+        .isEqualTo("vsum-project.zip");
+  }
+
+  @Test
   void downloadBundle_packagesTheArtifactAsDeploymentBundle() {
     byte[] jar = "JAR".getBytes(StandardCharsets.UTF_8);
     byte[] zip = "ZIP".getBytes(StandardCharsets.UTF_8);
@@ -112,5 +130,25 @@ class VsumBuildControllerTest {
     assertThat(response.getHeaders().getContentType()).hasToString("application/zip");
     assertThat(response.getHeaders().getContentDisposition().getFilename())
         .isEqualTo("vsum-deployment.zip");
+  }
+
+  @Test
+  void publish_returnsAcceptedWithTheBuildOfTheSnapshot() {
+    when(vsumVersionService.publish(EMAIL, 7L)).thenReturn(build);
+
+    ResponseEntity<ResponseTemplateDto<VsumBuildResponse>> response =
+        controller.publish(authentication, 7L);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+    assertThat(response.getBody().getData()).isSameAs(build);
+    assertThat(response.getBody().getMessage()).isEqualTo(VSUM_PUBLISH_STARTED);
+  }
+
+  @Test
+  void findLatestVersion_returnsTheVersion() {
+    VsumVersionResponse version = VsumVersionResponse.builder().number(2).buildId(42L).build();
+    when(vsumVersionService.findLatest(EMAIL, 7L)).thenReturn(version);
+
+    assertThat(controller.findLatestVersion(authentication, 7L).getData()).isSameAs(version);
   }
 }

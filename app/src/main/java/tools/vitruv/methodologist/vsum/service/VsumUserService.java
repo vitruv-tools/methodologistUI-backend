@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.vsum.service;
 
 import static tools.vitruv.methodologist.messages.Error.MEMBER_IN_VSUM_NOT_FOUND_ERROR;
+import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_ID_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
@@ -10,6 +11,7 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.DuplicateVsumMembershipException;
@@ -18,6 +20,7 @@ import tools.vitruv.methodologist.exception.OwnerCannotAddSelfAsMemberException;
 import tools.vitruv.methodologist.exception.OwnerRequiredException;
 import tools.vitruv.methodologist.exception.OwnerRoleRemovalException;
 import tools.vitruv.methodologist.exception.UserAlreadyExistInVsumWithSameRoleException;
+import tools.vitruv.methodologist.log.AuditLog;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
@@ -64,6 +67,8 @@ public class VsumUserService {
 
     VsumUser vsumUser = VsumUser.builder().role(role).user(user).vsum(vsum).build();
     vsumUserRepository.save(vsumUser);
+    AuditLog.afterCommit(
+        () -> log.info("Added user {} to VSUM {} as {}", user.getId(), vsum.getId(), role));
 
     return vsumUser;
   }
@@ -78,13 +83,14 @@ public class VsumUserService {
   }
 
   /**
-   * Retrieves all members associated with the specified VSUM. Throws {@link OwnerRequiredException}
-   * if the caller is the owner of the VSUM.
+   * Retrieves all users who have access to the specified VSUM, including the owner. Only callers
+   * with the {@link VsumRole#OWNER} or {@link VsumRole#MEMBER} role in the VSUM may list them.
    *
    * @param callerEmail the email of the requesting user
-   * @return a list of {@link VsumUserResponse} DTOs representing VSUM members
+   * @param vsumId the ID of the VSUM
+   * @return a list of {@link VsumUserResponse} DTOs representing the users of the VSUM
    * @throws NotFoundException if the caller's email is not found
-   * @throws OwnerRequiredException if the caller is the owner of the VSUM
+   * @throws AccessDeniedException if the caller is a viewer or not part of the VSUM
    */
   @Transactional(readOnly = true)
   public List<VsumUserResponse> findAllMemberByVsum(String callerEmail, Long vsumId) {
@@ -94,12 +100,14 @@ public class VsumUserService {
             .orElseThrow(() -> new NotFoundException(USER_EMAIL_NOT_FOUND_ERROR));
     var vsumUsers = vsumUserRepository.findAllByVsum_Id(vsumId);
 
-    if (!vsumUsers.stream()
-        .filter(vsumUser -> vsumUser.getRole().equals(VsumRole.OWNER))
-        .map(VsumUser::getUser)
-        .toList()
-        .contains(user)) {
-      throw new OwnerRequiredException();
+    boolean canSeeMembers =
+        vsumUsers.stream()
+            .filter(vsumUser -> user.equals(vsumUser.getUser()))
+            .anyMatch(
+                vsumUser ->
+                    vsumUser.getRole() == VsumRole.OWNER || vsumUser.getRole() == VsumRole.MEMBER);
+    if (!canSeeMembers) {
+      throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
     }
     return vsumUsers.stream().map(vsumUserMapper::toVsumUserResponse).toList();
   }
@@ -181,5 +189,27 @@ public class VsumUserService {
     }
 
     vsumUserRepository.delete(vsumUser);
+    Long userId = vsumUser.getUser().getId();
+    Long vsumId = vsumUser.getVsum().getId();
+    AuditLog.afterCommit(() -> log.info("Removed user {} from VSUM {}", userId, vsumId));
+  }
+
+  /**
+   * Checks whether the user with the given email is an active member of the given VSUM, in any
+   * role.
+   *
+   * @param vsumId the ID of the VSUM
+   * @param email the user's email
+   * @return {@code true} if both the user and the VSUM exist and are not removed and the user is a
+   *     member; {@code false} otherwise, including for {@code null} or blank arguments
+   */
+  @Transactional(readOnly = true)
+  public boolean isMember(Long vsumId, String email) {
+    if (vsumId == null || email == null || email.isBlank()) {
+      return false;
+    }
+    return vsumUserRepository
+        .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(vsumId, email)
+        .isPresent();
   }
 }

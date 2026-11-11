@@ -57,26 +57,17 @@ public class VsumMetaModelService {
    */
   @Transactional(readOnly = true)
   public List<MetaModel> findAccessibleByProject(Long vsumId) {
-    log.info("findAccessibleByProject called with vsumId: {}", vsumId);
-
     if (vsumId == null) {
-      log.warn("vsumId is null, returning empty list");
+      log.debug("No VSUM given, so no metamodels are accessible");
       return List.of();
     }
 
     List<VsumMetaModel> vsumMetaModels = vsumMetaModelRepository.findByVsumId(vsumId);
-    log.info("Found {} VsumMetaModel entries for vsumId {}", vsumMetaModels.size(), vsumId);
 
     Set<MetaModel> metamodels = new LinkedHashSet<>();
 
     for (VsumMetaModel vmm : vsumMetaModels) {
       MetaModel mm = vmm.getMetaModel();
-      log.info(
-          "Processing MetaModel id={}, name={}, hasSource={}",
-          mm.getId(),
-          mm.getName(),
-          mm.getSource() != null);
-
       if (mm.getSource() != null) {
         metamodels.add(mm.getSource());
       } else {
@@ -84,7 +75,7 @@ public class VsumMetaModelService {
       }
     }
 
-    log.info("Returning {} metamodels", metamodels.size());
+    log.debug("VSUM {} gives access to {} metamodels", vsumId, metamodels.size());
     return new ArrayList<>(metamodels);
   }
 
@@ -178,5 +169,28 @@ public class VsumMetaModelService {
     fileStorages.addAll(metaModels.stream().map(MetaModel::getEcoreFile).toList());
     fileStorages.addAll(metaModels.stream().map(MetaModel::getGenModelFile).toList());
     fileStorageService.deleteFiles(fileStorages);
+  }
+
+  /**
+   * Filename and content of a metamodel's Ecore file, detached from the persistence context.
+   *
+   * @param filename the stored filename
+   * @param data the file content
+   */
+  public record EcoreFile(String filename, byte[] data) {}
+
+  /**
+   * Returns the Ecore files of all metamodels linked to the given VSUM. The files are read inside
+   * the transaction, so callers outside of it (e.g. WebSocket handlers) can use them safely.
+   *
+   * @param vsumId the ID of the VSUM
+   * @return the VSUM's Ecore files; empty if the VSUM has no metamodels
+   */
+  @Transactional(readOnly = true)
+  public List<EcoreFile> findEcoreFiles(Long vsumId) {
+    return vsumMetaModelRepository.findAllWithEcoreFileByVsum_Id(vsumId).stream()
+        .map(vsumMetaModel -> vsumMetaModel.getMetaModel().getEcoreFile())
+        .map(file -> new EcoreFile(file.getFilename(), file.getData()))
+        .toList();
   }
 }

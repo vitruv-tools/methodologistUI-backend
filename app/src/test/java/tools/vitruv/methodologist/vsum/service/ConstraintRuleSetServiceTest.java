@@ -366,6 +366,27 @@ class ConstraintRuleSetServiceTest {
   }
 
   @Test
+  void update_changesTheExistingOclFile() {
+    stubAccess(10L);
+    FileStorage oclFile = ruleSet.getOclFile();
+    when(ruleSetRepository.findByIdAndVsumId(100L, 10L)).thenReturn(Optional.of(ruleSet));
+    when(ruleSetRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+    service.update(
+        "test@example.com",
+        10L,
+        100L,
+        new RuleSetPutRequest("Renamed", null, null, "context Y inv: 2=2"));
+
+    // replacing the file would delete the old one, which fails for concurrent updates
+    assertThat(ruleSet.getOclFile()).isSameAs(oclFile);
+    assertThat(oclFile.getData()).isEqualTo("context Y inv: 2=2".getBytes(StandardCharsets.UTF_8));
+    assertThat(oclFile.getFilename()).isEqualTo("Renamed.ocl");
+    assertThat(oclFile.getSizeBytes()).isEqualTo("context Y inv: 2=2".length());
+    assertThat(oclFile.getSha256()).isNotBlank();
+  }
+
+  @Test
   void update_keepsOldColor_whenRequestColorNull() {
     stubAccess(10L);
     when(ruleSetRepository.findByIdAndVsumId(100L, 10L)).thenReturn(Optional.of(ruleSet));

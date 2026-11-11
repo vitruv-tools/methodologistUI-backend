@@ -197,6 +197,24 @@
             <groupId>org.freemarker</groupId>
             <artifactId>freemarker</artifactId>
         </dependency>
+        <!-- Compiles the Xtend bodies of utility methods to Java; the version matches the Xtext
+             of the bundled Reactions language server. -->
+        <dependency>
+            <groupId>org.eclipse.xtext</groupId>
+            <artifactId>org.eclipse.xtend.core</artifactId>
+            <version>2.41.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>ch.qos.reload4j</groupId>
+                    <artifactId>reload4j</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- Xtext logs through the log4j 1 API; route it to logback. -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>log4j-over-slf4j</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
@@ -296,8 +314,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
                 <configuration>
-                    <configLocation>${basedir}/src/conf/checkstyle.xml</configLocation>
-                    <suppressionsLocation>${basedir}/src/conf/checkstyle-suppressions.xml</suppressionsLocation>
+                    <configLocation>${project.parent.basedir}/checkstyle.xml</configLocation>
                     <enableRulesSummary>false</enableRulesSummary>
                     <includeTestSourceDirectory>true</includeTestSourceDirectory>
                 </configuration>

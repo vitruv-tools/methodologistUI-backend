@@ -108,8 +108,12 @@ public class ConstraintRuleSetService {
     ruleSet.setDescription(request.description());
 
     String content = request.oclContent() != null ? request.oclContent() : "";
-    FileStorage oclFile = buildFileStorage(request.name(), content, user);
-    ruleSet.setOclFile(oclFile);
+    if (ruleSet.getOclFile() == null) {
+      ruleSet.setOclFile(buildFileStorage(request.name(), content, user));
+    } else {
+      // changed in place: replacing it deletes the old file, which fails for concurrent updates
+      fillFileStorage(ruleSet.getOclFile(), request.name(), content, user);
+    }
 
     return toResponse(ruleSetRepository.save(ruleSet));
   }
@@ -151,17 +155,20 @@ public class ConstraintRuleSetService {
   }
 
   private FileStorage buildFileStorage(String ruleSetName, String content, User user) {
+    FileStorage file = new FileStorage();
+    fillFileStorage(file, ruleSetName, content, user);
+    return file;
+  }
+
+  private void fillFileStorage(FileStorage file, String ruleSetName, String content, User user) {
     byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-    String filename = toSafeFilename(ruleSetName) + ".ocl";
-    return FileStorage.builder()
-        .filename(filename)
-        .type(FileEnumType.OCL)
-        .contentType("text/plain")
-        .sizeBytes(bytes.length)
-        .sha256(sha256(bytes))
-        .data(bytes)
-        .user(user)
-        .build();
+    file.setFilename(toSafeFilename(ruleSetName) + ".ocl");
+    file.setType(FileEnumType.OCL);
+    file.setContentType("text/plain");
+    file.setSizeBytes(bytes.length);
+    file.setSha256(sha256(bytes));
+    file.setData(bytes);
+    file.setUser(user);
   }
 
   private String toSafeFilename(String name) {

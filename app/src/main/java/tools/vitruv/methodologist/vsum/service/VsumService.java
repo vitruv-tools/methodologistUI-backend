@@ -14,12 +14,16 @@ import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
+import tools.vitruv.methodologist.log.AuditLog;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
@@ -29,6 +33,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPut
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelationResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildCheckResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
@@ -60,6 +65,7 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
  * @see tools.vitruv.methodologist.vsum.mapper.VsumMapper
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumService {
@@ -80,6 +86,7 @@ public class VsumService {
   MetaModelService metaModelService;
   VsumSyncService vsumSyncService;
   VsumCleanupService vsumCleanupService;
+  VsumValidationService vsumValidationService;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -154,8 +161,11 @@ public class VsumService {
       throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
     }
 
-    return vsumSyncService.applySyncChanges(
-        vsumUser.getVsum(), vsumUser.getUser(), vsumSyncChangesPutRequest, true);
+    Vsum vsum =
+        vsumSyncService.applySyncChanges(
+            vsumUser.getVsum(), vsumUser.getUser(), vsumSyncChangesPutRequest, true);
+    requestValidationAfterCommit(id);
+    return vsum;
   }
 
   /**
@@ -182,6 +192,7 @@ public class VsumService {
     vsumHistoryService.create(vsumUser.getVsum(), vsumUser.getUser());
     vsumMetaModel.setName(name);
     vsumMetaModelRepository.save(vsumMetaModel);
+    requestValidationAfterCommit(vsumId);
   }
 
   /**
@@ -206,6 +217,24 @@ public class VsumService {
     MetaModel projectMetaModel =
         findVsumMetaModel(vsumUser.getVsum(), sourceMetaModelId).getMetaModel();
     metaModelService.updateProjectEcore(projectMetaModel, ecore.getBytes(StandardCharsets.UTF_8));
+    requestValidationAfterCommit(vsumId);
+  }
+
+  private void requestValidationAfterCommit(Long vsumId) {
+    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+      return;
+    }
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCommit() {
+            try {
+              vsumValidationService.requestValidation(vsumId);
+            } catch (RuntimeException e) {
+              log.error("Validation of VSUM {} could not be requested", vsumId, e);
+            }
+          }
+        });
   }
 
   private VsumUser findEditingVsumUser(String callerEmail, Long vsumId) {
@@ -261,6 +290,7 @@ public class VsumService {
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
     vsum.setRemovedAt(Instant.now());
     vsumRepository.save(vsum);
+    AuditLog.afterCommit(() -> log.info("VSUM {} moved to the trash", id));
     return vsum;
   }
 
@@ -286,12 +316,14 @@ public class VsumService {
             .findByIdAndRemovedAtIsNull(id)
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
 
-    vsum.getVsumUsers().stream()
-        .filter(vsumUser -> vsumUser.getUser().equals(user))
-        .findFirst()
-        .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
+    VsumUser callerVsumUser =
+        vsum.getVsumUsers().stream()
+            .filter(vsumUser -> vsumUser.getUser().equals(user))
+            .findFirst()
+            .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
 
     VsumMetaModelResponse response = vsumMapper.toVsumMetaModelResponse(vsum);
+    response.setRole(callerVsumUser.getRole());
 
     List<VsumMetaModel> vsumMetaModels =
         vsum.getVsumMetaModels() == null ? List.of() : List.copyOf(vsum.getVsumMetaModels());
@@ -455,6 +487,7 @@ public class VsumService {
 
     vsum.setRemovedAt(null);
     vsumRepository.save(vsum);
+    AuditLog.afterCommit(() -> log.info("VSUM {} restored from the trash", id));
   }
 
   /**
@@ -476,5 +509,20 @@ public class VsumService {
    */
   public byte[] getJarfat(String callerEmail, Long id) {
     return vsumBuildService.buildAndWait(callerEmail, id);
+  }
+
+  /**
+   * Builds the VSUM and reports the constraint rule sets it contains.
+   *
+   * @param callerEmail email address of the requesting user
+   * @param id the VSUM identifier
+   * @return the constraint rule sets built into the VSUM, without rule sets if they changed during
+   *     the build
+   * @throws tools.vitruv.methodologist.exception.SetupServiceException if the build fails, e.g.
+   *     because a constraint refers to an unknown metamodel
+   */
+  public VsumBuildCheckResponse checkBuild(String callerEmail, Long id) {
+    return new VsumBuildCheckResponse(
+        vsumBuildService.buildAndFindConstraintRuleSets(callerEmail, id).orElse(null));
   }
 }

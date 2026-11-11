@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,12 +31,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.PlatformTransactionManager;
 import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
 import tools.vitruv.methodologist.config.VsumBuildProperties;
+import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.SetupServiceException;
+import tools.vitruv.methodologist.exception.StoredBuildFailureException;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -48,8 +52,10 @@ import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumBuild;
 import tools.vitruv.methodologist.vsum.model.VsumBuildStatus;
 import tools.vitruv.methodologist.vsum.model.VsumUser;
+import tools.vitruv.methodologist.vsum.model.VsumVersion;
 import tools.vitruv.methodologist.vsum.model.repository.VsumBuildRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumVersionRepository;
 
 /**
  * Drives {@link VsumBuildService} with a synchronous executor and an in-memory stand-in for the
@@ -61,9 +67,13 @@ class VsumBuildServiceTest {
   private static final String EMAIL = "x@y.com";
   private static final Long VSUM_ID = 7L;
   private static final byte[] JAR = "FAKEJAR".getBytes(StandardCharsets.UTF_8);
+  private static final BuildProblem PROBLEM =
+      new BuildProblem(
+          "REACTIONS", "x.reactions", 3L, 51, 30, "unknown class", null, "Did you mean?", null);
 
   @Mock private VsumUserRepository vsumUserRepository;
   @Mock private VsumBuildRepository vsumBuildRepository;
+  @Mock private VsumVersionRepository vsumVersionRepository;
   @Mock private FileStorageRepository fileStorageRepository;
   @Mock private VsumBuildInputCollector inputCollector;
   @Mock private SetupServiceApiHandler setupServiceApiHandler;
@@ -103,11 +113,13 @@ class VsumBuildServiceTest {
     inputs =
         new VsumBuildInputs(
             List.of(fs(1L, "a.ecore", new byte[] {1})),
-            List.of(fs(2L, "a.genmodel", new byte[] {2})),
-            List.of(fs(3L, "x.reactions", new byte[] {3})));
+            List.of(fs(3L, "x.reactions", new byte[] {3})),
+            List.of(fs(4L, "rules.ocl", new byte[] {4})),
+            List.of(fs(5L, "view.nj", new byte[] {5})));
     lenient().when(inputCollector.collect(vsum)).thenReturn(inputs);
     lenient()
-        .when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
+        .when(
+            setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
         .thenReturn(JAR);
 
     stubInMemoryRepositories();
@@ -131,7 +143,8 @@ class VsumBuildServiceTest {
         .isInstanceOf(AccessDeniedException.class);
 
     assertThat(builds).isEmpty();
-    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
+    verify(setupServiceApiHandler, never())
+        .buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
   }
 
   @Test
@@ -140,7 +153,31 @@ class VsumBuildServiceTest {
         .isInstanceOf(AccessDeniedException.class);
 
     assertThat(builds).isEmpty();
-    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
+    verify(setupServiceApiHandler, never())
+        .buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
+  }
+
+  @Test
+  void generateProject_sendsTheInputsWithoutQueueingABuild() {
+    byte[] zip = "ZIP".getBytes(StandardCharsets.UTF_8);
+    when(setupServiceApiHandler.generateVsumProjectOrThrow(
+            inputs.ecores(), inputs.reactions(), inputs.constraints(), inputs.views()))
+        .thenReturn(zip);
+
+    assertThat(service.generateProject(EMAIL, VSUM_ID)).isEqualTo(zip);
+
+    assertThat(builds).isEmpty();
+    verify(setupServiceApiHandler, never())
+        .buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
+  }
+
+  @Test
+  void generateProject_throwsAccessDenied_whenCallerIsNotAMember() {
+    assertThatThrownBy(() -> service.generateProject("other@y.com", VSUM_ID))
+        .isInstanceOf(AccessDeniedException.class);
+
+    verify(setupServiceApiHandler, never())
+        .generateVsumProjectOrThrow(anyList(), anyList(), anyList(), anyList());
   }
 
   @Test
@@ -162,7 +199,8 @@ class VsumBuildServiceTest {
     assertThat(build.getArtifact().getFilename()).isEqualTo(VsumBuildService.ARTIFACT_FILENAME);
     assertThat(build.getArtifact().getUser()).isSameAs(user);
     verify(setupServiceApiHandler)
-        .buildVsumJarOrThrow(inputs.ecores(), inputs.genmodels(), inputs.reactions());
+        .buildVsumJarOrThrow(
+            inputs.ecores(), inputs.reactions(), inputs.constraints(), inputs.views());
 
     VsumBuildResponse response = service.findBuild(EMAIL, VSUM_ID, build.getId());
     assertThat(response.getStatus()).isEqualTo(VsumBuildStatus.SUCCEEDED);
@@ -178,7 +216,8 @@ class VsumBuildServiceTest {
     assertThat(request.started()).isFalse();
     assertThat(request.build().getId()).isEqualTo(existing.getId());
     assertThat(builds).hasSize(1);
-    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
+    verify(setupServiceApiHandler, never())
+        .buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
   }
 
   @Test
@@ -192,7 +231,7 @@ class VsumBuildServiceTest {
     assertThat(request.build().isForced()).isTrue();
     assertThat(builds.get(request.build().getId()).getStatus())
         .isEqualTo(VsumBuildStatus.SUCCEEDED);
-    verify(setupServiceApiHandler).buildVsumJarOrThrow(anyList(), anyList(), anyList());
+    verify(setupServiceApiHandler).buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
   }
 
   @Test
@@ -218,7 +257,7 @@ class VsumBuildServiceTest {
 
   @Test
   void requestBuild_marksTheBuildFailed_whenTheSetupServiceFails() {
-    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
         .thenThrow(new SetupServiceException("boom"));
 
     VsumBuildService.BuildRequest request = service.requestBuild(EMAIL, VSUM_ID, false);
@@ -226,8 +265,46 @@ class VsumBuildServiceTest {
     VsumBuild build = builds.get(request.build().getId());
     assertThat(build.getStatus()).isEqualTo(VsumBuildStatus.FAILED);
     assertThat(build.getErrorMessage()).isEqualTo("boom");
+    assertThat(build.getErrorCode()).isNull();
+    assertThat(build.getProblems()).isNull();
     assertThat(build.getArtifact()).isNull();
     assertThat(build.getFinishedAt()).isNotNull();
+  }
+
+  @Test
+  void requestBuild_storesTheErrorCodeAndProblems_whenTheSetupServiceRejectsTheInputs() {
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
+        .thenThrow(
+            new SetupServiceException(
+                "rejected", HttpStatus.BAD_REQUEST, "VSUM_REACTIONS_ERROR", List.of(PROBLEM)));
+
+    VsumBuildService.BuildRequest request = service.requestBuild(EMAIL, VSUM_ID, false);
+
+    VsumBuild build = builds.get(request.build().getId());
+    assertThat(build.getStatus()).isEqualTo(VsumBuildStatus.FAILED);
+    assertThat(build.getErrorMessage()).isEqualTo("rejected");
+    assertThat(build.getErrorCode()).isEqualTo("VSUM_REACTIONS_ERROR");
+    assertThat(build.getProblems()).containsExactly(PROBLEM);
+
+    VsumBuildResponse response = service.findBuild(EMAIL, VSUM_ID, build.getId());
+    assertThat(response.getErrorCode()).isEqualTo("VSUM_REACTIONS_ERROR");
+    assertThat(response.getProblems()).containsExactly(PROBLEM);
+  }
+
+  @Test
+  void buildAndWait_passesOnTheErrorCodeAndProblems_whenTheBuildFailed() {
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
+        .thenThrow(
+            new SetupServiceException(
+                "rejected", HttpStatus.BAD_REQUEST, "VSUM_BUILD_FAILED", List.of(PROBLEM)));
+
+    assertThatThrownBy(() -> service.buildAndWait(EMAIL, VSUM_ID))
+        .isInstanceOfSatisfying(
+            SetupServiceException.class,
+            e -> {
+              assertThat(e.getErrorCode()).isEqualTo("VSUM_BUILD_FAILED");
+              assertThat(e.getProblems()).containsExactly(PROBLEM);
+            });
   }
 
   @Test
@@ -257,7 +334,8 @@ class VsumBuildServiceTest {
 
     assertThat(queued.getStatus()).isEqualTo(VsumBuildStatus.SUCCEEDED);
     assertThat(queued.getArtifact()).isSameAs(twin.getArtifact());
-    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
+    verify(setupServiceApiHandler, never())
+        .buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
   }
 
   @Test
@@ -268,7 +346,8 @@ class VsumBuildServiceTest {
     service.runBuild(999L);
 
     assertThat(failed.getStatus()).isEqualTo(VsumBuildStatus.FAILED);
-    verify(setupServiceApiHandler, never()).buildVsumJarOrThrow(anyList(), anyList(), anyList());
+    verify(setupServiceApiHandler, never())
+        .buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
   }
 
   @Test
@@ -317,7 +396,7 @@ class VsumBuildServiceTest {
 
   @Test
   void buildAndWait_throwsSetupServiceException_whenTheBuildFailed() {
-    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList()))
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
         .thenThrow(new SetupServiceException("boom"));
 
     assertThatThrownBy(() -> service.buildAndWait(EMAIL, VSUM_ID))
@@ -353,12 +432,38 @@ class VsumBuildServiceTest {
     service = newService(task -> {});
     when(vsumBuildRepository.findStatusById(anyLong()))
         .thenReturn(Optional.of(VsumBuildStatus.FAILED));
-    when(vsumBuildRepository.findErrorMessageById(anyLong()))
-        .thenReturn(Optional.of("compilation failed"));
+    VsumBuild stored = new VsumBuild();
+    stored.setErrorMessage("compilation failed");
+    stored.setErrorCode("VSUM_BUILD_FAILED");
+    stored.setProblems(List.of(PROBLEM));
+    when(vsumBuildRepository.findFailureById(anyLong())).thenReturn(Optional.of(failure(stored)));
 
     assertThatThrownBy(() -> service.buildAndWait(EMAIL, VSUM_ID))
-        .isInstanceOf(SetupServiceException.class)
-        .hasMessage("compilation failed");
+        .isInstanceOfSatisfying(
+            StoredBuildFailureException.class,
+            e -> {
+              assertThat(e).hasMessage("compilation failed");
+              assertThat(e.getErrorCode()).isEqualTo("VSUM_BUILD_FAILED");
+              assertThat(e.getProblems()).containsExactly(PROBLEM);
+            });
+  }
+
+  @Test
+  void buildAndWait_reportsAGenericError_whenTheFailedBuildHasNoMessage() {
+    service = newService(task -> {});
+    when(vsumBuildRepository.findStatusById(anyLong()))
+        .thenReturn(Optional.of(VsumBuildStatus.FAILED));
+    when(vsumBuildRepository.findFailureById(anyLong()))
+        .thenReturn(Optional.of(failure(new VsumBuild())));
+
+    assertThatThrownBy(() -> service.buildAndWait(EMAIL, VSUM_ID))
+        .isInstanceOfSatisfying(
+            StoredBuildFailureException.class,
+            e -> {
+              assertThat(e).hasMessage(VsumBuildService.BUILD_FAILED_ERROR);
+              assertThat(e.getErrorCode()).isNull();
+              assertThat(e.getProblems()).isNull();
+            });
   }
 
   @Test
@@ -418,12 +523,162 @@ class VsumBuildServiceTest {
     assertThat(deletedArtifacts).containsExactly(a.getArtifact());
   }
 
+  // ---- versions ------------------------------------------------------------------------------
+
+  @Test
+  void runBuild_buildsTheVersionsCopies_andGivesTheVersionTheNextNumber() {
+    VsumVersion version = pendingVersion();
+    VsumBuild build = service.queue(vsum, user, "pending");
+    version.setBuild(build);
+    when(vsumVersionRepository.findByBuildId(build.getId())).thenReturn(Optional.of(version));
+    when(vsumVersionRepository.findMaxNumberByVsum(vsum)).thenReturn(Optional.of(2));
+
+    service.runBuild(build.getId());
+
+    verify(inputCollector, never()).collect(any());
+
+    assertThat(build.getStatus()).isEqualTo(VsumBuildStatus.SUCCEEDED);
+    assertThat(build.getFingerprint()).isEqualTo(snapshotInputs(version).fingerprint());
+    verify(setupServiceApiHandler)
+        .buildVsumJarOrThrow(
+            version.getEcores(),
+            version.getReactions(),
+            version.getConstraints(),
+            version.getViews());
+    assertThat(version.getNumber()).isEqualTo(3);
+  }
+
+  @Test
+  void runBuild_numbersTheVersion_whenItAdoptsTheArtifactOfATwin() {
+    VsumVersion version = pendingVersion();
+    VsumBuild twin = succeeded(snapshotInputs(version).fingerprint(), Instant.now());
+    VsumBuild build = service.queue(vsum, user, "pending");
+    version.setBuild(build);
+    when(vsumVersionRepository.findByBuildId(build.getId())).thenReturn(Optional.of(version));
+
+    service.runBuild(build.getId());
+
+    assertThat(build.getArtifact()).isSameAs(twin.getArtifact());
+    assertThat(version.getNumber()).isEqualTo(1);
+  }
+
+  @Test
+  void runBuild_deletesThePendingVersionAndItsCopies_whenTheBuildFails() {
+    VsumVersion version = pendingVersion();
+    VsumBuild build = service.queue(vsum, user, "pending");
+    version.setBuild(build);
+    when(vsumVersionRepository.findByBuildId(build.getId())).thenReturn(Optional.of(version));
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
+        .thenThrow(new SetupServiceException("boom"));
+
+    service.runBuild(build.getId());
+
+    assertThat(build.getStatus()).isEqualTo(VsumBuildStatus.FAILED);
+    assertThat(version.getNumber()).isNull();
+    verify(vsumVersionRepository).delete(version);
+    verify(fileStorageRepository).deleteAll(version.allFiles());
+  }
+
+  @Test
+  void runBuild_dropsALateSuccess_whenTheBuildWasAbandonedWhileItRan() {
+    VsumVersion version = pendingVersion();
+    VsumBuild build = service.queue(vsum, user, "pending");
+    version.setBuild(build);
+    when(vsumVersionRepository.findByBuildId(build.getId())).thenReturn(Optional.of(version));
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
+        .thenAnswer(
+            inv -> {
+              abandon(build);
+              return JAR;
+            });
+
+    service.runBuild(build.getId());
+
+    assertThat(build.getStatus()).isEqualTo(VsumBuildStatus.FAILED);
+    assertThat(build.getErrorMessage()).isEqualTo(VsumVersionService.STUCK_ERROR);
+    assertThat(build.getArtifact()).isNull();
+    assertThat(version.getNumber()).isNull();
+    verify(fileStorageRepository, never()).save(any(FileStorage.class));
+  }
+
+  @Test
+  void runBuild_keepsTheAbandonment_whenTheBuildFailsLater() {
+    VsumBuild build = service.queue(vsum, user, "pending");
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
+        .thenAnswer(
+            inv -> {
+              abandon(build);
+              throw new SetupServiceException("timeout");
+            });
+
+    service.runBuild(build.getId());
+
+    assertThat(build.getStatus()).isEqualTo(VsumBuildStatus.FAILED);
+    assertThat(build.getErrorMessage()).isEqualTo(VsumVersionService.STUCK_ERROR);
+  }
+
+  @Test
+  void fail_keepsTheOutcomeOfAFinishedBuild_butDeletesItsPendingVersion() {
+    VsumBuild finished = save(build(inputs.fingerprint(), VsumBuildStatus.FAILED, false));
+    finished.setErrorMessage("original problem");
+    VsumVersion leftOver = pendingVersion();
+    leftOver.setBuild(finished);
+    when(vsumVersionRepository.findByBuildId(finished.getId())).thenReturn(Optional.of(leftOver));
+
+    service.fail(finished.getId(), VsumVersionService.STUCK_ERROR);
+
+    assertThat(finished.getErrorMessage()).isEqualTo("original problem");
+    verify(vsumVersionRepository).delete(leftOver);
+    verify(fileStorageRepository).deleteAll(leftOver.allFiles());
+  }
+
+  @Test
+  void succeed_neverRemovesTheArtifactOfAVersion_perRetention() {
+    properties.setRetentionKeep(1);
+    VsumBuild versionBuild =
+        succeeded(
+            "1111111111111111111111111111111111111111111111111111111111111111",
+            Instant.now().minusSeconds(60));
+    when(vsumVersionRepository.findBuildIdsByVsum(vsum)).thenReturn(Set.of(versionBuild.getId()));
+
+    service.requestBuild(EMAIL, VSUM_ID, false);
+
+    assertThat(versionBuild.getArtifact()).isNotNull();
+    assertThat(deletedArtifacts).isEmpty();
+  }
+
+  @Test
+  void failBuildsInterruptedByRestart_deletesTheirPendingVersions() {
+    VsumBuild queued = save(build(inputs.fingerprint(), VsumBuildStatus.QUEUED, false));
+    VsumVersion version = pendingVersion();
+    when(vsumVersionRepository.findAllByBuildInAndNumberIsNull(List.of(queued)))
+        .thenReturn(List.of(version));
+
+    service.failBuildsInterruptedByRestart();
+
+    verify(vsumVersionRepository).delete(version);
+    verify(fileStorageRepository).deleteAll(version.allFiles());
+  }
+
+  @Test
+  void deleteByVsum_deletesTheVersionsAndTheirCopies() {
+    VsumVersion version = pendingVersion();
+    version.setNumber(1);
+    when(vsumVersionRepository.findAllByVsum(vsum)).thenReturn(List.of(version));
+
+    service.deleteByVsum(vsum);
+
+    verify(vsumVersionRepository).delete(version);
+    verify(fileStorageRepository).deleteAll(version.allFiles());
+  }
+
   // ---- fixtures -------------------------------------------------------------------------------
 
   private VsumBuildService newService(Executor executor) {
     return new VsumBuildService(
         vsumUserRepository,
         vsumBuildRepository,
+        vsumVersionRepository,
         fileStorageRepository,
         inputCollector,
         setupServiceApiHandler,
@@ -431,6 +686,30 @@ class VsumBuildServiceTest {
         properties,
         executor,
         transactionManager);
+  }
+
+  /** What abandoning a publish does to its build, see {@code VsumVersionService}. */
+  private static void abandon(VsumBuild build) {
+    build.setStatus(VsumBuildStatus.FAILED);
+    build.setErrorMessage(VsumVersionService.STUCK_ERROR);
+    build.setFinishedAt(Instant.now());
+  }
+
+  /** A pending version whose copies differ from the working copy's inputs. */
+  private VsumVersion pendingVersion() {
+    return VsumVersion.builder()
+        .vsum(vsum)
+        .createdBy(user)
+        .ecores(List.of(fs(101L, "a.ecore", new byte[] {11})))
+        .reactions(List.of(fs(103L, "x.reactions", new byte[] {13})))
+        .constraints(List.of(fs(104L, "rules.ocl", new byte[] {14})))
+        .views(List.of(fs(105L, "view.nj", new byte[] {15})))
+        .build();
+  }
+
+  private static VsumBuildInputs snapshotInputs(VsumVersion version) {
+    return new VsumBuildInputs(
+        version.getEcores(), version.getReactions(), version.getConstraints(), version.getViews());
   }
 
   private VsumBuild build(String fingerprint, VsumBuildStatus status, boolean forced) {
@@ -468,6 +747,26 @@ class VsumBuildServiceTest {
     return f;
   }
 
+  /** What {@link VsumBuildRepository#findFailureById} reads for the given build. */
+  private static VsumBuildRepository.Failure failure(VsumBuild build) {
+    return new VsumBuildRepository.Failure() {
+      @Override
+      public String getErrorMessage() {
+        return build.getErrorMessage();
+      }
+
+      @Override
+      public String getErrorCode() {
+        return build.getErrorCode();
+      }
+
+      @Override
+      public List<BuildProblem> getProblems() {
+        return build.getProblems();
+      }
+    };
+  }
+
   /** Makes the mocked repositories behave like a tiny in-memory database. */
   private void stubInMemoryRepositories() {
     lenient()
@@ -491,11 +790,11 @@ class VsumBuildServiceTest {
                 Optional.ofNullable(builds.get(inv.<Long>getArgument(0)))
                     .map(VsumBuild::getStatus));
     lenient()
-        .when(vsumBuildRepository.findErrorMessageById(anyLong()))
+        .when(vsumBuildRepository.findFailureById(anyLong()))
         .thenAnswer(
             inv ->
                 Optional.ofNullable(builds.get(inv.<Long>getArgument(0)))
-                    .map(VsumBuild::getErrorMessage));
+                    .map(VsumBuildServiceTest::failure));
     lenient()
         .when(vsumBuildRepository.findArtifactDataById(anyLong()))
         .thenAnswer(

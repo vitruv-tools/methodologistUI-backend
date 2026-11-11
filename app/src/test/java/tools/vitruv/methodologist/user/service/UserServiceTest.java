@@ -23,6 +23,10 @@ import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCES
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 import static tools.vitruv.methodologist.messages.Error.USER_WRONG_PASSWORD_ERROR;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import jakarta.ws.rs.BadRequestException;
 import java.time.Duration;
 import java.time.Instant;
@@ -34,6 +38,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -747,11 +752,19 @@ class UserServiceTest {
 
     UserPostForgotPasswordRequest userPostForgotPasswordRequest =
         UserPostForgotPasswordRequest.builder().email(email).build();
-    assertThatThrownBy(() -> spyService.forgotPassword(userPostForgotPasswordRequest))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessageContaining("Mailjet failed");
+    user.setId(7L);
+    List<ILoggingEvent> logs =
+        logsOf(
+            () ->
+                assertThatThrownBy(() -> spyService.forgotPassword(userPostForgotPasswordRequest))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Mailjet failed"));
 
     verify(keycloakService).setPassword(eq(user.getUsername()), anyString());
+    // the password was reset in Keycloak, so the reset is recorded although the mail failed
+    assertThat(logs)
+        .extracting(ILoggingEvent::getFormattedMessage)
+        .containsExactly("Password of user 7 was reset");
   }
 
   @Test
@@ -812,7 +825,7 @@ class UserServiceTest {
     req.setCurrentPassword("WrongPass#12345");
     req.setNewPassword("StrongPass#12345");
 
-    doThrow(new RuntimeException("invalid credentials"))
+    doThrow(new UnauthorizedException())
         .when(keycloakApiHandler)
         .getAccessTokenOrThrow(user.getUsername(), req.getCurrentPassword());
 
@@ -1117,5 +1130,102 @@ class UserServiceTest {
             () -> userService.syncWithKeycloak("error@example.com", username, "John", "Doe"))
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining("Keycloak service down");
+  }
+
+  @Test
+  void getAccessToken_logsARejectedLogin_atWarn_withoutTheCredentials() {
+    when(keycloakApiHandler.getAccessTokenOrThrow("alice", "p@ssw0rd"))
+        .thenThrow(new UnauthorizedException());
+
+    List<ILoggingEvent> events =
+        logsOf(
+            () ->
+                assertThatThrownBy(() -> userService.getAccessToken(accessReq))
+                    .isInstanceOf(UnauthorizedException.class));
+
+    assertThat(events).extracting(ILoggingEvent::getLevel).containsExactly(Level.WARN);
+    assertThat(events.getFirst().getFormattedMessage())
+        .contains("rejected")
+        .doesNotContain("alice", "p@ssw0rd");
+    assertThat(events.getFirst().getThrowableProxy()).isNull();
+  }
+
+  @Test
+  void getAccessToken_logsAFailingKeycloak_atError_withTheCause() {
+    RuntimeException unreachable = new IllegalStateException("Connection refused");
+    when(keycloakApiHandler.getAccessTokenOrThrow("alice", "p@ssw0rd")).thenThrow(unreachable);
+
+    List<ILoggingEvent> events =
+        logsOf(
+            () ->
+                assertThatThrownBy(() -> userService.getAccessToken(accessReq))
+                    .isInstanceOf(UnauthorizedException.class));
+
+    assertThat(events).extracting(ILoggingEvent::getLevel).containsExactly(Level.ERROR);
+    assertThat(events.getFirst().getFormattedMessage()).doesNotContain("alice", "p@ssw0rd");
+    assertThat(events.getFirst().getThrowableProxy().getMessage()).isEqualTo("Connection refused");
+  }
+
+  @Test
+  void getAccessTokenByRefreshToken_logsARejectedToken_atInfo_andAFailingKeycloak_atError() {
+    when(keycloakApiHandler.getAccessTokenByRefreshToken("refresh-123"))
+        .thenThrow(new UnauthorizedException())
+        .thenThrow(new IllegalStateException("Connection refused"));
+
+    List<ILoggingEvent> events =
+        logsOf(
+            () -> {
+              assertThatThrownBy(() -> userService.getAccessTokenByRefreshToken(refreshReq))
+                  .isInstanceOf(UnauthorizedException.class);
+              assertThatThrownBy(() -> userService.getAccessTokenByRefreshToken(refreshReq))
+                  .isInstanceOf(UnauthorizedException.class);
+            });
+
+    assertThat(events).extracting(ILoggingEvent::getLevel).containsExactly(Level.INFO, Level.ERROR);
+    assertThat(events)
+        .allSatisfy(event -> assertThat(event.getFormattedMessage()).doesNotContain("refresh-123"));
+  }
+
+  @Test
+  void changePassword_logsAFailingKeycloak_atError_andStillRejectsTheChange() {
+    String email = "caller@example.com";
+    User user = new User();
+    user.setId(7L);
+    user.setEmail(email);
+    user.setUsername("kc-user-1");
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
+        .thenReturn(Optional.of(user));
+    UserPutChangePasswordRequest req = new UserPutChangePasswordRequest();
+    req.setCurrentPassword("CurrentPass#12345");
+    req.setNewPassword("StrongPass#12345");
+    doThrow(new IllegalStateException("Connection refused"))
+        .when(keycloakApiHandler)
+        .getAccessTokenOrThrow(user.getUsername(), req.getCurrentPassword());
+
+    List<ILoggingEvent> events =
+        logsOf(
+            () ->
+                assertThatThrownBy(() -> userService.changePassword(email, req))
+                    .isInstanceOf(BadRequestException.class));
+
+    assertThat(events).extracting(ILoggingEvent::getLevel).containsExactly(Level.ERROR);
+    assertThat(events.getFirst().getFormattedMessage())
+        .contains("7")
+        .doesNotContain(email, "kc-user-1", "CurrentPass#12345");
+    verify(keycloakService, never()).setPassword(anyString(), anyString());
+  }
+
+  /** Runs the code and returns what {@link UserService} logged. */
+  private static List<ILoggingEvent> logsOf(Runnable code) {
+    Logger logger = (Logger) LoggerFactory.getLogger(UserService.class);
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+    try {
+      code.run();
+    } finally {
+      logger.detachAppender(appender);
+    }
+    return appender.list;
   }
 }
