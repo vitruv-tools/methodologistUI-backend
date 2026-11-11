@@ -94,6 +94,15 @@
         "clientRole": false,
         "containerId": "c08d3b7d-258e-4d6e-9877-5361924532b5",
         "attributes": {}
+      },
+      {
+        "id": "f9f7cb80-05ef-4cc7-b57e-67f821c25c20",
+        "name": "collaboration-service",
+        "description": "Lets the collaboration server read and sync any project through the internal endpoints",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "c08d3b7d-258e-4d6e-9877-5361924532b5",
+        "attributes": {}
       }
     ],
     "client": {
@@ -467,6 +476,21 @@
   "webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister": false,
   "webAuthnPolicyPasswordlessAcceptableAaguids": [],
   "webAuthnPolicyPasswordlessExtraOrigins": [],
+  "users": [
+    {
+      "id": "1e574f40-2695-4012-b0ae-71ad69ac3765",
+      "username": "service-account-collaboration-service",
+      "emailVerified": false,
+      "enabled": true,
+      "serviceAccountClientId": "collaboration-service",
+      "realmRoles": [
+        "default-roles-methodologist",
+        "collaboration-service"
+      ],
+      "clientRoles": {},
+      "groups": []
+    }
+  ],
   "scopeMappings": [
     {
       "clientScope": "offline_access",
@@ -676,6 +700,47 @@
         "organization",
         "microprofile-jwt"
       ]
+    },
+    {
+      "id": "78e9fb4c-609f-46d0-80df-710fd3ef9259",
+      "clientId": "collaboration-service",
+      "name": "Collaboration server",
+      "description": "Service account of the collaboration server. Gets its token with the client credentials grant.",
+      "rootUrl": "",
+      "adminUrl": "",
+      "baseUrl": "",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "dev-only-collaboration-service-secret",
+      "redirectUris": [],
+      "webOrigins": [],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "realm_client": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "oauth2.device.authorization.grant.enabled": "false"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": true,
+      "nodeReRegistrationTimeout": -1,
+      "defaultClientScopes": [
+        "service_account",
+        "acr",
+        "roles",
+        "basic"
+      ],
+      "optionalClientScopes": []
     },
     {
       "id": "d046d8e3-89fc-4043-a147-9614c20418c7",
