@@ -51,7 +51,6 @@ import tools.vitruv.methodologist.vsum.service.VsumMetaModelService.EcoreFile;
 /** Unit tests for {@link NeoJoinLspWebSocketHandler}. */
 class NeoJoinLspWebSocketHandlerTest {
 
-  private static final String EMAIL = "member@example.com";
   private static final int MAX_PROCESSES = 2;
   private static final long IDLE_TIMEOUT_SECONDS = 1800;
   private static final Path WORKSPACE = Path.of("/sessions/neojoin-lsp-1/workspace");

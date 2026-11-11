@@ -91,13 +91,13 @@ class FileStorageRepositoryAccessTest {
     member = persist(user("member@example.com"));
     stranger = persist(user("stranger@example.com"));
     ecore = persist(file(uploader, FileEnumType.ECORE));
-    FileStorage genModel = persist(file(uploader, FileEnumType.GEN_MODEL));
 
     vsum = new Vsum();
     vsum.setName("project");
     vsum.setUser(member);
     persist(vsum);
 
+    FileStorage genModel = persist(file(uploader, FileEnumType.GEN_MODEL));
     MetaModel metaModel =
         MetaModel.builder()
             .name("mm")
@@ -194,11 +194,11 @@ class FileStorageRepositoryAccessTest {
 
   @Test
   void reactionFileUsedInAnotherVsumIsNotAttachable() {
-    FileStorage reaction = persist(file(uploader, FileEnumType.REACTION));
     Vsum other = new Vsum();
     other.setName("other");
     other.setUser(stranger);
     persist(other);
+    FileStorage reaction = persist(file(uploader, FileEnumType.REACTION));
     persistRelation(other, reaction);
 
     assertThat(attachable(reaction, "member@example.com")).isEmpty();

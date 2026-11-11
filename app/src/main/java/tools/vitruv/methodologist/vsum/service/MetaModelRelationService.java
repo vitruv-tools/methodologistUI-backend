@@ -88,7 +88,6 @@ public class MetaModelRelationService {
    * @param allowUpdate whether to allow updates of existing relations
    * @return a map of requests to created or updated relations
    */
-  @Transactional
   protected Map<MetaModelRelationRequest, MetaModelRelation> createOrUpdate(
       String callerEmail,
       Vsum vsum,

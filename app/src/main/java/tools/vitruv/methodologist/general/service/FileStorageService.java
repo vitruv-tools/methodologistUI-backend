@@ -175,7 +175,9 @@ public class FileStorageService {
     if (!fileStorageRepository.isReadableBy(id, callerEmail)) {
       throw new NotFoundException(FILE_ID_NOT_FOUND_ERROR);
     }
-    return getFile(id);
+    return fileStorageRepository
+        .findById(id)
+        .orElseThrow(() -> new NotFoundException(FILE_ID_NOT_FOUND_ERROR));
   }
 
   /**

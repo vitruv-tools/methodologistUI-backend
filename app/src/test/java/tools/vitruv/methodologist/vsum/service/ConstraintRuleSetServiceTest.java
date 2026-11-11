@@ -140,16 +140,12 @@ class ConstraintRuleSetServiceTest {
   @Test
   void writes_throwAccessDenied_whenCallerIsAViewer() {
     makeCallerViewer();
+    var createRequest = new RuleSetPostRequest("X", null, null, null);
+    var updateRequest = new RuleSetPutRequest("X", null, null, null);
 
-    assertThatThrownBy(
-            () ->
-                service.create(
-                    "test@example.com", 10L, new RuleSetPostRequest("X", null, null, null)))
+    assertThatThrownBy(() -> service.create("test@example.com", 10L, createRequest))
         .isInstanceOf(AccessDeniedException.class);
-    assertThatThrownBy(
-            () ->
-                service.update(
-                    "test@example.com", 10L, 100L, new RuleSetPutRequest("X", null, null, null)))
+    assertThatThrownBy(() -> service.update("test@example.com", 10L, 100L, updateRequest))
         .isInstanceOf(AccessDeniedException.class);
     assertThatThrownBy(() -> service.delete("test@example.com", 10L, 100L))
         .isInstanceOf(AccessDeniedException.class);

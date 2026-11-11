@@ -49,7 +49,6 @@ import tools.vitruv.methodologist.vsum.service.VsumMetaModelService.EcoreFile;
  */
 class NeoJoinLspServerTest {
 
-  private static final String EMAIL = "member@example.com";
   private static final long RESPONSE_TIMEOUT_SECONDS = 60;
 
   private static final String BASE_ECORE =

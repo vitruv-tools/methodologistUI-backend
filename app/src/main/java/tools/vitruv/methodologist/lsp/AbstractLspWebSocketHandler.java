@@ -403,9 +403,10 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
         cleanupTempDir(serverProcess.tempDir());
       }
       return true;
+    } else {
+      logger.debug("No {} process for session {}, already cleaned up", serverName(), sessionId);
+      return false;
     }
-    logger.debug("No {} process for session {}, already cleaned up", serverName(), sessionId);
-    return false;
   }
 
   /** Cleans up sessions that have been inactive for longer than {@link #TIMEOUT_MS}. */

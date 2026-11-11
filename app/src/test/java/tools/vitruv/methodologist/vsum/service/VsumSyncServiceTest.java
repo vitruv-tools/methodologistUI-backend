@@ -346,7 +346,7 @@ class VsumSyncServiceTest {
 
     verify(metaModelRelationService, never()).delete(any());
     verify(metaModelRelationService, never()).create(any(), any(), any());
-    verify(metaModelRelationService).update(eq(email), eq(vsum), eq(Map.of(updated, r12)));
+    verify(metaModelRelationService).update(email, vsum, Map.of(updated, r12));
     verify(vsumHistoryService).create(vsum, owner);
     verify(fineGranularMetaModelRelationService).update(eq(email), eq(Map.of(updated, r12)), any());
   }
@@ -385,7 +385,7 @@ class VsumSyncServiceTest {
 
     service.applySyncChanges(vsum, owner, put, true);
 
-    verify(metaModelRelationService).update(eq(email), eq(vsum), eq(Map.of(updated, r12)));
+    verify(metaModelRelationService).update(email, vsum, Map.of(updated, r12));
     verify(fineGranularMetaModelRelationService).update(eq(email), eq(Map.of(updated, r12)), any());
     verify(vsumViewService).create(vsum, 90L);
     verify(vsumHistoryService, times(1)).create(vsum, owner);

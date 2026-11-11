@@ -147,8 +147,7 @@ class OclLspWebSocketHandlerTest {
     try (Stream<Path> files = Files.walk(appTempBase)) {
       assertThat(files.filter(path -> path.getFileName().toString().equals("escaped.ecore")))
           .singleElement()
-          .satisfies(
-              path -> assertThat(path.getParent().getFileName().toString()).isEqualTo("ecore"));
+          .satisfies(path -> assertThat(path.getParent().getFileName()).hasToString("ecore"));
     }
     handler.afterConnectionClosed(session, CloseStatus.NORMAL);
   }

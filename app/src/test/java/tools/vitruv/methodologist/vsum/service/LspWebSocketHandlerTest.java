@@ -247,8 +247,7 @@ class LspWebSocketHandlerTest {
       try (var files = Files.walk(sessionDir)) {
         assertThat(files.filter(path -> path.getFileName().toString().equals("escaped.ecore")))
             .singleElement()
-            .satisfies(
-                path -> assertThat(path.getParent().getFileName().toString()).isEqualTo("model"));
+            .satisfies(path -> assertThat(path.getParent().getFileName()).hasToString("model"));
       }
     } finally {
       handler.afterConnectionClosed(session, CloseStatus.NORMAL);
