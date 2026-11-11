@@ -126,7 +126,8 @@ public class FileStorageService {
     String sha = sha256Hex(data);
 
     if (rejectsDuplicateContent(type)
-        && fileStorageRepository.existsByUserAndSha256AndSizeBytes(user, sha, data.length)) {
+        && fileStorageRepository.existsByUserAndSha256AndSizeBytesAndTypeNot(
+            user, sha, data.length, FileEnumType.VSUM_VERSION_FILE)) {
       throw new FileAlreadyExistsException();
     }
 

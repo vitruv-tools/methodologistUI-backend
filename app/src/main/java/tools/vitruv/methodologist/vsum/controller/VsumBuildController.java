@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.controller;
 
 import static tools.vitruv.methodologist.messages.Message.VSUM_BUILD_REUSED;
 import static tools.vitruv.methodologist.messages.Message.VSUM_BUILD_STARTED;
+import static tools.vitruv.methodologist.messages.Message.VSUM_PUBLISH_STARTED;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -22,11 +23,14 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumVersionResponse;
 import tools.vitruv.methodologist.vsum.service.VsumBuildService;
 import tools.vitruv.methodologist.vsum.service.VsumDeploymentBundleService;
+import tools.vitruv.methodologist.vsum.service.VsumVersionService;
 
 /**
- * Asynchronous VSUM builds: start one, follow its status, and download what it produced.
+ * Asynchronous VSUM builds: start one, follow its status, and download what it produced. Publishing
+ * a stable version runs through the same builds.
  *
  * <p>Every endpoint requires the caller to be a member of the VSUM. The synchronous {@code GET
  * /v1/vsums/{id}/build/*} endpoints in {@link VsumController} remain as blocking wrappers around
@@ -42,6 +46,7 @@ public class VsumBuildController {
 
   private final VsumBuildService vsumBuildService;
   private final VsumDeploymentBundleService vsumDeploymentBundleService;
+  private final VsumVersionService vsumVersionService;
 
   /**
    * Requests a build of the VSUM's current input files.
@@ -191,5 +196,52 @@ public class VsumBuildController {
     headers.setContentDisposition(
         ContentDisposition.attachment().filename("vsum-deployment.zip").build());
     return ResponseEntity.ok().headers(headers).body(bundle);
+  }
+
+  /**
+   * Publishes the VSUM: takes a snapshot of its working copy and starts building it. Once the build
+   * succeeds, the snapshot becomes the next stable version; if it fails, no version is created and
+   * the problems are on the build. Follow the returned build with {@code GET
+   * /v1/vsums/{id}/builds/{buildId}} and download the version's JAR through its artifact endpoint.
+   *
+   * @param authentication the authenticated Keycloak principal
+   * @param id the VSUM to publish
+   * @return the build of the snapshot, with {@code 202 Accepted}
+   * @throws org.springframework.security.access.AccessDeniedException if the caller is a viewer or
+   *     not part of the VSUM
+   * @throws tools.vitruv.methodologist.exception.PublishInProgressException if an earlier publish
+   *     of the VSUM is still building
+   */
+  @PostMapping("/v1/vsums/{id}/publish")
+  @PreAuthorize("hasRole('user')")
+  public ResponseEntity<ResponseTemplateDto<VsumBuildResponse>> publish(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    VsumBuildResponse build = vsumVersionService.publish(callerEmail, id);
+    return ResponseEntity.status(HttpStatus.ACCEPTED)
+        .body(
+            ResponseTemplateDto.<VsumBuildResponse>builder()
+                .data(build)
+                .message(VSUM_PUBLISH_STARTED)
+                .build());
+  }
+
+  /**
+   * Returns the newest stable version of the VSUM.
+   *
+   * @param authentication the authenticated Keycloak principal
+   * @param id the VSUM identifier
+   * @return the version's number, publisher, creation time and build id
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if nothing has been published
+   *     yet
+   */
+  @GetMapping("/v1/vsums/{id}/versions/latest")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<VsumVersionResponse> findLatestVersion(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    return ResponseTemplateDto.<VsumVersionResponse>builder()
+        .data(vsumVersionService.findLatest(callerEmail, id))
+        .build();
   }
 }
