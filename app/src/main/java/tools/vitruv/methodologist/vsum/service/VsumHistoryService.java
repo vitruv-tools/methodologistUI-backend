@@ -230,8 +230,13 @@ public class VsumHistoryService {
                       ViewRequest.builder()
                           .id(view.getId())
                           .name(view.getName())
-                          // a snapshot is the full state: a view without description has none
-                          .description(view.getDescription() == null ? "" : view.getDescription())
+                          // A snapshot is the full state: a view without description has none.
+                          // Snapshots from before views had names have no descriptions at all,
+                          // so their views keep the current one, like their name.
+                          .description(
+                              view.getName() == null
+                                  ? null
+                                  : Objects.requireNonNullElse(view.getDescription(), ""))
                           .fileStorageId(view.getFileStorageId())
                           .metaModelIds(
                               view.getMetaModelIds() == null

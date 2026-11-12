@@ -2,7 +2,6 @@ package tools.vitruv.methodologist.vsum.controller.dto.request;
 
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -32,7 +31,6 @@ public class ViewRequest {
    * changes are applied). If {@code null} or blank, an existing view keeps its name and a new view
    * is named after its file.
    */
-  @Size(max = 255)
   private String name;
 
   /**

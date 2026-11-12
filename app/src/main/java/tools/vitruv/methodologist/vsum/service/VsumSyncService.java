@@ -337,7 +337,8 @@ public class VsumSyncService {
    * Normalizes the view requests. A request that names a view (by ID or name) must have a file, a
    * request without either is dropped if it lacks a file or meta models, as before views had names.
    * The meta model IDs of a request are reduced to those the VSUM keeps: a view can only be linked
-   * to meta models of its VSUM.
+   * to meta models of its VSUM. A request without either that repeats the file and meta models of
+   * an earlier one describes the same view and is dropped.
    */
   private List<ViewRequest> normalizeViewRequests(
       List<ViewRequest> requests, Set<Long> desiredMetaModelIds) {
@@ -345,11 +346,23 @@ public class VsumSyncService {
       return List.of();
     }
 
-    return requests.stream()
-        .filter(Objects::nonNull)
-        .map(request -> normalizeViewRequest(request, desiredMetaModelIds))
-        .filter(Objects::nonNull)
-        .toList();
+    List<ViewRequest> normalized = new ArrayList<>();
+    // file and sorted meta model IDs of the requests without ID and name
+    Set<List<Object>> unnamedViews = new HashSet<>();
+    for (ViewRequest request : requests) {
+      ViewRequest normalizedRequest =
+          request == null ? null : normalizeViewRequest(request, desiredMetaModelIds);
+      if (normalizedRequest == null) {
+        continue;
+      }
+      boolean identified = normalizedRequest.getId() != null || normalizedRequest.getName() != null;
+      if (identified
+          || unnamedViews.add(
+              List.of(normalizedRequest.getFileStorageId(), normalizedRequest.getMetaModelIds()))) {
+        normalized.add(normalizedRequest);
+      }
+    }
+    return normalized;
   }
 
   /**

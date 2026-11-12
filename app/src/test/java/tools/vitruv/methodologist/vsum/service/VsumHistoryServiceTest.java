@@ -428,12 +428,19 @@ class VsumHistoryServiceTest {
     // a view of a snapshot taken before views had names
     VsumRepresentation.View view2 =
         VsumRepresentation.View.builder().fileStorageId(20L).metaModelIds(List.of(3L)).build();
+    VsumRepresentation.View view3 =
+        VsumRepresentation.View.builder()
+            .id(8L)
+            .name("Doors")
+            .fileStorageId(30L)
+            .metaModelIds(List.of(4L))
+            .build();
 
     VsumRepresentation rep =
         VsumRepresentation.builder()
             .metaModels(Set.of())
             .metaModelsRealation(Set.of())
-            .views(new HashSet<>(Set.of(view1, view2)))
+            .views(new HashSet<>(Set.of(view1, view2, view3)))
             .build();
 
     Long historyId = 16L;
@@ -453,7 +460,7 @@ class VsumHistoryServiceTest {
     verify(vsumSyncService).applySyncChanges(eq(vsum), eq(user), reqCap.capture(), eq(false));
 
     VsumSyncChangesPutRequest applied = reqCap.getValue();
-    assertThat(applied.getViewRequests()).hasSize(2);
+    assertThat(applied.getViewRequests()).hasSize(3);
     assertThat(applied.getViewRequests())
         .anySatisfy(
             v -> {
@@ -468,9 +475,19 @@ class VsumHistoryServiceTest {
             v -> {
               assertThat(v.getId()).isNull();
               assertThat(v.getName()).isNull();
-              assertThat(v.getDescription()).isEmpty();
+              // keeps the current description, as the snapshot predates descriptions
+              assertThat(v.getDescription()).isNull();
               assertThat(v.getFileStorageId()).isEqualTo(20L);
               assertThat(v.getMetaModelIds()).containsExactly(3L);
+            });
+    assertThat(applied.getViewRequests())
+        .anySatisfy(
+            v -> {
+              assertThat(v.getId()).isEqualTo(8L);
+              assertThat(v.getName()).isEqualTo("Doors");
+              // removes a description added after the snapshot
+              assertThat(v.getDescription()).isEmpty();
+              assertThat(v.getFileStorageId()).isEqualTo(30L);
             });
   }
 

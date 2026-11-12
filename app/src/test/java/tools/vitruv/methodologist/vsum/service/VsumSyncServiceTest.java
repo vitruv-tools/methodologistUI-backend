@@ -1050,6 +1050,20 @@ class VsumSyncServiceTest {
     verify(vsumViewService, never()).create(any(), any(), any(), any());
   }
 
+  @Test
+  void applySyncChanges_treatsRepeatedRequestWithoutName_asTheSameView() {
+    Vsum vsum = vsumWithMetaModels(126L);
+    VsumView brake = view(10L, "Brake", 50L);
+    VsumViewMetaModel one = link(brake, 1001L, 1L);
+    givenViews(vsum, List.of(brake), List.of(one));
+
+    syncViews(vsum, request(null, null, 50L, 1L), request(null, null, 50L, 1L));
+
+    verify(vsumViewService, never()).create(any(), any(), any(), any());
+    verify(vsumViewService, never()).update(any(), any(), any(), any());
+    verify(vsumViewService, never()).delete(any(), any());
+  }
+
   private static final User OWNER = User.builder().email("u@ex.com").build();
 
   /** A VSUM with the meta models 1, 2 and 3, which {@link #syncViews} keeps. */
