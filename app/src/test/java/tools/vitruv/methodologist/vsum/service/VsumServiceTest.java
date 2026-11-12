@@ -894,6 +894,78 @@ class VsumServiceTest {
     verifyNoInteractions(vsumValidationService);
   }
 
+  @Test
+  void findVsumWithDetailsForService_returnsTheDetails_withoutMembershipCheckAndRole() {
+    Vsum vsum = new Vsum();
+    vsum.setId(79L);
+    when(vsumRepository.findByIdAndRemovedAtIsNull(79L)).thenReturn(Optional.of(vsum));
+    VsumMetaModelResponse base = new VsumMetaModelResponse();
+    when(vsumMapper.toVsumMetaModelResponse(vsum)).thenReturn(base);
+
+    VsumMetaModelResponse result = service.findVsumWithDetailsForService(79L);
+
+    assertThat(result).isSameAs(base);
+    assertThat(result.getRole()).isNull();
+    assertThat(result.getMetaModels()).isNotNull().isEmpty();
+    assertThat(result.getMetaModelsRelation()).isNotNull().isEmpty();
+    assertThat(result.getViews()).isNotNull().isEmpty();
+    verifyNoInteractions(userRepository, vsumUserRepository);
+  }
+
+  @Test
+  void findVsumWithDetailsForService_throwsNotFound_whenMissingOrRemoved() {
+    when(vsumRepository.findByIdAndRemovedAtIsNull(1L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.findVsumWithDetailsForService(1L))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
+  }
+
+  @Test
+  void updateForService_syncsAsTheOwner_withoutHistory() {
+    User owner = new User();
+    owner.setEmail("owner@ex.com");
+    Vsum vsum = new Vsum();
+    vsum.setId(1L);
+    vsum.setUser(owner);
+    when(vsumRepository.findByIdAndRemovedAtIsNull(1L)).thenReturn(Optional.of(vsum));
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    when(vsumSyncService.applySyncChanges(vsum, owner, put, false)).thenReturn(vsum);
+
+    Vsum result = service.updateForService(1L, put);
+
+    assertThat(result).isSameAs(vsum);
+    verifyNoInteractions(vsumUserRepository);
+  }
+
+  @Test
+  void updateForService_throwsNotFound_whenMissingOrRemoved() {
+    when(vsumRepository.findByIdAndRemovedAtIsNull(1L)).thenReturn(Optional.empty());
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+
+    assertThatThrownBy(() -> service.updateForService(1L, put))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
+    verifyNoInteractions(vsumSyncService);
+  }
+
+  @Test
+  void updateForService_requestsValidationAfterTheCommit() {
+    Vsum vsum = new Vsum();
+    vsum.setUser(new User());
+    when(vsumRepository.findByIdAndRemovedAtIsNull(1L)).thenReturn(Optional.of(vsum));
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    TransactionTemplate transaction = new TransactionTemplate(new NoOpTransactionManager());
+
+    transaction.executeWithoutResult(
+        status -> {
+          service.updateForService(1L, put);
+          verifyNoInteractions(vsumValidationService);
+        });
+
+    verify(vsumValidationService).requestValidation(1L);
+  }
+
   private MetaModel givenEditableMetaModel() {
     Vsum vsum = new Vsum();
     givenVsumMember(EDITOR_EMAIL, vsum, VsumRole.MEMBER);
