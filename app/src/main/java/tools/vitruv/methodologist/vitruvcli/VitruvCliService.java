@@ -107,7 +107,7 @@ public class VitruvCliService {
   }
 
   private VitruvCliResult execute(Path jobDir, List<String> command) {
-    log.info("Running Vitruv-CLI with command: {}", String.join(" ", command));
+    log.debug("Running Vitruv-CLI with command: {}", String.join(" ", command));
 
     try {
       Files.createDirectories(jobDir);
@@ -137,11 +137,12 @@ public class VitruvCliService {
       String stdout = outFuture.join();
       String stderr = errFuture.join();
 
-      log.info(
-          "Vitruv-CLI finished with exitCode={}, stdout={}, stderr={}",
-          exitCode,
-          truncate(stdout),
-          truncate(stderr));
+      if (exitCode == 0) {
+        log.debug("Vitruv-CLI finished with exit code {}", exitCode);
+      } else {
+        log.warn("Vitruv-CLI exited with code {}", exitCode);
+      }
+      log.debug("Vitruv-CLI output: stdout={}, stderr={}", truncate(stdout), truncate(stderr));
 
       return VitruvCliResult.builder().exitCode(exitCode).stdout(stdout).stderr(stderr).build();
 

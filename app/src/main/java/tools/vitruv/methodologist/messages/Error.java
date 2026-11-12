@@ -10,6 +10,9 @@ public class Error {
   public static final String VSUM_HISTORY_ID_NOT_FOUND_ERROR = "Vsum history id";
   public static final String VSUM_BUILD_ID_NOT_FOUND_ERROR = "Vsum build id";
   public static final String VSUM_BUILD_ARTIFACT_NOT_FOUND_ERROR = "Vsum build artifact";
+  public static final String VSUM_VERSION_NOT_FOUND_ERROR = "Vsum version";
+  public static final String PUBLISH_IN_PROGRESS_ERROR =
+      "This project is already being published, please wait until that build has finished.";
   public static final String USER_DOES_NOT_HAVE_ACCESS = "You don't have access";
   public static final String VIEW_FILE_ID_NOT_FOUND_ERROR = "View file id";
   public static final String VIEW_NAME_NOT_UNIQUE_ERROR =
@@ -54,4 +57,6 @@ public class Error {
   public static final String VITRUV_CLI_EXECUTION_FAILED_ERROR = "Vitruv-CLI execution failed: ";
   public static final String VITRUV_CLI_ERROR = "Vitruv-CLI Error: ";
   public static final String LSP_PROCESS_WAIT_ERROR = "Failed to wait for LSP process to exit";
+  public static final String LAYOUT_MUST_BE_JSON_OBJECT_ERROR = "The layout must be a JSON object";
+  public static final String LAYOUT_TOO_LARGE_ERROR = "The layout must not be larger than 1 MB";
 }

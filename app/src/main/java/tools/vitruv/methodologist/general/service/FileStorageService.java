@@ -13,6 +13,7 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,6 +23,7 @@ import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.OwnerRequiredException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.controller.responsedto.FileStorageResponse;
+import tools.vitruv.methodologist.general.event.ReactionFileUpdatedEvent;
 import tools.vitruv.methodologist.general.mapper.FileStorageMapper;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
@@ -43,6 +45,7 @@ public class FileStorageService {
   FileStorageRepository fileStorageRepository;
   UserRepository userRepository;
   FileStorageMapper fileStorageMapper;
+  ApplicationEventPublisher applicationEventPublisher;
 
   /**
    * Ecore and GenModel files may be stored more than once with identical content. Each metamodel
@@ -144,7 +147,8 @@ public class FileStorageService {
     String sha = sha256Hex(data);
 
     if (rejectsDuplicateContent(type)
-        && fileStorageRepository.existsByUserAndSha256AndSizeBytes(user, sha, data.length)) {
+        && fileStorageRepository.existsByUserAndSha256AndSizeBytesAndTypeNot(
+            user, sha, data.length, FileEnumType.VSUM_VERSION_FILE)) {
       throw new FileAlreadyExistsException();
     }
 
@@ -312,6 +316,9 @@ public class FileStorageService {
     existing.setData(data);
 
     fileStorageRepository.save(existing);
+    if (type == FileEnumType.REACTION) {
+      applicationEventPublisher.publishEvent(new ReactionFileUpdatedEvent(existing.getId()));
+    }
 
     return FileStorageResponse.builder().id(existing.getId()).build();
   }

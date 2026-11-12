@@ -7,9 +7,11 @@ import java.util.Set;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.log.AuditLog;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
 
@@ -20,6 +22,7 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumRepository;
  * {@link VsumService#deletePermanently(String, Long)} uses the same cleanup when an owner empties a
  * VSUM from the trash right away.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -76,6 +79,9 @@ public class VsumCleanupService {
     clearIfLoaded(vsum.getVsumMetaModels());
 
     vsumBuildService.deleteByVsum(vsum);
+
+    Long vsumId = vsum.getId();
+    AuditLog.afterCommit(() -> log.info("VSUM {} deleted permanently", vsumId));
   }
 
   private static void clearIfLoaded(Set<?> children) {

@@ -18,4 +18,15 @@ public class BuildArtifactCreationException extends RuntimeException {
   public BuildArtifactCreationException(String cause) {
     super(String.format(MESSAGE_TEMPLATE, cause));
   }
+
+  /**
+   * Constructs a new {@code BuildArtifactCreationException} with a detail message and the exception
+   * that caused the failure.
+   *
+   * @param cause the detail message describing why artifact creation failed
+   * @param throwable the exception that caused the failure
+   */
+  public BuildArtifactCreationException(String cause, Throwable throwable) {
+    super(String.format(MESSAGE_TEMPLATE, cause), throwable);
+  }
 }

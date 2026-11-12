@@ -32,6 +32,7 @@ import tools.vitruv.methodologist.config.VsumBuildProperties;
 import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.SetupServiceException;
+import tools.vitruv.methodologist.exception.StoredBuildFailureException;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -43,8 +44,10 @@ import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumBuild;
 import tools.vitruv.methodologist.vsum.model.VsumBuildStatus;
 import tools.vitruv.methodologist.vsum.model.VsumUser;
+import tools.vitruv.methodologist.vsum.model.VsumVersion;
 import tools.vitruv.methodologist.vsum.model.repository.VsumBuildRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumVersionRepository;
 
 /**
  * Builds VSUMs through the setup-service as background jobs and keeps the results.
@@ -54,6 +57,10 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
  * the same inputs are already queued or running, that build is returned as well. Otherwise a new
  * {@link VsumBuild} is stored as {@link VsumBuildStatus#QUEUED} and handed to the build executor.
  * Builds of one VSUM never run in parallel.
+ *
+ * <p>A build may also belong to a {@link VsumVersion}. It then builds the version's copied input
+ * files instead of the VSUM's current ones. If it succeeds, the version gets the VSUM's next number
+ * and its artifact is never removed by retention; if it fails, the pending version is deleted.
  *
  * <p>All database work goes through a {@link TransactionTemplate} rather than
  * {@code @Transactional}: the worker runs on the executor thread where no request-scoped session
@@ -75,6 +82,7 @@ public class VsumBuildService {
 
   private final VsumUserRepository vsumUserRepository;
   private final VsumBuildRepository vsumBuildRepository;
+  private final VsumVersionRepository vsumVersionRepository;
   private final FileStorageRepository fileStorageRepository;
   private final VsumBuildInputCollector inputCollector;
   private final SetupServiceApiHandler setupServiceApiHandler;
@@ -91,6 +99,7 @@ public class VsumBuildService {
    *
    * @param vsumUserRepository resolves the caller's VSUM membership
    * @param vsumBuildRepository stores the builds
+   * @param vsumVersionRepository stores the stable versions whose snapshots are built
    * @param fileStorageRepository stores the built JARs
    * @param inputCollector collects and fingerprints the files a VSUM is built from
    * @param setupServiceApiHandler runs the actual build
@@ -102,6 +111,7 @@ public class VsumBuildService {
   public VsumBuildService(
       VsumUserRepository vsumUserRepository,
       VsumBuildRepository vsumBuildRepository,
+      VsumVersionRepository vsumVersionRepository,
       FileStorageRepository fileStorageRepository,
       VsumBuildInputCollector inputCollector,
       SetupServiceApiHandler setupServiceApiHandler,
@@ -111,6 +121,7 @@ public class VsumBuildService {
       PlatformTransactionManager transactionManager) {
     this.vsumUserRepository = vsumUserRepository;
     this.vsumBuildRepository = vsumBuildRepository;
+    this.vsumVersionRepository = vsumVersionRepository;
     this.fileStorageRepository = fileStorageRepository;
     this.inputCollector = inputCollector;
     this.setupServiceApiHandler = setupServiceApiHandler;
@@ -286,10 +297,14 @@ public class VsumBuildService {
         });
   }
 
-  /** Deletes every build of the VSUM together with the artifacts nothing else references. */
+  /**
+   * Deletes every version and build of the VSUM together with the version's file copies and the
+   * artifacts nothing else references. Versions go first because they reference their builds.
+   */
   public void deleteByVsum(Vsum vsum) {
     transactionTemplate.executeWithoutResult(
         status -> {
+          vsumVersionRepository.findAllByVsum(vsum).forEach(this::deleteVersion);
           List<VsumBuild> builds = vsumBuildRepository.findAllByVsum(vsum);
           Set<FileStorage> artifacts = new LinkedHashSet<>();
           for (VsumBuild build : builds) {
@@ -319,6 +334,9 @@ public class VsumBuildService {
           }
           vsumBuildRepository.saveAll(stale);
           if (!stale.isEmpty()) {
+            vsumVersionRepository
+                .findAllByBuildInAndNumberIsNull(stale)
+                .forEach(this::deleteVersion);
             log.warn(
                 "Marked {} VSUM build(s) interrupted by the last shutdown as failed", stale.size());
           }
@@ -354,7 +372,7 @@ public class VsumBuildService {
               inputs.ecores(), inputs.reactions(), inputs.constraints(), inputs.views());
       succeed(buildId, jar);
     } catch (RuntimeException e) {
-      log.error("VSUM build {} failed: {}", buildId, e.getMessage(), e);
+      logBuildFailure(buildId, e);
       String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
       if (e instanceof SetupServiceException setupServiceError) {
         fail(buildId, message, setupServiceError.getErrorCode(), setupServiceError.getProblems());
@@ -366,7 +384,58 @@ public class VsumBuildService {
     }
   }
 
-  private void submit(Long buildId) {
+  /**
+   * Logs a failed build: at WARN without stack trace if the inputs of the VSUM are at fault, at
+   * ERROR with the stack trace otherwise. The message of a setup-service error may repeat its
+   * response, so it is not logged.
+   */
+  private static void logBuildFailure(Long buildId, RuntimeException e) {
+    boolean inputsAtFault =
+        e instanceof VsumBuildingException
+            || e instanceof NotFoundException
+            || (e instanceof SetupServiceException setupServiceError
+                && setupServiceError.isRejectedBySetupService());
+    if (inputsAtFault) {
+      log.warn("VSUM build {} failed because of its inputs ({})", buildId, describe(e));
+    } else {
+      log.error("VSUM build {} failed", buildId, e);
+    }
+  }
+
+  private static String describe(RuntimeException e) {
+    if (e instanceof SetupServiceException setupServiceError
+        && setupServiceError.getErrorCode() != null) {
+      return setupServiceError.getErrorCode();
+    }
+    return e.getClass().getSimpleName();
+  }
+
+  /**
+   * Stores a queued build of the given inputs within the caller's transaction. The caller submits
+   * it with {@link #submit} once that transaction has committed.
+   *
+   * @param vsum the VSUM the build belongs to
+   * @param requestedBy the user who asked for it
+   * @param fingerprint the fingerprint of the inputs to build
+   * @return the stored build
+   */
+  VsumBuild queue(Vsum vsum, User requestedBy, String fingerprint) {
+    return vsumBuildRepository.save(
+        VsumBuild.builder()
+            .vsum(vsum)
+            .requestedBy(requestedBy)
+            .fingerprint(fingerprint)
+            .status(VsumBuildStatus.QUEUED)
+            .build());
+  }
+
+  /**
+   * Hands a queued build to the build executor.
+   *
+   * @param buildId the queued build
+   * @throws VsumBuildingException if the build queue is full; the build is marked failed then
+   */
+  void submit(Long buildId) {
     try {
       executor.execute(() -> runBuild(buildId));
     } catch (TaskRejectedException e) {
@@ -388,7 +457,11 @@ public class VsumBuildService {
             return null;
           }
           Instant now = Instant.now();
-          VsumBuildInputs inputs = inputCollector.collect(build.getVsum());
+          Optional<VsumVersion> version = vsumVersionRepository.findByBuildId(buildId);
+          VsumBuildInputs inputs =
+              version
+                  .map(VsumBuildService::snapshotInputs)
+                  .orElseGet(() -> inputCollector.collect(build.getVsum()));
           String fingerprint = inputs.fingerprint();
 
           if (!build.isForced()) {
@@ -400,6 +473,7 @@ public class VsumBuildService {
               build.setStartedAt(now);
               build.setFinishedAt(now);
               vsumBuildRepository.save(build);
+              version.ifPresent(this::assignNextNumber);
               return null;
             }
           }
@@ -420,16 +494,29 @@ public class VsumBuildService {
     transactionTemplate.executeWithoutResult(
         status -> {
           VsumBuild build = vsumBuildRepository.findById(buildId).orElseThrow();
+          if (build.getStatus().isTerminal()) {
+            // Abandoned while it ran (see VsumVersionService); the late result is dropped.
+            log.warn("VSUM build {} finished after it had been abandoned; result dropped", buildId);
+            return;
+          }
           FileStorage artifact = fileStorageRepository.save(artifact(build.getRequestedBy(), jar));
           build.setArtifact(artifact);
           build.setStatus(VsumBuildStatus.SUCCEEDED);
           build.setFinishedAt(Instant.now());
           vsumBuildRepository.save(build);
+          vsumVersionRepository.findByBuildId(buildId).ifPresent(this::assignNextNumber);
           applyRetention(build.getVsum());
         });
   }
 
-  private void fail(Long buildId, String message) {
+  /**
+   * Marks the build failed unless it has already finished; a pending version built by it is deleted
+   * either way.
+   *
+   * @param buildId the build
+   * @param message why it failed
+   */
+  void fail(Long buildId, String message) {
     fail(buildId, message, null, null);
   }
 
@@ -441,22 +528,61 @@ public class VsumBuildService {
                 .findById(buildId)
                 .ifPresent(
                     build -> {
-                      build.setStatus(VsumBuildStatus.FAILED);
-                      build.setErrorMessage(message);
-                      build.setErrorCode(errorCode);
-                      build.setProblems(problems);
-                      build.setFinishedAt(Instant.now());
-                      vsumBuildRepository.save(build);
+                      // A finished build keeps its outcome, e.g. one abandoned while it ran.
+                      if (!build.getStatus().isTerminal()) {
+                        build.setStatus(VsumBuildStatus.FAILED);
+                        build.setErrorMessage(message);
+                        build.setErrorCode(errorCode);
+                        build.setProblems(problems);
+                        build.setFinishedAt(Instant.now());
+                        vsumBuildRepository.save(build);
+                      }
+                      vsumVersionRepository
+                          .findByBuildId(buildId)
+                          .filter(version -> version.getNumber() == null)
+                          .ifPresent(this::deleteVersion);
                     }));
+  }
+
+  /** Makes the version stable by giving it the next number of its VSUM. */
+  private void assignNextNumber(VsumVersion version) {
+    if (version.getNumber() != null) {
+      return;
+    }
+    int latest = vsumVersionRepository.findMaxNumberByVsum(version.getVsum()).orElse(0);
+    version.setNumber(latest + 1);
+    vsumVersionRepository.save(version);
+  }
+
+  /** Deletes a version and its file copies; the version's join rows go with it. */
+  private void deleteVersion(VsumVersion version) {
+    List<FileStorage> copies = version.allFiles();
+    vsumVersionRepository.delete(version);
+    fileStorageRepository.deleteAll(copies);
+  }
+
+  /** The inputs a version's build is made from: the version's copies, never the working copy. */
+  private static VsumBuildInputs snapshotInputs(VsumVersion version) {
+    return new VsumBuildInputs(
+        List.copyOf(version.getEcores()),
+        List.copyOf(version.getReactions()),
+        List.copyOf(version.getConstraints()),
+        List.copyOf(version.getViews()));
   }
 
   /**
    * Keeps the artifacts of the newest successful builds only ({@code vsum.build.retention-keep}).
+   * The builds of versions are not counted and always keep their artifact.
    */
   private void applyRetention(Vsum vsum) {
+    Set<Long> versionBuildIds = vsumVersionRepository.findBuildIdsByVsum(vsum);
     List<VsumBuild> withArtifact =
-        vsumBuildRepository.findAllByVsumAndStatusAndArtifactIsNotNullOrderByFinishedAtDesc(
-            vsum, VsumBuildStatus.SUCCEEDED);
+        vsumBuildRepository
+            .findAllByVsumAndStatusAndArtifactIsNotNullOrderByFinishedAtDesc(
+                vsum, VsumBuildStatus.SUCCEEDED)
+            .stream()
+            .filter(build -> !versionBuildIds.contains(build.getId()))
+            .toList();
     int keep = properties.getRetentionKeep();
     if (withArtifact.size() <= keep) {
       return;
@@ -517,12 +643,11 @@ public class VsumBuildService {
         .findFailureById(buildId)
         .map(
             failure ->
-                new SetupServiceException(
+                new StoredBuildFailureException(
                     Objects.requireNonNullElse(failure.getErrorMessage(), BUILD_FAILED_ERROR),
-                    null,
                     failure.getErrorCode(),
                     failure.getProblems()))
-        .orElseGet(() -> new SetupServiceException(BUILD_FAILED_ERROR));
+        .orElseGet(() -> new StoredBuildFailureException(BUILD_FAILED_ERROR, null, null));
   }
 
   private byte[] artifactBytes(Long buildId) {

@@ -19,6 +19,7 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -92,7 +93,11 @@ class VsumSyncServiceJpaTest {
               return null;
             });
     FileStorageService fileStorageService =
-        new FileStorageService(fileStorageRepository, userRepository, new FileStorageMapperImpl());
+        new FileStorageService(
+            fileStorageRepository,
+            userRepository,
+            new FileStorageMapperImpl(),
+            mock(ApplicationEventPublisher.class));
     service =
         new VsumSyncService(
             vsumRepository,

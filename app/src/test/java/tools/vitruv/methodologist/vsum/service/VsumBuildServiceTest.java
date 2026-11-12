@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +39,7 @@ import tools.vitruv.methodologist.config.VsumBuildProperties;
 import tools.vitruv.methodologist.exception.BuildProblem;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.SetupServiceException;
+import tools.vitruv.methodologist.exception.StoredBuildFailureException;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
 import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
@@ -49,8 +51,10 @@ import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumBuild;
 import tools.vitruv.methodologist.vsum.model.VsumBuildStatus;
 import tools.vitruv.methodologist.vsum.model.VsumUser;
+import tools.vitruv.methodologist.vsum.model.VsumVersion;
 import tools.vitruv.methodologist.vsum.model.repository.VsumBuildRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
+import tools.vitruv.methodologist.vsum.model.repository.VsumVersionRepository;
 
 /**
  * Drives {@link VsumBuildService} with a synchronous executor and an in-memory stand-in for the
@@ -68,6 +72,7 @@ class VsumBuildServiceTest {
 
   @Mock private VsumUserRepository vsumUserRepository;
   @Mock private VsumBuildRepository vsumBuildRepository;
+  @Mock private VsumVersionRepository vsumVersionRepository;
   @Mock private FileStorageRepository fileStorageRepository;
   @Mock private VsumBuildInputCollector inputCollector;
   @Mock private SetupServiceApiHandler setupServiceApiHandler;
@@ -412,7 +417,7 @@ class VsumBuildServiceTest {
 
     assertThatThrownBy(() -> service.buildAndWait(EMAIL, VSUM_ID))
         .isInstanceOfSatisfying(
-            SetupServiceException.class,
+            StoredBuildFailureException.class,
             e -> {
               assertThat(e).hasMessage("compilation failed");
               assertThat(e.getErrorCode()).isEqualTo("VSUM_BUILD_FAILED");
@@ -430,7 +435,7 @@ class VsumBuildServiceTest {
 
     assertThatThrownBy(() -> service.buildAndWait(EMAIL, VSUM_ID))
         .isInstanceOfSatisfying(
-            SetupServiceException.class,
+            StoredBuildFailureException.class,
             e -> {
               assertThat(e).hasMessage(VsumBuildService.BUILD_FAILED_ERROR);
               assertThat(e.getErrorCode()).isNull();
@@ -495,12 +500,162 @@ class VsumBuildServiceTest {
     assertThat(deletedArtifacts).containsExactly(a.getArtifact());
   }
 
+  // ---- versions ------------------------------------------------------------------------------
+
+  @Test
+  void runBuild_buildsTheVersionsCopies_andGivesTheVersionTheNextNumber() {
+    VsumVersion version = pendingVersion();
+    VsumBuild build = service.queue(vsum, user, "pending");
+    version.setBuild(build);
+    when(vsumVersionRepository.findByBuildId(build.getId())).thenReturn(Optional.of(version));
+    when(vsumVersionRepository.findMaxNumberByVsum(vsum)).thenReturn(Optional.of(2));
+
+    service.runBuild(build.getId());
+
+    verify(inputCollector, never()).collect(any());
+
+    assertThat(build.getStatus()).isEqualTo(VsumBuildStatus.SUCCEEDED);
+    assertThat(build.getFingerprint()).isEqualTo(snapshotInputs(version).fingerprint());
+    verify(setupServiceApiHandler)
+        .buildVsumJarOrThrow(
+            version.getEcores(),
+            version.getReactions(),
+            version.getConstraints(),
+            version.getViews());
+    assertThat(version.getNumber()).isEqualTo(3);
+  }
+
+  @Test
+  void runBuild_numbersTheVersion_whenItAdoptsTheArtifactOfATwin() {
+    VsumVersion version = pendingVersion();
+    VsumBuild twin = succeeded(snapshotInputs(version).fingerprint(), Instant.now());
+    VsumBuild build = service.queue(vsum, user, "pending");
+    version.setBuild(build);
+    when(vsumVersionRepository.findByBuildId(build.getId())).thenReturn(Optional.of(version));
+
+    service.runBuild(build.getId());
+
+    assertThat(build.getArtifact()).isSameAs(twin.getArtifact());
+    assertThat(version.getNumber()).isEqualTo(1);
+  }
+
+  @Test
+  void runBuild_deletesThePendingVersionAndItsCopies_whenTheBuildFails() {
+    VsumVersion version = pendingVersion();
+    VsumBuild build = service.queue(vsum, user, "pending");
+    version.setBuild(build);
+    when(vsumVersionRepository.findByBuildId(build.getId())).thenReturn(Optional.of(version));
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
+        .thenThrow(new SetupServiceException("boom"));
+
+    service.runBuild(build.getId());
+
+    assertThat(build.getStatus()).isEqualTo(VsumBuildStatus.FAILED);
+    assertThat(version.getNumber()).isNull();
+    verify(vsumVersionRepository).delete(version);
+    verify(fileStorageRepository).deleteAll(version.allFiles());
+  }
+
+  @Test
+  void runBuild_dropsALateSuccess_whenTheBuildWasAbandonedWhileItRan() {
+    VsumVersion version = pendingVersion();
+    VsumBuild build = service.queue(vsum, user, "pending");
+    version.setBuild(build);
+    when(vsumVersionRepository.findByBuildId(build.getId())).thenReturn(Optional.of(version));
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
+        .thenAnswer(
+            inv -> {
+              abandon(build);
+              return JAR;
+            });
+
+    service.runBuild(build.getId());
+
+    assertThat(build.getStatus()).isEqualTo(VsumBuildStatus.FAILED);
+    assertThat(build.getErrorMessage()).isEqualTo(VsumVersionService.STUCK_ERROR);
+    assertThat(build.getArtifact()).isNull();
+    assertThat(version.getNumber()).isNull();
+    verify(fileStorageRepository, never()).save(any(FileStorage.class));
+  }
+
+  @Test
+  void runBuild_keepsTheAbandonment_whenTheBuildFailsLater() {
+    VsumBuild build = service.queue(vsum, user, "pending");
+    when(setupServiceApiHandler.buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList()))
+        .thenAnswer(
+            inv -> {
+              abandon(build);
+              throw new SetupServiceException("timeout");
+            });
+
+    service.runBuild(build.getId());
+
+    assertThat(build.getStatus()).isEqualTo(VsumBuildStatus.FAILED);
+    assertThat(build.getErrorMessage()).isEqualTo(VsumVersionService.STUCK_ERROR);
+  }
+
+  @Test
+  void fail_keepsTheOutcomeOfAFinishedBuild_butDeletesItsPendingVersion() {
+    VsumBuild finished = save(build(inputs.fingerprint(), VsumBuildStatus.FAILED, false));
+    finished.setErrorMessage("original problem");
+    VsumVersion leftOver = pendingVersion();
+    leftOver.setBuild(finished);
+    when(vsumVersionRepository.findByBuildId(finished.getId())).thenReturn(Optional.of(leftOver));
+
+    service.fail(finished.getId(), VsumVersionService.STUCK_ERROR);
+
+    assertThat(finished.getErrorMessage()).isEqualTo("original problem");
+    verify(vsumVersionRepository).delete(leftOver);
+    verify(fileStorageRepository).deleteAll(leftOver.allFiles());
+  }
+
+  @Test
+  void succeed_neverRemovesTheArtifactOfAVersion_perRetention() {
+    properties.setRetentionKeep(1);
+    VsumBuild versionBuild =
+        succeeded(
+            "1111111111111111111111111111111111111111111111111111111111111111",
+            Instant.now().minusSeconds(60));
+    when(vsumVersionRepository.findBuildIdsByVsum(vsum)).thenReturn(Set.of(versionBuild.getId()));
+
+    service.requestBuild(EMAIL, VSUM_ID, false);
+
+    assertThat(versionBuild.getArtifact()).isNotNull();
+    assertThat(deletedArtifacts).isEmpty();
+  }
+
+  @Test
+  void failBuildsInterruptedByRestart_deletesTheirPendingVersions() {
+    VsumBuild queued = save(build(inputs.fingerprint(), VsumBuildStatus.QUEUED, false));
+    VsumVersion version = pendingVersion();
+    when(vsumVersionRepository.findAllByBuildInAndNumberIsNull(List.of(queued)))
+        .thenReturn(List.of(version));
+
+    service.failBuildsInterruptedByRestart();
+
+    verify(vsumVersionRepository).delete(version);
+    verify(fileStorageRepository).deleteAll(version.allFiles());
+  }
+
+  @Test
+  void deleteByVsum_deletesTheVersionsAndTheirCopies() {
+    VsumVersion version = pendingVersion();
+    version.setNumber(1);
+    when(vsumVersionRepository.findAllByVsum(vsum)).thenReturn(List.of(version));
+
+    service.deleteByVsum(vsum);
+
+    verify(vsumVersionRepository).delete(version);
+    verify(fileStorageRepository).deleteAll(version.allFiles());
+  }
+
   // ---- fixtures -------------------------------------------------------------------------------
 
   private VsumBuildService newService(Executor executor) {
     return new VsumBuildService(
         vsumUserRepository,
         vsumBuildRepository,
+        vsumVersionRepository,
         fileStorageRepository,
         inputCollector,
         setupServiceApiHandler,
@@ -508,6 +663,30 @@ class VsumBuildServiceTest {
         properties,
         executor,
         transactionManager);
+  }
+
+  /** What abandoning a publish does to its build, see {@code VsumVersionService}. */
+  private static void abandon(VsumBuild build) {
+    build.setStatus(VsumBuildStatus.FAILED);
+    build.setErrorMessage(VsumVersionService.STUCK_ERROR);
+    build.setFinishedAt(Instant.now());
+  }
+
+  /** A pending version whose copies differ from the working copy's inputs. */
+  private VsumVersion pendingVersion() {
+    return VsumVersion.builder()
+        .vsum(vsum)
+        .createdBy(user)
+        .ecores(List.of(fs(101L, "a.ecore", new byte[] {11})))
+        .reactions(List.of(fs(103L, "x.reactions", new byte[] {13})))
+        .constraints(List.of(fs(104L, "rules.ocl", new byte[] {14})))
+        .views(List.of(fs(105L, "view.nj", new byte[] {15})))
+        .build();
+  }
+
+  private static VsumBuildInputs snapshotInputs(VsumVersion version) {
+    return new VsumBuildInputs(
+        version.getEcores(), version.getReactions(), version.getConstraints(), version.getViews());
   }
 
   private VsumBuild build(String fingerprint, VsumBuildStatus status, boolean forced) {

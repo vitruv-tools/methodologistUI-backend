@@ -1,12 +1,16 @@
 package tools.vitruv.methodologist.vsum.service;
 
 import static tools.vitruv.methodologist.general.service.FileStorageService.NEO_JOIN_EXTENSION;
+import static tools.vitruv.methodologist.messages.Error.LAYOUT_MUST_BE_JSON_OBJECT_ERROR;
+import static tools.vitruv.methodologist.messages.Error.LAYOUT_TOO_LARGE_ERROR;
 import static tools.vitruv.methodologist.messages.Error.VIEW_FILE_REQUIRED_ERROR;
 import static tools.vitruv.methodologist.messages.Error.VIEW_ID_NOT_UNIQUE_ERROR;
 import static tools.vitruv.methodologist.messages.Error.VIEW_NAME_NOT_UNIQUE_ERROR;
 import static tools.vitruv.methodologist.messages.Error.VIEW_NAME_TOO_LONG_ERROR;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.ws.rs.BadRequestException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -15,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
@@ -23,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.vitruv.methodologist.exception.InvalidLayoutException;
 import tools.vitruv.methodologist.general.MemoizedSupplier;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
@@ -51,6 +57,8 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumSyncService {
+
+  static final int MAX_LAYOUT_BYTES = 1024 * 1024;
 
   /** Maximum length of a view name, the size of its column. */
   private static final int MAX_VIEW_NAME_LENGTH = 255;
@@ -98,6 +106,8 @@ public class VsumSyncService {
       User user,
       VsumSyncChangesPutRequest vsumSyncChangesPutRequest,
       boolean createHistory) {
+
+    Optional<JsonNode> layoutToStore = validatedLayout(vsumSyncChangesPutRequest);
 
     List<MetaModelRelationRequest> desiredMetaModelRelation =
         normalizeMetaModelRelationRequests(
@@ -269,8 +279,30 @@ public class VsumSyncService {
     fineGranularMetaModelRelationService.update(
         user.getEmail(), requestToRelation, vsumHistorySaveSupplier);
 
+    layoutToStore.ifPresent(vsum::setLayout);
+
     vsumRepository.save(vsum);
     return vsum;
+  }
+
+  /**
+   * Returns the layout to store, or empty if the request carries none (missing or JSON {@code
+   * null}), in which case the stored layout is kept.
+   *
+   * @throws InvalidLayoutException if the layout is not a JSON object or is larger than 1 MB
+   */
+  private Optional<JsonNode> validatedLayout(VsumSyncChangesPutRequest request) {
+    JsonNode layout = request.getLayout();
+    if (layout == null || layout.isNull()) {
+      return Optional.empty();
+    }
+    if (!layout.isObject()) {
+      throw new InvalidLayoutException(LAYOUT_MUST_BE_JSON_OBJECT_ERROR);
+    }
+    if (layout.toString().getBytes(StandardCharsets.UTF_8).length > MAX_LAYOUT_BYTES) {
+      throw new InvalidLayoutException(LAYOUT_TOO_LARGE_ERROR);
+    }
+    return Optional.of(layout);
   }
 
   private String projectMetaModelName(VsumMetaModel vsumMetaModel) {

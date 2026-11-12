@@ -96,10 +96,10 @@ class VsumViewMigrationTest {
   /** The migration script with the clause H2 can not parse removed. */
   private static ByteArrayResource migrationWithoutDeferral() throws IOException {
     String script =
-        new ClassPathResource("db/migration/V20__VSUM_VIEW_NAME.sql")
+        new ClassPathResource("db/migration/V22__VSUM_VIEW_NAME.sql")
             .getContentAsString(StandardCharsets.UTF_8);
     assertThat(script).contains(DEFERRED);
     return new ByteArrayResource(
-        script.replace(DEFERRED, "").getBytes(StandardCharsets.UTF_8), "V20 without deferral");
+        script.replace(DEFERRED, "").getBytes(StandardCharsets.UTF_8), "V22 without deferral");
   }
 }

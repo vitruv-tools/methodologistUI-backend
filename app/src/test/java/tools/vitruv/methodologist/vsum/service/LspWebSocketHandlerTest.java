@@ -27,8 +27,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
-import tools.vitruv.methodologist.config.LspWebSocketHandler;
 import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.lsp.LspWebSocketHandler;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 
 /**

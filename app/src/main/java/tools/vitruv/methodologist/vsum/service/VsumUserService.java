@@ -20,6 +20,7 @@ import tools.vitruv.methodologist.exception.OwnerCannotAddSelfAsMemberException;
 import tools.vitruv.methodologist.exception.OwnerRequiredException;
 import tools.vitruv.methodologist.exception.OwnerRoleRemovalException;
 import tools.vitruv.methodologist.exception.UserAlreadyExistInVsumWithSameRoleException;
+import tools.vitruv.methodologist.log.AuditLog;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
@@ -66,6 +67,8 @@ public class VsumUserService {
 
     VsumUser vsumUser = VsumUser.builder().role(role).user(user).vsum(vsum).build();
     vsumUserRepository.save(vsumUser);
+    AuditLog.afterCommit(
+        () -> log.info("Added user {} to VSUM {} as {}", user.getId(), vsum.getId(), role));
 
     return vsumUser;
   }
@@ -186,5 +189,27 @@ public class VsumUserService {
     }
 
     vsumUserRepository.delete(vsumUser);
+    Long userId = vsumUser.getUser().getId();
+    Long vsumId = vsumUser.getVsum().getId();
+    AuditLog.afterCommit(() -> log.info("Removed user {} from VSUM {}", userId, vsumId));
+  }
+
+  /**
+   * Checks whether the user with the given email is an active member of the given VSUM, in any
+   * role.
+   *
+   * @param vsumId the ID of the VSUM
+   * @param email the user's email
+   * @return {@code true} if both the user and the VSUM exist and are not removed and the user is a
+   *     member; {@code false} otherwise, including for {@code null} or blank arguments
+   */
+  @Transactional(readOnly = true)
+  public boolean isMember(Long vsumId, String email) {
+    if (vsumId == null || email == null || email.isBlank()) {
+      return false;
+    }
+    return vsumUserRepository
+        .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(vsumId, email)
+        .isPresent();
   }
 }

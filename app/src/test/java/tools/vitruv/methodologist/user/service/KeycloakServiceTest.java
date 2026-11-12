@@ -157,12 +157,13 @@ class KeycloakServiceTest {
   }
 
   @Test
-  void verifyUserPasswordOrThrow_throwsUncheckedRuntime_whenKeycloakFailsUnexpectedly() {
-    keycloakGateway.verifyPasswordException = new RuntimeException("server error");
+  void verifyUserPasswordOrThrow_throwsUncheckedRuntime_withTheCause_whenKeycloakFails() {
+    RuntimeException serverError = new RuntimeException("server error");
+    keycloakGateway.verifyPasswordException = serverError;
 
     assertThatThrownBy(() -> keycloakService.verifyUserPasswordOrThrow("alice", "password"))
         .isInstanceOf(UncheckedRuntimeException.class)
-        .hasMessageContaining("server error");
+        .hasCause(serverError);
   }
 
   @Test

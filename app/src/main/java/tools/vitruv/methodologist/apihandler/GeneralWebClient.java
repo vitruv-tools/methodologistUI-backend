@@ -43,7 +43,7 @@ public class GeneralWebClient {
     try {
       loggerClazz = Class.forName(Thread.currentThread().getStackTrace()[2].getClassName());
     } catch (ClassNotFoundException ignored) {
-      log.warn("Ignored exception", ignored);
+      log.debug("Caller class not found, the WebClient logs as {}", loggerClazz.getName(), ignored);
     }
 
     return WebClient.builder()

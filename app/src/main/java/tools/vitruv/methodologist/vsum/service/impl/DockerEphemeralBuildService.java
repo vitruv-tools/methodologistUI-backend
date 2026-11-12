@@ -57,6 +57,10 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
       Process process = startProcess(cmd);
       return evaluateProcessResult(process, outDir);
     } catch (Exception e) {
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
+      log.error("Building metamodel {} crashed", input.getMetaModelId(), e);
       return buildCrashResult(e);
     } finally {
       cleanupJobDirectory(job);
@@ -183,11 +187,11 @@ public class DockerEphemeralBuildService implements MetamodelBuildService {
                 try {
                   Files.deleteIfExists(p);
                 } catch (IOException e) {
-                  log.error(e.getMessage(), e);
+                  log.debug("Could not delete {} of the build job directory", p, e);
                 }
               });
     } catch (IOException e) {
-      log.error(e.getMessage(), e);
+      log.warn("Could not delete the build job directory {}", job, e);
     }
   }
 
