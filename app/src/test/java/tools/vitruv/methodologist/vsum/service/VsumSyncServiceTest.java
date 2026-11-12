@@ -407,7 +407,7 @@ class VsumSyncServiceTest {
   }
 
   @Test
-  void applySyncChanges_clearsAll_whenRequestListsAreNull_orEmpty_andWritesHistory() {
+  void applySyncChanges_clearsAll_whenMetaModelIdsAreEmpty_andRelationRequestsNull() {
     Vsum vsum = new Vsum();
     vsum.setId(7L);
     vsum.setMetaModelRelations(new java.util.HashSet<>());
@@ -428,7 +428,8 @@ class VsumSyncServiceTest {
     when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(r));
 
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    put.setMetaModelIds(null);
+    put.setMetaModelIds(List.of());
+    // the UI sends null when the last relation was deleted
     put.setMetaModelRelationRequests(null);
 
     service.applySyncChanges(vsum, owner, put, true);
@@ -1062,6 +1063,74 @@ class VsumSyncServiceTest {
     verify(vsumViewService, never()).create(any(), any(), any(), any());
     verify(vsumViewService, never()).update(any(), any(), any(), any());
     verify(vsumViewService, never()).delete(any(), any());
+  }
+
+  @Test
+  void applySyncChanges_keepsViews_whenRequestHasNoViewRequests() {
+    Vsum vsum = vsumWithMetaModels(130L);
+    VsumView brake = view(10L, "Brake", 50L);
+    VsumViewMetaModel one = link(brake, 1001L, 1L);
+    givenViews(vsum, List.of(brake), List.of(one));
+
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    put.setMetaModelIds(List.of(1L, 2L, 3L));
+    service.applySyncChanges(vsum, OWNER, put, true);
+
+    verify(vsumViewService, never()).create(any(), any(), any(), any());
+    verify(vsumViewService, never()).update(any(), any(), any(), any());
+    verify(vsumViewService, never()).delete(any(), any());
+    verify(vsumViewMetaModelService, never()).delete(anyList());
+    verifyNoInteractions(vsumHistoryService);
+  }
+
+  @Test
+  void applySyncChanges_keepsViewsWithoutLinksToRemovedMetaModels_whenRequestHasNoViewRequests() {
+    Vsum vsum = vsumWithMetaModels(131L);
+    VsumView brake = view(10L, "Brake", 50L);
+    brake.setDescription("brake components");
+    VsumViewMetaModel one = link(brake, 1001L, 1L);
+    VsumViewMetaModel two = link(brake, 1002L, 2L);
+    givenViews(vsum, List.of(brake), List.of(one, two));
+
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    put.setMetaModelIds(List.of(1L, 3L));
+    service.applySyncChanges(vsum, OWNER, put, true);
+
+    // the link goes before the meta model it references
+    InOrder order = inOrder(vsumViewMetaModelService, vsumMetaModelService);
+    order.verify(vsumViewMetaModelService).delete(List.of(two));
+    order.verify(vsumMetaModelService).delete(eq(vsum), anyList());
+    verify(vsumViewService).update(brake, 50L, "Brake", "brake components");
+    verify(vsumViewService, never()).delete(any(), any());
+  }
+
+  @Test
+  void applySyncChanges_deletesAllViews_whenViewRequestsAreEmpty() {
+    Vsum vsum = vsumWithMetaModels(132L);
+    VsumView brake = view(10L, "Brake", 50L);
+    VsumViewMetaModel one = link(brake, 1001L, 1L);
+    givenViews(vsum, List.of(brake), List.of(one));
+
+    syncViews(vsum);
+
+    verify(vsumViewMetaModelService).deleteByVsumView(brake);
+    verify(vsumViewService).delete(vsum, brake);
+  }
+
+  @Test
+  void applySyncChanges_keepsMetaModelsAndViews_whenRequestHasNoMetaModelIds() {
+    Vsum vsum = vsumWithMetaModels(133L);
+    VsumView brake = view(10L, "Brake", 50L);
+    VsumViewMetaModel one = link(brake, 1001L, 1L);
+    givenViews(vsum, List.of(brake), List.of(one));
+
+    service.applySyncChanges(vsum, OWNER, new VsumSyncChangesPutRequest(), true);
+
+    verify(vsumMetaModelService, never()).delete(any(), anyList());
+    verify(vsumMetaModelService, never()).create(any(), any());
+    verify(vsumViewService, never()).update(any(), any(), any(), any());
+    verify(vsumViewService, never()).delete(any(), any());
+    verifyNoInteractions(vsumHistoryService);
   }
 
   private static final User OWNER = User.builder().email("u@ex.com").build();
