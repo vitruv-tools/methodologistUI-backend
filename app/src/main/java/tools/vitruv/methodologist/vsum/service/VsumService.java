@@ -169,6 +169,29 @@ public class VsumService {
   }
 
   /**
+   * Synchronizes any VSUM with the desired state, without a membership check. Used by the
+   * collaboration server's service account, which writes back the changes of all users of a
+   * project.
+   *
+   * <p>The merged changes can't be attributed to one user, so the VSUM's owner is the acting user,
+   * e.g. as owner of generated reaction files. No history entry is created, because the
+   * collaboration server saves every few seconds.
+   *
+   * @param id the identifier of the VSUM to update
+   * @param vsumSyncChangesPutRequest DTO describing desired meta-model ids and relation definitions
+   * @return the persisted, updated {@link Vsum}
+   * @throws NotFoundException if the VSUM is not found or removed
+   */
+  @Transactional
+  public Vsum updateForService(Long id, VsumSyncChangesPutRequest vsumSyncChangesPutRequest) {
+    Vsum vsum = findActiveVsum(id);
+    Vsum updatedVsum =
+        vsumSyncService.applySyncChanges(vsum, vsum.getUser(), vsumSyncChangesPutRequest, false);
+    requestValidationAfterCommit(id);
+    return updatedVsum;
+  }
+
+  /**
    * Updates the name of a meta model within a VSUM without changing the corresponding model-library
    * entry.
    *
@@ -311,10 +334,7 @@ public class VsumService {
             .findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail)
             .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
 
-    Vsum vsum =
-        vsumRepository
-            .findByIdAndRemovedAtIsNull(id)
-            .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
+    Vsum vsum = findActiveVsum(id);
 
     VsumUser callerVsumUser =
         vsum.getVsumUsers().stream()
@@ -322,8 +342,33 @@ public class VsumService {
             .findFirst()
             .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
 
-    VsumMetaModelResponse response = vsumMapper.toVsumMetaModelResponse(vsum);
+    VsumMetaModelResponse response = toDetailsResponse(vsum);
     response.setRole(callerVsumUser.getRole());
+    return response;
+  }
+
+  /**
+   * Returns the details of any VSUM, without a membership check. Used by the collaboration server's
+   * service account. The response is the same as for {@link #findVsumWithDetails(String, Long)},
+   * except that it has no role, because the service account is not a member.
+   *
+   * @param id the VSUM id to fetch
+   * @return a response DTO with VSUM data, meta-models, and views
+   * @throws NotFoundException if the VSUM is not found or removed
+   */
+  @Transactional(readOnly = true)
+  public VsumMetaModelResponse findVsumWithDetailsForService(Long id) {
+    return toDetailsResponse(findActiveVsum(id));
+  }
+
+  private Vsum findActiveVsum(Long id) {
+    return vsumRepository
+        .findByIdAndRemovedAtIsNull(id)
+        .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
+  }
+
+  private VsumMetaModelResponse toDetailsResponse(Vsum vsum) {
+    VsumMetaModelResponse response = vsumMapper.toVsumMetaModelResponse(vsum);
 
     List<VsumMetaModel> vsumMetaModels =
         vsum.getVsumMetaModels() == null ? List.of() : List.copyOf(vsum.getVsumMetaModels());

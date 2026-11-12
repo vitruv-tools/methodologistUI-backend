@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.config;
 
+import java.util.Collection;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -11,6 +12,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
@@ -29,6 +31,15 @@ import tools.vitruv.methodologist.user.service.UserService;
 @EnableWebSecurity
 @EnableMethodSecurity(jsr250Enabled = true, prePostEnabled = true)
 public class SecurityConfiguration {
+
+  /**
+   * Realm role of the collaboration server's service account (see {@code
+   * docker/keycloak/realm-template.json}). Only this role may call {@code /api/internal/**}.
+   */
+  public static final String COLLABORATION_SERVICE_ROLE = "collaboration-service";
+
+  private static final String COLLABORATION_SERVICE_AUTHORITY =
+      "ROLE_" + COLLABORATION_SERVICE_ROLE;
 
   private final UserService userService;
 
@@ -76,6 +87,10 @@ public class SecurityConfiguration {
                     .requestMatchers(
                         HttpMethod.GET, NeoJoinWebSocketBearerTokenResolver.NEOJOIN_LSP_PATH)
                     .hasRole("user")
+                    // Also checked here, so an internal endpoint that misses its @PreAuthorize
+                    // is not open.
+                    .requestMatchers("/api/internal/**")
+                    .hasRole(COLLABORATION_SERVICE_ROLE)
                     .anyRequest()
                     .permitAll())
         .oauth2ResourceServer(
@@ -89,16 +104,27 @@ public class SecurityConfiguration {
 
   private Converter<Jwt, ? extends AbstractAuthenticationToken> customJwtConverter() {
     return jwt -> {
-      userService.syncWithKeycloak(
-          jwt.getClaimAsString("email"),
-          jwt.getClaimAsString("preferred_username"),
-          jwt.getClaimAsString("given_name"),
-          jwt.getClaimAsString("family_name"));
-
       var grantedAuthoritiesConverter = new GrantedAuthoritiesConverter();
       var authorities = grantedAuthoritiesConverter.convert(jwt);
+
+      // The collaboration server's service account has no email and is not a platform user.
+      if (!isCollaborationService(authorities)) {
+        userService.syncWithKeycloak(
+            jwt.getClaimAsString("email"),
+            jwt.getClaimAsString("preferred_username"),
+            jwt.getClaimAsString("given_name"),
+            jwt.getClaimAsString("family_name"));
+      }
+
       return new KeycloakAuthentication(jwt, authorities);
     };
+  }
+
+  private static boolean isCollaborationService(Collection<GrantedAuthority> authorities) {
+    return authorities != null
+        && authorities.stream()
+            .map(GrantedAuthority::getAuthority)
+            .anyMatch(COLLABORATION_SERVICE_AUTHORITY::equals);
   }
 
   /**

@@ -356,6 +356,7 @@ public class VsumController {
    */
   @Deprecated(since = "334")
   @GetMapping("/v1/vsums/{id}/build/artifact")
+  @PreAuthorize("hasRole('user')")
   public ResponseEntity<byte[]> buildAndDownload(
       KeycloakAuthentication authentication, @PathVariable Long id) {
     String callerEmail = authentication.getParsedToken().getEmail();
