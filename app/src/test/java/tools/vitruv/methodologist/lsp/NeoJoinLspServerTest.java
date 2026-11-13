@@ -1,4 +1,4 @@
-package tools.vitruv.methodologist.config;
+package tools.vitruv.methodologist.lsp;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -32,14 +33,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import tools.vitruv.methodologist.vsum.service.VsumMetaModelService;
 import tools.vitruv.methodologist.vsum.service.VsumMetaModelService.EcoreFile;
-import tools.vitruv.methodologist.vsum.service.VsumUserService;
 
 /**
  * Runs {@link NeoJoinLspWebSocketHandler} against the bundled NeoJoin language server.
@@ -50,7 +49,6 @@ import tools.vitruv.methodologist.vsum.service.VsumUserService;
  */
 class NeoJoinLspServerTest {
 
-  private static final String EMAIL = "member@example.com";
   private static final long RESPONSE_TIMEOUT_SECONDS = 60;
 
   private static final String BASE_ECORE =
@@ -104,22 +102,21 @@ class NeoJoinLspServerTest {
   @BeforeEach
   void setUp() throws IOException {
     VsumMetaModelService vsumMetaModelService = mock(VsumMetaModelService.class);
-    VsumUserService vsumUserService = mock(VsumUserService.class);
-    when(vsumUserService.isMember(5L, EMAIL)).thenReturn(true);
     when(vsumMetaModelService.findEcoreFiles(5L))
         .thenReturn(
             List.of(
                 new EcoreFile("lib.ecore", LIB_ECORE.getBytes(StandardCharsets.UTF_8)),
                 new EcoreFile("base.ecore", BASE_ECORE.getBytes(StandardCharsets.UTF_8))));
 
-    handler = new NeoJoinLspWebSocketHandler(vsumMetaModelService, vsumUserService, 1, 60, "512m");
+    handler = new NeoJoinLspWebSocketHandler(vsumMetaModelService, 1, 60, "512m");
     ReflectionTestUtils.setField(
         handler, "jarResource", new ClassPathResource("lsp/tools.vitruv.neojoin.frontend.ide.jar"));
 
     session = mock(WebSocketSession.class);
     when(session.getId()).thenReturn("neojoin-server-test");
     when(session.getUri()).thenReturn(URI.create("ws://localhost/neojoin-lsp?vsumId=5"));
-    when(session.getPrincipal()).thenReturn(authentication());
+    when(session.getAttributes())
+        .thenReturn(new HashMap<>(Map.of(AbstractLspWebSocketHandler.VSUM_ID_ATTRIBUTE, 5L)));
     when(session.isOpen()).thenAnswer(invocation -> open.get());
     doAnswer(
             invocation -> {
@@ -133,7 +130,7 @@ class NeoJoinLspServerTest {
   }
 
   @AfterEach
-  void tearDown() {
+  void tearDown() throws Exception {
     open.set(false);
     handler.afterConnectionClosed(session, CloseStatus.NORMAL);
   }
@@ -293,7 +290,7 @@ class NeoJoinLspServerTest {
     return labels;
   }
 
-  private void send(Object message) throws IOException {
+  private void send(Object message) throws Exception {
     handler.handleTextMessage(session, new TextMessage(objectMapper.writeValueAsString(message)));
   }
 
@@ -306,10 +303,5 @@ class NeoJoinLspServerTest {
       }
     }
     return fail("No matching message from the NeoJoin language server");
-  }
-
-  private static KeycloakAuthentication authentication() {
-    Jwt jwt = Jwt.withTokenValue("token").header("alg", "none").claim("email", EMAIL).build();
-    return new KeycloakAuthentication(jwt, List.of());
   }
 }

@@ -1,10 +1,12 @@
 package tools.vitruv.methodologist.vsum.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static tools.vitruv.methodologist.lsp.AbstractLspWebSocketHandler.VSUM_ID_ATTRIBUTE;
 
 import java.net.URI;
 import java.nio.file.Files;
@@ -86,6 +88,7 @@ class LspWebSocketHandlerTest {
   void afterConnectionEstablished_withValidUserId_createsLspProcess() throws Exception {
     URI uri = new URI("ws://localhost/lsp?userId=42&vsumId=1");
     when(session.getUri()).thenReturn(uri);
+    session.getAttributes().put(VSUM_ID_ATTRIBUTE, 1L);
 
     MetaModel metamodel = createMetaModel(1L, "test.ecore", "test content".getBytes());
     when(vsumMetaModelService.findAccessibleByProject(1L)).thenReturn(List.of(metamodel));
@@ -110,6 +113,7 @@ class LspWebSocketHandlerTest {
   void afterConnectionEstablished_extractsUserIdFromQueryParam() throws Exception {
     URI uri = new URI("ws://localhost/lsp?userId=99&vsumId=5");
     when(session.getUri()).thenReturn(uri);
+    session.getAttributes().put(VSUM_ID_ATTRIBUTE, 5L);
     when(vsumMetaModelService.findAccessibleByProject(5L)).thenReturn(Collections.emptyList());
     Path fakeJar = Files.createTempFile("reactions-ide-", ".jar");
     Files.write(fakeJar, "not-a-real-jar".getBytes());
@@ -122,6 +126,19 @@ class LspWebSocketHandlerTest {
     verify(session, never()).close(any(CloseStatus.class));
   }
 
+  /** Verifies that a {@code vsumId} in the URL alone never loads a project's metamodels. */
+  @Test
+  void afterConnectionEstablished_ignoresVsumIdInTheUrl_withoutAuthorizedVsum() throws Exception {
+    when(session.getUri()).thenReturn(new URI("ws://localhost/lsp?vsumId=1"));
+    Path fakeJar = Files.createTempFile("reactions-ide-", ".jar");
+    Files.write(fakeJar, "not-a-real-jar".getBytes());
+    ReflectionTestUtils.setField(handler, "jarResource", new FileSystemResource(fakeJar.toFile()));
+
+    handler.afterConnectionEstablished(session);
+
+    verify(vsumMetaModelService, never()).findAccessibleByProject(1L);
+  }
+
   /**
    * Verifies that userId can be extracted from JWT token's 'sub' claim.
    *
@@ -132,6 +149,7 @@ class LspWebSocketHandlerTest {
   void afterConnectionEstablished_extractsUserIdFromJwtToken() throws Exception {
     URI uri = new URI("ws://localhost/lsp?vsumId=3");
     when(session.getUri()).thenReturn(uri);
+    session.getAttributes().put(VSUM_ID_ATTRIBUTE, 3L);
 
     Jwt jwt = mock(Jwt.class);
     when(jwt.getClaim("sub")).thenReturn("77");
@@ -160,9 +178,11 @@ class LspWebSocketHandlerTest {
   void afterConnectionEstablished_extractsUserIdFromSessionAttributes() throws Exception {
     URI uri = new URI("ws://localhost/lsp?vsumId=2");
     when(session.getUri()).thenReturn(uri);
+    session.getAttributes().put(VSUM_ID_ATTRIBUTE, 2L);
 
     Map<String, Object> attributes = new HashMap<>();
     attributes.put("userId", "88");
+    attributes.put(VSUM_ID_ATTRIBUTE, 2L);
     when(session.getAttributes()).thenReturn(attributes);
 
     when(vsumMetaModelService.findAccessibleByProject(2L)).thenReturn(Collections.emptyList());
@@ -187,6 +207,7 @@ class LspWebSocketHandlerTest {
   void afterConnectionEstablished_createsMetamodelFiles() throws Exception {
     URI uri = new URI("ws://localhost/lsp?userId=1&vsumId=10");
     when(session.getUri()).thenReturn(uri);
+    session.getAttributes().put(VSUM_ID_ATTRIBUTE, 10L);
 
     MetaModel mm1 = createMetaModel(1L, "model1.ecore", "content1".getBytes());
     MetaModel mm2 = createMetaModel(2L, "model2.ecore", "content2".getBytes());
@@ -200,6 +221,37 @@ class LspWebSocketHandlerTest {
     handler.afterConnectionEstablished(session);
 
     verify(vsumMetaModelService).findAccessibleByProject(10L);
+  }
+
+  /**
+   * Verifies that an Ecore file name containing path elements cannot write outside the session's
+   * model directory.
+   */
+  @Test
+  void afterConnectionEstablished_withPathTraversalFileName_writesOnlyInsideModelDir()
+      throws Exception {
+    when(session.getId()).thenReturn("traversal-session");
+    when(session.getUri()).thenReturn(new URI("ws://localhost/lsp?vsumId=7"));
+    session.getAttributes().put(VSUM_ID_ATTRIBUTE, 7L);
+    MetaModel evil = createMetaModel(1L, "../../../escaped.ecore", "content".getBytes());
+    when(vsumMetaModelService.findAccessibleByProject(7L)).thenReturn(List.of(evil));
+    Path fakeJar = Files.createTempFile("reactions-ide-", ".jar");
+    Files.write(fakeJar, "not-a-real-jar".getBytes());
+    ReflectionTestUtils.setField(handler, "jarResource", new FileSystemResource(fakeJar.toFile()));
+
+    handler.afterConnectionEstablished(session);
+
+    Path tmp = Path.of(System.getProperty("java.io.tmpdir"));
+    try (var sessionDirs = Files.newDirectoryStream(tmp, "lsp-session-traversal-session*")) {
+      Path sessionDir = sessionDirs.iterator().next();
+      try (var files = Files.walk(sessionDir)) {
+        assertThat(files.filter(path -> path.getFileName().toString().equals("escaped.ecore")))
+            .singleElement()
+            .satisfies(path -> assertThat(path.getParent().getFileName()).hasToString("model"));
+      }
+    } finally {
+      handler.afterConnectionClosed(session, CloseStatus.NORMAL);
+    }
   }
 
   /**

@@ -15,6 +15,7 @@ import java.util.jar.Manifest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import tools.vitruv.methodologist.general.SafePaths;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.utilitymethod.EcoreInstanceClassNames;
@@ -111,9 +112,12 @@ public class ReactionsLspWorkspaceService {
     Path classesDir = sessionDir.resolve(CLASSES_DIR);
     boolean modelCompiled = compileModelApi(ecores, serverJar, classesDir);
     for (FileStorage ecore : ecores) {
-      Files.write(
-          modelDir.resolve(ecore.getFilename()),
-          modelCompiled ? withInstanceClassNames(ecore) : ecore.getData());
+      Optional<Path> target = SafePaths.resolveInside(modelDir, ecore.getFilename());
+      if (target.isEmpty()) {
+        log.warn("Skipping ecore file {}: unusable file name", ecore.getId());
+        continue;
+      }
+      Files.write(target.get(), modelCompiled ? withInstanceClassNames(ecore) : ecore.getData());
     }
     boolean utilityMethodsCompiled =
         vsumId != null && compileUtilityMethods(vsumId, ecores, serverJar, classesDir);

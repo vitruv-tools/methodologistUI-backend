@@ -56,7 +56,7 @@ public class LspWebSocketHandler
   @Override
   protected LspLaunch prepareLaunch(WebSocketSession session) throws IOException {
     String sessionId = session.getId();
-    Long vsumId = extractProjectId(session);
+    Long vsumId = authorizedVsumId(session);
 
     FileAttribute<Set<PosixFilePermission>> attr =
         PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"));
@@ -105,28 +105,6 @@ public class LspWebSocketHandler
         });
 
     return info;
-  }
-
-  private Long extractProjectId(WebSocketSession session) {
-    try {
-      Long projectId = extractQueryParam(session, "vsumId");
-      if (projectId != null) {
-        logger.debug("Extracted vsumId from query parameter: {}", projectId);
-        return projectId;
-      }
-
-      Object projectIdAttr = session.getAttributes().get("vsumId");
-      if (projectIdAttr != null) {
-        return Long.parseLong(projectIdAttr.toString());
-      }
-
-      logger.debug("No vsumId found in WebSocket session (this is optional)");
-      return null;
-
-    } catch (Exception e) {
-      logger.warn("Ignoring an invalid vsumId of LSP session {}", session.getId());
-      return null;
-    }
   }
 
   class LspServerProcess implements LspSessionProcess {

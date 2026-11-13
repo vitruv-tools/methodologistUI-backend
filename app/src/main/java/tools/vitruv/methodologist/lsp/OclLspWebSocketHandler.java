@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +16,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
+import tools.vitruv.methodologist.general.SafePaths;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.service.VsumMetaModelService;
 
@@ -101,7 +103,7 @@ public class OclLspWebSocketHandler
   @Override
   protected LspLaunch prepareLaunch(WebSocketSession session) throws IOException {
     String sessionId = session.getId();
-    Long vsumId = extractQueryParam(session, "vsumId");
+    Long vsumId = authorizedVsumId(session);
 
     // Session dir lives inside the private app base — never directly in /tmp
     Path sessionDir = createPrivateDirectory(appTempBase, "ocl-lsp-" + sessionId + "-");
@@ -115,7 +117,12 @@ public class OclLspWebSocketHandler
       for (MetaModel mm : metamodels) {
         byte[] ecoreData = mm.getEcoreFile().getData();
         String fileName = mm.getEcoreFile().getFilename();
-        Files.write(ecoreDir.resolve(fileName), ecoreData);
+        Optional<Path> ecoreFile = SafePaths.resolveInside(ecoreDir, fileName);
+        if (ecoreFile.isPresent()) {
+          Files.write(ecoreFile.get(), ecoreData);
+        } else {
+          logger.warn("Skipping ecore file of metamodel {}: unusable file name", mm.getId());
+        }
       }
     }
 

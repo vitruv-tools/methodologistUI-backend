@@ -45,6 +45,7 @@ import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.user.model.User;
+import tools.vitruv.methodologist.vsum.VsumRole;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildResponse;
 import tools.vitruv.methodologist.vsum.mapper.VsumBuildMapper;
 import tools.vitruv.methodologist.vsum.model.Vsum;
@@ -101,6 +102,7 @@ class VsumBuildServiceTest {
     VsumUser member = new VsumUser();
     member.setVsum(vsum);
     member.setUser(user);
+    member.setRole(VsumRole.MEMBER);
     lenient()
         .when(
             vsumUserRepository
@@ -122,6 +124,27 @@ class VsumBuildServiceTest {
 
     stubInMemoryRepositories();
     service = newService(Runnable::run);
+  }
+
+  @Test
+  void requestBuild_throwsAccessDenied_whenCallerIsAViewer() {
+    VsumUser viewer = new VsumUser();
+    viewer.setVsum(vsum);
+    viewer.setUser(user);
+    viewer.setRole(VsumRole.VIEWER);
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                VSUM_ID, EMAIL))
+        .thenReturn(Optional.of(viewer));
+
+    assertThatThrownBy(() -> service.requestBuild(EMAIL, VSUM_ID, false))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(() -> service.buildAndWait(EMAIL, VSUM_ID))
+        .isInstanceOf(AccessDeniedException.class);
+
+    assertThat(builds).isEmpty();
+    verify(setupServiceApiHandler, never())
+        .buildVsumJarOrThrow(anyList(), anyList(), anyList(), anyList());
   }
 
   @Test

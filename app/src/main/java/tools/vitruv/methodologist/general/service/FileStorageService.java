@@ -159,6 +159,28 @@ public class FileStorageService {
   }
 
   /**
+   * Retrieves a file by its ID on behalf of a caller, enforcing read access.
+   *
+   * <p>A missing file and a file the caller may not read are reported identically, so file IDs
+   * cannot be probed.
+   *
+   * @param callerEmail the email of the requesting user
+   * @param id the ID of the file to retrieve
+   * @return the FileStorage entity
+   * @throws NotFoundException if the file does not exist or the caller may not read it
+   * @see FileStorageRepository#isReadableBy(Long, String)
+   */
+  @Transactional(readOnly = true)
+  public FileStorage getReadableFile(String callerEmail, Long id) {
+    if (!fileStorageRepository.isReadableBy(id, callerEmail)) {
+      throw new NotFoundException(FILE_ID_NOT_FOUND_ERROR);
+    }
+    return fileStorageRepository
+        .findById(id)
+        .orElseThrow(() -> new NotFoundException(FILE_ID_NOT_FOUND_ERROR));
+  }
+
+  /**
    * Creates a clone of the provided FileStorage object, saves the cloned instance into the
    * repository, and returns the saved instance.
    *

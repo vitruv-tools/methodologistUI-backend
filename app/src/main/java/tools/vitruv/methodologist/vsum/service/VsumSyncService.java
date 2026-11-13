@@ -245,7 +245,7 @@ public class VsumSyncService {
                           request.getSourceId() + ":" + request.getTargetId()))
               .toList();
       Map<MetaModelRelationRequest, MetaModelRelation> created =
-          metaModelRelationService.create(vsum, creations);
+          metaModelRelationService.create(user.getEmail(), vsum, creations);
       if (created != null) {
         requestToRelation.putAll(created);
       }
@@ -253,7 +253,7 @@ public class VsumSyncService {
 
     if (!toUpdateMetaModelRelation.isEmpty()) {
       Map<MetaModelRelationRequest, MetaModelRelation> updated =
-          metaModelRelationService.update(vsum, toUpdateMetaModelRelation);
+          metaModelRelationService.update(user.getEmail(), vsum, toUpdateMetaModelRelation);
       if (updated != null) {
         requestToRelation.putAll(updated);
       }

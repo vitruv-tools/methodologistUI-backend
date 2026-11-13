@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -31,14 +33,15 @@ import org.springframework.web.context.WebApplicationContext;
 import tools.vitruv.methodologist.user.service.UserService;
 
 /**
- * Checks that {@link SecurityConfiguration} authenticates the NeoJoin LSP WebSocket handshake,
- * including a token sent as WebSocket subprotocol. The context contains only the security
- * configuration and no WebSocket handler, so a request that passes security answers 404.
+ * Checks that {@link SecurityConfiguration} authenticates the handshake of every LSP WebSocket
+ * ({@code /lsp}, {@code /ocl-lsp}, {@code /neojoin-lsp}), including a token sent as WebSocket
+ * subprotocol. The context contains only the security configuration and no WebSocket handler, so a
+ * request that passes security answers 404.
  *
  * <p>MockMvc is built by hand for the reason given in {@link ActuatorSecurityTest}.
  */
-@SpringBootTest(classes = NeoJoinLspSecurityTest.TestApplication.class)
-class NeoJoinLspSecurityTest {
+@SpringBootTest(classes = LspSecurityTest.TestApplication.class)
+class LspSecurityTest {
 
   @Autowired WebApplicationContext context;
 
@@ -55,36 +58,42 @@ class NeoJoinLspSecurityTest {
             .build();
   }
 
-  @Test
-  void handshake_withoutToken_isUnauthorized() throws Exception {
-    mockMvc.perform(get("/neojoin-lsp")).andExpect(status().isUnauthorized());
+  @ParameterizedTest
+  @ValueSource(strings = {"/lsp", "/ocl-lsp", "/neojoin-lsp"})
+  void handshake_withoutToken_isUnauthorized(String path) throws Exception {
+    mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
   }
 
-  @Test
-  void handshake_withTokenWithoutUserRole_isForbidden() throws Exception {
-    mockMvc.perform(get("/neojoin-lsp").with(jwt())).andExpect(status().isForbidden());
+  @ParameterizedTest
+  @ValueSource(strings = {"/lsp", "/ocl-lsp", "/neojoin-lsp"})
+  void handshake_withTokenWithoutUserRole_isForbidden(String path) throws Exception {
+    mockMvc.perform(get(path).with(jwt())).andExpect(status().isForbidden());
   }
 
-  @Test
-  void handshake_withUserRole_passesSecurity() throws Exception {
+  @ParameterizedTest
+  @ValueSource(strings = {"/lsp", "/ocl-lsp", "/neojoin-lsp"})
+  void handshake_withUserRole_passesSecurity(String path) throws Exception {
     mockMvc
-        .perform(
-            get("/neojoin-lsp").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_user"))))
+        .perform(get(path).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_user"))))
         .andExpect(status().isNotFound());
   }
 
-  @Test
-  void handshake_withValidTokenAsSubprotocol_passesSecurity() throws Exception {
+  @ParameterizedTest
+  @ValueSource(strings = {"/lsp", "/ocl-lsp", "/neojoin-lsp"})
+  void handshake_withValidTokenAsSubprotocol_passesSecurity(String path) throws Exception {
     when(jwtDecoder.decode("valid-token")).thenReturn(userJwt("valid-token"));
 
-    mockMvc.perform(withSubprotocolToken("valid-token")).andExpect(status().isNotFound());
+    mockMvc.perform(withSubprotocolToken(path, "valid-token")).andExpect(status().isNotFound());
   }
 
-  @Test
-  void handshake_withInvalidTokenAsSubprotocol_isUnauthorized() throws Exception {
+  @ParameterizedTest
+  @ValueSource(strings = {"/lsp", "/ocl-lsp", "/neojoin-lsp"})
+  void handshake_withInvalidTokenAsSubprotocol_isUnauthorized(String path) throws Exception {
     when(jwtDecoder.decode("forged-token")).thenThrow(new BadJwtException("invalid"));
 
-    mockMvc.perform(withSubprotocolToken("forged-token")).andExpect(status().isUnauthorized());
+    mockMvc
+        .perform(withSubprotocolToken(path, "forged-token"))
+        .andExpect(status().isUnauthorized());
   }
 
   @Test
@@ -96,8 +105,8 @@ class NeoJoinLspSecurityTest {
         .andExpect(status().isUnauthorized());
   }
 
-  private static MockHttpServletRequestBuilder withSubprotocolToken(String token) {
-    return get("/neojoin-lsp").header("Sec-WebSocket-Protocol", "bearer, " + token);
+  private static MockHttpServletRequestBuilder withSubprotocolToken(String path, String token) {
+    return get(path).header("Sec-WebSocket-Protocol", "bearer, " + token);
   }
 
   private static Jwt userJwt(String token) {
