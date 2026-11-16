@@ -157,9 +157,10 @@ public class VsumSyncService {
             .map(vsumMetaModel -> vsumMetaModel.getMetaModel().getSource().getId())
             .collect(Collectors.toSet());
 
+    // without meta model IDs, the VSUM keeps its meta models; an empty list removes them all
     Set<Long> desiredMetaModelIds =
         metaModelIds == null
-            ? Set.of()
+            ? existingVsumMetaModelIds
             : metaModelIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
 
     Set<Long> toRemoveVsumMetaModelIds = new HashSet<>(existingVsumMetaModelIds);
@@ -180,10 +181,8 @@ public class VsumSyncService {
                 })
             .toList();
 
-    List<ViewRequest> desiredViewRequests =
-        normalizeViewRequests(vsumSyncChangesPutRequest.getViewRequests(), desiredMetaModelIds);
-
-    ViewSyncPlan viewSyncPlan = buildViewSyncPlan(vsum, desiredViewRequests, desiredMetaModelIds);
+    ViewSyncPlan viewSyncPlan =
+        buildViewSyncPlan(vsum, vsumSyncChangesPutRequest.getViewRequests(), desiredMetaModelIds);
 
     boolean hasAnyChanges =
         !toRemoveMetaModelRelation.isEmpty()
@@ -342,10 +341,6 @@ public class VsumSyncService {
    */
   private List<ViewRequest> normalizeViewRequests(
       List<ViewRequest> requests, Set<Long> desiredMetaModelIds) {
-    if (requests == null) {
-      return List.of();
-    }
-
     List<ViewRequest> normalized = new ArrayList<>();
     // file and sorted meta model IDs of the requests without ID and name
     Set<List<Object>> unnamedViews = new HashSet<>();
@@ -413,9 +408,12 @@ public class VsumSyncService {
    * view, which keeps its ID and is changed in place: first by ID, then by name, and a request
    * without a name by its file and meta models (the matching of requests from before views had
    * names). Requests that match no view create one; views that no request matches are deleted.
+   *
+   * <p>Without requests ({@code null}), the views stay as they are; they only lose their links to
+   * meta models the VSUM removes. An empty list of requests deletes all views.
    */
   private ViewSyncPlan buildViewSyncPlan(
-      Vsum vsum, List<ViewRequest> desiredViewRequests, Set<Long> desiredMetaModelIds) {
+      Vsum vsum, List<ViewRequest> viewRequests, Set<Long> desiredMetaModelIds) {
     List<VsumView> existingViews = vsumViewRepository.findAllByVsum(vsum);
 
     Map<Long, List<VsumViewMetaModel>> linksByViewId = new HashMap<>();
@@ -427,6 +425,10 @@ public class VsumSyncService {
       }
     }
 
+    List<ViewRequest> desiredViewRequests =
+        normalizeViewRequests(
+            viewRequests == null ? describeViews(existingViews, linksByViewId) : viewRequests,
+            desiredMetaModelIds);
     List<VsumView> matches =
         matchViews(desiredViewRequests, existingViews, linksByViewId, desiredMetaModelIds);
     List<String> names = resolveViewNames(desiredViewRequests, matches);
@@ -459,6 +461,26 @@ public class VsumSyncService {
         existingViews.stream().filter(view -> !matchedIds.contains(view.getId())).toList();
 
     return new ViewSyncPlan(toDeleteViews, toUpdateViews, toCreateViews);
+  }
+
+  /**
+   * Describes the views as they are: each request has the ID, file and source meta model IDs of a
+   * view, and no name or description, so that the view keeps them.
+   */
+  private static List<ViewRequest> describeViews(
+      List<VsumView> views, Map<Long, List<VsumViewMetaModel>> linksByViewId) {
+    return views.stream()
+        .map(
+            view ->
+                ViewRequest.builder()
+                    .id(view.getId())
+                    .fileStorageId(view.getFileStorage().getId())
+                    .metaModelIds(
+                        linksByViewId.getOrDefault(view.getId(), List.of()).stream()
+                            .map(VsumViewMetaModelService::sourceMetaModelId)
+                            .toList())
+                    .build())
+        .toList();
   }
 
   /** Returns the changes of an existing view, {@code null} if the request describes it as it is. */
