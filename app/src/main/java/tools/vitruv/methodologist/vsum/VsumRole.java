@@ -21,4 +21,13 @@ public enum VsumRole {
   private VsumRole(final String name) {
     this.name = name;
   }
+
+  /**
+   * Tells whether this role may change a VSUM or start builds; viewers are read-only.
+   *
+   * @return {@code true} for every role except {@link #VIEWER}
+   */
+  public boolean canWrite() {
+    return this != VIEWER;
+  }
 }

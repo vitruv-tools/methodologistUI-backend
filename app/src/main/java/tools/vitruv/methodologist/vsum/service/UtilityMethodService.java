@@ -36,6 +36,7 @@ import tools.vitruv.methodologist.vsum.model.UtilityMethod;
 import tools.vitruv.methodologist.vsum.model.UtilityMethodParameter;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
+import tools.vitruv.methodologist.vsum.model.VsumUser;
 import tools.vitruv.methodologist.vsum.model.repository.UtilityMethodRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumMetaModelRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
@@ -98,7 +99,7 @@ public class UtilityMethodService {
   @Transactional
   public UtilityMethodResponse create(
       String callerEmail, Long vsumId, UtilityMethodRequest request) {
-    Vsum vsum = findAccessibleVsum(callerEmail, vsumId);
+    Vsum vsum = findEditableVsum(callerEmail, vsumId);
     List<UtilityMethod> existing = utilityMethodRepository.findByVsumIdOrderByNameAsc(vsumId);
     UtilityMethodDefinition definition = toDefinition(request);
     UtilityMethodClassGenerator.Result result =
@@ -123,7 +124,7 @@ public class UtilityMethodService {
   @Transactional
   public UtilityMethodResponse update(
       String callerEmail, Long vsumId, Long utilityMethodId, UtilityMethodRequest request) {
-    findAccessibleVsum(callerEmail, vsumId);
+    findEditableVsum(callerEmail, vsumId);
     UtilityMethod utilityMethod = findUtilityMethod(utilityMethodId, vsumId);
     List<UtilityMethod> existing = utilityMethodRepository.findByVsumIdOrderByNameAsc(vsumId);
     UtilityMethodDefinition definition = toDefinition(request);
@@ -144,7 +145,7 @@ public class UtilityMethodService {
    */
   @Transactional
   public void delete(String callerEmail, Long vsumId, Long utilityMethodId) {
-    findAccessibleVsum(callerEmail, vsumId);
+    findEditableVsum(callerEmail, vsumId);
     UtilityMethod utilityMethod = findUtilityMethod(utilityMethodId, vsumId);
     List<UtilityMethod> existing = utilityMethodRepository.findByVsumIdOrderByNameAsc(vsumId);
     List<FileStorage> ecores = projectEcores(vsumId);
@@ -165,7 +166,8 @@ public class UtilityMethodService {
   }
 
   /**
-   * Compiles an unsaved utility method without storing it, for live feedback in the editor.
+   * Compiles an unsaved utility method without storing it, for live feedback in the editor. Viewers
+   * may not submit code to compile, so this requires write access.
    *
    * @param callerEmail email of the authenticated user
    * @param vsumId the VSUM ID
@@ -177,7 +179,7 @@ public class UtilityMethodService {
   @Transactional(readOnly = true)
   public UtilityMethodPreviewResponse preview(
       String callerEmail, Long vsumId, Long utilityMethodId, UtilityMethodRequest request) {
-    findAccessibleVsum(callerEmail, vsumId);
+    findEditableVsum(callerEmail, vsumId);
     List<UtilityMethod> existing = utilityMethodRepository.findByVsumIdOrderByNameAsc(vsumId);
     UtilityMethodDefinition definition = toDefinition(request);
     List<UtilityMethodProblemResponse> problems = new ArrayList<>();
@@ -557,11 +559,23 @@ public class UtilityMethodService {
   // ── access ───────────────────────────────────────────────────────────────
 
   private Vsum findAccessibleVsum(String callerEmail, Long vsumId) {
+    return findMember(callerEmail, vsumId).getVsum();
+  }
+
+  /** Like {@link #findAccessibleVsum}, but also rejects read-only members. */
+  private Vsum findEditableVsum(String callerEmail, Long vsumId) {
+    VsumUser member = findMember(callerEmail, vsumId);
+    if (!member.getRole().canWrite()) {
+      throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
+    }
+    return member.getVsum();
+  }
+
+  private VsumUser findMember(String callerEmail, Long vsumId) {
     return vsumUserRepository
         .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
             vsumId, callerEmail)
-        .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS))
-        .getVsum();
+        .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
   }
 
   private UtilityMethod findUtilityMethod(Long utilityMethodId, Long vsumId) {

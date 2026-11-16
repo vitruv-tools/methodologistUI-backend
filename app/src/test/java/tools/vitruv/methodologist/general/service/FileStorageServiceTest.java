@@ -128,6 +128,26 @@ class FileStorageServiceTest {
   }
 
   @Test
+  void getReadableFile_readableFile_returnsFile() {
+    when(fileStorageRepository.isReadableBy(1L, "test@example.com")).thenReturn(true);
+    when(fileStorageRepository.findById(1L)).thenReturn(Optional.of(testFileStorage));
+
+    FileStorage result = fileStorageService.getReadableFile("test@example.com", 1L);
+
+    assertEquals(testFileStorage, result);
+  }
+
+  @Test
+  void getReadableFile_notReadableFile_throwsNotFoundWithoutLoadingFile() {
+    when(fileStorageRepository.isReadableBy(1L, "other@example.com")).thenReturn(false);
+
+    assertThrows(
+        NotFoundException.class, () -> fileStorageService.getReadableFile("other@example.com", 1L));
+
+    verify(fileStorageRepository, never()).findById(anyLong());
+  }
+
+  @Test
   void getFile_nonExistingFile_throwsException() {
     when(fileStorageRepository.findById(1L)).thenReturn(Optional.empty());
 

@@ -221,7 +221,10 @@ public class FineGranularMetaModelRelationService {
       if (request.getReactionFileStorageId() != null) {
         FileStorage existingFile =
             fileStorageRepository
-                .findById(request.getReactionFileStorageId())
+                .findAttachableReactionFiles(
+                    Set.of(request.getReactionFileStorageId()), callerUserEmail, relation.getVsum())
+                .stream()
+                .findFirst()
                 .orElseThrow(() -> new NotFoundException(REACTION_FILE_IDS_ID_NOT_FOUND_ERROR));
         if (lowCodeRequest != null && lowCodeRequest.isRegenerate()) {
           lowCodeRequest.setRegenerate(false);

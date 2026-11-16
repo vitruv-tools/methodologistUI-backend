@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -27,6 +28,7 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import tools.vitruv.methodologist.exception.LspProcessException;
 
 /**
  * Base class for WebSocket handlers that bridge a client to a language server process per session.
@@ -38,6 +40,9 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
  */
 public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
     extends TextWebSocketHandler {
+
+  /** Session attribute holding the VSUM ID the handshake interceptor authorized. */
+  public static final String VSUM_ID_ATTRIBUTE = "vsumId";
 
   protected static final long TIMEOUT_MS = 10L * 60 * 1000; // 10 minutes inactivity timeout
   protected static final long CLEANUP_INTERVAL_SECONDS = 60;
@@ -71,7 +76,7 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
         "{} cleanup scheduler started (checking every {}s, timeout: {}min)",
         serverName(),
         CLEANUP_INTERVAL_SECONDS,
-        TIMEOUT_MS / 60000);
+        inactivityTimeoutMillis() / 60000);
   }
 
   /**
@@ -122,29 +127,164 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
     String sessionId = session.getId();
     logger.debug("{} WebSocket connection established: {}", serverName(), sessionId);
 
+    Optional<CloseStatus> rejection = rejectConnection(session);
+    if (rejection.isPresent()) {
+      session.close(rejection.get());
+      return;
+    }
+
     lastActivity.put(sessionId, System.currentTimeMillis());
 
-    LspLaunch launch = prepareLaunch(session);
+    LspLaunch launch = null;
+    Process process = null;
+    P lspProcess = null;
+    try {
+      launch = prepareLaunch(session);
 
-    ProcessBuilder pb = new ProcessBuilder(launch.command());
-    pb.directory(launch.projectDir().toFile());
-    pb.redirectErrorStream(true);
+      ProcessBuilder pb = new ProcessBuilder(launch.command());
+      pb.directory(launch.projectDir().toFile());
+      configureProcess(pb);
 
-    Process process = pb.start();
-    watchProcessExit(sessionId, process);
+      process = pb.start();
+      watchProcessExit(sessionId, process);
 
-    BufferedWriter writer =
-        new BufferedWriter(
-            new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
-    BufferedReader reader =
-        new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
+      BufferedWriter writer =
+          new BufferedWriter(
+              new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
+      BufferedReader reader =
+          new BufferedReader(
+              new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
 
-    P lspProcess = createProcess(session, process, writer, reader, launch.sessionDir());
-    sessions.put(sessionId, lspProcess);
+      lspProcess = createProcess(session, process, writer, reader, launch.sessionDir());
+      sessions.put(sessionId, lspProcess);
+    } catch (IOException | RuntimeException e) {
+      logger.error("Failed to start the {} server for session {}", serverName(), sessionId, e);
+      lastActivity.remove(sessionId);
+      if (process != null) {
+        process.destroyForcibly();
+      }
+      if (launch != null) {
+        cleanupTempDir(launch.sessionDir());
+      }
+      launchFailed(session);
+      session.close(CloseStatus.SERVER_ERROR);
+      return;
+    }
 
+    sessionRegistered(session);
+
+    if (announceWorkspaceBeforeReading()) {
+      // Sent before the reader starts, so the session is never written concurrently.
+      if (!sendWorkspaceReadyNow(session, launch.projectDir())) {
+        cleanupSession(sessionId, "workspaceReady could not be sent");
+        closeQuietly(session);
+        return;
+      }
+      // The client may have disconnected while the server was starting.
+      if (!session.isOpen()) {
+        cleanupSession(sessionId, "client disconnected during startup");
+        return;
+      }
+      startReader(lspProcess);
+    } else {
+      startReader(lspProcess);
+      sendWorkspaceReady(session, launch.projectDir());
+    }
+  }
+
+  private void startReader(P lspProcess) {
     new Thread(lspProcess::readFromLsp).start();
+  }
 
-    sendWorkspaceReady(session, launch.projectDir());
+  /**
+   * Decides whether a new connection is accepted before any workspace or process is created. A
+   * subclass that admits connections only conditionally, e.g. up to a number of running servers,
+   * must undo what it reserved in {@link #launchFailed} and when the session's process is
+   * destroyed.
+   *
+   * @param session the WebSocket session being established
+   * @return the status to close the session with, or empty to accept it
+   */
+  protected Optional<CloseStatus> rejectConnection(WebSocketSession session) {
+    return Optional.empty();
+  }
+
+  /**
+   * Called when preparing or starting the language server failed, after the temporary directory and
+   * any started process have been removed. Releases what {@link #rejectConnection} reserved.
+   *
+   * @param session the WebSocket session whose server could not be started
+   */
+  protected void launchFailed(WebSocketSession session) {
+    // nothing reserved by default
+  }
+
+  /**
+   * Configures the process before it is started. By default the error output is merged into the
+   * standard output.
+   *
+   * @param builder the builder of the language server process
+   */
+  protected void configureProcess(ProcessBuilder builder) {
+    builder.redirectErrorStream(true);
+  }
+
+  /**
+   * Called once the session's process is registered and before the client is told that the
+   * workspace is ready.
+   *
+   * @param session the WebSocket session
+   */
+  protected void sessionRegistered(WebSocketSession session) {
+    // nothing to do by default
+  }
+
+  /**
+   * Tells whether {@code workspaceReady} is sent before the reader of the server output starts. By
+   * default it is sent shortly after the reader has started.
+   *
+   * @return {@code true} to send it first, so that the session is never written concurrently
+   */
+  protected boolean announceWorkspaceBeforeReading() {
+    return false;
+  }
+
+  /**
+   * Returns how long a session may stay without client messages before its server is stopped.
+   *
+   * @return the inactivity timeout in milliseconds
+   */
+  protected long inactivityTimeoutMillis() {
+    return TIMEOUT_MS;
+  }
+
+  private boolean sendWorkspaceReadyNow(WebSocketSession session, Path projectDir) {
+    try {
+      session.sendMessage(new TextMessage(workspaceReadyMessage(projectDir)));
+      return true;
+    } catch (IOException | IllegalStateException e) {
+      logger.debug(
+          "Could not send workspaceReady to {} session {}", serverName(), session.getId(), e);
+      return false;
+    }
+  }
+
+  private static String workspaceReadyMessage(Path projectDir) {
+    return String.format(
+        "{\"type\":\"workspaceReady\",\"rootUri\":\"%s\"}", projectDir.toUri().toString());
+  }
+
+  /**
+   * Closes the session with {@link CloseStatus#SERVER_ERROR}, ignoring a failure to do so.
+   *
+   * @param session the WebSocket session
+   */
+  protected void closeQuietly(WebSocketSession session) {
+    try {
+      session.close(CloseStatus.SERVER_ERROR);
+    } catch (IOException e) {
+      logger.debug("Could not close {} session {}", serverName(), session.getId(), e);
+    }
   }
 
   private void watchProcessExit(String sessionId, Process process) {
@@ -177,10 +317,7 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
         .execute(
             () -> {
               try {
-                String rootUriMessage =
-                    String.format(
-                        "{\"type\":\"workspaceReady\",\"rootUri\":\"%s\"}",
-                        projectDir.toUri().toString());
+                String rootUriMessage = workspaceReadyMessage(projectDir);
                 session.sendMessage(new TextMessage(rootUriMessage));
               } catch (Exception e) {
                 // usually the client has disconnected in the meantime
@@ -198,14 +335,32 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
     String sessionId = session.getId();
     lastActivity.put(sessionId, System.currentTimeMillis());
     P proc = sessions.get(sessionId);
-    if (proc != null) {
-      try {
-        proc.sendToLsp(message.getPayload());
-      } catch (IOException e) {
-        // the process has stopped, which is logged once when it happens
-        logger.debug("Could not forward a message to {} session {}", serverName(), sessionId, e);
-      }
+    if (proc == null) {
+      noSessionProcess(session);
+      return;
     }
+    try {
+      proc.sendToLsp(message.getPayload());
+    } catch (LspProcessException e) {
+      // The message is not logged, as it may contain the user's query.
+      logger.debug(
+          "Rejected a message on {} session {}: {}", serverName(), sessionId, e.getMessage());
+      session.close(CloseStatus.BAD_DATA);
+    } catch (IOException e) {
+      // the process has stopped, which is logged once when it happens
+      logger.debug("Could not forward a message to {} session {}", serverName(), sessionId, e);
+    }
+  }
+
+  /**
+   * Called for a client message of a session without a running server. By default the message is
+   * ignored.
+   *
+   * @param session the WebSocket session
+   * @throws IOException if closing the session fails
+   */
+  protected void noSessionProcess(WebSocketSession session) throws IOException {
+    // ignored by default
   }
 
   @Override
@@ -232,8 +387,9 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
    *
    * @param sessionId the session ID to clean up
    * @param reason the reason for cleanup (for logging)
+   * @return {@code true} if this call stopped the session, {@code false} if it was already gone
    */
-  protected void cleanupSession(String sessionId, String reason) {
+  protected boolean cleanupSession(String sessionId, String reason) {
     P serverProcess = sessions.remove(sessionId);
     lastActivity.remove(sessionId);
 
@@ -246,8 +402,10 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
       } finally {
         cleanupTempDir(serverProcess.tempDir());
       }
+      return true;
     } else {
       logger.debug("No {} process for session {}, already cleaned up", serverName(), sessionId);
+      return false;
     }
   }
 
@@ -256,7 +414,7 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
     long now = System.currentTimeMillis();
     List<String> toCleanup = new ArrayList<>();
     for (Map.Entry<String, Long> entry : lastActivity.entrySet()) {
-      if (entry.getValue() == null || (now - entry.getValue()) > TIMEOUT_MS) {
+      if (entry.getValue() == null || (now - entry.getValue()) > inactivityTimeoutMillis()) {
         toCleanup.add(entry.getKey());
       }
     }
@@ -317,31 +475,14 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
   }
 
   /**
-   * Reads a numeric query parameter from the session's handshake URI.
+   * Returns the VSUM the client was authorized for during the handshake. The value is set by the
+   * handshake interceptor after checking that the user is a member; the {@code vsumId} in the URL
+   * is never trusted here.
    *
    * @param session the WebSocket session
-   * @param param the query parameter name
-   * @return the parsed value, or {@code null} if absent or not a number
+   * @return the authorized VSUM ID, or {@code null} if the client did not ask for a project
    */
-  protected Long extractQueryParam(WebSocketSession session, String param) {
-    try {
-      var uri = session.getUri();
-      if (uri == null) {
-        return null;
-      }
-      String query = uri.getQuery();
-      if (query == null) {
-        return null;
-      }
-      for (String part : query.split("&")) {
-        String[] kv = part.split("=", 2);
-        if (kv.length == 2 && kv[0].equals(param)) {
-          return Long.parseLong(kv[1]);
-        }
-      }
-    } catch (NumberFormatException e) {
-      logger.warn("Could not extract {} from LSP WebSocket URI", param);
-    }
-    return null;
+  protected Long authorizedVsumId(WebSocketSession session) {
+    return session.getAttributes().get(VSUM_ID_ATTRIBUTE) instanceof Long vsumId ? vsumId : null;
   }
 }

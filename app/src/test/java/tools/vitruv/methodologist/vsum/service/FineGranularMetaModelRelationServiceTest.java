@@ -17,8 +17,9 @@ import static tools.vitruv.methodologist.messages.Error.FINE_GRANULAR_RELATION_U
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -158,7 +159,8 @@ class FineGranularMetaModelRelationServiceTest {
     FileStorage file = file(14L);
     FineGranularMetaModelRelationRequest request =
         new FineGranularMetaModelRelationRequest(null, "Component", "Class", 14L, null);
-    when(fileStorageRepository.findById(14L)).thenReturn(Optional.of(file));
+    when(fileStorageRepository.findAttachableReactionFiles(eq(Set.of(14L)), eq("u@ex.com"), any()))
+        .thenReturn(List.of(file));
 
     service.create("u@ex.com", Map.of(request, relation));
 
@@ -215,6 +217,23 @@ class FineGranularMetaModelRelationServiceTest {
   }
 
   @Test
+  void create_throwsNotFound_whenReactionFileNotAttachableByCaller() {
+    MetaModelRelation relation = relation(10L, 20L);
+    FineGranularMetaModelRelationRequest request =
+        new FineGranularMetaModelRelationRequest(null, "Component", "Class", 14L, null);
+    when(fileStorageRepository.findAttachableReactionFiles(eq(Set.of(14L)), eq("u@ex.com"), any()))
+        .thenReturn(List.of());
+    Map<FineGranularMetaModelRelationRequest, MetaModelRelation> requests =
+        Map.of(request, relation);
+
+    assertThatThrownBy(() -> service.create("u@ex.com", requests))
+        .isInstanceOf(NotFoundException.class);
+
+    verify(fineGranularMetaModelRelationRepository, never()).saveAll(anyList());
+    assertThat(relation.getFineGranularMetaModelRelationSet()).isEmpty();
+  }
+
+  @Test
   void update_regeneratesFile_whenRegenerateTrue() {
     MetaModelRelation relation = relation(10L, 20L);
     FineGranularMetaModelRelation existing = fgRelation(3L, "A", "B", 13L, relation);
@@ -224,7 +243,8 @@ class FineGranularMetaModelRelationServiceTest {
     CreateCorrespondingRootOnInsertRootRequest template = templateRequest(true);
     FineGranularMetaModelRelationRequest request =
         new FineGranularMetaModelRelationRequest(3L, "A", "B", 13L, template);
-    when(fileStorageRepository.findById(13L)).thenReturn(Optional.of(existingFile));
+    when(fileStorageRepository.findAttachableReactionFiles(eq(Set.of(13L)), eq("u@ex.com"), any()))
+        .thenReturn(List.of(existingFile));
     when(lowCodeReactionService.generateAndSaveReaction("u@ex.com", template, existingFile))
         .thenReturn(regenerated);
 
@@ -246,7 +266,8 @@ class FineGranularMetaModelRelationServiceTest {
     FileStorage existingFile = existing.getReactionFileStorage();
     FineGranularMetaModelRelationRequest request =
         new FineGranularMetaModelRelationRequest(3L, "A", "B", 13L, null);
-    when(fileStorageRepository.findById(13L)).thenReturn(Optional.of(existingFile));
+    when(fileStorageRepository.findAttachableReactionFiles(eq(Set.of(13L)), eq("u@ex.com"), any()))
+        .thenReturn(List.of(existingFile));
 
     service.update("u@ex.com", Map.of(request, relation));
 

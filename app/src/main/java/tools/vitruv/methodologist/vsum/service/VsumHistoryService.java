@@ -28,6 +28,7 @@ import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumHistoryMapper;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumHistory;
+import tools.vitruv.methodologist.vsum.model.VsumUser;
 import tools.vitruv.methodologist.vsum.model.repository.VsumHistoryRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 
@@ -143,7 +144,8 @@ public class VsumHistoryService {
    *
    * @param callerEmail email of the user requesting the revert; used to validate access
    * @param id identifier of the history entry to revert to
-   * @throws AccessDeniedException if the caller is not found or does not have access to the VSUM
+   * @throws AccessDeniedException if the caller is not found, is not a member of the VSUM, or is a
+   *     viewer
    * @throws NotFoundException if the history entry with {@code id} does not exist
    */
   @Transactional
@@ -160,10 +162,14 @@ public class VsumHistoryService {
 
     Vsum vsum = history.getVsum();
 
-    vsumUserRepository
-        .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
-            vsum.getId(), callerEmail)
-        .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
+    VsumUser membership =
+        vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                vsum.getId(), callerEmail)
+            .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
+    if (!membership.getRole().canWrite()) {
+      throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
+    }
 
     create(vsum, user);
 

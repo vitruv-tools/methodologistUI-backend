@@ -3,18 +3,19 @@ package tools.vitruv.methodologist.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 
-/** Unit tests for {@link NeoJoinWebSocketBearerTokenResolver}. */
-class NeoJoinWebSocketBearerTokenResolverTest {
+/** Unit tests for {@link WebSocketBearerTokenResolver}. */
+class WebSocketBearerTokenResolverTest {
 
-  private final NeoJoinWebSocketBearerTokenResolver resolver =
-      new NeoJoinWebSocketBearerTokenResolver();
+  private final WebSocketBearerTokenResolver resolver = new WebSocketBearerTokenResolver();
 
-  @Test
-  void resolve_readsTokenFromSubprotocol_onNeoJoinLsp() {
-    assertThat(resolver.resolve(request("/neojoin-lsp", "bearer, abc.def.ghi")))
-        .isEqualTo("abc.def.ghi");
+  @ParameterizedTest
+  @ValueSource(strings = {"/lsp", "/ocl-lsp", "/neojoin-lsp"})
+  void resolve_readsTokenFromSubprotocol_onEveryLspEndpoint(String path) {
+    assertThat(resolver.resolve(request(path, "bearer, abc.def.ghi"))).isEqualTo("abc.def.ghi");
   }
 
   @Test
@@ -35,8 +36,9 @@ class NeoJoinWebSocketBearerTokenResolverTest {
 
   @Test
   void resolve_ignoresSubprotocol_onOtherPaths() {
-    assertThat(resolver.resolve(request("/ocl-lsp", "bearer, abc"))).isNull();
+    assertThat(resolver.resolve(request("/api/v1/vsums", "bearer, abc"))).isNull();
     assertThat(resolver.resolve(request("/neojoin-lsp/other", "bearer, abc"))).isNull();
+    assertThat(resolver.resolve(request("/lsp/other", "bearer, abc"))).isNull();
   }
 
   @Test

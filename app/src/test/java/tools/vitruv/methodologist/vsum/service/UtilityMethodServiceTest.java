@@ -28,6 +28,7 @@ import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UtilityMethodValidationException;
 import tools.vitruv.methodologist.exception.VsumBuildingException;
 import tools.vitruv.methodologist.general.model.FileStorage;
+import tools.vitruv.methodologist.vsum.VsumRole;
 import tools.vitruv.methodologist.vsum.controller.dto.request.UtilityMethodParameterDto;
 import tools.vitruv.methodologist.vsum.controller.dto.request.UtilityMethodRequest;
 import tools.vitruv.methodologist.vsum.controller.dto.response.UtilityMethodClassResponse;
@@ -100,7 +101,7 @@ class UtilityMethodServiceTest {
             vsumUserRepository
                 .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
                     VSUM_ID, EMAIL))
-        .thenReturn(Optional.of(VsumUser.builder().vsum(vsum).build()));
+        .thenReturn(Optional.of(VsumUser.builder().vsum(vsum).role(VsumRole.MEMBER).build()));
     lenient()
         .when(vsumMetaModelRepository.findByVsumId(VSUM_ID))
         .thenReturn(
@@ -187,6 +188,37 @@ class UtilityMethodServiceTest {
 
     assertThatThrownBy(() -> service.create("other@example.com", VSUM_ID, request))
         .isInstanceOf(AccessDeniedException.class);
+  }
+
+  @Test
+  void writes_throwAccessDenied_whenCallerIsAViewer() {
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                VSUM_ID, "viewer@example.com"))
+        .thenReturn(Optional.of(VsumUser.builder().vsum(vsum).role(VsumRole.VIEWER).build()));
+    UtilityMethodRequest request = subSystemsRequest();
+
+    assertThatThrownBy(() -> service.create("viewer@example.com", VSUM_ID, request))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(() -> service.update("viewer@example.com", VSUM_ID, 1L, request))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(() -> service.delete("viewer@example.com", VSUM_ID, 1L))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(() -> service.preview("viewer@example.com", VSUM_ID, null, request))
+        .isInstanceOf(AccessDeniedException.class);
+
+    verify(utilityMethodRepository, never()).save(any());
+    verify(utilityMethodRepository, never()).delete(any());
+  }
+
+  @Test
+  void reads_areAllowed_whenCallerIsAViewer() {
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                VSUM_ID, "viewer@example.com"))
+        .thenReturn(Optional.of(VsumUser.builder().vsum(vsum).role(VsumRole.VIEWER).build()));
+
+    assertThat(service.findAll("viewer@example.com", VSUM_ID)).isNotNull();
   }
 
   // ── update ───────────────────────────────────────────────────────────────

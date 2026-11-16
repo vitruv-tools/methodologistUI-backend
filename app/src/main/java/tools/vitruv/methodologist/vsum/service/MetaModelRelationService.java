@@ -22,7 +22,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.MetaModelRelationCreationException;
 import tools.vitruv.methodologist.exception.NotFoundException;
-import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.vsum.controller.dto.request.MetaModelRelationRequest;
@@ -47,46 +46,50 @@ public class MetaModelRelationService {
    * Creates relations for the given requests. Requires a reaction file or a non-empty fine-granular
    * set.
    *
+   * @param callerEmail the email of the caller, who must be allowed to use the reaction files
    * @param vsum the VSUM to create relations for
    * @param requests the list of requests
    * @return a map of requests to created relations
    */
   @Transactional
   public Map<MetaModelRelationRequest, MetaModelRelation> create(
-      Vsum vsum, List<MetaModelRelationRequest> requests) {
+      String callerEmail, Vsum vsum, List<MetaModelRelationRequest> requests) {
     Map<MetaModelRelationRequest, MetaModelRelation> map = new HashMap<>();
     if (requests != null) {
       requests.forEach(r -> map.put(r, null));
     }
-    return createOrUpdate(vsum, map, false);
+    return createOrUpdate(callerEmail, vsum, map, false);
   }
 
   /**
    * Updates relations for the given requests. Requires a reaction file or a non-empty fine-granular
    * set.
    *
+   * @param callerEmail the email of the caller, who must be allowed to use the reaction files
    * @param vsum the VSUM to update relations for
    * @param metaModelRelationRequestToRelation the map of requests to existing relations
    * @return a map of requests to updated relations
    */
   @Transactional
   public Map<MetaModelRelationRequest, MetaModelRelation> update(
+      String callerEmail,
       Vsum vsum,
       Map<MetaModelRelationRequest, MetaModelRelation> metaModelRelationRequestToRelation) {
-    return createOrUpdate(vsum, metaModelRelationRequestToRelation, true);
+    return createOrUpdate(callerEmail, vsum, metaModelRelationRequestToRelation, true);
   }
 
   /**
    * Creates or updates relations for the given requests. Requires a reaction file or a non-empty
    * fine-granular set.
    *
+   * @param callerEmail the email of the caller, who must be allowed to use the reaction files
    * @param vsum the VSUM to create or update relations for
    * @param metaModelRelationRequestToRelation the map of requests to relations
    * @param allowUpdate whether to allow updates of existing relations
    * @return a map of requests to created or updated relations
    */
-  @Transactional
   protected Map<MetaModelRelationRequest, MetaModelRelation> createOrUpdate(
+      String callerEmail,
       Vsum vsum,
       Map<MetaModelRelationRequest, MetaModelRelation> metaModelRelationRequestToRelation,
       boolean allowUpdate) {
@@ -119,7 +122,7 @@ public class MetaModelRelationService {
         reactionFileIds.isEmpty()
             ? Map.of()
             : fileStorageRepository
-                .findAllByIdInAndType(reactionFileIds, FileEnumType.REACTION)
+                .findAttachableReactionFiles(reactionFileIds, callerEmail, vsum)
                 .stream()
                 .collect(Collectors.toMap(FileStorage::getId, fileStorage -> fileStorage));
 
