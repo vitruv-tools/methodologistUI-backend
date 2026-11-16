@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -147,5 +148,55 @@ class VsumViewMetaModelServiceTest {
     service.deleteByVsumView(vsumView);
 
     verify(vsumViewMetaModelRepository).deleteAllByVsumView(vsumView);
+  }
+
+  @Test
+  void delete_deletesLinks_andRemovesThemFromTheLoadedLinksOfTheirView() {
+    VsumViewMetaModel linkToOne = link(1001L, 1L);
+    VsumViewMetaModel linkToTwo = link(1002L, 2L);
+    vsumView.setViewMetaModels(new HashSet<>(Set.of(linkToOne, linkToTwo)));
+
+    service.delete(List.of(linkToOne));
+
+    verify(vsumViewMetaModelRepository).deleteAll(List.of(linkToOne));
+    assertThat(vsumView.getViewMetaModels()).containsExactly(linkToTwo);
+  }
+
+  @Test
+  void delete_whenLinksOfTheViewAreNotLoaded_deletesLinksOnly() {
+    vsumView.setViewMetaModels(null);
+    VsumViewMetaModel linkToOne = link(1001L, 1L);
+
+    service.delete(List.of(linkToOne));
+
+    verify(vsumViewMetaModelRepository).deleteAll(List.of(linkToOne));
+    assertThat(vsumView.getViewMetaModels()).isNull();
+  }
+
+  @Test
+  void sourceMetaModelId_isTheSourceOfTheCopy_orTheMetaModelWithoutSource() {
+    VsumViewMetaModel withoutSource =
+        VsumViewMetaModel.builder().vsumView(vsumView).metaModel(metaModel(7L, null)).build();
+
+    assertThat(VsumViewMetaModelService.sourceMetaModelId(link(1001L, 1L))).isEqualTo(1L);
+    assertThat(VsumViewMetaModelService.sourceMetaModelId(withoutSource)).isEqualTo(7L);
+  }
+
+  private VsumViewMetaModel link(long metaModelId, long sourceId) {
+    return VsumViewMetaModel.builder()
+        .vsumView(vsumView)
+        .metaModel(metaModel(metaModelId, sourceId))
+        .build();
+  }
+
+  private static MetaModel metaModel(long id, Long sourceId) {
+    MetaModel metaModel = new MetaModel();
+    metaModel.setId(id);
+    if (sourceId != null) {
+      MetaModel source = new MetaModel();
+      source.setId(sourceId);
+      metaModel.setSource(source);
+    }
+    return metaModel;
   }
 }

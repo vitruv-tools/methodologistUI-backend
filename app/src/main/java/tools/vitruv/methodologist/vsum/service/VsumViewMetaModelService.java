@@ -66,13 +66,31 @@ public class VsumViewMetaModelService {
   }
 
   /**
-   * Deletes the provided associations.
+   * Returns the ID of the model-library metamodel a link points to: the source of the VSUM's copy,
+   * or the linked metamodel itself if it has no source.
+   *
+   * @param link the link between a view and a metamodel
+   * @return the source metamodel ID
+   */
+  static Long sourceMetaModelId(VsumViewMetaModel link) {
+    MetaModel metaModel = link.getMetaModel();
+    return metaModel.getSource() != null ? metaModel.getSource().getId() : metaModel.getId();
+  }
+
+  /**
+   * Deletes the provided associations and removes them from their views' loaded association sets.
    *
    * @param viewMetaModels associations to delete
    */
   @Transactional
   public void delete(List<VsumViewMetaModel> viewMetaModels) {
     vsumViewMetaModelRepository.deleteAll(viewMetaModels);
+    for (VsumViewMetaModel viewMetaModel : viewMetaModels) {
+      VsumView vsumView = viewMetaModel.getVsumView();
+      if (vsumView != null && vsumView.getViewMetaModels() != null) {
+        vsumView.getViewMetaModels().remove(viewMetaModel);
+      }
+    }
   }
 
   /**

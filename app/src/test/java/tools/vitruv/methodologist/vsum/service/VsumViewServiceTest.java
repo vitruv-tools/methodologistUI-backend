@@ -58,7 +58,7 @@ class VsumViewServiceTest {
     VsumView savedView = VsumView.builder().id(100L).vsum(vsum).fileStorage(fileStorage).build();
     when(vsumViewRepository.save(any(VsumView.class))).thenReturn(savedView);
 
-    VsumView result = service.create(vsum, fileStorageId);
+    VsumView result = service.create(vsum, fileStorageId, "Brake", "brake components");
 
     ArgumentCaptor<VsumView> captor = ArgumentCaptor.forClass(VsumView.class);
     verify(vsumViewRepository).save(captor.capture());
@@ -66,6 +66,8 @@ class VsumViewServiceTest {
     VsumView persisted = captor.getValue();
     assertThat(persisted.getVsum()).isSameAs(vsum);
     assertThat(persisted.getFileStorage()).isSameAs(fileStorage);
+    assertThat(persisted.getName()).isEqualTo("Brake");
+    assertThat(persisted.getDescription()).isEqualTo("brake components");
 
     assertThat(result).isSameAs(savedView);
     assertThat(vsum.getViews()).contains(savedView);
@@ -85,7 +87,7 @@ class VsumViewServiceTest {
     VsumView savedView = VsumView.builder().id(101L).vsum(vsum).fileStorage(fileStorage).build();
     when(vsumViewRepository.save(any(VsumView.class))).thenReturn(savedView);
 
-    VsumView result = service.create(vsum, fileStorageId);
+    VsumView result = service.create(vsum, fileStorageId, "Brake", null);
 
     verify(vsumViewRepository).save(any(VsumView.class));
     assertThat(result).isSameAs(savedView);
@@ -99,7 +101,7 @@ class VsumViewServiceTest {
     when(fileStorageRepository.findByIdAndType(missingFileStorageId, FileEnumType.NEO_JOIN))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> service.create(vsum, missingFileStorageId))
+    assertThatThrownBy(() -> service.create(vsum, missingFileStorageId, "Brake", null))
         .isInstanceOf(NotFoundException.class);
 
     verify(vsumViewRepository, never()).save(any(VsumView.class));
@@ -113,7 +115,7 @@ class VsumViewServiceTest {
     when(fileStorageRepository.findByIdAndType(nonNeoJoinFileStorageId, FileEnumType.NEO_JOIN))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> service.create(vsum, nonNeoJoinFileStorageId))
+    assertThatThrownBy(() -> service.create(vsum, nonNeoJoinFileStorageId, "Brake", null))
         .isInstanceOf(NotFoundException.class);
 
     verify(vsumViewRepository, never()).save(any(VsumView.class));
@@ -124,7 +126,8 @@ class VsumViewServiceTest {
     when(fileStorageRepository.findByIdAndType(null, FileEnumType.NEO_JOIN))
         .thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> service.create(vsum, null)).isInstanceOf(NotFoundException.class);
+    assertThatThrownBy(() -> service.create(vsum, null, "Brake", null))
+        .isInstanceOf(NotFoundException.class);
 
     verify(vsumViewRepository, never()).save(any(VsumView.class));
   }
@@ -228,5 +231,60 @@ class VsumViewServiceTest {
         org.mockito.Mockito.inOrder(vsumViewMetaModelRepository, vsumViewRepository);
     inOrder.verify(vsumViewMetaModelRepository).deleteAllByVsumViewIn(anyCollection());
     inOrder.verify(vsumViewRepository).deleteAllByVsum(vsum);
+  }
+
+  @Test
+  void update_changesNameAndDescription_keepsTheFile_andKeepsTheId() {
+    FileStorage file = FileStorage.builder().id(10L).type(FileEnumType.NEO_JOIN).build();
+    VsumView view =
+        VsumView.builder()
+            .id(100L)
+            .vsum(vsum)
+            .name("Brake")
+            .description("old")
+            .fileStorage(file)
+            .build();
+    when(vsumViewRepository.save(view)).thenReturn(view);
+
+    VsumView result = service.update(view, 10L, "Braking", null);
+
+    assertThat(result).isSameAs(view);
+    assertThat(view.getId()).isEqualTo(100L);
+    assertThat(view.getName()).isEqualTo("Braking");
+    assertThat(view.getDescription()).isNull();
+    assertThat(view.getFileStorage()).isSameAs(file);
+    verify(fileStorageRepository, never()).findByIdAndType(any(), any());
+  }
+
+  @Test
+  void update_replacesTheFile_withAnotherNeoJoinFile() {
+    FileStorage oldFile = FileStorage.builder().id(10L).type(FileEnumType.NEO_JOIN).build();
+    FileStorage newFile = FileStorage.builder().id(11L).type(FileEnumType.NEO_JOIN).build();
+    VsumView view =
+        VsumView.builder().id(100L).vsum(vsum).name("Brake").fileStorage(oldFile).build();
+    when(fileStorageRepository.findByIdAndType(11L, FileEnumType.NEO_JOIN))
+        .thenReturn(Optional.of(newFile));
+    when(vsumViewRepository.save(view)).thenReturn(view);
+
+    service.update(view, 11L, "Brake", "new query");
+
+    assertThat(view.getFileStorage()).isSameAs(newFile);
+    assertThat(view.getDescription()).isEqualTo("new query");
+  }
+
+  @Test
+  void update_whenNewFileIsNotNeoJoin_throwsNotFoundException_andDoesNotSave() {
+    FileStorage oldFile = FileStorage.builder().id(10L).type(FileEnumType.NEO_JOIN).build();
+    VsumView view =
+        VsumView.builder().id(100L).vsum(vsum).name("Brake").fileStorage(oldFile).build();
+    when(fileStorageRepository.findByIdAndType(12L, FileEnumType.NEO_JOIN))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.update(view, 12L, "Braking", null))
+        .isInstanceOf(NotFoundException.class);
+
+    assertThat(view.getFileStorage()).isSameAs(oldFile);
+    assertThat(view.getName()).isEqualTo("Brake");
+    verify(vsumViewRepository, never()).save(any(VsumView.class));
   }
 }

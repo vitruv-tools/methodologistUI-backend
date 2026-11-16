@@ -124,8 +124,8 @@ public interface VsumHistoryMapper {
   /**
    * Maps domain {@link VsumView} entities to representation view DTOs.
    *
-   * <p>Each mapped view contains the related meta model source IDs and its associated file storage
-   * identifier.
+   * <p>Each mapped view contains its ID, name and description, the related meta model source IDs
+   * and its associated file storage identifier.
    *
    * @param views the VSUM views to transform; must not be {@code null}
    * @return a set of mapped {@link VsumRepresentation.View} entries for history representation
@@ -135,6 +135,9 @@ public interface VsumHistoryMapper {
         .map(
             view ->
                 VsumRepresentation.View.builder()
+                    .id(view.getId())
+                    .name(view.getName())
+                    .description(view.getDescription())
                     .metaModelIds(
                         view.getViewMetaModels().stream()
                             .map(

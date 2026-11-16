@@ -11,8 +11,8 @@ import lombok.Setter;
 /**
  * Response DTO representing a VSUM view (NeoJoin configuration).
  *
- * <p>Provides the view identifier, the associated file storage identifier, creation timestamp, and
- * all metamodels assigned to the view.
+ * <p>Provides the view identifier, its name and description, the associated file storage
+ * identifier, creation timestamp, and all metamodels assigned to the view.
  *
  * <p>Lombok generates getters, setters, constructors, and a builder.
  */
@@ -23,6 +23,8 @@ import lombok.Setter;
 @AllArgsConstructor
 public class ViewsResponse {
   private Long id;
+  private String name;
+  private String description;
   private Long fileStorageId;
   private Instant createdAt;
   private List<MetaModelResponse> assignedModels;

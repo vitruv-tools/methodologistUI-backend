@@ -59,10 +59,12 @@ public interface VsumViewMapper {
   }
 
   /**
-   * Maps a metamodel entity to its API response representation.
+   * Maps a metamodel entity to its API response representation. The {@code sourceId} is the ID a
+   * view request uses for the metamodel.
    *
    * @param metaModel the metamodel entity
    * @return the metamodel response
    */
+  @Mapping(source = "source.id", target = "sourceId")
   MetaModelResponse toMetaModelResponse(MetaModel metaModel);
 }
