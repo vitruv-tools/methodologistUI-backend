@@ -104,6 +104,50 @@ class SetupServiceApiHandlerTest {
   }
 
   @Test
+  void buildVsumJarOrThrow_sendsViewFilesWithTheNjExtension() throws Exception {
+    mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody("jar"));
+
+    setupServiceApiHandler.buildVsumJarOrThrow(
+        metamodelFiles,
+        List.of(),
+        List.of(),
+        List.of(
+            fileStorage("components", "a".getBytes()),
+            fileStorage("components.nj", "b".getBytes()),
+            fileStorage(null, "c".getBytes())));
+
+    String body = mockWebServer.takeRequest().getBody().readUtf8();
+    assertThat(body)
+        .contains(
+            "filename=\"components.nj\"",
+            "filename=\"components-2.nj\"",
+            "filename=\"viewFiles.nj\"");
+  }
+
+  @Test
+  void validateVsum_sendsViewFilesWithTheNjExtension_andResolvesTheirProblems() throws Exception {
+    mockWebServer.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+            .setBody(
+                "{\"valid\":false,\"problems\":["
+                    + "{\"source\":\"VIEWS\",\"file\":\"components.nj\",\"line\":7,"
+                    + "\"message\":\"nmae cannot be resolved\"}]}"));
+
+    VsumValidationResult result =
+        setupServiceApiHandler.validateVsum(
+            metamodelFiles,
+            List.of(),
+            List.of(),
+            List.of(fileStorage(31L, "components", "a".getBytes())));
+
+    assertThat(result.problems()).extracting(BuildProblem::fileId).containsExactly(31L);
+    assertThat(mockWebServer.takeRequest().getBody().readUtf8())
+        .contains("filename=\"components.nj\"");
+  }
+
+  @Test
   void buildVsumJarOrThrow_keepsTheErrorCodeAndProblems_andResolvesTheirFiles() {
     FileStorage ecore = fileStorage(11L, "model2.ecore", "e".getBytes());
     FileStorage reactions = fileStorage(12L, "my.reactions", "r".getBytes());

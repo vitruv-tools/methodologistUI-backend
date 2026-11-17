@@ -163,7 +163,7 @@ public class SetupServiceApiHandler {
     addFileParts(bodyBuilder, uploads, METAMODEL_FILES_PART, metamodelFiles, ".ecore");
     addFileParts(bodyBuilder, uploads, REACTION_FILES_PART, reactionFiles, ".reactions");
     addFileParts(bodyBuilder, uploads, CONSTRAINT_FILES_PART, constraintFiles, ".ocl");
-    addFileParts(bodyBuilder, uploads, VIEW_FILES_PART, viewFiles, null);
+    addFileParts(bodyBuilder, uploads, VIEW_FILES_PART, viewFiles, ".nj");
 
     JsonNode response;
     try {
@@ -207,7 +207,7 @@ public class SetupServiceApiHandler {
     addFileParts(bodyBuilder, uploads, METAMODEL_FILES_PART, metamodelFiles, ".ecore");
     addFileParts(bodyBuilder, uploads, REACTION_FILES_PART, reactionFiles, ".reactions");
     addFileParts(bodyBuilder, uploads, CONSTRAINT_FILES_PART, constraintFiles, ".ocl");
-    addFileParts(bodyBuilder, uploads, VIEW_FILES_PART, viewFiles, null);
+    addFileParts(bodyBuilder, uploads, VIEW_FILES_PART, viewFiles, ".nj");
 
     byte[] artifact;
     try {
