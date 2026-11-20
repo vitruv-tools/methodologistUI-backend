@@ -103,6 +103,15 @@
         "clientRole": false,
         "containerId": "c08d3b7d-258e-4d6e-9877-5361924532b5",
         "attributes": {}
+      },
+      {
+        "id": "ae65ea2d-f4af-41ab-8492-6d48f8dadb21",
+        "name": "methodologist-backend",
+        "description": "Lets the backend call the internal endpoints of the collaboration server, e.g. to reload a project",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "c08d3b7d-258e-4d6e-9877-5361924532b5",
+        "attributes": {}
       }
     ],
     "client": {
@@ -489,6 +498,19 @@
       ],
       "clientRoles": {},
       "groups": []
+    },
+    {
+      "id": "5d75905e-e147-43a4-a96f-d8d52fb134c3",
+      "username": "service-account-methodologist-backend",
+      "emailVerified": false,
+      "enabled": true,
+      "serviceAccountClientId": "methodologist-backend",
+      "realmRoles": [
+        "default-roles-methodologist",
+        "methodologist-backend"
+      ],
+      "clientRoles": {},
+      "groups": []
     }
   ],
   "scopeMappings": [
@@ -714,6 +736,47 @@
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "secret": "dev-only-collaboration-service-secret",
+      "redirectUris": [],
+      "webOrigins": [],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "realm_client": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "oauth2.device.authorization.grant.enabled": "false"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": true,
+      "nodeReRegistrationTimeout": -1,
+      "defaultClientScopes": [
+        "service_account",
+        "acr",
+        "roles",
+        "basic"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "id": "665ef0f1-ce13-4e15-813e-48628bfcda8a",
+      "clientId": "methodologist-backend",
+      "name": "Methodologist backend",
+      "description": "Service account of the backend for calling the collaboration server. Gets its token with the client credentials grant.",
+      "rootUrl": "",
+      "adminUrl": "",
+      "baseUrl": "",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "dev-only-methodologist-backend-secret",
       "redirectUris": [],
       "webOrigins": [],
       "notBefore": 0,

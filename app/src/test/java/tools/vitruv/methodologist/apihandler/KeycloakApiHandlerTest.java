@@ -3,12 +3,17 @@ package tools.vitruv.methodologist.apihandler;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.netty.handler.timeout.ReadTimeoutException;
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
+import okhttp3.mockwebserver.SocketPolicy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -103,6 +108,48 @@ class KeycloakApiHandlerTest {
 
     assertThatThrownBy(() -> handler.getAccessTokenByRefreshToken("refresh"))
         .isInstanceOf(UncheckedRuntimeException.class);
+  }
+
+  @Test
+  void getClientCredentialsToken_postsTheClientCredentialsGrant() throws InterruptedException {
+    keycloak.enqueue(json(200, "{\"access_token\":\"abc\",\"expires_in\":300}"));
+
+    KeycloakWebToken token =
+        handler.getClientCredentialsTokenOrThrow("methodologist-backend", "backend-secret");
+
+    assertThat(token.getAccessToken()).isEqualTo("abc");
+    assertThat(token.getExpiresIn()).isEqualTo(300);
+    RecordedRequest request = keycloak.takeRequest();
+    assertThat(request.getPath()).isEqualTo(KeycloakApiHandler.POST_TOKEN_URL);
+    assertThat(request.getBody().readUtf8())
+        .contains("grant_type=client_credentials")
+        .contains("client_id=methodologist-backend")
+        .contains("client_secret=backend-secret");
+  }
+
+  @Test
+  void getClientCredentialsToken_failsWithoutTheSecret_whenKeycloakRejectsTheClient() {
+    keycloak.enqueue(
+        json(401, "{\"error\":\"invalid_client\",\"error_description\":\"Invalid secret\"}"));
+
+    assertThatThrownBy(
+            () ->
+                handler.getClientCredentialsTokenOrThrow("methodologist-backend", "backend-secret"))
+        .isInstanceOf(UncheckedRuntimeException.class)
+        .hasMessageContaining("invalid_client")
+        .hasMessageNotContaining("backend-secret");
+  }
+
+  @Test
+  @Timeout(value = 30, unit = TimeUnit.SECONDS) // guards against a hang; the timeout itself is 5 s
+  void getClientCredentialsToken_failsWithTheResponseTimeout_whenKeycloakDoesNotAnswer() {
+    keycloak.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE));
+
+    assertThatThrownBy(
+            () ->
+                handler.getClientCredentialsTokenOrThrow("methodologist-backend", "backend-secret"))
+        .isInstanceOf(WebClientRequestException.class)
+        .hasRootCauseInstanceOf(ReadTimeoutException.class);
   }
 
   private static MockResponse json(int status, String body) {

@@ -5,8 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_HISTORY_ID_NOT_FOUND_ERROR;
@@ -21,8 +24,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import tools.vitruv.methodologist.exception.NotFoundException;
+import tools.vitruv.methodologist.general.event.VsumChangedByUserEvent;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRepresentation;
@@ -46,6 +51,7 @@ class VsumHistoryServiceTest {
   @Mock VsumUserRepository vsumUserRepository;
   @Mock VsumSyncService vsumSyncService;
   @Mock LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
+  @Mock ApplicationEventPublisher applicationEventPublisher;
 
   private VsumHistoryService service;
 
@@ -59,7 +65,8 @@ class VsumHistoryServiceTest {
             userRepository,
             vsumUserRepository,
             vsumSyncService,
-            lowCodeReactionRequestMapper);
+            lowCodeReactionRequestMapper,
+            applicationEventPublisher);
   }
 
   @Test
@@ -146,7 +153,7 @@ class VsumHistoryServiceTest {
   void create_withZeroLimit_deletesNewestWhenAnyExists_thenSaves() {
     service =
         new VsumHistoryService(
-            vsumHistoryRepository, vsumHistoryMapper, 0L, null, null, null, null);
+            vsumHistoryRepository, vsumHistoryMapper, 0L, null, null, null, null, null);
 
     Vsum vsum = new Vsum();
     vsum.setId(4L);
@@ -221,6 +228,7 @@ class VsumHistoryServiceTest {
     verify(vsumUserRepository, never())
         .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(any(), any());
     verify(vsumSyncService, never()).applySyncChanges(any(), any(), any(), anyBoolean());
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -242,6 +250,7 @@ class VsumHistoryServiceTest {
     verify(vsumUserRepository, never())
         .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(any(), any());
     verify(vsumSyncService, never()).applySyncChanges(any(), any(), any(), anyBoolean());
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -270,6 +279,7 @@ class VsumHistoryServiceTest {
         .hasMessageContaining(USER_DOES_NOT_HAVE_ACCESS);
 
     verify(vsumSyncService, never()).applySyncChanges(any(), any(), any(), anyBoolean());
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -292,6 +302,7 @@ class VsumHistoryServiceTest {
         .hasMessageContaining(USER_DOES_NOT_HAVE_ACCESS);
 
     verify(vsumSyncService, never()).applySyncChanges(any(), any(), any(), anyBoolean());
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -346,6 +357,39 @@ class VsumHistoryServiceTest {
               assertThat(r.getTargetId()).isEqualTo(2L);
               assertThat(r.getReactionFileId()).isEqualTo(9L);
             });
+    verify(applicationEventPublisher).publishEvent(new VsumChangedByUserEvent(101L));
+    verifyNoMoreInteractions(applicationEventPublisher);
+  }
+
+  @Test
+  void revert_publishesNoChangeEvent_whenApplyingTheRecordedChangesFails() {
+    String callerEmail = "u@ex.com";
+    User user = new User();
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
+        .thenReturn(Optional.of(user));
+    Vsum vsum = new Vsum();
+    vsum.setId(102L);
+    Long historyId = 14L;
+    when(vsumHistoryRepository.findById(historyId))
+        .thenReturn(
+            Optional.of(
+                VsumHistory.builder()
+                    .id(historyId)
+                    .vsum(vsum)
+                    .representation(new VsumRepresentation())
+                    .build()));
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                vsum.getId(), callerEmail))
+        .thenReturn(Optional.of(VsumUser.builder().role(VsumRole.MEMBER).build()));
+    doThrow(new NotFoundException("meta model gone"))
+        .when(vsumSyncService)
+        .applySyncChanges(eq(vsum), eq(user), any(VsumSyncChangesPutRequest.class), eq(false));
+
+    assertThatThrownBy(() -> service.revert(callerEmail, historyId))
+        .isInstanceOf(NotFoundException.class);
+
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test

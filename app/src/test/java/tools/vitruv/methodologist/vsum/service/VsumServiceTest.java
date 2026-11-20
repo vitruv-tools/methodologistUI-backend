@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -34,6 +36,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.SetupServiceException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
+import tools.vitruv.methodologist.general.event.VsumChangedByUserEvent;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
@@ -86,6 +89,7 @@ class VsumServiceTest {
   @Mock private VsumSyncService vsumSyncService;
   @Mock private VsumCleanupService vsumCleanupService;
   @Mock private VsumValidationService vsumValidationService;
+  @Mock private ApplicationEventPublisher applicationEventPublisher;
 
   private VsumService service;
 
@@ -154,7 +158,8 @@ class VsumServiceTest {
             metaModelService,
             vsumSyncService,
             vsumCleanupService,
-            vsumValidationService);
+            vsumValidationService,
+            applicationEventPublisher);
 
     lenient().when(vsumViewRepository.findAllByVsum(any(Vsum.class))).thenReturn(List.of());
     lenient()
@@ -235,6 +240,8 @@ class VsumServiceTest {
     assertThat(libraryMetaModel.getName()).isEqualTo("Library name");
     verify(vsumHistoryService).create(vsum, user);
     verify(vsumMetaModelRepository).save(vsumMetaModel);
+    verify(applicationEventPublisher).publishEvent(new VsumChangedByUserEvent(1L));
+    verifyNoMoreInteractions(applicationEventPublisher);
   }
 
   private void givenVsumMember(String email, Vsum vsum, VsumRole role) {
@@ -253,11 +260,33 @@ class VsumServiceTest {
     MetaModel projectMetaModel = clonedMetaModel(101L, 10L);
     when(vsumMetaModelRepository.findByVsumAndMetaModel_Source_Id(vsum, 10L))
         .thenReturn(Optional.of(vsumMetaModel(vsum, projectMetaModel)));
+    when(metaModelService.updateProjectEcore(
+            projectMetaModel, "<edited/>".getBytes(StandardCharsets.UTF_8)))
+        .thenReturn(true);
 
     service.updateMetaModelEcore(email, 1L, 10L, "<edited/>");
 
     verify(metaModelService)
         .updateProjectEcore(projectMetaModel, "<edited/>".getBytes(StandardCharsets.UTF_8));
+    verify(applicationEventPublisher).publishEvent(new VsumChangedByUserEvent(1L));
+    verifyNoMoreInteractions(applicationEventPublisher);
+  }
+
+  @Test
+  void updateMetaModelEcore_publishesNoChangeEvent_whenTheContentIsUnchanged() {
+    String email = "u@ex.com";
+    Vsum vsum = new Vsum();
+    givenVsumMember(email, vsum, VsumRole.MEMBER);
+    MetaModel projectMetaModel = clonedMetaModel(101L, 10L);
+    when(vsumMetaModelRepository.findByVsumAndMetaModel_Source_Id(vsum, 10L))
+        .thenReturn(Optional.of(vsumMetaModel(vsum, projectMetaModel)));
+    when(metaModelService.updateProjectEcore(
+            projectMetaModel, "<same/>".getBytes(StandardCharsets.UTF_8)))
+        .thenReturn(false);
+
+    service.updateMetaModelEcore(email, 1L, 10L, "<same/>");
+
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -268,6 +297,7 @@ class VsumServiceTest {
     assertThatThrownBy(() -> service.updateMetaModelEcore(email, 1L, 10L, "<edited/>"))
         .isInstanceOf(AccessDeniedException.class);
     verifyNoInteractions(metaModelService);
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -281,6 +311,7 @@ class VsumServiceTest {
     assertThatThrownBy(() -> service.updateMetaModelEcore(email, 1L, 10L, "<edited/>"))
         .isInstanceOf(NotFoundException.class);
     verifyNoInteractions(metaModelService);
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -579,6 +610,7 @@ class VsumServiceTest {
         .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
 
     verifyNoInteractions(vsumSyncService, vsumMetaModelRepository, vsumHistoryService);
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -599,6 +631,8 @@ class VsumServiceTest {
     Vsum result = service.update(email, 1L, put);
 
     assertThat(result).isSameAs(vsum);
+    verify(applicationEventPublisher).publishEvent(new VsumChangedByUserEvent(1L));
+    verifyNoMoreInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -610,6 +644,7 @@ class VsumServiceTest {
     assertThatThrownBy(() -> service.update(email, 1L, put))
         .isInstanceOf(AccessDeniedException.class);
     verifyNoInteractions(vsumSyncService);
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -790,6 +825,7 @@ class VsumServiceTest {
         .isInstanceOf(SetupServiceException.class);
 
     verifyNoInteractions(vsumValidationService);
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -845,6 +881,7 @@ class VsumServiceTest {
         status -> service.updateMetaModelName(EDITOR_EMAIL, 1L, 10L, "Same"));
 
     verifyNoInteractions(vsumValidationService);
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -936,6 +973,7 @@ class VsumServiceTest {
 
     assertThat(result).isSameAs(vsum);
     verifyNoInteractions(vsumUserRepository);
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -947,6 +985,7 @@ class VsumServiceTest {
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
     verifyNoInteractions(vsumSyncService);
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test

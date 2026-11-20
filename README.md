@@ -23,6 +23,7 @@ using Docker Compose and the included realm template.
 - Build
 - Run (development)
 - Configuration
+    - Collaboration server notifications
 - Health checks
 - Keycloak setup (REQUIRED)
     - Start Keycloak with Docker Compose
@@ -94,6 +95,34 @@ Important configuration areas:
 - Datasource — JDBC URL, username, password (H2 can be used for local testing)
 
 See `src/main/resources/application-dev.properties` for example values used during development.
+
+### Collaboration server notifications
+
+After a user changes a project through a user endpoint (sync changes, meta model rename or Ecore save, history
+revert), the backend asks the collaboration server to reload the project, so its next writeback does not undo the
+change. The request is `POST {collaboration.url}/internal/projects/{id}/reload`, sent in the background after the
+change is committed, authenticated with a token of the backend's own Keycloak service account. Changes the
+collaboration server writes back through the internal endpoints send no notification.
+
+| Property                         | Meaning                                                                    |
+|----------------------------------|----------------------------------------------------------------------------|
+| `collaboration.url`              | Base URL of the collaboration server. Empty or unset disables the feature. |
+| `keycloak.backend.client-id`     | Keycloak client of the backend's service account (`methodologist-backend`). |
+| `keycloak.backend.client-secret` | Secret of that client.                                                     |
+
+- **Disabled by default.** Without `collaboration.url`, or without the client ID or secret, no notification is sent
+  and the backend works as before; the reason is logged once at startup.
+- **Best effort.** A failing or unreachable collaboration server or Keycloak is only logged; the user's request still
+  succeeds. A failed notification is not retried.
+- **Keycloak.** `docker/keycloak/realm-template.json` contains the confidential client `methodologist-backend`
+  (client credentials grant) and the realm role `methodologist-backend` assigned to its service account, so a fresh
+  local Keycloak needs no manual setup. The collaboration server requires that role on its internal endpoints.
+- **Same Keycloak URL.** The collaboration server checks the token's issuer, which is the URL the backend requested
+  the token from. Its `KEYCLOAK_URL` must therefore equal the backend's `third_api.keycloak.base_url`; otherwise
+  every notification is rejected with `401` (logged as a warning by the backend).
+- **Secrets.** The secret in the realm template and in `application-dev.properties` is for local development only.
+  Outside development, regenerate the client secret in Keycloak (client `methodologist-backend` → *Credentials*) and
+  pass it through external configuration or an environment variable; never commit it.
 
 ---
 

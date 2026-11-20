@@ -11,11 +11,13 @@ import java.util.Objects;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.vitruv.methodologist.exception.NotFoundException;
+import tools.vitruv.methodologist.general.event.VsumChangedByUserEvent;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRepresentation;
@@ -48,6 +50,7 @@ public class VsumHistoryService {
   private final VsumUserRepository vsumUserRepository;
   private final VsumSyncService vsumSyncService;
   private final LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
+  private final ApplicationEventPublisher applicationEventPublisher;
 
   /**
    * Constructs a {@link VsumHistoryService} with required dependencies.
@@ -55,6 +58,7 @@ public class VsumHistoryService {
    * @param vsumHistoryRepository repository for persisting history records
    * @param vsumHistoryMapper mapper for converting VSUM entities to representations
    * @param historyLimit maximum number of history snapshots to retain per VSUM
+   * @param applicationEventPublisher publishes a {@link VsumChangedByUserEvent} after a revert
    */
   public VsumHistoryService(
       VsumHistoryRepository vsumHistoryRepository,
@@ -63,7 +67,8 @@ public class VsumHistoryService {
       UserRepository userRepository,
       VsumUserRepository vsumUserRepository,
       @Lazy VsumSyncService vsumSyncService,
-      LowCodeReactionRequestMapper lowCodeReactionRequestMapper) {
+      LowCodeReactionRequestMapper lowCodeReactionRequestMapper,
+      ApplicationEventPublisher applicationEventPublisher) {
     this.vsumHistoryRepository = vsumHistoryRepository;
     this.vsumHistoryMapper = vsumHistoryMapper;
     this.historyLimit = historyLimit;
@@ -71,6 +76,7 @@ public class VsumHistoryService {
     this.vsumUserRepository = vsumUserRepository;
     this.vsumSyncService = vsumSyncService;
     this.lowCodeReactionRequestMapper = lowCodeReactionRequestMapper;
+    this.applicationEventPublisher = applicationEventPublisher;
   }
 
   /**
@@ -140,6 +146,8 @@ public class VsumHistoryService {
    *   <li>Creates a new history snapshot for the current VSUM state (audit before revert).
    *   <li>Applies the recorded sync changes to the VSUM using {@link
    *       VsumSyncService#applySyncChanges}.
+   *   <li>Publishes a {@link VsumChangedByUserEvent}, so the collaboration server reloads the VSUM
+   *       once the revert is committed.
    * </ol>
    *
    * @param callerEmail email of the user requesting the revert; used to validate access
@@ -176,6 +184,7 @@ public class VsumHistoryService {
     VsumSyncChangesPutRequest vsumSyncChangesPutRequest =
         toSyncRequest(history.getRepresentation());
     vsumSyncService.applySyncChanges(vsum, user, vsumSyncChangesPutRequest, false);
+    applicationEventPublisher.publishEvent(new VsumChangedByUserEvent(vsum.getId()));
   }
 
   /**

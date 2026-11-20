@@ -488,13 +488,14 @@ public class MetaModelService {
    *
    * @param projectMetaModel the VSUM's meta model copy; must have a library source
    * @param ecore the complete new Ecore content
+   * @return {@code true} if the content changed, {@code false} if it was already the same
    * @throws tools.vitruv.methodologist.exception.SetupServiceException if the GenModel cannot be
    *     generated
    */
   @Transactional
-  public void updateProjectEcore(MetaModel projectMetaModel, byte[] ecore) {
+  public boolean updateProjectEcore(MetaModel projectMetaModel, byte[] ecore) {
     if (Arrays.equals(projectMetaModel.getEcoreFile().getData(), ecore)) {
-      return;
+      return false;
     }
 
     MetaModel libraryMetaModel = projectMetaModel.getSource();
@@ -506,6 +507,7 @@ public class MetaModelService {
     fileStorageService.overwriteStoredContent(projectMetaModel.getEcoreFile(), ecore);
     regenerateGenModels(projectMetaModel.getEcoreFile(), projectMetaModel);
     metaModelRepository.save(projectMetaModel);
+    return true;
   }
 
   /**

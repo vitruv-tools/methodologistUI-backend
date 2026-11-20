@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategy;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import io.netty.channel.ChannelOption;
 import java.time.Duration;
 import java.util.Map;
 import lombok.AllArgsConstructor;
@@ -37,6 +38,7 @@ import tools.vitruv.methodologist.exception.UncheckedRuntimeException;
 @Component
 public class KeycloakApiHandler {
   public static final int RESPONSE_TIMEOUT_IN_SECONDS = 5;
+  public static final int CONNECT_TIMEOUT_IN_MILLIS = 5_000;
   public static final String POST_TOKEN_URL = "/realms/methodologist/protocol/openid-connect/token";
   private static final String OAUTH_ERROR = "error";
   private static final String INVALID_GRANT = "invalid_grant";
@@ -48,14 +50,17 @@ public class KeycloakApiHandler {
   private String clientId;
 
   /**
-   * Constructs a KeycloakApiHandler with the specified base URL. Configures WebClient with response
-   * timeout and content type headers.
+   * Constructs a KeycloakApiHandler with the specified base URL. Configures WebClient with connect
+   * and response timeouts and content type headers, so an unreachable Keycloak can't block a caller
+   * for long.
    *
    * @param baseUrl the base URL of the Keycloak server
    */
   public KeycloakApiHandler(@Value("${third_api.keycloak.base_url}") String baseUrl) {
     HttpClient httpClient =
-        HttpClient.create().responseTimeout(Duration.ofSeconds(RESPONSE_TIMEOUT_IN_SECONDS));
+        HttpClient.create()
+            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_IN_MILLIS)
+            .responseTimeout(Duration.ofSeconds(RESPONSE_TIMEOUT_IN_SECONDS));
 
     this.webClient =
         WebClient.builder()
@@ -148,6 +153,38 @@ public class KeycloakApiHandler {
     formData.add("client_id", clientId);
     formData.add("grant_type", "refresh_token");
     formData.add("refresh_token", refreshToken);
+
+    return webClient
+        .post()
+        .uri(POST_TOKEN_URL)
+        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+        .body(BodyInserters.fromFormData(formData))
+        .retrieve()
+        .onStatus(HttpStatusCode::isError, KeycloakApiHandler::tokenRequestError)
+        .bodyToMono(KeycloakWebToken.class)
+        .block();
+  }
+
+  /**
+   * Retrieves an access token for a confidential client's service account using the client
+   * credentials grant.
+   *
+   * @param serviceClientId the ID of the confidential client
+   * @param serviceClientSecret the secret of the confidential client
+   * @return KeycloakWebToken containing the access token and its lifetime
+   * @throws tools.vitruv.methodologist.exception.UnauthorizedException if Keycloak rejects the
+   *     grant
+   * @throws tools.vitruv.methodologist.exception.UncheckedRuntimeException if Keycloak answers the
+   *     token request with another error, e.g. {@code invalid_client} for wrong client credentials
+   * @throws org.springframework.web.reactive.function.client.WebClientException if Keycloak cannot
+   *     be reached
+   */
+  public KeycloakWebToken getClientCredentialsTokenOrThrow(
+      String serviceClientId, String serviceClientSecret) {
+    LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+    formData.add("client_id", serviceClientId);
+    formData.add("client_secret", serviceClientSecret);
+    formData.add("grant_type", "client_credentials");
 
     return webClient
         .post()
