@@ -775,8 +775,9 @@ class MetaModelServiceTest {
     byte[] regenerated = "new-gen".getBytes();
     when(setupServiceApiHandler.generateGenModelOrThrow(ecore)).thenReturn(regenerated);
 
-    metaModelService.updateProjectEcore(projectMetaModel, "new".getBytes());
+    boolean changed = metaModelService.updateProjectEcore(projectMetaModel, "new".getBytes());
 
+    assertThat(changed).isTrue();
     verify(fileStorageService).overwriteStoredContent(ecore, "new".getBytes());
     verify(fileStorageService).overwriteStoredContent(genModel, regenerated);
     verify(fileStorageService, times(2)).overwriteStoredContent(any(), any());
@@ -813,8 +814,9 @@ class MetaModelServiceTest {
             fs(10L, FileEnumType.ECORE, "same".getBytes()),
             fs(20L, FileEnumType.GEN_MODEL, "gen".getBytes()));
 
-    metaModelService.updateProjectEcore(projectMetaModel, "same".getBytes());
+    boolean changed = metaModelService.updateProjectEcore(projectMetaModel, "same".getBytes());
 
+    assertThat(changed).isFalse();
     verify(fileStorageService, never()).overwriteStoredContent(any(), any());
     verify(setupServiceApiHandler, never()).generateGenModelOrThrow(any());
     verify(metaModelRepository, never()).save(any());

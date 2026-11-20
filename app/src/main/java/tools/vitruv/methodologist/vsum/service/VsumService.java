@@ -15,6 +15,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
+import tools.vitruv.methodologist.general.event.VsumChangedByUserEvent;
 import tools.vitruv.methodologist.log.AuditLog;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
@@ -87,6 +89,7 @@ public class VsumService {
   VsumSyncService vsumSyncService;
   VsumCleanupService vsumCleanupService;
   VsumValidationService vsumValidationService;
+  ApplicationEventPublisher applicationEventPublisher;
 
   /**
    * Creates a new VSUM with the specified details.
@@ -139,7 +142,8 @@ public class VsumService {
    * <p>The method verifies the caller's membership and throws a {@link NotFoundException} when the
    * VSUM or membership is not found. Actual synchronization and persistence are delegated to {@link
    * VsumSyncService#applySyncChanges(Vsum, User, VsumSyncChangesPutRequest, boolean)}; when changes
-   * occur a history entry may be created.
+   * occur a history entry may be created. Publishes a {@link VsumChangedByUserEvent}, so the
+   * collaboration server reloads the VSUM once the change is committed.
    *
    * @param callerEmail the authenticated user's email; must be a member of the VSUM
    * @param id the identifier of the VSUM to update
@@ -165,6 +169,7 @@ public class VsumService {
         vsumSyncService.applySyncChanges(
             vsumUser.getVsum(), vsumUser.getUser(), vsumSyncChangesPutRequest, true);
     requestValidationAfterCommit(id);
+    applicationEventPublisher.publishEvent(new VsumChangedByUserEvent(id));
     return vsum;
   }
 
@@ -175,7 +180,8 @@ public class VsumService {
    *
    * <p>The merged changes can't be attributed to one user, so the VSUM's owner is the acting user,
    * e.g. as owner of generated reaction files. No history entry is created, because the
-   * collaboration server saves every few seconds.
+   * collaboration server saves every few seconds. No {@link VsumChangedByUserEvent} is published
+   * either, since the collaboration server made the change itself and needs no reload.
    *
    * @param id the identifier of the VSUM to update
    * @param vsumSyncChangesPutRequest DTO describing desired meta-model ids and relation definitions
@@ -193,7 +199,7 @@ public class VsumService {
 
   /**
    * Updates the name of a meta model within a VSUM without changing the corresponding model-library
-   * entry.
+   * entry. If the name changes, a {@link VsumChangedByUserEvent} is published.
    *
    * @param callerEmail the email of the VSUM member requesting the change
    * @param vsumId the VSUM containing the meta model
@@ -216,13 +222,15 @@ public class VsumService {
     vsumMetaModel.setName(name);
     vsumMetaModelRepository.save(vsumMetaModel);
     requestValidationAfterCommit(vsumId);
+    applicationEventPublisher.publishEvent(new VsumChangedByUserEvent(vsumId));
   }
 
   /**
    * Replaces the Ecore content of a meta model within a VSUM.
    *
    * <p>Only the VSUM's own copy of the meta model is changed, and its GenModel is regenerated to
-   * match. The model-library entry it was cloned from is not affected.
+   * match. The model-library entry it was cloned from is not affected. If the content changes, a
+   * {@link VsumChangedByUserEvent} is published.
    *
    * @param callerEmail the email of the VSUM member requesting the change
    * @param vsumId the VSUM containing the meta model
@@ -239,8 +247,13 @@ public class VsumService {
     VsumUser vsumUser = findEditingVsumUser(callerEmail, vsumId);
     MetaModel projectMetaModel =
         findVsumMetaModel(vsumUser.getVsum(), sourceMetaModelId).getMetaModel();
-    metaModelService.updateProjectEcore(projectMetaModel, ecore.getBytes(StandardCharsets.UTF_8));
+    boolean changed =
+        metaModelService.updateProjectEcore(
+            projectMetaModel, ecore.getBytes(StandardCharsets.UTF_8));
     requestValidationAfterCommit(vsumId);
+    if (changed) {
+      applicationEventPublisher.publishEvent(new VsumChangedByUserEvent(vsumId));
+    }
   }
 
   private void requestValidationAfterCommit(Long vsumId) {
