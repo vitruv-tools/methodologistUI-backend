@@ -105,7 +105,9 @@ services:
       keycloak-db:
         condition: service_healthy
     volumes:
-      - ./docker/keycloak:/tmp
+      # `--import-realm` only reads this folder. It creates the realm on the first start of a Keycloak
+      # that doesn't have it yet, and skips it when the realm already exists.
+      - ./docker/keycloak/realm-template.json:/opt/keycloak/data/import/realm.json:ro
       - ./docker/keycloak/themes/test:/opt/jboss/keycloak/themes/test
 
   keycloak-db:
