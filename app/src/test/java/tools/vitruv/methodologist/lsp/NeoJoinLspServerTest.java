@@ -17,6 +17,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,6 +38,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
+import tools.vitruv.methodologist.Await;
 import tools.vitruv.methodologist.vsum.service.VsumMetaModelService;
 import tools.vitruv.methodologist.vsum.service.VsumMetaModelService.EcoreFile;
 
@@ -227,11 +229,11 @@ class NeoJoinLspServerTest {
               "params",
               Map.of("capabilities", Map.of())));
 
-      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(RESPONSE_TIMEOUT_SECONDS);
-      while (Files.exists(sessionDir) && System.nanoTime() < deadline) {
-        Thread.sleep(50);
-      }
-      assertThat(sessionDir).doesNotExist();
+      Await.until(
+          "the session directory is deleted",
+          Duration.ofSeconds(RESPONSE_TIMEOUT_SECONDS),
+          Duration.ofMillis(50),
+          () -> Files.notExists(sessionDir));
       assertThatThrownBy(() -> uncaught.get(2, TimeUnit.SECONDS))
           .isInstanceOf(TimeoutException.class);
     } finally {

@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -61,7 +62,7 @@ public class XtendUtilityCompiler {
 
   private final UtilityMethodCompilerProperties properties;
   private final ExecutorService executor;
-  private final AtomicReference<Injector> injector = new AtomicReference<>();
+  private final AtomicReference<CompletableFuture<Injector>> injector = new AtomicReference<>();
 
   /**
    * A problem the Xtend compiler or the structure check found.
@@ -210,18 +211,33 @@ public class XtendUtilityCompiler {
         .toList();
   }
 
+  /**
+   * Returns the Xtend injector, creating it on first use. Only one thread creates it; concurrent
+   * callers wait for that thread. If creating it fails, the next call tries again.
+   */
   private Injector injector() {
-    Injector result = injector.get();
-    if (result == null) {
-      synchronized (injector) {
-        result = injector.get();
-        if (result == null) {
-          result = new XtendStandaloneSetup().createInjectorAndDoEMFRegistration();
-          injector.set(result);
-        }
+    CompletableFuture<Injector> existing = injector.get();
+    if (existing != null) {
+      return existing.join();
+    }
+    CompletableFuture<Injector> created = new CompletableFuture<>();
+    existing = injector.compareAndExchange(null, created);
+    if (existing != null) {
+      return existing.join();
+    }
+    boolean succeeded = false;
+    try {
+      Injector result = new XtendStandaloneSetup().createInjectorAndDoEMFRegistration();
+      created.complete(result);
+      succeeded = true;
+      return result;
+    } finally {
+      if (!succeeded) {
+        injector.compareAndSet(created, null);
+        created.completeExceptionally(
+            new IllegalStateException("The Xtend compiler could not be set up"));
       }
     }
-    return result;
   }
 
   /** Loads only the given entries; JDK types come from the platform class loader. */

@@ -183,9 +183,9 @@ public class VsumMetaModelService {
 
     @Override
     public boolean equals(Object other) {
-      return other instanceof EcoreFile that
-          && Objects.equals(filename, that.filename)
-          && Arrays.equals(data, that.data);
+      return other instanceof EcoreFile(String otherFilename, byte[] otherData)
+          && Objects.equals(filename, otherFilename)
+          && Arrays.equals(data, otherData);
     }
 
     @Override
