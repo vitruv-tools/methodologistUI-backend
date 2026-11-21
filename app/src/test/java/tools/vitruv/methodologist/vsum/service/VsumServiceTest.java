@@ -1022,12 +1022,18 @@ class VsumServiceTest {
     }
 
     @Override
-    protected void doBegin(Object transaction, TransactionDefinition definition) {}
+    protected void doBegin(Object transaction, TransactionDefinition definition) {
+      // no real resource to begin; only the synchronization callbacks are under test
+    }
 
     @Override
-    protected void doCommit(DefaultTransactionStatus status) {}
+    protected void doCommit(DefaultTransactionStatus status) {
+      // nothing to commit; only the synchronization callbacks are under test
+    }
 
     @Override
-    protected void doRollback(DefaultTransactionStatus status) {}
+    protected void doRollback(DefaultTransactionStatus status) {
+      // nothing to roll back; only the synchronization callbacks are under test
+    }
   }
 }

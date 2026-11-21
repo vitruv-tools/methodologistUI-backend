@@ -203,17 +203,7 @@ public final class UtilityMethodClassGenerator {
     }
     Set<String> parameterNames = new HashSet<>();
     for (UtilityMethodDefinition.Parameter parameter : utilityMethod.parameters()) {
-      String name = parameter.name() == null ? "" : parameter.name().trim();
-      if (isReserved(name) || !JavaNames.isIdentifier(name)) {
-        problems.add("'" + name + "' is not a valid parameter name.");
-      } else if (!parameterNames.add(name)) {
-        problems.add("The parameter '" + name + "' is declared twice.");
-      }
-      if (isBlank(parameter.type())) {
-        problems.add("Parameter '" + name + "': the type is missing.");
-      } else if (!isTypeReference(parameter.type())) {
-        problems.add("Parameter '" + name + "': '" + parameter.type() + "' is not a type.");
-      }
+      addParameterProblems(parameter, parameterNames, problems);
     }
     if (isBlank(utilityMethod.returnType())) {
       problems.add("Return type: the type is missing.");
@@ -235,6 +225,27 @@ public final class UtilityMethodClassGenerator {
       problems.add("The body must not be longer than " + MAX_BODY_LENGTH + " characters.");
     }
     return problems;
+  }
+
+  /**
+   * Adds the problems of one parameter: an invalid or repeated name, a missing type or one that is
+   * not a type.
+   */
+  private static void addParameterProblems(
+      UtilityMethodDefinition.Parameter parameter,
+      Set<String> parameterNames,
+      List<String> problems) {
+    String name = parameter.name() == null ? "" : parameter.name().trim();
+    if (isReserved(name) || !JavaNames.isIdentifier(name)) {
+      problems.add("'" + name + "' is not a valid parameter name.");
+    } else if (!parameterNames.add(name)) {
+      problems.add("The parameter '" + name + "' is declared twice.");
+    }
+    if (isBlank(parameter.type())) {
+      problems.add("Parameter '" + name + "': the type is missing.");
+    } else if (!isTypeReference(parameter.type())) {
+      problems.add("Parameter '" + name + "': '" + parameter.type() + "' is not a type.");
+    }
   }
 
   /**

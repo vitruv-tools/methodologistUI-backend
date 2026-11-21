@@ -72,11 +72,13 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
         CLEANUP_INTERVAL_SECONDS,
         TimeUnit.SECONDS);
 
-    logger.debug(
-        "{} cleanup scheduler started (checking every {}s, timeout: {}min)",
-        serverName(),
-        CLEANUP_INTERVAL_SECONDS,
-        inactivityTimeoutMillis() / 60000);
+    if (logger.isDebugEnabled()) {
+      logger.debug(
+          "{} cleanup scheduler started (checking every {}s, timeout: {}min)",
+          serverName(),
+          CLEANUP_INTERVAL_SECONDS,
+          inactivityTimeoutMillis() / 60000);
+    }
   }
 
   /**
@@ -125,7 +127,9 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
   @Override
   public void afterConnectionEstablished(WebSocketSession session) throws Exception {
     String sessionId = session.getId();
-    logger.debug("{} WebSocket connection established: {}", serverName(), sessionId);
+    if (logger.isDebugEnabled()) {
+      logger.debug("{} WebSocket connection established: {}", serverName(), sessionId);
+    }
 
     Optional<CloseStatus> rejection = rejectConnection(session);
     if (rejection.isPresent()) {
@@ -366,8 +370,13 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
   @Override
   public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
     String sessionId = session.getId();
-    logger.debug(
-        "{} WebSocket connection closed: {} (code {})", serverName(), sessionId, status.getCode());
+    if (logger.isDebugEnabled()) {
+      logger.debug(
+          "{} WebSocket connection closed: {} (code {})",
+          serverName(),
+          sessionId,
+          status.getCode());
+    }
 
     cleanupSession(sessionId, "connection closed");
   }
@@ -376,7 +385,9 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
   public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
     String sessionId = session.getId();
     // usually the client has disconnected
-    logger.debug("{} transport error for session {}", serverName(), sessionId, exception);
+    if (logger.isDebugEnabled()) {
+      logger.debug("{} transport error for session {}", serverName(), sessionId, exception);
+    }
 
     cleanupSession(sessionId, "transport error");
   }
@@ -394,7 +405,9 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
     lastActivity.remove(sessionId);
 
     if (serverProcess != null) {
-      logger.debug("Cleaning up {} session {} ({})", serverName(), sessionId, reason);
+      if (logger.isDebugEnabled()) {
+        logger.debug("Cleaning up {} session {} ({})", serverName(), sessionId, reason);
+      }
       try {
         serverProcess.destroy();
       } catch (Exception e) {
@@ -404,7 +417,9 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
       }
       return true;
     } else {
-      logger.debug("No {} process for session {}, already cleaned up", serverName(), sessionId);
+      if (logger.isDebugEnabled()) {
+        logger.debug("No {} process for session {}, already cleaned up", serverName(), sessionId);
+      }
       return false;
     }
   }
@@ -454,7 +469,9 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
   /** Stops the cleanup scheduler and cleans up all remaining sessions. */
   @PreDestroy
   public void shutdown() {
-    logger.info("Shutting down the {} WebSocket handler", serverName());
+    if (logger.isInfoEnabled()) {
+      logger.info("Shutting down the {} WebSocket handler", serverName());
+    }
 
     cleanupScheduler.shutdown();
     try {
@@ -466,7 +483,9 @@ public abstract class AbstractLspWebSocketHandler<P extends LspSessionProcess>
       Thread.currentThread().interrupt();
     }
 
-    logger.debug("Cleaning up {} remaining {} sessions", sessions.size(), serverName());
+    if (logger.isDebugEnabled()) {
+      logger.debug("Cleaning up {} remaining {} sessions", sessions.size(), serverName());
+    }
 
     List<String> remainingSessions = new ArrayList<>(sessions.keySet());
     for (String sessionId : remainingSessions) {

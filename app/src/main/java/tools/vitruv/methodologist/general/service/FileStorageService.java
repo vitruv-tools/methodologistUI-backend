@@ -6,6 +6,7 @@ import static tools.vitruv.methodologist.messages.Error.NEO_JOIN_FILE_EXTENSION_
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
 
 import jakarta.ws.rs.BadRequestException;
+import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -226,7 +227,7 @@ public class FileStorageService {
    * @param fileId the ID of the existing file to update
    * @param file the new MultipartFile whose content will replace the existing file content
    * @return FileStorageResponse containing the updated file's ID
-   * @throws Exception if file hashing fails
+   * @throws IOException if the uploaded file cannot be read
    * @throws NotFoundException if the user email is not found or the file is not found
    * @throws BadRequestException if the file is empty
    * @throws OwnerRequiredException if file does not belong to the caller
@@ -235,8 +236,14 @@ public class FileStorageService {
    */
   @Transactional(rollbackFor = Exception.class)
   public FileStorageResponse updateFile(String callerUserEmail, Long fileId, MultipartFile file)
-      throws Exception {
-    return updateFile(callerUserEmail, fileId, FileEnumType.REACTION, file);
+      throws IOException {
+    return overwriteFile(
+        callerUserEmail,
+        fileId,
+        FileEnumType.REACTION,
+        file.getBytes(),
+        file.getOriginalFilename(),
+        file.getContentType());
   }
 
   /**
@@ -248,12 +255,13 @@ public class FileStorageService {
    * @param type the type the existing file must have; it is kept
    * @param file the new MultipartFile whose content will replace the existing file content
    * @return FileStorageResponse containing the updated file's ID
-   * @throws Exception if the uploaded file cannot be read
+   * @throws IOException if the uploaded file cannot be read
    */
   @Transactional(rollbackFor = Exception.class)
   public FileStorageResponse updateFile(
-      String callerUserEmail, Long fileId, FileEnumType type, MultipartFile file) throws Exception {
-    return updateFile(
+      String callerUserEmail, Long fileId, FileEnumType type, MultipartFile file)
+      throws IOException {
+    return overwriteFile(
         callerUserEmail,
         fileId,
         type,
@@ -279,7 +287,8 @@ public class FileStorageService {
   @Transactional(rollbackFor = Exception.class)
   public FileStorageResponse updateFile(
       String callerUserEmail, Long fileId, byte[] data, String fileName, String contentType) {
-    return updateFile(callerUserEmail, fileId, FileEnumType.REACTION, data, fileName, contentType);
+    return overwriteFile(
+        callerUserEmail, fileId, FileEnumType.REACTION, data, fileName, contentType);
   }
 
   /**
@@ -301,6 +310,19 @@ public class FileStorageService {
    */
   @Transactional(rollbackFor = Exception.class)
   public FileStorageResponse updateFile(
+      String callerUserEmail,
+      Long fileId,
+      FileEnumType type,
+      byte[] data,
+      String fileName,
+      String contentType) {
+    return overwriteFile(callerUserEmail, fileId, type, data, fileName, contentType);
+  }
+
+  /**
+   * Shared implementation of the {@code updateFile} overloads; runs in the caller's transaction.
+   */
+  private FileStorageResponse overwriteFile(
       String callerUserEmail,
       Long fileId,
       FileEnumType type,

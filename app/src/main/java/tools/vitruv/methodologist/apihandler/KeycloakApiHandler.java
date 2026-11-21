@@ -43,6 +43,9 @@ public class KeycloakApiHandler {
   private static final String OAUTH_ERROR = "error";
   private static final String INVALID_GRANT = "invalid_grant";
   private static final String UNREADABLE_ERROR = "unreadable";
+  private static final String CLIENT_ID = "client_id";
+  private static final String GRANT_TYPE = "grant_type";
+
   private final WebClient webClient;
   private final ObjectMapper mapper = new ObjectMapper();
 
@@ -120,8 +123,8 @@ public class KeycloakApiHandler {
    */
   public KeycloakWebToken getAccessTokenOrThrow(String username, String password) {
     LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<String, String>();
-    formData.add("client_id", clientId);
-    formData.add("grant_type", "password");
+    formData.add(CLIENT_ID, clientId);
+    formData.add(GRANT_TYPE, "password");
     formData.add("username", username);
     formData.add("password", password);
 
@@ -150,8 +153,8 @@ public class KeycloakApiHandler {
    */
   public KeycloakWebToken getAccessTokenByRefreshToken(String refreshToken) {
     LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<String, String>();
-    formData.add("client_id", clientId);
-    formData.add("grant_type", "refresh_token");
+    formData.add(CLIENT_ID, clientId);
+    formData.add(GRANT_TYPE, "refresh_token");
     formData.add("refresh_token", refreshToken);
 
     return webClient
@@ -182,9 +185,9 @@ public class KeycloakApiHandler {
   public KeycloakWebToken getClientCredentialsTokenOrThrow(
       String serviceClientId, String serviceClientSecret) {
     LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
-    formData.add("client_id", serviceClientId);
+    formData.add(CLIENT_ID, serviceClientId);
     formData.add("client_secret", serviceClientSecret);
-    formData.add("grant_type", "client_credentials");
+    formData.add(GRANT_TYPE, "client_credentials");
 
     return webClient
         .post()

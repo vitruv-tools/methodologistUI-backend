@@ -62,6 +62,7 @@ public class SetupServiceApiHandler {
       MediaType.parseMediaType("application/java-archive");
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+  private static final String PROBLEMS = "problems";
 
   private final WebClient webClient;
 
@@ -187,12 +188,12 @@ public class SetupServiceApiHandler {
 
     if (response == null
         || !response.path("valid").isBoolean()
-        || !response.path("problems").isArray()) {
+        || !response.path(PROBLEMS).isArray()) {
       throw new SetupServiceException("Invalid validation response");
     }
 
     return new VsumValidationResult(
-        response.get("valid").asBoolean(), uploads.resolve(readProblems(response.get("problems"))));
+        response.get("valid").asBoolean(), uploads.resolve(readProblems(response.get(PROBLEMS))));
   }
 
   private byte[] requestArtifactOrThrow(
@@ -364,7 +365,7 @@ public class SetupServiceApiHandler {
     if (error != null) {
       JsonNode code = error.get("errorCode");
       errorCode = code != null && code.isTextual() ? code.asText() : null;
-      problems = uploads.resolve(readProblems(error.get("problems")));
+      problems = uploads.resolve(readProblems(error.get(PROBLEMS)));
     }
     return new SetupServiceException(
         requestFailedMessage(uri, statusCode, body), statusCode, errorCode, problems);

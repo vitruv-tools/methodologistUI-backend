@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.xtend.core.XtendStandaloneSetup;
@@ -60,7 +61,7 @@ public class XtendUtilityCompiler {
 
   private final UtilityMethodCompilerProperties properties;
   private final ExecutorService executor;
-  private volatile Injector injector;
+  private final AtomicReference<Injector> injector = new AtomicReference<>();
 
   /**
    * A problem the Xtend compiler or the structure check found.
@@ -210,13 +211,13 @@ public class XtendUtilityCompiler {
   }
 
   private Injector injector() {
-    Injector result = injector;
+    Injector result = injector.get();
     if (result == null) {
-      synchronized (this) {
-        result = injector;
+      synchronized (injector) {
+        result = injector.get();
         if (result == null) {
           result = new XtendStandaloneSetup().createInjectorAndDoEMFRegistration();
-          injector = result;
+          injector.set(result);
         }
       }
     }
