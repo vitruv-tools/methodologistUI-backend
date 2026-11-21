@@ -268,7 +268,7 @@ class VsumValidationServiceTest {
   }
 
   @Test
-  void requestValidation_runsInTheBackground_andStoresTheResult() throws Exception {
+  void requestValidation_runsInTheBackground_andStoresTheResult() {
     givenInputs(inputs("a"));
     when(setupServiceApiHandler.validateVsum(anyList(), anyList(), anyList(), anyList()))
         .thenReturn(new VsumValidationResult(true, List.of()));
@@ -319,7 +319,7 @@ class VsumValidationServiceTest {
   }
 
   @Test
-  void requestValidation_acceptsNewRequests_afterAValidationFinished() throws Exception {
+  void requestValidation_acceptsNewRequests_afterAValidationFinished() {
     givenInputs(inputs("a"), inputs("b"));
     when(setupServiceApiHandler.validateVsum(anyList(), anyList(), anyList(), anyList()))
         .thenReturn(new VsumValidationResult(true, List.of()))
@@ -333,7 +333,7 @@ class VsumValidationServiceTest {
   }
 
   @Test
-  void findLatestResult_returnsTheResult_forOwnersAndMembers() throws Exception {
+  void findLatestResult_returnsTheResult_forOwnersAndMembers() {
     givenInputs(inputs("a"));
     when(setupServiceApiHandler.validateVsum(anyList(), anyList(), anyList(), anyList()))
         .thenReturn(new VsumValidationResult(false, List.of(PROBLEM)));
@@ -359,7 +359,7 @@ class VsumValidationServiceTest {
   }
 
   @Test
-  void findLatestResult_deniesViewers_evenWhenAResultExists() throws Exception {
+  void findLatestResult_deniesViewers_evenWhenAResultExists() {
     givenInputs(inputs("a"));
     when(setupServiceApiHandler.validateVsum(anyList(), anyList(), anyList(), anyList()))
         .thenReturn(new VsumValidationResult(true, List.of()));
