@@ -213,6 +213,7 @@ class VsumSyncServiceTest {
     VsumMetaModel v10 = vsumMetaModel(vsum, mm10);
     VsumMetaModel v20 = vsumMetaModel(vsum, mm20);
     VsumMetaModel v30 = vsumMetaModel(vsum, mm30);
+    vsum.getVsumMetaModels().addAll(List.of(v10, v20, v30));
     when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v10, v20, v30));
     when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
 
@@ -224,7 +225,7 @@ class VsumSyncServiceTest {
     verify(vsumMetaModelService).delete(vsum, List.of(v20));
     verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
-    assertThat(result.getVsumMetaModels()).isNotEmpty().doesNotContain(v20);
+    assertThat(result.getVsumMetaModels()).containsExactlyInAnyOrder(v10, v30);
   }
 
   @Test
