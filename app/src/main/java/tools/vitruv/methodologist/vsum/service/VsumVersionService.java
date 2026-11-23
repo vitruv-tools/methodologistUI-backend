@@ -24,16 +24,24 @@ import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.general.model.repository.FileStorageRepository;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.vsum.VsumRole;
+import tools.vitruv.methodologist.vsum.controller.dto.response.FineGranularMetaModelRelationResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelationResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumVersionResponse;
 import tools.vitruv.methodologist.vsum.mapper.VsumBuildMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumHistoryMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumVersionMapper;
+import tools.vitruv.methodologist.vsum.model.ConstraintRuleSet;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumBuild;
 import tools.vitruv.methodologist.vsum.model.VsumBuildStatus;
 import tools.vitruv.methodologist.vsum.model.VsumUser;
 import tools.vitruv.methodologist.vsum.model.VsumVersion;
+import tools.vitruv.methodologist.vsum.model.VsumVersionContent;
+import tools.vitruv.methodologist.vsum.model.repository.ConstraintRuleSetRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumVersionRepository;
 
@@ -43,6 +51,8 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumVersionRepository;
  * <p>Publishing copies the working copy's build inputs into a pending {@link VsumVersion} and
  * builds that snapshot with the asynchronous build of {@link VsumBuildService}, which also decides
  * the outcome: a successful build gives the version its number, a failed one deletes it again.
+ * Along with the build inputs, publishing stores what the canvas shows ({@link VsumVersionContent}),
+ * pointing at copies as well; a file used by both is copied once.
  *
  * <p>The snapshot is read in a {@code REPEATABLE READ} transaction so that all of its parts come
  * from the same state, even if another member saves in the meantime. Only one publish per VSUM may
@@ -75,6 +85,8 @@ public class VsumVersionService {
   private final VsumHistoryMapper vsumHistoryMapper;
   private final VsumBuildMapper vsumBuildMapper;
   private final VsumVersionMapper vsumVersionMapper;
+  private final VsumService vsumService;
+  private final ConstraintRuleSetRepository constraintRuleSetRepository;
   private final Duration abandonRunningAfter;
   private final TransactionTemplate snapshotTransaction;
 
@@ -89,6 +101,8 @@ public class VsumVersionService {
    * @param vsumHistoryMapper describes the working copy for the version's manifest
    * @param vsumBuildMapper converts the snapshot's build into a response
    * @param vsumVersionMapper converts versions into responses
+   * @param vsumService describes the working copy as the canvas shows it
+   * @param constraintRuleSetRepository reads the working copy's rule sets
    * @param setupServiceTimeoutSeconds the setup-service response timeout; a build running longer
    *     than that plus {@link #ABANDON_MARGIN} can no longer succeed
    * @param transactionManager used for the explicit transactions of a publish
@@ -102,6 +116,8 @@ public class VsumVersionService {
       VsumHistoryMapper vsumHistoryMapper,
       VsumBuildMapper vsumBuildMapper,
       VsumVersionMapper vsumVersionMapper,
+      VsumService vsumService,
+      ConstraintRuleSetRepository constraintRuleSetRepository,
       @Value(
               "${third_api.setup_service.timeout-seconds:"
                   + SetupServiceApiHandler.DEFAULT_RESPONSE_TIMEOUT_IN_SECONDS
@@ -116,6 +132,8 @@ public class VsumVersionService {
     this.vsumHistoryMapper = vsumHistoryMapper;
     this.vsumBuildMapper = vsumBuildMapper;
     this.vsumVersionMapper = vsumVersionMapper;
+    this.vsumService = vsumService;
+    this.constraintRuleSetRepository = constraintRuleSetRepository;
     this.abandonRunningAfter = Duration.ofSeconds(setupServiceTimeoutSeconds).plus(ABANDON_MARGIN);
     this.snapshotTransaction = new TransactionTemplate(transactionManager);
     this.snapshotTransaction.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
@@ -202,28 +220,90 @@ public class VsumVersionService {
         && build.getStartedAt().isBefore(deadline);
   }
 
-  /** Copies the working copy's build inputs into a pending version and queues its build. */
+  /**
+   * Copies the working copy's build inputs and what its canvas shows into a pending version and
+   * queues its build.
+   */
   private VsumBuildResponse snapshot(VsumUser publisher, VsumBuildInputs inputs) {
     Vsum vsum = publisher.getVsum();
     User user = publisher.getUser();
 
     VsumBuild build = vsumBuildService.queue(vsum, user, inputs.fingerprint());
+    VersionFileCopies copies = new VersionFileCopies(fileStorageRepository, user);
+    List<FileStorage> ecores = copies.copyAll(inputs.ecores());
+    List<FileStorage> reactions = copies.copyAll(inputs.reactions());
+    List<FileStorage> constraints = copies.copyAll(inputs.constraints());
+    List<FileStorage> views = copies.copyAll(inputs.views());
+    VsumVersionContent content = content(vsum, copies);
     vsumVersionRepository.save(
         VsumVersion.builder()
             .vsum(vsum)
             .createdBy(user)
             .build(build)
             .manifest(vsumHistoryMapper.toVsumRepresentation(vsum))
-            .ecores(copies(inputs.ecores(), user))
-            .reactions(copies(inputs.reactions(), user))
-            .constraints(copies(inputs.constraints(), user))
-            .views(copies(inputs.views(), user))
+            .ecores(ecores)
+            .reactions(reactions)
+            .constraints(constraints)
+            .views(views)
+            .content(content)
+            .contentFiles(copies.contentCopies())
             .build());
     return vsumBuildMapper.toResponse(build);
   }
 
-  private List<FileStorage> copies(List<FileStorage> files, User owner) {
-    return files.stream().map(file -> fileStorageRepository.save(copyOf(file, owner))).toList();
+  /**
+   * Describes the working copy as the canvas shows it, with every file id replaced by the id of its
+   * copy. Genmodels are left out; the canvas does not show them.
+   */
+  private VsumVersionContent content(Vsum vsum, VersionFileCopies copies) {
+    VsumMetaModelResponse project = vsumService.toDetailsResponse(vsum);
+    for (MetaModelResponse metaModel : nullToEmpty(project.getMetaModels())) {
+      pointAtCopies(metaModel, copies);
+    }
+    for (MetaModelRelationResponse relation : nullToEmpty(project.getMetaModelsRelation())) {
+      relation.setReactionFileStorageId(copies.contentCopyId(relation.getReactionFileStorageId()));
+      if (relation.getFineGranularMetaModelRelationSet() != null) {
+        for (FineGranularMetaModelRelationResponse fineGrained :
+            relation.getFineGranularMetaModelRelationSet()) {
+          fineGrained.setReactionFileStorageId(
+              copies.contentCopyId(fineGrained.getReactionFileStorageId()));
+        }
+      }
+    }
+    for (ViewsResponse view : nullToEmpty(project.getViews())) {
+      view.setFileStorageId(copies.contentCopyId(view.getFileStorageId()));
+      for (MetaModelResponse assigned : nullToEmpty(view.getAssignedModels())) {
+        pointAtCopies(assigned, copies);
+      }
+    }
+    List<VsumVersionContent.RuleSet> ruleSets =
+        constraintRuleSetRepository.findByVsumId(vsum.getId()).stream()
+            .map(ruleSet -> ruleSetOf(ruleSet, copies))
+            .toList();
+    return new VsumVersionContent(project, ruleSets);
+  }
+
+  private static void pointAtCopies(MetaModelResponse metaModel, VersionFileCopies copies) {
+    metaModel.setEcoreFileId(copies.contentCopyId(metaModel.getEcoreFileId()));
+    metaModel.setGenModelFileId(null);
+    metaModel.setVsums(null);
+  }
+
+  private static VsumVersionContent.RuleSet ruleSetOf(
+      ConstraintRuleSet ruleSet, VersionFileCopies copies) {
+    FileStorage oclFile = ruleSet.getOclFile();
+    return new VsumVersionContent.RuleSet(
+        ruleSet.getId(),
+        ruleSet.getName(),
+        ruleSet.getColor(),
+        ruleSet.getDescription(),
+        copies.contentCopyId(oclFile == null ? null : oclFile.getId()),
+        ruleSet.getCreatedAt(),
+        ruleSet.getUpdatedAt());
+  }
+
+  private static <T> List<T> nullToEmpty(List<T> list) {
+    return list == null ? List.of() : list;
   }
 
   /**

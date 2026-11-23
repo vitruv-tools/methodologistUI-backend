@@ -380,7 +380,15 @@ public class VsumService {
         .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
   }
 
-  private VsumMetaModelResponse toDetailsResponse(Vsum vsum) {
+  /**
+   * Describes the VSUM as {@code GET /api/v1/vsums/{id}/details} returns it, without the caller's
+   * role. Publishing stores this as what the canvas showed (see {@link VsumVersionService}).
+   *
+   * @param vsum the VSUM; its meta models, relations and views must be loadable, i.e. the call has
+   *     to run inside a transaction
+   * @return a new response for the VSUM
+   */
+  VsumMetaModelResponse toDetailsResponse(Vsum vsum) {
     VsumMetaModelResponse response = vsumMapper.toVsumMetaModelResponse(vsum);
 
     List<VsumMetaModel> vsumMetaModels =

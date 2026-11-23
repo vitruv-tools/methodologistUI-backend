@@ -16,7 +16,10 @@ import jakarta.persistence.OrderColumn;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -140,9 +143,11 @@ public class VsumVersion {
    * @return the ecore, reaction, constraint, view and content copies
    */
   public List<FileStorage> allFiles() {
+    // By instance: a copy shared by the build inputs and the content is the same object.
+    Set<FileStorage> seen = Collections.newSetFromMap(new IdentityHashMap<>());
     return Stream.of(ecores, reactions, constraints, views, contentFiles)
         .flatMap(List::stream)
-        .distinct()
+        .filter(seen::add)
         .toList();
   }
 }

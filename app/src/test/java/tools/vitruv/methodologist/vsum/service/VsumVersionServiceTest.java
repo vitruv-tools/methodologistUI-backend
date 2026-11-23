@@ -8,14 +8,18 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,16 +40,24 @@ import tools.vitruv.methodologist.general.model.repository.FileStorageRepository
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.vsum.VsumRepresentation;
 import tools.vitruv.methodologist.vsum.VsumRole;
+import tools.vitruv.methodologist.vsum.controller.dto.response.FineGranularMetaModelRelationResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelationResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumVersionResponse;
 import tools.vitruv.methodologist.vsum.mapper.VsumBuildMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumHistoryMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumVersionMapper;
+import tools.vitruv.methodologist.vsum.model.ConstraintRuleSet;
 import tools.vitruv.methodologist.vsum.model.Vsum;
 import tools.vitruv.methodologist.vsum.model.VsumBuild;
 import tools.vitruv.methodologist.vsum.model.VsumBuildStatus;
 import tools.vitruv.methodologist.vsum.model.VsumUser;
 import tools.vitruv.methodologist.vsum.model.VsumVersion;
+import tools.vitruv.methodologist.vsum.model.VsumVersionContent;
+import tools.vitruv.methodologist.vsum.model.repository.ConstraintRuleSetRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumVersionRepository;
 
@@ -57,6 +69,11 @@ class VsumVersionServiceTest {
   private static final Long BUILD_ID = 42L;
   private static final long TIMEOUT_SECONDS = 960;
   private static final Long PENDING_BUILD_ID = 99L;
+  private static final ObjectNode LAYOUT = JsonNodeFactory.instance.objectNode();
+
+  static {
+    LAYOUT.putObject("metaModels").putObject("10").put("x", 1).put("y", 2);
+  }
 
   @Mock private VsumUserRepository vsumUserRepository;
   @Mock private VsumVersionRepository vsumVersionRepository;
@@ -65,6 +82,8 @@ class VsumVersionServiceTest {
   @Mock private VsumBuildService vsumBuildService;
   @Mock private VsumHistoryMapper vsumHistoryMapper;
   @Mock private PlatformTransactionManager transactionManager;
+  @Mock private VsumService vsumService;
+  @Mock private ConstraintRuleSetRepository constraintRuleSetRepository;
 
   private final AtomicLong fileIds = new AtomicLong(1000);
 
@@ -73,6 +92,11 @@ class VsumVersionServiceTest {
   private VsumUser member;
   private FileStorage ecore;
   private FileStorage reaction;
+  private FileStorage relationReaction;
+  private FileStorage fineGrainedReaction;
+  private FileStorage viewFile;
+  private FileStorage ocl;
+  private ConstraintRuleSet ruleSet;
   private VsumBuildInputs inputs;
   private VsumVersionService service;
 
@@ -121,6 +145,25 @@ class VsumVersionServiceTest {
         .when(vsumHistoryMapper.toVsumRepresentation(vsum))
         .thenReturn(new VsumRepresentation());
 
+    // What the canvas shows: the ecore (id 1) is also a build input, the other files are not.
+    relationReaction = file(2L, "relation.reactions", "relation", null);
+    fineGrainedReaction = file(3L, "fine.reactions", "fine", null);
+    viewFile = file(4L, "view.nj", "view", null);
+    ocl = file(6L, "rules.ocl", "context A inv: true", null);
+    for (FileStorage live : List.of(ecore, relationReaction, fineGrainedReaction, viewFile, ocl)) {
+      lenient().when(fileStorageRepository.findById(live.getId())).thenReturn(Optional.of(live));
+    }
+    lenient().when(vsumService.toDetailsResponse(vsum)).thenReturn(details(2L, 3L));
+    ruleSet =
+        ConstraintRuleSet.builder()
+            .id(20L)
+            .name("rules")
+            .color("#123456")
+            .description("d")
+            .oclFile(ocl)
+            .build();
+    lenient().when(constraintRuleSetRepository.findByVsumId(VSUM_ID)).thenReturn(List.of(ruleSet));
+
     service =
         new VsumVersionService(
             vsumUserRepository,
@@ -131,6 +174,8 @@ class VsumVersionServiceTest {
             vsumHistoryMapper,
             Mappers.getMapper(VsumBuildMapper.class),
             Mappers.getMapper(VsumVersionMapper.class),
+            vsumService,
+            constraintRuleSetRepository,
             TIMEOUT_SECONDS,
             transactionManager);
   }
@@ -167,6 +212,101 @@ class VsumVersionServiceTest {
 
     assertThat(copy.getData()).isEqualTo("ecore".getBytes(StandardCharsets.UTF_8));
     assertThat(copy.getFilename()).isEqualTo("a.ecore");
+  }
+
+  @Test
+  void publish_storesTheProjectAsOnTheCanvas_pointingAtCopies() {
+    service.publish(EMAIL, VSUM_ID);
+    VsumVersion version = savedVersion();
+    VsumVersionContent content = version.getContent();
+
+    MetaModelResponse metaModel = content.project().getMetaModels().get(0);
+    assertThat(metaModel.getEcoreFileId()).isEqualTo(version.getEcores().get(0).getId());
+    assertThat(metaModel.getGenModelFileId()).isNull();
+    MetaModelRelationResponse relation = content.project().getMetaModelsRelation().get(0);
+    assertCopyOf(copyWithId(version, relation.getReactionFileStorageId()), relationReaction);
+    assertCopyOf(
+        copyWithId(
+            version,
+            relation
+                .getFineGranularMetaModelRelationSet()
+                .iterator()
+                .next()
+                .getReactionFileStorageId()),
+        fineGrainedReaction);
+    assertCopyOf(
+        copyWithId(version, content.project().getViews().get(0).getFileStorageId()), viewFile);
+    assertThat(content.ruleSets())
+        .singleElement()
+        .satisfies(
+            copiedRuleSet -> {
+              assertThat(copiedRuleSet.id()).isEqualTo(20L);
+              assertThat(copiedRuleSet.name()).isEqualTo("rules");
+              assertThat(copiedRuleSet.color()).isEqualTo("#123456");
+              assertThat(copiedRuleSet.description()).isEqualTo("d");
+              assertCopyOf(copyWithId(version, copiedRuleSet.oclFileId()), ocl);
+            });
+    assertThat(content.project().getName()).isEqualTo("p");
+    assertThat(content.project().getLayout()).isEqualTo(LAYOUT);
+    assertThat(version.getContentFiles()).hasSize(5);
+  }
+
+  @Test
+  void publish_pointsTheMetaModelsAssignedToAViewAtCopies() {
+    service.publish(EMAIL, VSUM_ID);
+    VsumVersion version = savedVersion();
+
+    MetaModelResponse assigned =
+        version.getContent().project().getViews().get(0).getAssignedModels().get(0);
+    assertThat(assigned.getEcoreFileId()).isEqualTo(version.getEcores().get(0).getId());
+    assertThat(assigned.getGenModelFileId()).isNull();
+  }
+
+  @Test
+  void publish_copiesEachLiveFileOnce() {
+    // The fine-grained relation uses the relation's own reaction file.
+    when(vsumService.toDetailsResponse(vsum)).thenReturn(details(2L, 2L));
+
+    service.publish(EMAIL, VSUM_ID);
+    VsumVersion version = savedVersion();
+
+    MetaModelRelationResponse relation =
+        version.getContent().project().getMetaModelsRelation().get(0);
+    assertThat(
+            relation
+                .getFineGranularMetaModelRelationSet()
+                .iterator()
+                .next()
+                .getReactionFileStorageId())
+        .isEqualTo(relation.getReactionFileStorageId());
+    assertThat(version.getContentFiles()).doesNotHaveDuplicates();
+    // ecore (shared by build and content), composite reaction, relation reaction, view, OCL
+    verify(fileStorageRepository, times(5)).save(any(FileStorage.class));
+  }
+
+  @Test
+  void publish_keepsMissingFilesMissing() {
+    when(vsumService.toDetailsResponse(vsum)).thenReturn(details(null, null));
+    ruleSet.setOclFile(null);
+
+    service.publish(EMAIL, VSUM_ID);
+    VsumVersionContent content = savedVersion().getContent();
+
+    assertThat(content.project().getMetaModelsRelation().get(0).getReactionFileStorageId())
+        .isNull();
+    assertThat(content.ruleSets()).singleElement().satisfies(rs -> assertThat(rs.oclFileId()).isNull());
+  }
+
+  @Test
+  void publish_keepsTheContentUnchanged_whenAFileIsEditedAfterwards() {
+    service.publish(EMAIL, VSUM_ID);
+    VsumVersion version = savedVersion();
+    FileStorage copy =
+        copyWithId(version, version.getContent().project().getViews().get(0).getFileStorageId());
+
+    viewFile.getData()[0] = 'X';
+
+    assertThat(copy.getData()).isEqualTo("view".getBytes(StandardCharsets.UTF_8));
   }
 
   @Test
@@ -356,6 +496,60 @@ class VsumVersionServiceTest {
         .build(build)
         .createdAt(createdAt)
         .build();
+  }
+
+  /** The project as the canvas shows it; the reaction file ids may be {@code null}. */
+  private static VsumMetaModelResponse details(Long relationReactionId, Long fineGrainedReactionId) {
+    Set<FineGranularMetaModelRelationResponse> fineGrained =
+        fineGrainedReactionId == null
+            ? Set.of()
+            : Set.of(
+                FineGranularMetaModelRelationResponse.builder()
+                    .sourceId("A")
+                    .targetId("B")
+                    .reactionFileStorageId(fineGrainedReactionId)
+                    .build());
+    return VsumMetaModelResponse.builder()
+        .name("p")
+        .layout(LAYOUT)
+        .metaModels(
+            List.of(
+                MetaModelResponse.builder()
+                    .id(10L)
+                    .name("mm")
+                    .ecoreFileId(1L)
+                    .genModelFileId(5L)
+                    .build()))
+        .metaModelsRelation(
+            List.of(
+                MetaModelRelationResponse.builder()
+                    .sourceId(10L)
+                    .targetId(11L)
+                    .reactionFileStorageId(relationReactionId)
+                    .fineGranularMetaModelRelationSet(fineGrained)
+                    .build()))
+        .views(
+            List.of(
+                ViewsResponse.builder()
+                    .name("v")
+                    .fileStorageId(4L)
+                    .assignedModels(
+                        List.of(
+                            MetaModelResponse.builder()
+                                .id(10L)
+                                .name("mm")
+                                .ecoreFileId(1L)
+                                .genModelFileId(5L)
+                                .build()))
+                    .build()))
+        .build();
+  }
+
+  private static FileStorage copyWithId(VsumVersion version, Long id) {
+    return version.getContentFiles().stream()
+        .filter(copy -> id.equals(copy.getId()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("No content copy with id " + id));
   }
 
   private static FileStorage file(Long id, String filename, String content, String contentType) {
