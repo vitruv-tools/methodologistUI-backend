@@ -19,12 +19,16 @@ import tools.vitruv.methodologist.general.FileEnumType;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.RoleType;
 import tools.vitruv.methodologist.user.model.User;
+import tools.vitruv.methodologist.vsum.VsumRepresentation;
 import tools.vitruv.methodologist.vsum.VsumRole;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.MetaModelRelation;
 import tools.vitruv.methodologist.vsum.model.Vsum;
+import tools.vitruv.methodologist.vsum.model.VsumBuild;
+import tools.vitruv.methodologist.vsum.model.VsumBuildStatus;
 import tools.vitruv.methodologist.vsum.model.VsumMetaModel;
 import tools.vitruv.methodologist.vsum.model.VsumUser;
+import tools.vitruv.methodologist.vsum.model.VsumVersion;
 
 /**
  * Runs the JPQL of {@link FileStorageRepository#isReadableBy(Long, String)} and {@link
@@ -141,6 +145,32 @@ class FileStorageRepositoryAccessTest {
   }
 
   @Test
+  void vsumMemberCanReadAVersionCopyOfTheProject() {
+    FileStorage copy = persistVersionWithContentCopy(vsum, uploader);
+
+    assertThat(isReadableBy(copy, "member@example.com")).isTrue();
+  }
+
+  @Test
+  void strangerCannotReadAVersionCopy() {
+    FileStorage copy = persistVersionWithContentCopy(vsum, uploader);
+
+    assertThat(isReadableBy(copy, "stranger@example.com")).isFalse();
+  }
+
+  @Test
+  void memberOfAnotherProjectCannotReadAVersionCopy() {
+    Vsum other = new Vsum();
+    other.setName("other");
+    other.setUser(stranger);
+    persist(other);
+    persist(VsumUser.builder().vsum(other).user(stranger).role(VsumRole.MEMBER).build());
+    FileStorage copy = persistVersionWithContentCopy(vsum, uploader);
+
+    assertThat(isReadableBy(copy, "stranger@example.com")).isFalse();
+  }
+
+  @Test
   void removedVsumNoLongerGrantsAccess() {
     vsum.setRemovedAt(Instant.now());
     em.flush();
@@ -217,6 +247,30 @@ class FileStorageRepositoryAccessTest {
         .setParameter("callerEmail", email)
         .setParameter("vsum", vsum)
         .getResultList();
+  }
+
+  /** A published version of {@code project} whose content refers to a copy owned by its publisher. */
+  private FileStorage persistVersionWithContentCopy(Vsum project, User publisher) {
+    VsumBuild build =
+        persist(
+            VsumBuild.builder()
+                .vsum(project)
+                .requestedBy(publisher)
+                .fingerprint("f")
+                .status(VsumBuildStatus.SUCCEEDED)
+                .build());
+    FileStorage copy = persist(file(publisher, FileEnumType.VSUM_VERSION_FILE));
+    persist(
+        VsumVersion.builder()
+            .vsum(project)
+            .number(1)
+            .createdBy(publisher)
+            .build(build)
+            .manifest(new VsumRepresentation())
+            .contentFiles(List.of(copy))
+            .build());
+    em.flush();
+    return copy;
   }
 
   private void persistRelation(Vsum owner, FileStorage reaction) {
