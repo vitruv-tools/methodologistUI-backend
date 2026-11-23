@@ -4,6 +4,7 @@ import static tools.vitruv.methodologist.messages.Error.PUBLISH_IN_PROGRESS_ERRO
 import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_VERSION_NOT_FOUND_ERROR;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -27,9 +28,11 @@ import tools.vitruv.methodologist.vsum.VsumRole;
 import tools.vitruv.methodologist.vsum.controller.dto.response.FineGranularMetaModelRelationResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelationResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.RuleSetResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumVersionContentResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumVersionResponse;
 import tools.vitruv.methodologist.vsum.mapper.VsumBuildMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumHistoryMapper;
@@ -187,6 +190,66 @@ public class VsumVersionService {
         .findFirstByVsumAndNumberIsNotNullOrderByNumberDesc(vsum)
         .map(vsumVersionMapper::toResponse)
         .orElseThrow(() -> new NotFoundException(VSUM_VERSION_NOT_FOUND_ERROR));
+  }
+
+  /**
+   * Returns what the newest stable version of the VSUM looks like on the canvas.
+   *
+   * @param callerEmail the requesting user, who must be part of the VSUM; viewers are allowed
+   * @param vsumId the VSUM
+   * @return the version's number, publisher, creation time, project and rule sets; the project
+   *     carries the caller's role
+   * @throws AccessDeniedException if the caller is not part of the VSUM
+   * @throws NotFoundException if nothing has been published yet, or the newest version was
+   *     published before its content was stored
+   */
+  @Transactional(readOnly = true)
+  public VsumVersionContentResponse findLatestContent(String callerEmail, Long vsumId) {
+    VsumUser caller = findMember(callerEmail, vsumId);
+    VsumVersion version =
+        vsumVersionRepository
+            .findFirstByVsumAndNumberIsNotNullOrderByNumberDesc(caller.getVsum())
+            .filter(latest -> latest.getContent() != null)
+            .orElseThrow(() -> new NotFoundException(VSUM_VERSION_NOT_FOUND_ERROR));
+    VsumVersionContent content = version.getContent();
+    VsumMetaModelResponse project = content.project();
+    project.setRole(caller.getRole());
+    List<RuleSetResponse> ruleSets =
+        nullToEmpty(content.ruleSets()).stream()
+            .map(ruleSet -> toResponse(ruleSet, vsumId, version))
+            .toList();
+    return VsumVersionContentResponse.builder()
+        .number(version.getNumber())
+        .createdBy(version.getCreatedBy().getEmail())
+        .createdAt(version.getCreatedAt())
+        .project(project)
+        .ruleSets(ruleSets)
+        .build();
+  }
+
+  private static RuleSetResponse toResponse(
+      VsumVersionContent.RuleSet ruleSet, Long vsumId, VsumVersion version) {
+    return new RuleSetResponse(
+        ruleSet.id(),
+        vsumId,
+        ruleSet.name(),
+        ruleSet.color(),
+        ruleSet.description(),
+        oclContent(ruleSet.oclFileId(), version),
+        ruleSet.createdAt(),
+        ruleSet.updatedAt());
+  }
+
+  /** The text of the version's copy with the given id; empty if there is none. */
+  private static String oclContent(Long copyId, VsumVersion version) {
+    if (copyId == null) {
+      return "";
+    }
+    return version.getContentFiles().stream()
+        .filter(copy -> copyId.equals(copy.getId()) && copy.getData() != null)
+        .map(copy -> new String(copy.getData(), StandardCharsets.UTF_8))
+        .findFirst()
+        .orElse("");
   }
 
   /**

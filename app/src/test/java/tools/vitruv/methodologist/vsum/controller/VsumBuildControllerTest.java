@@ -20,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumVersionContentResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumVersionResponse;
 import tools.vitruv.methodologist.vsum.model.VsumBuildStatus;
 import tools.vitruv.methodologist.vsum.service.VsumBuildService;
@@ -150,5 +151,14 @@ class VsumBuildControllerTest {
     when(vsumVersionService.findLatest(EMAIL, 7L)).thenReturn(version);
 
     assertThat(controller.findLatestVersion(authentication, 7L).getData()).isSameAs(version);
+  }
+
+  @Test
+  void findLatestVersionContent_returnsTheContent() {
+    VsumVersionContentResponse content = VsumVersionContentResponse.builder().number(2).build();
+    when(vsumVersionService.findLatestContent(EMAIL, 7L)).thenReturn(content);
+
+    assertThat(controller.findLatestVersionContent(authentication, 7L).getData())
+        .isSameAs(content);
   }
 }

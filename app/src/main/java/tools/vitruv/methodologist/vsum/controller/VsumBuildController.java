@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.vitruv.methodologist.ResponseTemplateDto;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumVersionContentResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumVersionResponse;
 import tools.vitruv.methodologist.vsum.service.VsumBuildService;
 import tools.vitruv.methodologist.vsum.service.VsumDeploymentBundleService;
@@ -242,6 +243,26 @@ public class VsumBuildController {
     String callerEmail = authentication.getParsedToken().getEmail();
     return ResponseTemplateDto.<VsumVersionResponse>builder()
         .data(vsumVersionService.findLatest(callerEmail, id))
+        .build();
+  }
+
+  /**
+   * Returns what the newest stable version of the VSUM looks like on the canvas, for viewing it
+   * read-only. The file ids in it refer to the version's own copies.
+   *
+   * @param authentication the authenticated Keycloak principal
+   * @param id the VSUM identifier
+   * @return the version's number, publisher, creation time, project and rule sets
+   * @throws tools.vitruv.methodologist.exception.NotFoundException if nothing has been published
+   *     yet, or the newest version was published before its content was stored
+   */
+  @GetMapping("/v1/vsums/{id}/versions/latest/content")
+  @PreAuthorize("hasRole('user')")
+  public ResponseTemplateDto<VsumVersionContentResponse> findLatestVersionContent(
+      KeycloakAuthentication authentication, @PathVariable Long id) {
+    String callerEmail = authentication.getParsedToken().getEmail();
+    return ResponseTemplateDto.<VsumVersionContentResponse>builder()
+        .data(vsumVersionService.findLatestContent(callerEmail, id))
         .build();
   }
 }

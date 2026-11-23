@@ -46,6 +46,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse
 import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumVersionContentResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumVersionResponse;
 import tools.vitruv.methodologist.vsum.mapper.VsumBuildMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumHistoryMapper;
@@ -459,7 +460,83 @@ class VsumVersionServiceTest {
         .isInstanceOf(AccessDeniedException.class);
   }
 
+  @Test
+  void findLatestContent_returnsTheContentOfTheNewestVersion_withTheCallersRole() {
+    member.setRole(VsumRole.VIEWER);
+    VsumVersion latest = publishedVersionWithContent(ocl.getId());
+
+    VsumVersionContentResponse response = service.findLatestContent(EMAIL, VSUM_ID);
+
+    assertThat(response.getNumber()).isEqualTo(3);
+    assertThat(response.getCreatedBy()).isEqualTo(EMAIL);
+    assertThat(response.getCreatedAt()).isEqualTo(latest.getCreatedAt());
+    assertThat(response.getProject().getName()).isEqualTo("p");
+    assertThat(response.getProject().getRole()).isEqualTo(VsumRole.VIEWER);
+    assertThat(response.getRuleSets())
+        .singleElement()
+        .satisfies(
+            rs -> {
+              assertThat(rs.id()).isEqualTo(20L);
+              assertThat(rs.vsumId()).isEqualTo(VSUM_ID);
+              assertThat(rs.name()).isEqualTo("rules");
+              assertThat(rs.color()).isEqualTo("#123456");
+              assertThat(rs.description()).isEqualTo("d");
+              assertThat(rs.oclContent()).isEqualTo("context A inv: true");
+            });
+  }
+
+  @Test
+  void findLatestContent_returnsEmptyOcl_forARuleSetWithoutFile() {
+    publishedVersionWithContent(null);
+
+    VsumVersionContentResponse response = service.findLatestContent(EMAIL, VSUM_ID);
+
+    assertThat(response.getRuleSets()).singleElement().satisfies(rs -> assertThat(rs.oclContent()).isEmpty());
+  }
+
+  @Test
+  void findLatestContent_throwsNotFound_whenNothingWasPublished() {
+    assertThatThrownBy(() -> service.findLatestContent(EMAIL, VSUM_ID))
+        .isInstanceOf(NotFoundException.class);
+  }
+
+  @Test
+  void findLatestContent_throwsNotFound_whenTheVersionHasNoContent() {
+    VsumVersion latest = pending(VsumBuildStatus.SUCCEEDED, Instant.now(), Instant.now());
+    latest.setNumber(1);
+    when(vsumVersionRepository.findFirstByVsumAndNumberIsNotNullOrderByNumberDesc(vsum))
+        .thenReturn(Optional.of(latest));
+
+    assertThatThrownBy(() -> service.findLatestContent(EMAIL, VSUM_ID))
+        .isInstanceOf(NotFoundException.class);
+  }
+
+  @Test
+  void findLatestContent_isDeniedForUsersWithoutAccess() {
+    assertThatThrownBy(() -> service.findLatestContent("stranger@example.com", VSUM_ID))
+        .isInstanceOf(AccessDeniedException.class);
+  }
+
   // ---- fixtures -------------------------------------------------------------------------------
+
+  /**
+   * Version 3, published with content: the project "p" and the rule set "rules", whose OCL file is
+   * the copy {@code oclCopyId} of {@link #ocl}, or none.
+   */
+  private VsumVersion publishedVersionWithContent(Long oclCopyId) {
+    VsumVersion latest = pending(VsumBuildStatus.SUCCEEDED, Instant.now(), Instant.now());
+    latest.setNumber(3);
+    latest.setContent(
+        new VsumVersionContent(
+            VsumMetaModelResponse.builder().name("p").build(),
+            List.of(
+                new VsumVersionContent.RuleSet(
+                    20L, "rules", "#123456", "d", oclCopyId, Instant.EPOCH, Instant.EPOCH))));
+    latest.setContentFiles(List.of(ocl));
+    when(vsumVersionRepository.findFirstByVsumAndNumberIsNotNullOrderByNumberDesc(vsum))
+        .thenReturn(Optional.of(latest));
+    return latest;
+  }
 
   private VsumVersion savedVersion() {
     ArgumentCaptor<VsumVersion> captor = ArgumentCaptor.forClass(VsumVersion.class);
