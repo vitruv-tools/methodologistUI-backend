@@ -5,9 +5,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -160,25 +162,19 @@ public class CompileClasspath {
   private Path workDir() {
     if (workDir == null) {
       try {
-        workDir =
-            Files.createTempDirectory(
-                "utility-methods-",
-                PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
-      } catch (UnsupportedOperationException e) {
-        workDir = createTempDirectory();
+        // Owner only on POSIX; Windows applies its own per-user default permissions.
+        FileAttribute<?>[] ownerOnly =
+            FileSystems.getDefault().supportedFileAttributeViews().contains("posix")
+                ? new FileAttribute<?>[] {
+                  PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"))
+                }
+                : new FileAttribute<?>[0];
+        workDir = Files.createTempDirectory("utility-methods-", ownerOnly);
       } catch (IOException e) {
         throw new UncheckedIOException("No temporary directory for compiling utility methods", e);
       }
     }
     return workDir;
-  }
-
-  private static Path createTempDirectory() {
-    try {
-      return Files.createTempDirectory("utility-methods-");
-    } catch (IOException e) {
-      throw new UncheckedIOException("No temporary directory for compiling utility methods", e);
-    }
   }
 
   /** SHA-256 over the names and contents of the metamodel files, independent of their order. */

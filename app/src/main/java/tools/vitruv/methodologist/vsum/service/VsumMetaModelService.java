@@ -2,9 +2,11 @@ package tools.vitruv.methodologist.vsum.service;
 
 import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -177,7 +179,31 @@ public class VsumMetaModelService {
    * @param filename the stored filename
    * @param data the file content
    */
-  public record EcoreFile(String filename, byte[] data) {}
+  public record EcoreFile(String filename, byte[] data) {
+
+    /** Compares the file content, not the array reference. */
+    @Override
+    public boolean equals(Object other) {
+      return other instanceof EcoreFile that
+          && Objects.equals(filename, that.filename)
+          && Arrays.equals(data, that.data);
+    }
+
+    @Override
+    public int hashCode() {
+      return 31 * Objects.hashCode(filename) + Arrays.hashCode(data);
+    }
+
+    /** Names only the size of the content, which can be large. */
+    @Override
+    public String toString() {
+      return "EcoreFile[filename="
+          + filename
+          + ", data="
+          + (data == null ? "null" : data.length + " bytes")
+          + "]";
+    }
+  }
 
   /**
    * Returns the Ecore files of all metamodels linked to the given VSUM. The files are read inside

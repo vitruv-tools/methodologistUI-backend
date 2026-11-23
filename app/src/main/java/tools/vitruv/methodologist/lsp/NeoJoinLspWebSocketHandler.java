@@ -14,9 +14,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.HashSet;
 import java.util.List;
@@ -257,14 +259,14 @@ public class NeoJoinLspWebSocketHandler
   }
 
   private static Path createSessionDirectory() throws IOException {
-    try {
-      return Files.createTempDirectory(
-          "neojoin-lsp-",
-          PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
-    } catch (UnsupportedOperationException e) {
-      // Windows: fall back to the default temp directory security
-      return Files.createTempDirectory("neojoin-lsp-");
-    }
+    // Owner only on POSIX; Windows applies its own per-user default permissions.
+    FileAttribute<?>[] ownerOnly =
+        FileSystems.getDefault().supportedFileAttributeViews().contains("posix")
+            ? new FileAttribute<?>[] {
+              PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"))
+            }
+            : new FileAttribute<?>[0];
+    return Files.createTempDirectory("neojoin-lsp-", ownerOnly);
   }
 
   /**
