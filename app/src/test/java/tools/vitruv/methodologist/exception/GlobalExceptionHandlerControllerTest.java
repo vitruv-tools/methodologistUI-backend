@@ -163,8 +163,8 @@ class GlobalExceptionHandlerControllerTest {
                   .andExpect(status().isBadRequest());
             });
 
-    assertThat(events).hasSize(2);
     assertThat(events)
+        .hasSize(2)
         .allSatisfy(
             event -> {
               assertThat(event.getLevel()).isEqualTo(Level.DEBUG);

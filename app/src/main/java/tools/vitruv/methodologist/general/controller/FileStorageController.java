@@ -6,6 +6,7 @@ import static tools.vitruv.methodologist.messages.Message.FILE_UPLOADED_SUCCESSF
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import java.io.IOException;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -127,7 +128,7 @@ public class FileStorageController {
    * @param file the new multipart file whose content will overwrite the existing file
    * @param id the ID of the existing NeoJoin file to update
    * @return ResponseTemplateDto containing the updated file's information
-   * @throws Exception if the uploaded file cannot be read
+   * @throws IOException if the uploaded file cannot be read
    */
   @Operation(
       summary = "Update an existing NeoJoin file",
@@ -147,7 +148,7 @@ public class FileStorageController {
           @RequestParam("file")
           MultipartFile file,
       @PathVariable Long id)
-      throws Exception {
+      throws IOException {
     String email = authentication.getParsedToken().getEmail();
     FileStorageResponse response =
         fileStorageService.updateFile(email, id, FileEnumType.NEO_JOIN, file);

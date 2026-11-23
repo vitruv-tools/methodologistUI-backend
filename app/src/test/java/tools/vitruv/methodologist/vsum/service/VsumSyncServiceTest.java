@@ -213,6 +213,7 @@ class VsumSyncServiceTest {
     VsumMetaModel v10 = vsumMetaModel(vsum, mm10);
     VsumMetaModel v20 = vsumMetaModel(vsum, mm20);
     VsumMetaModel v30 = vsumMetaModel(vsum, mm30);
+    vsum.getVsumMetaModels().addAll(List.of(v10, v20, v30));
     when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of(v10, v20, v30));
     when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
 
@@ -224,7 +225,7 @@ class VsumSyncServiceTest {
     verify(vsumMetaModelService).delete(vsum, List.of(v20));
     verify(vsumHistoryService).create(vsum, owner);
     verify(vsumRepository).save(vsum);
-    assertThat(result.getVsumMetaModels()).doesNotContain(v20);
+    assertThat(result.getVsumMetaModels()).containsExactlyInAnyOrder(v10, v30);
   }
 
   @Test
@@ -748,8 +749,9 @@ class VsumSyncServiceTest {
   void applySyncChanges_rejectsTwoViewsWithTheSameName_beforeChangingAnything() {
     Vsum vsum = vsumWithMetaModels(106L);
 
-    assertThatThrownBy(
-            () -> syncViews(vsum, request(null, "A", 50L, 1L), request(null, " A ", 51L, 2L)))
+    ViewRequest first = request(null, "A", 50L, 1L);
+    ViewRequest second = request(null, " A ", 51L, 2L);
+    assertThatThrownBy(() -> syncViews(vsum, first, second))
         .isInstanceOf(BadRequestException.class)
         .hasMessageContaining("A");
 
@@ -764,7 +766,9 @@ class VsumSyncServiceTest {
     VsumView a = view(5L, "A", 50L);
     givenViews(vsum, List.of(a), List.of(link(a, 1001L, 1L)));
 
-    assertThatThrownBy(() -> syncViews(vsum, request(5L, "A", 50L, 1L), request(5L, "A2", 50L, 1L)))
+    ViewRequest first = request(5L, "A", 50L, 1L);
+    ViewRequest second = request(5L, "A2", 50L, 1L);
+    assertThatThrownBy(() -> syncViews(vsum, first, second))
         .isInstanceOf(BadRequestException.class)
         .hasMessageContaining("5");
 
@@ -778,8 +782,9 @@ class VsumSyncServiceTest {
     VsumView a = view(5L, "A", 50L);
     givenViews(vsum, List.of(a), List.of(link(a, 1001L, 1L)));
 
-    assertThatThrownBy(
-            () -> syncViews(vsum, request(5L, null, 50L, 1L), request(null, "A", 51L, 2L)))
+    ViewRequest kept = request(5L, null, 50L, 1L);
+    ViewRequest renamed = request(null, "A", 51L, 2L);
+    assertThatThrownBy(() -> syncViews(vsum, kept, renamed))
         .isInstanceOf(BadRequestException.class);
 
     verifyNoInteractions(vsumHistoryService);
@@ -795,8 +800,8 @@ class VsumSyncServiceTest {
     syncViews(vsum, request(null, longest, 50L, 1L));
     verify(vsumViewService).create(vsum, 50L, longest, null);
 
-    assertThatThrownBy(() -> syncViews(vsum, request(null, "x".repeat(256), 51L, 1L)))
-        .isInstanceOf(BadRequestException.class);
+    ViewRequest tooLong = request(null, "x".repeat(256), 51L, 1L);
+    assertThatThrownBy(() -> syncViews(vsum, tooLong)).isInstanceOf(BadRequestException.class);
   }
 
   @Test

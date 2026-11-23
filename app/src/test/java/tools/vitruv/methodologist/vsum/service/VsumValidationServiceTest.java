@@ -30,6 +30,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.PlatformTransactionManager;
+import tools.vitruv.methodologist.Await;
 import tools.vitruv.methodologist.apihandler.SetupServiceApiHandler;
 import tools.vitruv.methodologist.apihandler.dto.response.VsumValidationResult;
 import tools.vitruv.methodologist.exception.BuildProblem;
@@ -267,7 +268,7 @@ class VsumValidationServiceTest {
   }
 
   @Test
-  void requestValidation_runsInTheBackground_andStoresTheResult() throws Exception {
+  void requestValidation_runsInTheBackground_andStoresTheResult() {
     givenInputs(inputs("a"));
     when(setupServiceApiHandler.validateVsum(anyList(), anyList(), anyList(), anyList()))
         .thenReturn(new VsumValidationResult(true, List.of()));
@@ -318,7 +319,7 @@ class VsumValidationServiceTest {
   }
 
   @Test
-  void requestValidation_acceptsNewRequests_afterAValidationFinished() throws Exception {
+  void requestValidation_acceptsNewRequests_afterAValidationFinished() {
     givenInputs(inputs("a"), inputs("b"));
     when(setupServiceApiHandler.validateVsum(anyList(), anyList(), anyList(), anyList()))
         .thenReturn(new VsumValidationResult(true, List.of()))
@@ -332,7 +333,7 @@ class VsumValidationServiceTest {
   }
 
   @Test
-  void findLatestResult_returnsTheResult_forOwnersAndMembers() throws Exception {
+  void findLatestResult_returnsTheResult_forOwnersAndMembers() {
     givenInputs(inputs("a"));
     when(setupServiceApiHandler.validateVsum(anyList(), anyList(), anyList(), anyList()))
         .thenReturn(new VsumValidationResult(false, List.of(PROBLEM)));
@@ -358,7 +359,7 @@ class VsumValidationServiceTest {
   }
 
   @Test
-  void findLatestResult_deniesViewers_evenWhenAResultExists() throws Exception {
+  void findLatestResult_deniesViewers_evenWhenAResultExists() {
     givenInputs(inputs("a"));
     when(setupServiceApiHandler.validateVsum(anyList(), anyList(), anyList(), anyList()))
         .thenReturn(new VsumValidationResult(true, List.of()));
@@ -395,17 +396,17 @@ class VsumValidationServiceTest {
   }
 
   private VsumValidationService.LatestValidation awaitResult(
-      Predicate<VsumValidationService.LatestValidation> condition) throws InterruptedException {
+      Predicate<VsumValidationService.LatestValidation> condition) {
     AtomicReference<VsumValidationService.LatestValidation> found = new AtomicReference<>();
-    Instant deadline = Instant.now().plus(Duration.ofMillis(WAIT_MILLIS));
-    while (Instant.now().isBefore(deadline)) {
-      service.findLatestResult(VSUM_ID).filter(condition).ifPresent(found::set);
-      if (found.get() != null) {
-        return found.get();
-      }
-      Thread.sleep(10);
-    }
-    throw new AssertionError("No matching validation result within " + WAIT_MILLIS + " ms");
+    Await.until(
+        "a matching validation result",
+        Duration.ofMillis(WAIT_MILLIS),
+        Duration.ofMillis(10),
+        () -> {
+          service.findLatestResult(VSUM_ID).filter(condition).ifPresent(found::set);
+          return found.get() != null;
+        });
+    return found.get();
   }
 
   private static VsumBuildInputs inputs(String ecoreContent) {
