@@ -4,6 +4,7 @@ import static tools.vitruv.methodologist.messages.Error.PUBLISH_IN_PROGRESS_ERRO
 import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_VERSION_NOT_FOUND_ERROR;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -90,6 +91,7 @@ public class VsumVersionService {
   private final VsumVersionMapper vsumVersionMapper;
   private final VsumService vsumService;
   private final ConstraintRuleSetRepository constraintRuleSetRepository;
+  private final ObjectMapper objectMapper;
   private final Duration abandonRunningAfter;
   private final TransactionTemplate snapshotTransaction;
 
@@ -106,6 +108,7 @@ public class VsumVersionService {
    * @param vsumVersionMapper converts versions into responses
    * @param vsumService describes the working copy as the canvas shows it
    * @param constraintRuleSetRepository reads the working copy's rule sets
+   * @param objectMapper converts a version's content to and from its stored JSON
    * @param setupServiceTimeoutSeconds the setup-service response timeout; a build running longer
    *     than that plus {@link #ABANDON_MARGIN} can no longer succeed
    * @param transactionManager used for the explicit transactions of a publish
@@ -121,6 +124,7 @@ public class VsumVersionService {
       VsumVersionMapper vsumVersionMapper,
       VsumService vsumService,
       ConstraintRuleSetRepository constraintRuleSetRepository,
+      ObjectMapper objectMapper,
       @Value(
               "${third_api.setup_service.timeout-seconds:"
                   + SetupServiceApiHandler.DEFAULT_RESPONSE_TIMEOUT_IN_SECONDS
@@ -137,6 +141,7 @@ public class VsumVersionService {
     this.vsumVersionMapper = vsumVersionMapper;
     this.vsumService = vsumService;
     this.constraintRuleSetRepository = constraintRuleSetRepository;
+    this.objectMapper = objectMapper;
     this.abandonRunningAfter = Duration.ofSeconds(setupServiceTimeoutSeconds).plus(ABANDON_MARGIN);
     this.snapshotTransaction = new TransactionTemplate(transactionManager);
     this.snapshotTransaction.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
@@ -211,7 +216,7 @@ public class VsumVersionService {
             .findFirstByVsumAndNumberIsNotNullOrderByNumberDesc(caller.getVsum())
             .filter(latest -> latest.getContent() != null)
             .orElseThrow(() -> new NotFoundException(VSUM_VERSION_NOT_FOUND_ERROR));
-    VsumVersionContent content = version.getContent();
+    VsumVersionContent content = VsumVersionContent.fromJson(objectMapper, version.getContent());
     VsumMetaModelResponse project = content.project();
     project.setRole(caller.getRole());
     List<RuleSetResponse> ruleSets =
@@ -308,7 +313,7 @@ public class VsumVersionService {
             .reactions(reactions)
             .constraints(constraints)
             .views(views)
-            .content(content)
+            .content(content.toJson(objectMapper))
             .contentFiles(copies.contentCopies())
             .build());
     return vsumBuildMapper.toResponse(build);

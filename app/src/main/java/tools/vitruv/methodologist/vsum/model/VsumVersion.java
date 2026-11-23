@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.model;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -115,12 +116,14 @@ public class VsumVersion {
   private List<FileStorage> views = new ArrayList<>();
 
   /**
-   * What the canvas showed at publish time, with the file ids of {@link #contentFiles}; {@code
-   * null} for versions published before it was stored.
+   * What the canvas showed at publish time ({@link VsumVersionContent} as JSON), with the file ids
+   * of {@link #contentFiles}; {@code null} for versions published before it was stored. Kept as a
+   * plain JSON tree, so a later change of the response classes it was written from cannot keep a
+   * version from loading; it is written once and never updated.
    */
   @Type(JsonType.class)
-  @Column(columnDefinition = "jsonb")
-  private VsumVersionContent content;
+  @Column(columnDefinition = "jsonb", updatable = false)
+  private JsonNode content;
 
   /**
    * The copies {@link #content} refers to. A copy of a file that is also a build input is the same

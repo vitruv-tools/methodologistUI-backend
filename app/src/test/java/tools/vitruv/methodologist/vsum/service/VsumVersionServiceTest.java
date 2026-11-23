@@ -12,6 +12,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
@@ -30,6 +31,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.PlatformTransactionManager;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -71,6 +73,9 @@ class VsumVersionServiceTest {
   private static final long TIMEOUT_SECONDS = 960;
   private static final Long PENDING_BUILD_ID = 99L;
   private static final ObjectNode LAYOUT = JsonNodeFactory.instance.objectNode();
+
+  /** Configured like the application's mapper, which ignores unknown properties. */
+  private static final ObjectMapper MAPPER = Jackson2ObjectMapperBuilder.json().build();
 
   static {
     LAYOUT.putObject("metaModels").putObject("10").put("x", 1).put("y", 2);
@@ -177,6 +182,7 @@ class VsumVersionServiceTest {
             Mappers.getMapper(VsumVersionMapper.class),
             vsumService,
             constraintRuleSetRepository,
+            MAPPER,
             TIMEOUT_SECONDS,
             transactionManager);
   }
@@ -219,7 +225,7 @@ class VsumVersionServiceTest {
   void publish_storesTheProjectAsOnTheCanvas_pointingAtCopies() {
     service.publish(EMAIL, VSUM_ID);
     VsumVersion version = savedVersion();
-    VsumVersionContent content = version.getContent();
+    VsumVersionContent content = contentOf(version);
 
     MetaModelResponse metaModel = content.project().getMetaModels().get(0);
     assertThat(metaModel.getEcoreFileId()).isEqualTo(version.getEcores().get(0).getId());
@@ -258,7 +264,7 @@ class VsumVersionServiceTest {
     VsumVersion version = savedVersion();
 
     MetaModelResponse assigned =
-        version.getContent().project().getViews().get(0).getAssignedModels().get(0);
+        contentOf(version).project().getViews().get(0).getAssignedModels().get(0);
     assertThat(assigned.getEcoreFileId()).isEqualTo(version.getEcores().get(0).getId());
     assertThat(assigned.getGenModelFileId()).isNull();
   }
@@ -272,7 +278,7 @@ class VsumVersionServiceTest {
     VsumVersion version = savedVersion();
 
     MetaModelRelationResponse relation =
-        version.getContent().project().getMetaModelsRelation().get(0);
+        contentOf(version).project().getMetaModelsRelation().get(0);
     assertThat(
             relation
                 .getFineGranularMetaModelRelationSet()
@@ -291,7 +297,7 @@ class VsumVersionServiceTest {
     ruleSet.setOclFile(null);
 
     service.publish(EMAIL, VSUM_ID);
-    VsumVersionContent content = savedVersion().getContent();
+    VsumVersionContent content = contentOf(savedVersion());
 
     assertThat(content.project().getMetaModelsRelation().get(0).getReactionFileStorageId())
         .isNull();
@@ -305,7 +311,7 @@ class VsumVersionServiceTest {
     service.publish(EMAIL, VSUM_ID);
     VsumVersion version = savedVersion();
     FileStorage copy =
-        copyWithId(version, version.getContent().project().getViews().get(0).getFileStorageId());
+        copyWithId(version, contentOf(version).project().getViews().get(0).getFileStorageId());
 
     viewFile.getData()[0] = 'X';
 
@@ -532,10 +538,11 @@ class VsumVersionServiceTest {
     latest.setNumber(3);
     latest.setContent(
         new VsumVersionContent(
-            VsumMetaModelResponse.builder().name("p").build(),
-            List.of(
-                new VsumVersionContent.RuleSet(
-                    20L, "rules", "#123456", "d", oclCopyId, Instant.EPOCH, Instant.EPOCH))));
+                VsumMetaModelResponse.builder().name("p").build(),
+                List.of(
+                    new VsumVersionContent.RuleSet(
+                        20L, "rules", "#123456", "d", oclCopyId, Instant.EPOCH, Instant.EPOCH)))
+            .toJson(MAPPER));
     latest.setContentFiles(List.of(ocl));
     when(vsumVersionRepository.findFirstByVsumAndNumberIsNotNullOrderByNumberDesc(vsum))
         .thenReturn(Optional.of(latest));
@@ -625,6 +632,11 @@ class VsumVersionServiceTest {
                                 .build()))
                     .build()))
         .build();
+  }
+
+  /** The stored content of a version, read back like the service reads it. */
+  private static VsumVersionContent contentOf(VsumVersion version) {
+    return VsumVersionContent.fromJson(MAPPER, version.getContent());
   }
 
   private static FileStorage copyWithId(VsumVersion version, Long id) {

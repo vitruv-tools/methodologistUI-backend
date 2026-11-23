@@ -1,6 +1,7 @@
 package tools.vitruv.methodologist.vsum.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,11 +11,14 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
@@ -37,6 +41,9 @@ import tools.vitruv.methodologist.vsum.lowcode.reactions.template.dto.request.Co
 class VsumVersionPersistenceTest {
 
   private static final Instant PUBLISHED = Instant.parse("2026-11-23T17:56:00Z");
+
+  /** Configured like the application's mapper, which ignores unknown properties. */
+  private static final ObjectMapper MAPPER = Jackson2ObjectMapperBuilder.json().build();
 
   private static LocalContainerEntityManagerFactoryBean factoryBean;
   private static EntityManagerFactory emf;
@@ -68,7 +75,10 @@ class VsumVersionPersistenceTest {
             "hibernate.physical_naming_strategy",
             "org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy",
             "hibernate.implicit_naming_strategy",
-            "org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy"));
+            "org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy",
+            // Counts the statements a flush issues.
+            "hibernate.generate_statistics",
+            "true"));
     factoryBean.afterPropertiesSet();
     emf = factoryBean.getObject();
   }
@@ -166,7 +176,7 @@ class VsumVersionPersistenceTest {
                 .createdBy(publisher)
                 .build(build)
                 .manifest(new VsumRepresentation())
-                .content(new VsumVersionContent(project, List.of(ruleSet)))
+                .content(new VsumVersionContent(project, List.of(ruleSet)).toJson(MAPPER))
                 .contentFiles(List.of(copy))
                 .build());
 
@@ -174,7 +184,7 @@ class VsumVersionPersistenceTest {
     em.clear();
     VsumVersion loaded = em.find(VsumVersion.class, version.getId());
 
-    VsumVersionContent content = loaded.getContent();
+    VsumVersionContent content = VsumVersionContent.fromJson(MAPPER, loaded.getContent());
     assertThat(content.project().getName()).isEqualTo("p");
     assertThat(content.project().getLayout().at("/metaModels/6/x").asInt()).isEqualTo(1);
     assertThat(content.project().getMetaModels())
@@ -199,6 +209,55 @@ class VsumVersionPersistenceTest {
     assertThat(loaded.getContentFiles())
         .extracting(FileStorage::getId)
         .containsExactly(copy.getId());
+  }
+
+  @Test
+  void content_isNotWrittenAgain_whenAnUnchangedVersionIsFlushed() throws Exception {
+    VsumVersion version = persist(versionWithContent());
+    em.flush();
+    em.clear();
+    em.find(VsumVersion.class, version.getId());
+    Statistics statistics = emf.unwrap(SessionFactory.class).getStatistics();
+    statistics.clear();
+
+    em.flush();
+
+    assertThat(statistics.getEntityUpdateCount()).isZero();
+  }
+
+  @Test
+  void version_loads_whenTheStoredContentHasAFieldTheCodeDoesNotKnow() throws Exception {
+    VsumVersion version = persist(versionWithContent());
+    em.flush();
+    // As if a field of the stored response was removed from the code after publishing.
+    em.createNativeQuery(
+            "update vsum_version set content = JSON"
+                + " '{\"project\":{\"name\":\"p\",\"removedField\":1},\"ruleSets\":[]}'"
+                + " where id = "
+                + version.getId())
+        .executeUpdate();
+    em.clear();
+
+    assertThatCode(() -> em.find(VsumVersion.class, version.getId())).doesNotThrowAnyException();
+    VsumVersion loaded = em.find(VsumVersion.class, version.getId());
+    assertThat(VsumVersionContent.fromJson(MAPPER, loaded.getContent()).project().getName())
+        .isEqualTo("p");
+  }
+
+  private VsumVersion versionWithContent() throws Exception {
+    JsonNode layout = new ObjectMapper().readTree("{\"metaModels\":{}}");
+    return VsumVersion.builder()
+        .vsum(vsum)
+        .number(1)
+        .createdBy(publisher)
+        .build(build)
+        .manifest(new VsumRepresentation())
+        .content(
+            new VsumVersionContent(
+                    VsumMetaModelResponse.builder().name("p").layout(layout).build(), List.of())
+                .toJson(MAPPER))
+        .contentFiles(List.of(copy))
+        .build();
   }
 
   private <T> T persist(T entity) {

@@ -1,7 +1,8 @@
 -- What the canvas showed when a version was published: the project as GET /vsums/{id}/details
 -- returns it, plus its rule sets, with every file id pointing at a copy of the version. The build
--- copies cannot serve this, because a build merges the reaction files of a pair into one. NULL for
--- versions published before the content was stored.
+-- copies cannot serve this: they do not record which reaction file belongs to which relation, and
+-- a pair with several files is built from a generated composite. NULL for versions published
+-- before the content was stored.
 ALTER TABLE vsum_version
     ADD COLUMN content JSONB;
 
