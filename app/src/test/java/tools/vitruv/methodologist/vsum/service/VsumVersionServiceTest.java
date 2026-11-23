@@ -295,7 +295,9 @@ class VsumVersionServiceTest {
 
     assertThat(content.project().getMetaModelsRelation().get(0).getReactionFileStorageId())
         .isNull();
-    assertThat(content.ruleSets()).singleElement().satisfies(rs -> assertThat(rs.oclFileId()).isNull());
+    assertThat(content.ruleSets())
+        .singleElement()
+        .satisfies(rs -> assertThat(rs.oclFileId()).isNull());
   }
 
   @Test
@@ -491,7 +493,9 @@ class VsumVersionServiceTest {
 
     VsumVersionContentResponse response = service.findLatestContent(EMAIL, VSUM_ID);
 
-    assertThat(response.getRuleSets()).singleElement().satisfies(rs -> assertThat(rs.oclContent()).isEmpty());
+    assertThat(response.getRuleSets())
+        .singleElement()
+        .satisfies(rs -> assertThat(rs.oclContent()).isEmpty());
   }
 
   @Test
@@ -576,7 +580,8 @@ class VsumVersionServiceTest {
   }
 
   /** The project as the canvas shows it; the reaction file ids may be {@code null}. */
-  private static VsumMetaModelResponse details(Long relationReactionId, Long fineGrainedReactionId) {
+  private static VsumMetaModelResponse details(
+      Long relationReactionId, Long fineGrainedReactionId) {
     Set<FineGranularMetaModelRelationResponse> fineGrained =
         fineGrainedReactionId == null
             ? Set.of()

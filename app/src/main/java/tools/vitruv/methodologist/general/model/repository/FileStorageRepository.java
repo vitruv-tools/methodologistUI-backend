@@ -86,8 +86,8 @@ public interface FileStorageRepository extends CrudRepository<FileStorage, Long>
   /**
    * Checks whether the active user with the given email may read a file: either they uploaded it,
    * or they are a member of a non-removed VSUM that references it as a metamodel Ecore or GenModel
-   * file, a reaction file, an OCL file, a view file, a build artifact, or a copy that the content of
-   * one of its published versions refers to.
+   * file, a reaction file, an OCL file, a view file, a build artifact, or a copy that the content
+   * of one of its published versions refers to.
    *
    * @param fileId the identifier of the file storage entry
    * @param callerEmail the email of the requesting user

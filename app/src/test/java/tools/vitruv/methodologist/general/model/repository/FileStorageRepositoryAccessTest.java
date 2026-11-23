@@ -249,7 +249,9 @@ class FileStorageRepositoryAccessTest {
         .getResultList();
   }
 
-  /** A published version of {@code project} whose content refers to a copy owned by its publisher. */
+  /**
+   * A published version of {@code project} whose content refers to a copy owned by its publisher.
+   */
   private FileStorage persistVersionWithContentCopy(Vsum project, User publisher) {
     VsumBuild build =
         persist(

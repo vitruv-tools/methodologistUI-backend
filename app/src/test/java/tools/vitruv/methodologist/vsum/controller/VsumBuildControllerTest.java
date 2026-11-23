@@ -158,7 +158,6 @@ class VsumBuildControllerTest {
     VsumVersionContentResponse content = VsumVersionContentResponse.builder().number(2).build();
     when(vsumVersionService.findLatestContent(EMAIL, 7L)).thenReturn(content);
 
-    assertThat(controller.findLatestVersionContent(authentication, 7L).getData())
-        .isSameAs(content);
+    assertThat(controller.findLatestVersionContent(authentication, 7L).getData()).isSameAs(content);
   }
 }

@@ -54,8 +54,8 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumVersionRepository;
  * <p>Publishing copies the working copy's build inputs into a pending {@link VsumVersion} and
  * builds that snapshot with the asynchronous build of {@link VsumBuildService}, which also decides
  * the outcome: a successful build gives the version its number, a failed one deletes it again.
- * Along with the build inputs, publishing stores what the canvas shows ({@link VsumVersionContent}),
- * pointing at copies as well; a file used by both is copied once.
+ * Along with the build inputs, publishing stores what the canvas shows ({@link
+ * VsumVersionContent}), pointing at copies as well; a file used by both is copied once.
  *
  * <p>The snapshot is read in a {@code REPEATABLE READ} transaction so that all of its parts come
  * from the same state, even if another member saves in the meantime. Only one publish per VSUM may
