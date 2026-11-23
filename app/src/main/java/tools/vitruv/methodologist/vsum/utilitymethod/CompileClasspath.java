@@ -8,7 +8,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -23,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
+import tools.vitruv.methodologist.general.PrivateTempDirectories;
 import tools.vitruv.methodologist.general.model.FileStorage;
 
 /**
@@ -160,25 +160,12 @@ public class CompileClasspath {
   private Path workDir() {
     if (workDir == null) {
       try {
-        workDir =
-            Files.createTempDirectory(
-                "utility-methods-",
-                PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
-      } catch (UnsupportedOperationException e) {
-        workDir = createTempDirectory();
+        workDir = PrivateTempDirectories.create("utility-methods-");
       } catch (IOException e) {
         throw new UncheckedIOException("No temporary directory for compiling utility methods", e);
       }
     }
     return workDir;
-  }
-
-  private static Path createTempDirectory() {
-    try {
-      return Files.createTempDirectory("utility-methods-");
-    } catch (IOException e) {
-      throw new UncheckedIOException("No temporary directory for compiling utility methods", e);
-    }
   }
 
   /** SHA-256 over the names and contents of the metamodel files, independent of their order. */

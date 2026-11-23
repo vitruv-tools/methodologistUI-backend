@@ -82,10 +82,13 @@ class UtilityMethodCompilerTest {
         .contains("All sub-systems contained in the model.")
         .contains("public static List<SubSystem> getAllSubSystems(")
         .endsWith("}\n");
-    assertThat(result.xtendDefinitions().get("getAllSubSystems"))
-        .isEqualTo(
-            "def static List<SubSystem> getAllSubSystems(SimulinkModel model) {\n"
-                + "  model.eAllContents.filter(SubSystem).toList\n}");
+    assertThat(result.xtendDefinitions())
+        .containsEntry(
+            "getAllSubSystems",
+            """
+            def static List<SubSystem> getAllSubSystems(SimulinkModel model) {
+              model.eAllContents.filter(SubSystem).toList
+            }""");
   }
 
   @Test

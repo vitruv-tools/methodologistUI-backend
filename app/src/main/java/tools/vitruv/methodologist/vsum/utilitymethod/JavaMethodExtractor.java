@@ -74,6 +74,8 @@ final class JavaMethodExtractor {
 
   /** Counts braces line by line, ignoring those in string literals and comments. */
   private static final class BraceScanner {
+    private static final int CLOSED = -1;
+
     private int depth;
     private boolean opened;
     private boolean blockComment;
@@ -82,29 +84,36 @@ final class JavaMethodExtractor {
     boolean closesBlock(String line) {
       int j = 0;
       while (j < line.length()) {
-        if (blockComment) {
-          j = skipComment(line, j);
-          continue;
-        }
-        char c = line.charAt(j);
-        if (c == '/' && next(line, j) == '/') {
-          return false;
-        }
-        if (c == '/' && next(line, j) == '*') {
-          blockComment = true;
-          j += 2;
-          continue;
-        }
-        if (c == '"' || c == '\'') {
-          j = skipLiteral(line, j);
-          continue;
-        }
-        if (count(c)) {
+        j = advance(line, j);
+        if (j == CLOSED) {
           return true;
         }
-        j++;
       }
       return false;
+    }
+
+    /**
+     * Scans the token at {@code j}: a comment, a literal or a single character.
+     *
+     * @return the index after the token, the line length after a line comment, or {@link #CLOSED}
+     *     if the token is the brace that closes the first block
+     */
+    private int advance(String line, int j) {
+      if (blockComment) {
+        return skipComment(line, j);
+      }
+      char c = line.charAt(j);
+      if (c == '/' && next(line, j) == '/') {
+        return line.length();
+      }
+      if (c == '/' && next(line, j) == '*') {
+        blockComment = true;
+        return j + 2;
+      }
+      if (c == '"' || c == '\'') {
+        return skipLiteral(line, j);
+      }
+      return count(c) ? CLOSED : j + 1;
     }
 
     private boolean count(char c) {
