@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import io.netty.handler.timeout.ReadTimeoutException;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -32,6 +33,8 @@ class CollaborationServiceApiHandlerTest {
 
   private static final String CLIENT_ID = "methodologist-backend";
   private static final String CLIENT_SECRET = "backend-secret";
+  private static final int MAX_RETRIES = 2;
+  private static final Duration RETRY_DELAY = Duration.ofMillis(1);
 
   @Mock private KeycloakApiHandler keycloakApiHandler;
 
@@ -81,32 +84,84 @@ class CollaborationServiceApiHandlerTest {
   }
 
   @Test
-  void requestReload_fetchesANewToken_afterTheCollaborationServerRejectedTheCachedOne()
+  void requestReload_retriesWithANewToken_afterTheCollaborationServerRejectedTheCachedOne()
       throws InterruptedException {
     givenTokens("revoked-token", "new-token");
     collaborationServer.enqueue(new MockResponse().setResponseCode(401));
     collaborationServer.enqueue(new MockResponse().setResponseCode(202));
 
-    assertThatThrownBy(() -> handler.requestReload(1L))
-        .isInstanceOf(WebClientResponseException.Unauthorized.class);
     handler.requestReload(1L);
 
-    collaborationServer.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(collaborationServer.takeRequest(1, TimeUnit.SECONDS).getHeader("Authorization"))
+        .isEqualTo("Bearer revoked-token");
     assertThat(collaborationServer.takeRequest(1, TimeUnit.SECONDS).getHeader("Authorization"))
         .isEqualTo("Bearer new-token");
   }
 
   @Test
-  void requestReload_keepsTheToken_whenTheCollaborationServerFailsOtherwise() {
+  void requestReload_fails_whenTheNewTokenIsRejectedToo_andFetchesAnotherOneNextTime()
+      throws InterruptedException {
+    givenTokens("revoked-token", "rejected-token", "next-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(401));
+    collaborationServer.enqueue(new MockResponse().setResponseCode(401));
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    assertThatThrownBy(() -> handler.requestReload(1L))
+        .isInstanceOf(WebClientResponseException.Unauthorized.class);
+    assertThat(collaborationServer.getRequestCount()).isEqualTo(2);
+    handler.requestReload(1L);
+
+    collaborationServer.takeRequest(1, TimeUnit.SECONDS);
+    collaborationServer.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(collaborationServer.takeRequest(1, TimeUnit.SECONDS).getHeader("Authorization"))
+        .isEqualTo("Bearer next-token");
+  }
+
+  @Test
+  void requestReload_retriesWithTheSameToken_whenTheCollaborationServerFails() {
     givenTokens("service-token");
     collaborationServer.enqueue(new MockResponse().setResponseCode(503));
     collaborationServer.enqueue(new MockResponse().setResponseCode(202));
 
-    assertThatThrownBy(() -> handler.requestReload(1L))
-        .isInstanceOf(WebClientResponseException.class);
     handler.requestReload(1L);
 
+    assertThat(collaborationServer.getRequestCount()).isEqualTo(2);
     verify(keycloakApiHandler, times(1)).getClientCredentialsTokenOrThrow(CLIENT_ID, CLIENT_SECRET);
+  }
+
+  @Test
+  void requestReload_retries_whenTheCollaborationServerAsksToWait() {
+    givenTokens("service-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(429));
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    handler.requestReload(1L);
+
+    assertThat(collaborationServer.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void requestReload_failsWithTheLastError_afterTheLastRetry() {
+    givenTokens("service-token");
+    for (int i = 0; i <= MAX_RETRIES; i++) {
+      collaborationServer.enqueue(new MockResponse().setResponseCode(503));
+    }
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    assertThatThrownBy(() -> handler.requestReload(1L))
+        .isInstanceOf(WebClientResponseException.ServiceUnavailable.class);
+    assertThat(collaborationServer.getRequestCount()).isEqualTo(1 + MAX_RETRIES);
+  }
+
+  @Test
+  void requestReload_doesNotRetry_whenTheCollaborationServerRejectsTheRequest() {
+    givenTokens("service-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(400));
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    assertThatThrownBy(() -> handler.requestReload(1L))
+        .isInstanceOf(WebClientResponseException.BadRequest.class);
+    assertThat(collaborationServer.getRequestCount()).isOne();
   }
 
   @Test
@@ -124,10 +179,33 @@ class CollaborationServiceApiHandlerTest {
   void requestReload_failsWithTheResponseTimeout_whenTheCollaborationServerDoesNotAnswer() {
     givenTokens("service-token");
     collaborationServer.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE));
+    // without retries, so the test waits for one timeout only
+    CollaborationServiceApiHandler withoutRetries =
+        new CollaborationServiceApiHandler(
+            collaborationServer.url("/").toString(),
+            CLIENT_ID,
+            CLIENT_SECRET,
+            0,
+            RETRY_DELAY,
+            keycloakApiHandler);
 
-    assertThatThrownBy(() -> handler.requestReload(1L))
+    assertThatThrownBy(() -> withoutRetries.requestReload(1L))
         .isInstanceOf(WebClientRequestException.class)
         .hasRootCauseInstanceOf(ReadTimeoutException.class);
+  }
+
+  @Test
+  void isTransient_onlyForFailuresThatMayPassWhenSentAgain() {
+    assertThat(CollaborationServiceApiHandler.isTransient(responseError(500))).isTrue();
+    assertThat(CollaborationServiceApiHandler.isTransient(responseError(502))).isTrue();
+    assertThat(CollaborationServiceApiHandler.isTransient(responseError(503))).isTrue();
+    assertThat(CollaborationServiceApiHandler.isTransient(responseError(429))).isTrue();
+    assertThat(CollaborationServiceApiHandler.isTransient(responseError(400))).isFalse();
+    assertThat(CollaborationServiceApiHandler.isTransient(responseError(401))).isFalse();
+    assertThat(CollaborationServiceApiHandler.isTransient(responseError(403))).isFalse();
+    assertThat(CollaborationServiceApiHandler.isTransient(responseError(404))).isFalse();
+    assertThat(CollaborationServiceApiHandler.isTransient(new IllegalStateException("bug")))
+        .isFalse();
   }
 
   @Test
@@ -172,7 +250,12 @@ class CollaborationServiceApiHandlerTest {
 
   private CollaborationServiceApiHandler handlerFor(
       String url, String clientId, String clientSecret) {
-    return new CollaborationServiceApiHandler(url, clientId, clientSecret, keycloakApiHandler);
+    return new CollaborationServiceApiHandler(
+        url, clientId, clientSecret, MAX_RETRIES, RETRY_DELAY, keycloakApiHandler);
+  }
+
+  private static WebClientResponseException responseError(int status) {
+    return WebClientResponseException.create(status, "error", null, null, null);
   }
 
   private void givenTokens(String first, String... more) {
