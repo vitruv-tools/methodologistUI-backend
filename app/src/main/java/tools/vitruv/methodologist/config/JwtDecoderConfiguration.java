@@ -26,14 +26,14 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 @Configuration
 public class JwtDecoderConfiguration {
 
-  private static final String CERTS_PATH = "/protocol/openid-connect/certs";
-
   /**
    * Builds the {@link JwtDecoder} used by the resource server.
    *
    * @param issuerUri the primary issuer ({@code
    *     spring.security.oauth2.resourceserver.jwt.issuer-uri})
-   * @param jwkSetUri optional JWK set URI; defaults to the certs endpoint of {@code issuerUri}
+   * @param jwkSetUri optional JWK set URI; defaults to {@code jwkSetPath} below {@code issuerUri}
+   * @param jwkSetPath path of the JWK set below the issuer, used when {@code jwkSetUri} is not set;
+   *     defaults to Keycloak's certs endpoint
    * @param additionalIssuers optional comma-separated list of further accepted issuers
    * @return a decoder validating signature, timestamps and the issuer allowlist
    */
@@ -41,9 +41,10 @@ public class JwtDecoderConfiguration {
   public JwtDecoder jwtDecoder(
       @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri,
       @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri:}") String jwkSetUri,
+      @Value("${app.security.jwk-set-path:/protocol/openid-connect/certs}") String jwkSetPath,
       @Value("${app.security.additional-issuers:}") String additionalIssuers) {
     var allowedIssuers = allowedIssuers(issuerUri, additionalIssuers);
-    var resolvedJwkSetUri = jwkSetUri.isBlank() ? issuerUri + CERTS_PATH : jwkSetUri;
+    var resolvedJwkSetUri = jwkSetUri.isBlank() ? issuerUri + jwkSetPath : jwkSetUri;
     var decoder = NimbusJwtDecoder.withJwkSetUri(resolvedJwkSetUri).build();
     decoder.setJwtValidator(
         new DelegatingOAuth2TokenValidator<>(

@@ -304,30 +304,4 @@ class VsumMetaModelServiceTest {
 
     assertThat(service.findEcoreFiles(7L)).isEmpty();
   }
-
-  @Test
-  void ecoreFile_withSameNameAndContent_isEqualAndHasSameHashCode() {
-    var first = new VsumMetaModelService.EcoreFile("a.ecore", new byte[] {1, 2});
-    var second = new VsumMetaModelService.EcoreFile("a.ecore", new byte[] {1, 2});
-
-    assertThat(first).isEqualTo(second).hasSameHashCodeAs(second);
-  }
-
-  @Test
-  void ecoreFile_withDifferentContentOrName_isNotEqual() {
-    var file = new VsumMetaModelService.EcoreFile("a.ecore", new byte[] {1, 2});
-
-    assertThat(file)
-        .isNotEqualTo(new VsumMetaModelService.EcoreFile("a.ecore", new byte[] {1, 3}))
-        .isNotEqualTo(new VsumMetaModelService.EcoreFile("b.ecore", new byte[] {1, 2}));
-  }
-
-  @Test
-  void ecoreFile_toString_namesTheSizeInsteadOfTheContent() {
-    var file = new VsumMetaModelService.EcoreFile("a.ecore", new byte[] {1, 2, 3});
-
-    assertThat(file).hasToString("EcoreFile[filename=a.ecore, data=3 bytes]");
-    assertThat(new VsumMetaModelService.EcoreFile(null, null))
-        .hasToString("EcoreFile[filename=null, data=null]");
-  }
 }

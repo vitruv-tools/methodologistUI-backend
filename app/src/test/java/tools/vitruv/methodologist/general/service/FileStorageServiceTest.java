@@ -261,9 +261,10 @@ class FileStorageServiceTest {
     when(fileStorageRepository.findByIdAndType(1L, FileEnumType.REACTION))
         .thenReturn(Optional.of(existing));
 
+    byte[] data = "x".getBytes();
     assertThrows(
         OwnerRequiredException.class,
-        () -> fileStorageService.updateFile(email, 1L, "x".getBytes(), "r.reactions", null));
+        () -> fileStorageService.updateFile(email, 1L, data, "r.reactions", null));
     verify(applicationEventPublisher, never()).publishEvent(any(Object.class));
   }
 
@@ -625,8 +626,7 @@ class FileStorageServiceTest {
   }
 
   @Test
-  void updateFile_neoJoinWithoutNjExtension_throwsBadRequestException_andKeepsTheFile()
-      throws Exception {
+  void updateFile_neoJoinWithoutNjExtension_throwsBadRequestException_andKeepsTheFile() {
     String email = "test@example.com";
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.of(testUser));

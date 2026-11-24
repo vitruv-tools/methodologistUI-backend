@@ -181,12 +181,11 @@ public class VsumMetaModelService {
    */
   public record EcoreFile(String filename, byte[] data) {
 
-    /** Compares the file content, not the array reference. */
     @Override
     public boolean equals(Object other) {
-      return other instanceof EcoreFile that
-          && Objects.equals(filename, that.filename)
-          && Arrays.equals(data, that.data);
+      return other instanceof EcoreFile(String otherFilename, byte[] otherData)
+          && Objects.equals(filename, otherFilename)
+          && Arrays.equals(data, otherData);
     }
 
     @Override
@@ -194,14 +193,9 @@ public class VsumMetaModelService {
       return 31 * Objects.hashCode(filename) + Arrays.hashCode(data);
     }
 
-    /** Names only the size of the content, which can be large. */
     @Override
     public String toString() {
-      return "EcoreFile[filename="
-          + filename
-          + ", data="
-          + (data == null ? "null" : data.length + " bytes")
-          + "]";
+      return "EcoreFile[filename=" + filename + ", data=" + Arrays.toString(data) + "]";
     }
   }
 

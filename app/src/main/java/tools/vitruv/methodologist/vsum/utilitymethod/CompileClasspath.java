@@ -5,12 +5,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.FileAttribute;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -25,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
+import tools.vitruv.methodologist.general.PrivateTempDirectories;
 import tools.vitruv.methodologist.general.model.FileStorage;
 
 /**
@@ -162,14 +160,7 @@ public class CompileClasspath {
   private Path workDir() {
     if (workDir == null) {
       try {
-        // Owner only on POSIX; Windows applies its own per-user default permissions.
-        FileAttribute<?>[] ownerOnly =
-            FileSystems.getDefault().supportedFileAttributeViews().contains("posix")
-                ? new FileAttribute<?>[] {
-                  PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"))
-                }
-                : new FileAttribute<?>[0];
-        workDir = Files.createTempDirectory("utility-methods-", ownerOnly);
+        workDir = PrivateTempDirectories.create("utility-methods-");
       } catch (IOException e) {
         throw new UncheckedIOException("No temporary directory for compiling utility methods", e);
       }

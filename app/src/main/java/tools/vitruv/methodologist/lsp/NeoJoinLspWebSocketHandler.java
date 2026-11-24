@@ -14,12 +14,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.FileAttribute;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -39,6 +36,7 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.adapter.NativeWebSocketSession;
 import tools.vitruv.methodologist.exception.LspProcessException;
+import tools.vitruv.methodologist.general.PrivateTempDirectories;
 import tools.vitruv.methodologist.vsum.service.VsumMetaModelService;
 import tools.vitruv.methodologist.vsum.service.VsumMetaModelService.EcoreFile;
 
@@ -259,14 +257,7 @@ public class NeoJoinLspWebSocketHandler
   }
 
   private static Path createSessionDirectory() throws IOException {
-    // Owner only on POSIX; Windows applies its own per-user default permissions.
-    FileAttribute<?>[] ownerOnly =
-        FileSystems.getDefault().supportedFileAttributeViews().contains("posix")
-            ? new FileAttribute<?>[] {
-              PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"))
-            }
-            : new FileAttribute<?>[0];
-    return Files.createTempDirectory("neojoin-lsp-", ownerOnly);
+    return PrivateTempDirectories.create("neojoin-lsp-");
   }
 
   /**
@@ -331,9 +322,13 @@ public class NeoJoinLspWebSocketHandler
       }
       throw new EOFException("Incomplete LSP header");
     }
+    return parseContentLength(header.toString(StandardCharsets.US_ASCII));
+  }
 
+  /** Reads and checks the Content-Length of a complete LSP header. */
+  private static int parseContentLength(String header) throws IOException {
     int contentLength = -1;
-    for (String line : header.toString(StandardCharsets.US_ASCII).split("\r\n")) {
+    for (String line : header.split("\r\n")) {
       if (line.regionMatches(true, 0, CONTENT_LENGTH, 0, CONTENT_LENGTH.length())) {
         if (contentLength != -1) {
           throw new IOException("Duplicate Content-Length");
