@@ -86,7 +86,8 @@ public interface FileStorageRepository extends CrudRepository<FileStorage, Long>
   /**
    * Checks whether the active user with the given email may read a file: either they uploaded it,
    * or they are a member of a non-removed VSUM that references it as a metamodel Ecore or GenModel
-   * file, a reaction file, an OCL file, a view file, or a build artifact.
+   * file, a reaction file, an OCL file, a view file, a build artifact, or a copy that the content
+   * of one of its published versions refers to.
    *
    * @param fileId the identifier of the file storage entry
    * @param callerEmail the email of the requesting user
@@ -123,7 +124,10 @@ public interface FileStorageRepository extends CrudRepository<FileStorage, Long>
                   where v.vsum = vu.vsum and v.fileStorage = f)
                 or exists (
                   select 1 from VsumBuild b
-                  where b.vsum = vu.vsum and b.artifact = f))))
+                  where b.vsum = vu.vsum and b.artifact = f)
+                or exists (
+                  select 1 from VsumVersion ver join ver.contentFiles cf
+                  where ver.vsum = vu.vsum and cf = f))))
       """)
   boolean isReadableBy(@Param("fileId") Long fileId, @Param("callerEmail") String callerEmail);
 

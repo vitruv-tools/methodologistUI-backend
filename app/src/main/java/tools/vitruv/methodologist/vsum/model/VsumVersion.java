@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.model;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,7 +17,10 @@ import jakarta.persistence.OrderColumn;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -111,14 +115,42 @@ public class VsumVersion {
   @OrderColumn(name = "file_order")
   private List<FileStorage> views = new ArrayList<>();
 
+  /**
+   * What the canvas showed at publish time ({@link VsumVersionContent} as JSON), with the file ids
+   * of {@link #contentFiles}; {@code null} for versions published before it was stored. Kept as a
+   * plain JSON tree, so a later change of the response classes it was written from cannot keep a
+   * version from loading; it is written once and never updated.
+   */
+  @Type(JsonType.class)
+  @Column(columnDefinition = "jsonb", updatable = false)
+  private JsonNode content;
+
+  /**
+   * The copies {@link #content} refers to. A copy of a file that is also a build input is the same
+   * copy as in the input lists.
+   */
+  @Builder.Default
+  @ManyToMany(fetch = FetchType.LAZY)
+  @JoinTable(
+      name = "vsum_version_content_file",
+      joinColumns = @JoinColumn(name = "version_id"),
+      inverseJoinColumns = @JoinColumn(name = "file_storage_id"))
+  @OrderColumn(name = "file_order")
+  private List<FileStorage> contentFiles = new ArrayList<>();
+
   @CreationTimestamp private Instant createdAt;
 
   /**
-   * Returns every copied input file of this version.
+   * Returns every copied file of this version, each once.
    *
-   * @return the ecore, reaction, constraint and view copies
+   * @return the ecore, reaction, constraint, view and content copies
    */
   public List<FileStorage> allFiles() {
-    return Stream.of(ecores, reactions, constraints, views).flatMap(List::stream).toList();
+    // By instance: a copy shared by the build inputs and the content is the same object.
+    Set<FileStorage> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+    return Stream.of(ecores, reactions, constraints, views, contentFiles)
+        .flatMap(List::stream)
+        .filter(seen::add)
+        .toList();
   }
 }
