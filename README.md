@@ -109,11 +109,18 @@ collaboration server writes back through the internal endpoints send no notifica
 | `collaboration.url`              | Base URL of the collaboration server. Empty or unset disables the feature. |
 | `keycloak.backend.client-id`     | Keycloak client of the backend's service account (`methodologist-backend`). |
 | `keycloak.backend.client-secret` | Secret of that client.                                                     |
+| `collaboration.reload.max-retries` | How often a failed notification is sent again (default `5`; `0` sends it once). |
+| `collaboration.reload.first-retry-delay` | Delay before the first retry (default `1s`); it doubles with every failure, up to 10 s. |
 
 - **Disabled by default.** Without `collaboration.url`, or without the client ID or secret, no notification is sent
   and the backend works as before; the reason is logged once at startup.
-- **Best effort.** A failing or unreachable collaboration server or Keycloak is only logged; the user's request still
-  succeeds. A failed notification is not retried.
+- **Retried.** A notification the collaboration server couldn't take (not reachable, no answer within 3 s, `5xx` or
+  `429`) is sent again with a growing delay, so the collaboration server's next writeback doesn't undo the change. If
+  the collaboration server rejects the token (`401`), a new token is fetched and the notification is sent once more.
+  Other answers (e.g. `400`) are not retried. Retries run on the notification thread, so later notifications wait
+  for them.
+- **Best effort.** A notification that still fails, or a failing Keycloak, is only logged; the user's request still
+  succeeds.
 - **Keycloak.** `docker/keycloak/realm-template.json` contains the confidential client `methodologist-backend`
   (client credentials grant) and the realm role `methodologist-backend` assigned to its service account, so a fresh
   local Keycloak needs no manual setup. The collaboration server requires that role on its internal endpoints.
