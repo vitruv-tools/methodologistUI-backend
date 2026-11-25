@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.controller.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,9 +21,21 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 public class MetaModelPutRequest {
-  @NotNull @NotBlank private String name;
-  @NotNull @NotBlank private String description;
-  @NotNull @NotBlank private String domain;
+  @NotNull
+  @NotBlank
+  @Size(max = 255)
+  private String name;
+
+  @NotNull
+  @NotBlank
+  @Size(max = 255)
+  private String description;
+
+  @NotNull
+  @NotBlank
+  @Size(max = 255)
+  private String domain;
+
   @NotNull private List<String> keyword;
   @NotNull private Long ecoreFileId;
 }
