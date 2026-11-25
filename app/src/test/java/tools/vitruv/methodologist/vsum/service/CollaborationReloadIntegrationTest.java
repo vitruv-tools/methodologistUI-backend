@@ -83,12 +83,15 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
       "vsum.history.limit=10",
       "methodologist.keycloak.client-id=methodologist",
       "keycloak.backend.client-id=" + CollaborationReloadIntegrationTest.CLIENT_ID,
-      "keycloak.backend.client-secret=" + CollaborationReloadIntegrationTest.CLIENT_SECRET
+      "keycloak.backend.client-secret=" + CollaborationReloadIntegrationTest.CLIENT_SECRET,
+      "collaboration.reload.max-retries=" + CollaborationReloadIntegrationTest.MAX_RETRIES,
+      "collaboration.reload.first-retry-delay=1ms"
     })
 class CollaborationReloadIntegrationTest {
 
   static final String CLIENT_ID = "methodologist-backend";
   static final String CLIENT_SECRET = "backend-secret";
+  static final int MAX_RETRIES = 2;
   private static final String SERVICE_TOKEN = "service-token";
   private static final String CALLER_EMAIL = "editor@example.com";
   private static final Long VSUM_ID = 5L;
@@ -294,7 +297,8 @@ class CollaborationReloadIntegrationTest {
   }
 
   @Test
-  void syncChanges_succeeds_whenTheCollaborationServerFails() throws InterruptedException {
+  void syncChanges_succeeds_whenTheCollaborationServerFails_afterRetryingTheReload()
+      throws InterruptedException {
     givenMember(VsumRole.MEMBER);
     COLLABORATION_STATUS.set(503);
 
@@ -303,7 +307,10 @@ class CollaborationReloadIntegrationTest {
 
     assertThat(notifications.scheduled()).isOne();
     assertThatCode(notifications::runAll).doesNotThrowAnyException();
-    assertThat(COLLABORATION_SERVER.takeRequest(0, TimeUnit.MILLISECONDS)).isNotNull();
+    for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      assertThat(COLLABORATION_SERVER.takeRequest(0, TimeUnit.MILLISECONDS)).isNotNull();
+    }
+    assertThat(COLLABORATION_SERVER.takeRequest(0, TimeUnit.MILLISECONDS)).isNull();
   }
 
   /** Runs the scheduled notifications and checks that exactly one reload request was sent. */
