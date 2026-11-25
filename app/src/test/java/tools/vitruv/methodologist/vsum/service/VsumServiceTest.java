@@ -37,6 +37,7 @@ import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.SetupServiceException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.general.event.VsumChangedByUserEvent;
+import tools.vitruv.methodologist.general.event.VsumRemovedEvent;
 import tools.vitruv.methodologist.general.model.FileStorage;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
@@ -343,7 +344,7 @@ class VsumServiceTest {
   }
 
   @Test
-  void remove_setsRemovedAtAndSaves_whenOwned() {
+  void remove_setsRemovedAtSavesAndPublishesTheRemoval_whenOwned() {
     String email = "u@ex.com";
     Vsum entity = new Vsum();
     entity.setId(3L);
@@ -357,6 +358,8 @@ class VsumServiceTest {
     assertThat(result.getRemovedAt()).isNotNull();
     assertThat(result.getRemovedAt()).isBeforeOrEqualTo(Instant.now());
     verify(vsumRepository).save(entity);
+    verify(applicationEventPublisher).publishEvent(new VsumRemovedEvent(3L));
+    verifyNoMoreInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -368,6 +371,7 @@ class VsumServiceTest {
     assertThatThrownBy(() -> service.remove(email, 3L))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -710,7 +714,7 @@ class VsumServiceTest {
   }
 
   @Test
-  void deletePermanently_deletesTheProjectData_whenOwnedAndInTrash() {
+  void deletePermanently_deletesTheProjectDataAndPublishesTheRemoval_whenOwnedAndInTrash() {
     Vsum entity = new Vsum();
     entity.setId(42L);
     entity.setRemovedAt(Instant.now());
@@ -722,6 +726,8 @@ class VsumServiceTest {
     service.deletePermanently(email, 42L);
 
     verify(vsumCleanupService).deleteProjectData(entity);
+    verify(applicationEventPublisher).publishEvent(new VsumRemovedEvent(42L));
+    verifyNoMoreInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -735,7 +741,7 @@ class VsumServiceTest {
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
 
-    verifyNoInteractions(vsumCleanupService);
+    verifyNoInteractions(vsumCleanupService, applicationEventPublisher);
   }
 
   @Test

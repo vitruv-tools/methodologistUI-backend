@@ -29,6 +29,7 @@ import reactor.util.retry.Retry;
 @Component
 public class CollaborationServiceApiHandler {
   public static final String RELOAD_URL = "/internal/projects/{id}/reload";
+  public static final String CLOSE_URL = "/internal/projects/{id}/close";
   public static final int CONNECT_TIMEOUT_IN_MILLIS = 2_000;
   public static final int RESPONSE_TIMEOUT_IN_SECONDS = 3;
 
@@ -47,7 +48,7 @@ public class CollaborationServiceApiHandler {
    * @param baseUrl the base URL of the collaboration server; blank disables the integration
    * @param clientId the Keycloak client ID of the backend's service account
    * @param clientSecret the Keycloak client secret of the backend's service account
-   * @param maxRetries how often a reload request is sent again after a transient failure; {@code 0}
+   * @param maxRetries how often a notification is sent again after a transient failure; {@code 0}
    *     sends it only once
    * @param firstRetryDelay the delay before the first retry; it doubles with every further failure,
    *     up to {@link #MAX_RETRY_DELAY}
@@ -110,28 +111,49 @@ public class CollaborationServiceApiHandler {
    * @throws RuntimeException if no access token can be fetched from Keycloak
    */
   public void requestReload(Long vsumId) {
+    send(RELOAD_URL, vsumId);
+  }
+
+  /**
+   * Tells the collaboration server that the given VSUM was moved to the trash or deleted, so it
+   * drops the project's shared document without writing it back and disconnects the users who still
+   * have it open. Does nothing if the integration is disabled.
+   *
+   * <p>Failures are retried like those of {@link #requestReload(Long)}. Blocks until the
+   * collaboration server accepted the request or all attempts failed.
+   *
+   * @param vsumId the id of the removed VSUM
+   * @throws org.springframework.web.reactive.function.client.WebClientException if the
+   *     collaboration server cannot be reached or answers with an error, also after the retries
+   * @throws RuntimeException if no access token can be fetched from Keycloak
+   */
+  public void requestClose(Long vsumId) {
+    send(CLOSE_URL, vsumId);
+  }
+
+  private void send(String uri, Long vsumId) {
     if (!enabled) {
       return;
     }
     try {
-      postReload(vsumId);
+      post(uri, vsumId);
     } catch (WebClientResponseException.Unauthorized e) {
       // The token was revoked or the collaboration server's clock is ahead: try once more with a
       // new token instead of losing the notification.
-      postReload(vsumId);
+      post(uri, vsumId);
     }
   }
 
   /**
-   * Sends the reload request with the cached token, retrying transient failures. Discards the token
-   * if the collaboration server rejects it, so the next call fetches a new one.
+   * Sends a notification with the cached token, retrying transient failures. Discards the token if
+   * the collaboration server rejects it, so the next call fetches a new one.
    */
-  private void postReload(Long vsumId) {
+  private void post(String uri, Long vsumId) {
     String accessToken = tokenCache.getAccessToken();
     try {
       webClient
           .post()
-          .uri(RELOAD_URL, vsumId)
+          .uri(uri, vsumId)
           .headers(headers -> headers.setBearerAuth(accessToken))
           .retrieve()
           .toBodilessEntity()
@@ -144,11 +166,11 @@ public class CollaborationServiceApiHandler {
   }
 
   /**
-   * Tells whether a failed reload request may succeed when it is sent again: the collaboration
-   * server could not be reached or did not answer in time, failed, or asked to wait. Other answers,
-   * e.g. {@code 400} for an invalid project id, would come again.
+   * Tells whether a failed notification may succeed when it is sent again: the collaboration server
+   * could not be reached or did not answer in time, failed, or asked to wait. Other answers, e.g.
+   * {@code 400} for an invalid project id, would come again.
    *
-   * @param error the failure of a reload request
+   * @param error the failure of a notification
    * @return {@code true} if the request is retried
    */
   static boolean isTransient(Throwable error) {

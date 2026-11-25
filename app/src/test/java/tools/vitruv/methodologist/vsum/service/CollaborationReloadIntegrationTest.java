@@ -4,11 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -313,15 +315,62 @@ class CollaborationReloadIntegrationTest {
     assertThat(COLLABORATION_SERVER.takeRequest(0, TimeUnit.MILLISECONDS)).isNull();
   }
 
+  @Test
+  void remove_sendsOneClose_onlyAfterTheCommit() throws InterruptedException {
+    givenOwnedVsum();
+
+    transaction.executeWithoutResult(
+        status -> {
+          vsumService.remove(CALLER_EMAIL, VSUM_ID);
+          assertThat(notifications.scheduled()).isZero();
+        });
+
+    assertOneNotificationSent("close");
+  }
+
+  @Test
+  void remove_sendsNoClose_whenTheTransactionRollsBack() throws InterruptedException {
+    givenOwnedVsum();
+
+    transaction.executeWithoutResult(
+        status -> {
+          vsumService.remove(CALLER_EMAIL, VSUM_ID);
+          status.setRollbackOnly();
+        });
+
+    assertNoReloadSent();
+  }
+
+  @Test
+  void deletePermanently_sendsOneClose_afterDeletingTheProjectData() throws InterruptedException {
+    vsum.setRemovedAt(Instant.now());
+    when(vsumRepository.findByIdAndUser_EmailAndUser_RemovedAtIsNullAndRemovedAtIsNotNull(
+            VSUM_ID, CALLER_EMAIL))
+        .thenReturn(Optional.of(vsum));
+
+    vsumService.deletePermanently(CALLER_EMAIL, VSUM_ID);
+
+    verify(vsumCleanupService).deleteProjectData(vsum);
+    assertOneNotificationSent("close");
+  }
+
   /** Runs the scheduled notifications and checks that exactly one reload request was sent. */
   private void assertOneReloadSent() throws InterruptedException {
+    assertOneNotificationSent("reload");
+  }
+
+  /**
+   * Runs the scheduled notifications and checks that exactly one notification of the given kind
+   * ({@code reload} or {@code close}) was sent.
+   */
+  private void assertOneNotificationSent(String kind) throws InterruptedException {
     assertThat(notifications.scheduled()).isOne();
     notifications.runAll();
 
     RecordedRequest request = COLLABORATION_SERVER.takeRequest(0, TimeUnit.MILLISECONDS);
     assertThat(request).isNotNull();
     assertThat(request.getMethod()).isEqualTo("POST");
-    assertThat(request.getPath()).isEqualTo("/internal/projects/" + VSUM_ID + "/reload");
+    assertThat(request.getPath()).isEqualTo("/internal/projects/" + VSUM_ID + "/" + kind);
     assertThat(request.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + SERVICE_TOKEN);
     assertThat(COLLABORATION_SERVER.takeRequest(0, TimeUnit.MILLISECONDS)).isNull();
   }
@@ -329,6 +378,12 @@ class CollaborationReloadIntegrationTest {
   private void assertNoReloadSent() throws InterruptedException {
     assertThat(notifications.scheduled()).isZero();
     assertThat(COLLABORATION_SERVER.takeRequest(0, TimeUnit.MILLISECONDS)).isNull();
+  }
+
+  private void givenOwnedVsum() {
+    when(vsumRepository.findByIdAndUser_emailAndRemovedAtIsNull(VSUM_ID, CALLER_EMAIL))
+        .thenReturn(Optional.of(vsum));
+    when(vsumRepository.save(vsum)).thenReturn(vsum);
   }
 
   private void givenMember(VsumRole role) {

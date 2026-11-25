@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.service;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -10,14 +11,17 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import tools.vitruv.methodologist.apihandler.CollaborationServiceApiHandler;
 import tools.vitruv.methodologist.config.CollaborationReloadConfig;
 import tools.vitruv.methodologist.general.event.VsumChangedByUserEvent;
+import tools.vitruv.methodologist.general.event.VsumRemovedEvent;
 
 /**
  * Tells the collaboration server to reload a VSUM after a user's change to it has been committed,
- * so the collaboration server's next writeback does not undo the change.
+ * so the collaboration server's next writeback does not undo the change, and to close a VSUM after
+ * it was moved to the trash or deleted, so its users stop editing it.
  *
- * <p>The notification is sent in the background, so the user's request does not wait for it, and it
- * is sent at most once per committed change; a rolled-back change sends none. A failing or
- * unreachable collaboration server is only logged and never affects the user's request.
+ * <p>The notifications are sent in the background, so the user's request does not wait for them,
+ * and in the order of the commits. Each is sent at most once per committed change; a rolled-back
+ * change sends none. A failing or unreachable collaboration server is only logged and never affects
+ * the user's request.
  */
 @Component
 @Slf4j
@@ -29,8 +33,8 @@ public class CollaborationReloadListener {
   /**
    * Creates the listener.
    *
-   * @param collaborationServiceApiHandler sends the reload requests to the collaboration server
-   * @param executor runs the reload requests in the background, see {@link
+   * @param collaborationServiceApiHandler sends the notifications to the collaboration server
+   * @param executor runs the notifications in the background, see {@link
    *     CollaborationReloadConfig#collaborationReloadExecutor()}
    */
   public CollaborationReloadListener(
@@ -48,15 +52,32 @@ public class CollaborationReloadListener {
    */
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
   public void onVsumChangedByUser(VsumChangedByUserEvent event) {
+    schedule("Reload", event.vsumId(), this::requestReload);
+  }
+
+  /**
+   * Schedules the close request for the removed VSUM. Runs only after the removal has been
+   * committed; does nothing if the collaboration integration is disabled.
+   *
+   * @param event the committed removal of a VSUM
+   */
+  @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+  public void onVsumRemoved(VsumRemovedEvent event) {
+    schedule("Close", event.vsumId(), this::requestClose);
+  }
+
+  private void schedule(String notification, Long vsumId, Consumer<Long> send) {
     if (!collaborationServiceApiHandler.isEnabled()) {
       return;
     }
-    Long vsumId = event.vsumId();
     try {
-      executor.execute(() -> requestReload(vsumId));
+      executor.execute(() -> send.accept(vsumId));
     } catch (RejectedExecutionException e) {
       // the queue is full because the collaboration server hangs, or the application shuts down
-      log.warn("Reload of VSUM {} not sent to the collaboration server: not scheduled", vsumId);
+      log.warn(
+          "{} of VSUM {} not sent to the collaboration server: not scheduled",
+          notification,
+          vsumId);
     }
   }
 
@@ -66,6 +87,15 @@ public class CollaborationReloadListener {
       log.debug("Collaboration server asked to reload VSUM {}", vsumId);
     } catch (RuntimeException e) {
       log.warn("Collaboration server could not be asked to reload VSUM {}", vsumId, e);
+    }
+  }
+
+  void requestClose(Long vsumId) {
+    try {
+      collaborationServiceApiHandler.requestClose(vsumId);
+      log.debug("Collaboration server asked to close VSUM {}", vsumId);
+    } catch (RuntimeException e) {
+      log.warn("Collaboration server could not be asked to close VSUM {}", vsumId, e);
     }
   }
 }
