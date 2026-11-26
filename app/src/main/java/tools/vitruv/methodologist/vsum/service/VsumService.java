@@ -25,6 +25,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.general.event.VsumChangedByUserEvent;
+import tools.vitruv.methodologist.general.event.VsumRemovedEvent;
 import tools.vitruv.methodologist.log.AuditLog;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
@@ -311,7 +312,8 @@ public class VsumService {
   }
 
   /**
-   * Marks a VSUM as removed by setting its removal timestamp.
+   * Marks a VSUM as removed by setting its removal timestamp. Publishes a {@link VsumRemovedEvent},
+   * so the collaboration server disconnects the users who still have the VSUM open.
    *
    * @param id the ID of the VSUM to remove
    * @return the removed Vsum entity
@@ -326,6 +328,7 @@ public class VsumService {
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
     vsum.setRemovedAt(Instant.now());
     vsumRepository.save(vsum);
+    applicationEventPublisher.publishEvent(new VsumRemovedEvent(id));
     AuditLog.afterCommit(() -> log.info("VSUM {} moved to the trash", id));
     return vsum;
   }
@@ -518,7 +521,8 @@ public class VsumService {
    * <p>Runs the same cleanup as {@link VsumCleanupService#delete()}: the project's user
    * relationships, history, meta-model copies, relations and builds are removed. Meta models of the
    * model library that were used only by this project can be deleted afterwards. The operation
-   * cannot be undone.
+   * cannot be undone. Publishes a {@link VsumRemovedEvent}, in case the collaboration server still
+   * has the project open, e.g. because the notification of the move to the trash failed.
    *
    * @param callerEmail the email of the authenticated user; must own the VSUM
    * @param id the identifier of the VSUM to delete permanently
@@ -533,6 +537,7 @@ public class VsumService {
             .orElseThrow(() -> new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
 
     vsumCleanupService.deleteProjectData(vsum);
+    applicationEventPublisher.publishEvent(new VsumRemovedEvent(id));
   }
 
   /**

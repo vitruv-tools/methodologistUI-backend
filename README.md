@@ -104,6 +104,14 @@ change. The request is `POST {collaboration.url}/internal/projects/{id}/reload`,
 change is committed, authenticated with a token of the backend's own Keycloak service account. Changes the
 collaboration server writes back through the internal endpoints send no notification.
 
+After the owner moves a project to the trash or deletes it permanently, the backend sends
+`POST {collaboration.url}/internal/projects/{id}/close` the same way. The collaboration server then drops the
+project's shared document without writing it back and disconnects the users who still have it open, instead of
+letting them keep editing a project whose writebacks fail with `404`. Projects deleted by the 30-day trash cleanup
+send no notification; they were closed when they were moved to the trash. The collaboration server drops a project's
+document only after the backend's internal details endpoint answers `404` for it, so a close that arrives late, e.g.
+after the project was restored, does no harm.
+
 | Property                         | Meaning                                                                    |
 |----------------------------------|----------------------------------------------------------------------------|
 | `collaboration.url`              | Base URL of the collaboration server. Empty or unset disables the feature. |
@@ -115,10 +123,11 @@ collaboration server writes back through the internal endpoints send no notifica
 - **Disabled by default.** Without `collaboration.url`, or without the client ID or secret, no notification is sent
   and the backend works as before; the reason is logged once at startup.
 - **Retried.** A notification the collaboration server couldn't take (not reachable, no answer within 3 s, `5xx` or
-  `429`) is sent again with a growing delay, so the collaboration server's next writeback doesn't undo the change. If
-  the collaboration server rejects the token (`401`), a new token is fetched and the notification is sent once more.
-  Other answers (e.g. `400`) are not retried. Retries run on the notification thread, so later notifications wait
-  for them.
+  `429`) is sent again with a growing delay, so the collaboration server's next writeback doesn't undo the change and
+  a removed project doesn't stay open. If the collaboration server rejects the token (`401`), a new token is fetched
+  and the notification is sent once more. Other answers (e.g. `400`) are not retried. Reload and close notifications
+  share one thread, its queue and the retry settings; retries run on that thread, so later notifications wait for
+  them.
 - **Best effort.** A notification that still fails, or a failing Keycloak, is only logged; the user's request still
   succeeds.
 - **Keycloak.** `docker/keycloak/realm-template.json` contains the confidential client `methodologist-backend`

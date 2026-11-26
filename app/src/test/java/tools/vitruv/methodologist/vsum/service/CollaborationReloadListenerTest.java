@@ -15,12 +15,15 @@ import java.util.concurrent.Executor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import tools.vitruv.methodologist.apihandler.CollaborationServiceApiHandler;
 import tools.vitruv.methodologist.general.event.VsumChangedByUserEvent;
+import tools.vitruv.methodologist.general.event.VsumRemovedEvent;
 
 @ExtendWith(MockitoExtension.class)
 class CollaborationReloadListenerTest {
@@ -107,6 +110,67 @@ class CollaborationReloadListenerTest {
         .requestReload(VSUM_ID);
 
     assertThatCode(() -> listener.requestReload(VSUM_ID)).doesNotThrowAnyException();
+  }
+
+  @Test
+  void onVsumRemoved_schedulesTheClose_insteadOfSendingItOnTheCallersThread() {
+    when(collaborationServiceApiHandler.isEnabled()).thenReturn(true);
+
+    listener.onVsumRemoved(new VsumRemovedEvent(VSUM_ID));
+
+    assertThat(scheduled).hasSize(1);
+    verify(collaborationServiceApiHandler, never()).requestClose(anyLong());
+
+    runScheduled();
+
+    verify(collaborationServiceApiHandler, times(1)).requestClose(VSUM_ID);
+    verify(collaborationServiceApiHandler, never()).requestReload(anyLong());
+  }
+
+  @Test
+  void onVsumRemoved_schedulesNothing_whenTheIntegrationIsDisabled() {
+    when(collaborationServiceApiHandler.isEnabled()).thenReturn(false);
+
+    listener.onVsumRemoved(new VsumRemovedEvent(VSUM_ID));
+
+    assertThat(scheduled).isEmpty();
+  }
+
+  @Test
+  void notifications_areSentInTheOrderOfTheEvents() {
+    when(collaborationServiceApiHandler.isEnabled()).thenReturn(true);
+
+    listener.onVsumChangedByUser(new VsumChangedByUserEvent(VSUM_ID));
+    listener.onVsumRemoved(new VsumRemovedEvent(VSUM_ID));
+    runScheduled();
+
+    InOrder inOrder = Mockito.inOrder(collaborationServiceApiHandler);
+    inOrder.verify(collaborationServiceApiHandler).requestReload(VSUM_ID);
+    inOrder.verify(collaborationServiceApiHandler).requestClose(VSUM_ID);
+  }
+
+  @Test
+  void onVsumRemoved_dropsTheNotificationWithoutThrowing_whenTheExecutorRejectsIt() {
+    when(collaborationServiceApiHandler.isEnabled()).thenReturn(true);
+    Executor rejecting =
+        task -> {
+          throw new TaskRejectedException("queue full or shut down");
+        };
+    CollaborationReloadListener rejectingListener =
+        new CollaborationReloadListener(collaborationServiceApiHandler, rejecting);
+
+    assertThatCode(() -> rejectingListener.onVsumRemoved(new VsumRemovedEvent(VSUM_ID)))
+        .doesNotThrowAnyException();
+    verify(collaborationServiceApiHandler, never()).requestClose(anyLong());
+  }
+
+  @Test
+  void requestClose_swallowsFailuresOfTheCollaborationServer() {
+    doThrow(WebClientResponseException.create(503, "Service Unavailable", null, null, null))
+        .when(collaborationServiceApiHandler)
+        .requestClose(VSUM_ID);
+
+    assertThatCode(() -> listener.requestClose(VSUM_ID)).doesNotThrowAnyException();
   }
 
   private void runScheduled() {

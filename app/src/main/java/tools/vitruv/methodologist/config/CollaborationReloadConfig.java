@@ -4,7 +4,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-/** Provides the executor that sends the reload notifications to the collaboration server. */
+/**
+ * Provides the executor that sends the reload and close notifications to the collaboration server.
+ */
 @Configuration
 public class CollaborationReloadConfig {
 

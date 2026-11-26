@@ -195,6 +195,57 @@ class CollaborationServiceApiHandlerTest {
   }
 
   @Test
+  void requestClose_postsToTheCloseEndpoint_withTheServiceAccountToken()
+      throws InterruptedException {
+    givenTokens("service-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    handler.requestClose(42L);
+
+    RecordedRequest request = collaborationServer.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(request).isNotNull();
+    assertThat(request.getMethod()).isEqualTo("POST");
+    assertThat(request.getPath()).isEqualTo("/internal/projects/42/close");
+    assertThat(request.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer service-token");
+  }
+
+  @Test
+  void requestClose_retries_whenTheCollaborationServerFails() {
+    givenTokens("service-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(503));
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    handler.requestClose(1L);
+
+    assertThat(collaborationServer.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void requestClose_retriesWithANewToken_afterTheCollaborationServerRejectedTheCachedOne()
+      throws InterruptedException {
+    givenTokens("revoked-token", "new-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(401));
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    handler.requestClose(1L);
+
+    collaborationServer.takeRequest(1, TimeUnit.SECONDS);
+    RecordedRequest retried = collaborationServer.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(retried.getPath()).isEqualTo("/internal/projects/1/close");
+    assertThat(retried.getHeader("Authorization")).isEqualTo("Bearer new-token");
+  }
+
+  @Test
+  void requestClose_doesNotRetry_whenTheCollaborationServerRejectsTheRequest() {
+    givenTokens("service-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(400));
+
+    assertThatThrownBy(() -> handler.requestClose(1L))
+        .isInstanceOf(WebClientResponseException.BadRequest.class);
+    assertThat(collaborationServer.getRequestCount()).isOne();
+  }
+
+  @Test
   void isTransient_onlyForFailuresThatMayPassWhenSentAgain() {
     assertThat(CollaborationServiceApiHandler.isTransient(responseError(500))).isTrue();
     assertThat(CollaborationServiceApiHandler.isTransient(responseError(502))).isTrue();
@@ -223,6 +274,7 @@ class CollaborationServiceApiHandlerTest {
     CollaborationServiceApiHandler unconfigured = handlerFor("", CLIENT_ID, CLIENT_SECRET);
 
     unconfigured.requestReload(1L);
+    unconfigured.requestClose(1L);
 
     assertThat(unconfigured.isEnabled()).isFalse();
     verifyNoInteractions(keycloakApiHandler);
@@ -236,6 +288,8 @@ class CollaborationServiceApiHandlerTest {
 
     withoutSecret.requestReload(1L);
     withoutClientId.requestReload(1L);
+    withoutSecret.requestClose(1L);
+    withoutClientId.requestClose(1L);
 
     assertThat(withoutSecret.isEnabled()).isFalse();
     assertThat(withoutClientId.isEnabled()).isFalse();
