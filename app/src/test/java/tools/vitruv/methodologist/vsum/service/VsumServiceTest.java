@@ -22,6 +22,7 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -965,7 +966,7 @@ class VsumServiceTest {
   }
 
   @Test
-  void updateForService_syncsAsTheOwner_withoutHistory() {
+  void updateForService_syncsAsTheOwner_andPassesTheWritebackSnapshotAsBeforeChange() {
     User owner = new User();
     owner.setEmail("owner@ex.com");
     Vsum vsum = new Vsum();
@@ -973,11 +974,17 @@ class VsumServiceTest {
     vsum.setUser(owner);
     when(vsumRepository.findByIdAndRemovedAtIsNull(1L)).thenReturn(Optional.of(vsum));
     VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
-    when(vsumSyncService.applySyncChanges(vsum, owner, put, false)).thenReturn(vsum);
+    ArgumentCaptor<Runnable> beforeChange = ArgumentCaptor.forClass(Runnable.class);
+    when(vsumSyncService.applySyncChanges(eq(vsum), eq(owner), eq(put), beforeChange.capture()))
+        .thenReturn(vsum);
 
     Vsum result = service.updateForService(1L, put);
 
     assertThat(result).isSameAs(vsum);
+    verifyNoInteractions(vsumHistoryService);
+    beforeChange.getValue().run();
+    verify(vsumHistoryService).createBeforeCollaborationWriteback(vsum);
+    verifyNoMoreInteractions(vsumHistoryService);
     verifyNoInteractions(vsumUserRepository);
     verifyNoInteractions(applicationEventPublisher);
   }
@@ -990,6 +997,7 @@ class VsumServiceTest {
     assertThatThrownBy(() -> service.updateForService(1L, put))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
+    verifyNoInteractions(vsumHistoryService);
     verifyNoInteractions(vsumSyncService);
     verifyNoInteractions(applicationEventPublisher);
   }

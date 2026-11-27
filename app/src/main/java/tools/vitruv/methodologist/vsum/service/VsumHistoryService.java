@@ -3,6 +3,9 @@ package tools.vitruv.methodologist.vsum.service;
 import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_HISTORY_ID_NOT_FOUND_ERROR;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -10,6 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
@@ -38,7 +42,11 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
  * Application service that creates and persists VSUM history snapshots.
  *
  * <p>Builds a {@link VsumHistory} from a domain {@link Vsum} via {@link VsumHistoryMapper} and
- * stores it using {@link VsumHistoryRepository}.
+ * stores it using {@link VsumHistoryRepository}. A snapshot holds the VSUM's meta models (by model
+ * library ID, with their names in the VSUM), meta-model relations with their fine-granular
+ * mappings, and views, from before a change, and reverting to it restores them. It holds neither
+ * the layout nor the Ecore content of the VSUM's meta model copies, so a revert keeps both, and a
+ * meta model it adds back is cloned from the model library again.
  */
 @Service
 @Slf4j
@@ -46,55 +54,135 @@ public class VsumHistoryService {
   private final VsumHistoryRepository vsumHistoryRepository;
   private final VsumHistoryMapper vsumHistoryMapper;
   private final Long historyLimit;
+  private final Duration collaborationInterval;
   private final UserRepository userRepository;
   private final VsumUserRepository vsumUserRepository;
   private final VsumSyncService vsumSyncService;
   private final LowCodeReactionRequestMapper lowCodeReactionRequestMapper;
   private final ApplicationEventPublisher applicationEventPublisher;
 
+  private final Clock clock;
+
   /**
    * Constructs a {@link VsumHistoryService} with required dependencies.
    *
    * @param vsumHistoryRepository repository for persisting history records
    * @param vsumHistoryMapper mapper for converting VSUM entities to representations
-   * @param historyLimit maximum number of history snapshots to retain per VSUM
+   * @param historyLimit number of history snapshots a VSUM may have before its oldest is deleted
+   * @param collaborationInterval minimum age of a VSUM's latest snapshot taken before a writeback
+   *     of the collaboration server, before the next writeback takes another one, see {@link
+   *     #createBeforeCollaborationWriteback(Vsum)}
    * @param applicationEventPublisher publishes a {@link VsumChangedByUserEvent} after a revert
    */
+  @Autowired
   public VsumHistoryService(
       VsumHistoryRepository vsumHistoryRepository,
       VsumHistoryMapper vsumHistoryMapper,
       @Value("${vsum.history.limit}") Long historyLimit,
+      @Value("${vsum.history.collaboration-interval:5m}") Duration collaborationInterval,
       UserRepository userRepository,
       VsumUserRepository vsumUserRepository,
       @Lazy VsumSyncService vsumSyncService,
       LowCodeReactionRequestMapper lowCodeReactionRequestMapper,
       ApplicationEventPublisher applicationEventPublisher) {
+    this(
+        vsumHistoryRepository,
+        vsumHistoryMapper,
+        historyLimit,
+        collaborationInterval,
+        userRepository,
+        vsumUserRepository,
+        vsumSyncService,
+        lowCodeReactionRequestMapper,
+        applicationEventPublisher,
+        Clock.systemUTC());
+  }
+
+  /**
+   * Like the public constructor, with the clock that dates the snapshots and the writeback
+   * interval, for tests.
+   */
+  VsumHistoryService(
+      VsumHistoryRepository vsumHistoryRepository,
+      VsumHistoryMapper vsumHistoryMapper,
+      Long historyLimit,
+      Duration collaborationInterval,
+      UserRepository userRepository,
+      VsumUserRepository vsumUserRepository,
+      VsumSyncService vsumSyncService,
+      LowCodeReactionRequestMapper lowCodeReactionRequestMapper,
+      ApplicationEventPublisher applicationEventPublisher,
+      Clock clock) {
     this.vsumHistoryRepository = vsumHistoryRepository;
     this.vsumHistoryMapper = vsumHistoryMapper;
     this.historyLimit = historyLimit;
+    this.collaborationInterval = collaborationInterval;
     this.userRepository = userRepository;
     this.vsumUserRepository = vsumUserRepository;
     this.vsumSyncService = vsumSyncService;
     this.lowCodeReactionRequestMapper = lowCodeReactionRequestMapper;
     this.applicationEventPublisher = applicationEventPublisher;
+    this.clock = clock;
   }
 
   /**
-   * Creates and persists a history snapshot for the given VSUM.
+   * Creates and persists a history snapshot for the given VSUM, taken before a user's change.
    *
    * <p>Constructs a JSON\-serializable representation using the mapper and saves the history record
-   * within a transactional boundary.
+   * within a transactional boundary. If the VSUM has more snapshots than the history limit, its
+   * oldest one is deleted first.
    *
    * @param vsum the aggregate whose state is snapshotted; must not be {@code null}
    * @param creator the user who initiated the snapshot; must not be {@code null}
    * @return the persisted {@link VsumHistory} entity
    */
   public VsumHistory create(Vsum vsum, User creator) {
+    return save(vsum, creator, false, null);
+  }
+
+  /**
+   * Snapshots the VSUM before a writeback of the collaboration server changes it, unless the VSUM's
+   * latest snapshot was also taken before a writeback and is younger than {@code
+   * vsum.history.collaboration-interval} (default 5 minutes).
+   *
+   * <p>The collaboration server writes back every few seconds while users edit, so a snapshot
+   * before every writeback would quickly push the older ones out of the history limit. With the
+   * interval, the writeback snapshots are at least that far apart. The changes between two of them
+   * are recorded only together, even if users paused in between: a writeback within the interval
+   * after the latest writeback snapshot takes none, also when it starts a new editing session. A
+   * snapshot taken before a user's change or revert holds the state before that change, so the next
+   * writeback always takes one, which holds the state right after it. The writeback's changes
+   * cannot be attributed to one user, so the VSUM's owner is the snapshot's creator.
+   *
+   * @param vsum the VSUM the collaboration server is about to change
+   */
+  public void createBeforeCollaborationWriteback(Vsum vsum) {
+    if (isCollaborationSnapshotDue(vsum)) {
+      save(vsum, vsum.getUser(), true, null);
+    }
+  }
+
+  private boolean isCollaborationSnapshotDue(Vsum vsum) {
+    Instant intervalStart = clock.instant().minus(collaborationInterval);
+    return vsumHistoryRepository
+        .findTopByVsumAndCreatedAtNotNullOrderByCreatedAtDescIdDesc(vsum)
+        .map(
+            latest ->
+                !latest.isCollaborationWriteback() || !latest.getCreatedAt().isAfter(intervalStart))
+        .orElse(true);
+  }
+
+  /**
+   * Stores a snapshot of the VSUM's current state, dated by the clock. If the VSUM has more
+   * snapshots than the history limit, its oldest one other than {@code keptId} is deleted first.
+   */
+  private VsumHistory save(Vsum vsum, User creator, boolean collaborationWriteback, Long keptId) {
     long existsHistoryCount = vsumHistoryRepository.countByVsum(vsum);
 
     if (existsHistoryCount > historyLimit) {
-      vsumHistoryRepository
-          .findTopByVsumOrderByCreatedAtDesc(vsum)
+      (keptId == null
+              ? vsumHistoryRepository.findTopByVsumOrderByCreatedAtAscIdAsc(vsum)
+              : vsumHistoryRepository.findTopByVsumAndIdNotOrderByCreatedAtAscIdAsc(vsum, keptId))
           .ifPresent(vsumHistoryRepository::delete);
     }
 
@@ -103,6 +191,8 @@ public class VsumHistoryService {
             .creator(creator)
             .vsum(vsum)
             .representation(vsumHistoryMapper.toVsumRepresentation(vsum))
+            .collaborationWriteback(collaborationWriteback)
+            .createdAt(clock.instant())
             .build();
     vsumHistoryRepository.save(vsumHistory);
 
@@ -143,7 +233,9 @@ public class VsumHistoryService {
    *   <li>Verifies the caller exists and is active.
    *   <li>Loads the {@link VsumHistory} identified by {@code id}.
    *   <li>Verifies that the caller has access to the VSUM referenced by the history entry.
-   *   <li>Creates a new history snapshot for the current VSUM state (audit before revert).
+   *   <li>Creates a new history snapshot for the current VSUM state (audit before revert). If the
+   *       VSUM has too many snapshots, the oldest one other than the given entry is deleted, so the
+   *       state reverted to stays in the history.
    *   <li>Applies the recorded sync changes to the VSUM using {@link
    *       VsumSyncService#applySyncChanges}.
    *   <li>Publishes a {@link VsumChangedByUserEvent}, so the collaboration server reloads the VSUM
@@ -179,7 +271,7 @@ public class VsumHistoryService {
       throw new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS);
     }
 
-    create(vsum, user);
+    save(vsum, user, false, history.getId());
 
     VsumSyncChangesPutRequest vsumSyncChangesPutRequest =
         toSyncRequest(history.getRepresentation());

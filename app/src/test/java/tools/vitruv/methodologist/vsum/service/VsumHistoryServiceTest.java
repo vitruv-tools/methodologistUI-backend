@@ -14,6 +14,10 @@ import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.VSUM_HISTORY_ID_NOT_FOUND_ERROR;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -24,6 +28,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.convert.ApplicationConversionService;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -45,6 +51,11 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 @ExtendWith(MockitoExtension.class)
 class VsumHistoryServiceTest {
 
+  /** Not the default of 5 minutes, so that a hard-coded interval fails the tests. */
+  private static final Duration COLLABORATION_INTERVAL = Duration.ofSeconds(90);
+
+  private static final Instant NOW = Instant.parse("2026-06-01T12:00:00Z");
+
   @Mock VsumHistoryRepository vsumHistoryRepository;
   @Mock VsumHistoryMapper vsumHistoryMapper;
   @Mock UserRepository userRepository;
@@ -62,11 +73,13 @@ class VsumHistoryServiceTest {
             vsumHistoryRepository,
             vsumHistoryMapper,
             5L,
+            COLLABORATION_INTERVAL,
             userRepository,
             vsumUserRepository,
             vsumSyncService,
             lowCodeReactionRequestMapper,
-            applicationEventPublisher);
+            applicationEventPublisher,
+            Clock.fixed(NOW, ZoneOffset.UTC));
   }
 
   @Test
@@ -83,7 +96,7 @@ class VsumHistoryServiceTest {
 
     VsumHistory saved = service.create(vsum, creator);
 
-    verify(vsumHistoryRepository, never()).findTopByVsumOrderByCreatedAtDesc(any());
+    verify(vsumHistoryRepository, never()).findTopByVsumOrderByCreatedAtAscIdAsc(any());
     verify(vsumHistoryRepository, never()).delete(any(VsumHistory.class));
 
     ArgumentCaptor<VsumHistory> cap = ArgumentCaptor.forClass(VsumHistory.class);
@@ -93,12 +106,14 @@ class VsumHistoryServiceTest {
     assertThat(toSave.getVsum()).isSameAs(vsum);
     assertThat(toSave.getCreator()).isSameAs(creator);
     assertThat(toSave.getRepresentation()).isEqualTo(vsumRepresentation);
+    assertThat(toSave.isCollaborationWriteback()).isFalse();
+    assertThat(toSave.getCreatedAt()).isEqualTo(NOW);
 
     assertThat(saved).isSameAs(toSave);
   }
 
   @Test
-  void create_deletesNewest_whenCountExceedsLimit_andThenSaves() {
+  void create_deletesOldest_whenCountExceedsLimit_andThenSaves() {
     Vsum vsum = new Vsum();
     vsum.setId(2L);
     User creator = new User();
@@ -106,17 +121,17 @@ class VsumHistoryServiceTest {
     VsumRepresentation vsumRepresentation = new VsumRepresentation();
 
     when(vsumHistoryRepository.countByVsum(vsum)).thenReturn(6L);
-    VsumHistory newest = VsumHistory.builder().id(99L).vsum(vsum).build();
-    when(vsumHistoryRepository.findTopByVsumOrderByCreatedAtDesc(vsum))
-        .thenReturn(Optional.of(newest));
+    VsumHistory oldest = VsumHistory.builder().id(99L).vsum(vsum).build();
+    when(vsumHistoryRepository.findTopByVsumOrderByCreatedAtAscIdAsc(vsum))
+        .thenReturn(Optional.of(oldest));
 
     when(vsumHistoryMapper.toVsumRepresentation(vsum)).thenReturn(vsumRepresentation);
     when(vsumHistoryRepository.save(any(VsumHistory.class))).thenAnswer(inv -> inv.getArgument(0));
 
     VsumHistory saved = service.create(vsum, creator);
 
-    verify(vsumHistoryRepository).findTopByVsumOrderByCreatedAtDesc(vsum);
-    verify(vsumHistoryRepository).delete(newest);
+    verify(vsumHistoryRepository).findTopByVsumOrderByCreatedAtAscIdAsc(vsum);
+    verify(vsumHistoryRepository).delete(oldest);
 
     ArgumentCaptor<VsumHistory> cap = ArgumentCaptor.forClass(VsumHistory.class);
     verify(vsumHistoryRepository).save(cap.capture());
@@ -133,14 +148,14 @@ class VsumHistoryServiceTest {
     VsumRepresentation vsumRepresentation = new VsumRepresentation();
 
     when(vsumHistoryRepository.countByVsum(vsum)).thenReturn(10L);
-    when(vsumHistoryRepository.findTopByVsumOrderByCreatedAtDesc(vsum))
+    when(vsumHistoryRepository.findTopByVsumOrderByCreatedAtAscIdAsc(vsum))
         .thenReturn(Optional.empty());
     when(vsumHistoryMapper.toVsumRepresentation(vsum)).thenReturn(vsumRepresentation);
     when(vsumHistoryRepository.save(any(VsumHistory.class))).thenAnswer(inv -> inv.getArgument(0));
 
     VsumHistory saved = service.create(vsum, creator);
 
-    verify(vsumHistoryRepository).findTopByVsumOrderByCreatedAtDesc(vsum);
+    verify(vsumHistoryRepository).findTopByVsumOrderByCreatedAtAscIdAsc(vsum);
     verify(vsumHistoryRepository, never()).delete(any());
 
     verify(vsumHistoryRepository).save(any(VsumHistory.class));
@@ -150,10 +165,19 @@ class VsumHistoryServiceTest {
   }
 
   @Test
-  void create_withZeroLimit_deletesNewestWhenAnyExists_thenSaves() {
+  void create_withZeroLimit_deletesOldestWhenAnyExists_thenSaves() {
     service =
         new VsumHistoryService(
-            vsumHistoryRepository, vsumHistoryMapper, 0L, null, null, null, null, null);
+            vsumHistoryRepository,
+            vsumHistoryMapper,
+            0L,
+            COLLABORATION_INTERVAL,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Clock.fixed(NOW, ZoneOffset.UTC));
 
     Vsum vsum = new Vsum();
     vsum.setId(4L);
@@ -162,17 +186,130 @@ class VsumHistoryServiceTest {
     VsumRepresentation vsumRepresentation = new VsumRepresentation();
 
     when(vsumHistoryRepository.countByVsum(vsum)).thenReturn(1L);
-    VsumHistory newest = VsumHistory.builder().id(7L).vsum(vsum).build();
-    when(vsumHistoryRepository.findTopByVsumOrderByCreatedAtDesc(vsum))
-        .thenReturn(Optional.of(newest));
+    VsumHistory oldest = VsumHistory.builder().id(7L).vsum(vsum).build();
+    when(vsumHistoryRepository.findTopByVsumOrderByCreatedAtAscIdAsc(vsum))
+        .thenReturn(Optional.of(oldest));
     when(vsumHistoryMapper.toVsumRepresentation(vsum)).thenReturn(vsumRepresentation);
     when(vsumHistoryRepository.save(any(VsumHistory.class))).thenAnswer(inv -> inv.getArgument(0));
 
     VsumHistory saved = service.create(vsum, creator);
 
-    verify(vsumHistoryRepository).delete(newest);
+    verify(vsumHistoryRepository).delete(oldest);
     verify(vsumHistoryRepository).save(any(VsumHistory.class));
     assertThat(saved.getRepresentation()).isEqualTo(vsumRepresentation);
+  }
+
+  @Test
+  void createBeforeCollaborationWriteback_savesAMarkedSnapshotOfTheOwner_whenTheVsumHasNone() {
+    User owner = new User();
+    Vsum vsum = new Vsum();
+    vsum.setUser(owner);
+    VsumRepresentation vsumRepresentation = new VsumRepresentation();
+    when(vsumHistoryRepository.findTopByVsumAndCreatedAtNotNullOrderByCreatedAtDescIdDesc(vsum))
+        .thenReturn(Optional.empty());
+    when(vsumHistoryMapper.toVsumRepresentation(vsum)).thenReturn(vsumRepresentation);
+
+    service.createBeforeCollaborationWriteback(vsum);
+
+    ArgumentCaptor<VsumHistory> saved = ArgumentCaptor.forClass(VsumHistory.class);
+    verify(vsumHistoryRepository).save(saved.capture());
+    assertThat(saved.getValue().getVsum()).isSameAs(vsum);
+    assertThat(saved.getValue().getCreator()).isSameAs(owner);
+    assertThat(saved.getValue().getRepresentation()).isSameAs(vsumRepresentation);
+    assertThat(saved.getValue().isCollaborationWriteback()).isTrue();
+    assertThat(saved.getValue().getCreatedAt()).isEqualTo(NOW);
+  }
+
+  @Test
+  void createBeforeCollaborationWriteback_savesNothing_whenTheLatestWritebackSnapshotIsRecent() {
+    Vsum vsum = new Vsum();
+    when(vsumHistoryRepository.findTopByVsumAndCreatedAtNotNullOrderByCreatedAtDescIdDesc(vsum))
+        .thenReturn(Optional.of(latest(NOW.minus(COLLABORATION_INTERVAL).plusMillis(1), true)));
+
+    service.createBeforeCollaborationWriteback(vsum);
+
+    verifyNoMoreInteractions(vsumHistoryRepository);
+    verifyNoInteractions(vsumHistoryMapper);
+  }
+
+  @Test
+  void createBeforeCollaborationWriteback_saves_whenTheLatestWritebackSnapshotIsAnIntervalOld() {
+    Vsum vsum = new Vsum();
+    vsum.setUser(new User());
+    when(vsumHistoryRepository.findTopByVsumAndCreatedAtNotNullOrderByCreatedAtDescIdDesc(vsum))
+        .thenReturn(Optional.of(latest(NOW.minus(COLLABORATION_INTERVAL), true)));
+
+    service.createBeforeCollaborationWriteback(vsum);
+
+    verify(vsumHistoryRepository).save(any(VsumHistory.class));
+  }
+
+  @Test
+  void createBeforeCollaborationWriteback_saves_whenTheLatestSnapshotIsFromAUserChange() {
+    Vsum vsum = new Vsum();
+    vsum.setUser(new User());
+    when(vsumHistoryRepository.findTopByVsumAndCreatedAtNotNullOrderByCreatedAtDescIdDesc(vsum))
+        .thenReturn(Optional.of(latest(NOW.minusSeconds(1), false)));
+
+    service.createBeforeCollaborationWriteback(vsum);
+
+    verify(vsumHistoryRepository).save(any(VsumHistory.class));
+  }
+
+  @Test
+  void createBeforeCollaborationWriteback_deletesTheOldest_whenCountExceedsLimit() {
+    Vsum vsum = new Vsum();
+    vsum.setUser(new User());
+    when(vsumHistoryRepository.findTopByVsumAndCreatedAtNotNullOrderByCreatedAtDescIdDesc(vsum))
+        .thenReturn(Optional.empty());
+    when(vsumHistoryRepository.countByVsum(vsum)).thenReturn(6L);
+    VsumHistory oldest = VsumHistory.builder().id(1L).vsum(vsum).build();
+    when(vsumHistoryRepository.findTopByVsumOrderByCreatedAtAscIdAsc(vsum))
+        .thenReturn(Optional.of(oldest));
+
+    service.createBeforeCollaborationWriteback(vsum);
+
+    verify(vsumHistoryRepository).delete(oldest);
+    verify(vsumHistoryRepository).save(any(VsumHistory.class));
+  }
+
+  private static VsumHistoryRepository.LatestSnapshot latest(
+      Instant createdAt, boolean collaborationWriteback) {
+    return new VsumHistoryRepository.LatestSnapshot() {
+      @Override
+      public Instant getCreatedAt() {
+        return createdAt;
+      }
+
+      @Override
+      public boolean isCollaborationWriteback() {
+        return collaborationWriteback;
+      }
+    };
+  }
+
+  @Test
+  void collaborationInterval_isReadFromItsProperty() {
+    new ApplicationContextRunner()
+        .withInitializer(
+            context ->
+                context
+                    .getBeanFactory()
+                    .setConversionService(ApplicationConversionService.getSharedInstance()))
+        .withPropertyValues("vsum.history.limit=5", "vsum.history.collaboration-interval=90s")
+        .withBean(VsumHistoryRepository.class, () -> vsumHistoryRepository)
+        .withBean(VsumHistoryMapper.class, () -> vsumHistoryMapper)
+        .withBean(UserRepository.class, () -> userRepository)
+        .withBean(VsumUserRepository.class, () -> vsumUserRepository)
+        .withBean(VsumSyncService.class, () -> vsumSyncService)
+        .withBean(LowCodeReactionRequestMapper.class, () -> lowCodeReactionRequestMapper)
+        .withBean(ApplicationEventPublisher.class, () -> applicationEventPublisher)
+        .withBean(VsumHistoryService.class)
+        .run(
+            context ->
+                assertThat(context.getBean(VsumHistoryService.class))
+                    .extracting("collaborationInterval")
+                    .isEqualTo(Duration.ofSeconds(90)));
   }
 
   @Test
@@ -359,6 +496,42 @@ class VsumHistoryServiceTest {
             });
     verify(applicationEventPublisher).publishEvent(new VsumChangedByUserEvent(101L));
     verifyNoMoreInteractions(applicationEventPublisher);
+  }
+
+  @Test
+  void revert_keepsTheEntryRevertedTo_whenTheAuditSnapshotExceedsTheLimit() {
+    String callerEmail = "u@ex.com";
+    User user = new User();
+    user.setEmail(callerEmail);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(callerEmail))
+        .thenReturn(Optional.of(user));
+    Vsum vsum = new Vsum();
+    vsum.setId(102L);
+    Long historyId = 14L;
+    VsumHistory history =
+        VsumHistory.builder()
+            .id(historyId)
+            .vsum(vsum)
+            .representation(new VsumRepresentation())
+            .build();
+    when(vsumHistoryRepository.findById(historyId)).thenReturn(Optional.of(history));
+    when(vsumUserRepository
+            .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
+                vsum.getId(), callerEmail))
+        .thenReturn(Optional.of(VsumUser.builder().role(VsumRole.OWNER).build()));
+    when(vsumHistoryRepository.countByVsum(vsum)).thenReturn(6L);
+    VsumHistory oldestOther = VsumHistory.builder().id(15L).vsum(vsum).build();
+    when(vsumHistoryRepository.findTopByVsumAndIdNotOrderByCreatedAtAscIdAsc(vsum, historyId))
+        .thenReturn(Optional.of(oldestOther));
+
+    service.revert(callerEmail, historyId);
+
+    verify(vsumHistoryRepository).delete(oldestOther);
+    verify(vsumHistoryRepository, never()).findTopByVsumOrderByCreatedAtAscIdAsc(any());
+    ArgumentCaptor<VsumHistory> saved = ArgumentCaptor.forClass(VsumHistory.class);
+    verify(vsumHistoryRepository).save(saved.capture());
+    assertThat(saved.getValue().getCreator()).isSameAs(user);
+    assertThat(saved.getValue().isCollaborationWriteback()).isFalse();
   }
 
   @Test

@@ -1,5 +1,6 @@
 package tools.vitruv.methodologist.vsum.model.repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -29,16 +30,51 @@ public interface VsumHistoryRepository extends CrudRepository<VsumHistory, Long>
   long countByVsum(Vsum vsum);
 
   /**
-   * Finds the latest history record for the specified VSUM.
+   * Finds the oldest history record for the specified VSUM, the one to delete when the VSUM has too
+   * many. Of records created at the same time, the one with the lowest id is the oldest.
    *
-   * <p>Returns the most recently created {@link VsumHistory} for the given VSUM, ordered by {@code
-   * createdAt} descending.
+   * @param vsum the VSUM whose oldest history snapshot to retrieve
+   * @return an {@link java.util.Optional} containing the oldest {@link VsumHistory}, or empty if
+   *     none found
+   */
+  Optional<VsumHistory> findTopByVsumOrderByCreatedAtAscIdAsc(Vsum vsum);
+
+  /**
+   * Finds the oldest history record for the specified VSUM except the given one, the one to delete
+   * when the VSUM has too many while it is reverted to the given one.
    *
-   * @param vsum the VSUM whose latest history snapshot to retrieve
-   * @return an {@link java.util.Optional} containing the most recent {@link VsumHistory}, or empty
+   * @param vsum the VSUM whose oldest history snapshot to retrieve
+   * @param id the id of the history record to skip
+   * @return an {@link java.util.Optional} containing the oldest other {@link VsumHistory}, or empty
    *     if none found
    */
-  Optional<VsumHistory> findTopByVsumOrderByCreatedAtDesc(Vsum vsum);
+  Optional<VsumHistory> findTopByVsumAndIdNotOrderByCreatedAtAscIdAsc(Vsum vsum, Long id);
+
+  /**
+   * Finds when the latest history record of the specified VSUM was created and what it was taken
+   * before, without loading its representation. Records without a creation time are skipped.
+   *
+   * @param vsum the VSUM whose latest history snapshot to look at
+   * @return the latest snapshot, or empty if the VSUM has none
+   */
+  Optional<LatestSnapshot> findTopByVsumAndCreatedAtNotNullOrderByCreatedAtDescIdDesc(Vsum vsum);
+
+  /** The creation time of a history record and what it was taken before. */
+  interface LatestSnapshot {
+    /**
+     * Returns when the snapshot was created.
+     *
+     * @return the creation time
+     */
+    Instant getCreatedAt();
+
+    /**
+     * Returns whether the snapshot was taken before a writeback of the collaboration server.
+     *
+     * @return {@code true} for a snapshot taken before a writeback
+     */
+    boolean isCollaborationWriteback();
+  }
 
   /**
    * Finds a {@link VsumHistory} record by ID with eager loading of related associations.
