@@ -18,6 +18,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static tools.vitruv.methodologist.messages.Error.USER_DOES_NOT_HAVE_ACCESS;
 import static tools.vitruv.methodologist.messages.Error.USER_EMAIL_NOT_FOUND_ERROR;
@@ -39,6 +40,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -51,6 +53,7 @@ import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.exception.ValidationCodeExpiredException;
 import tools.vitruv.methodologist.exception.ValidationCodeNotExpiredYetException;
 import tools.vitruv.methodologist.exception.VerificationCodeException;
+import tools.vitruv.methodologist.general.event.UserRemovedEvent;
 import tools.vitruv.methodologist.general.service.SmtpMailService;
 import tools.vitruv.methodologist.user.RoleType;
 import tools.vitruv.methodologist.user.controller.dto.KeycloakUser;
@@ -77,6 +80,7 @@ class UserServiceTest {
   @Mock private KeycloakApiHandler keycloakApiHandler;
   @Mock private SmtpMailService mailService;
   @Mock private VsumInvitationService vsumInvitationService;
+  @Mock private ApplicationEventPublisher applicationEventPublisher;
 
   private UserService userService;
 
@@ -109,6 +113,7 @@ class UserServiceTest {
             keycloakApiHandler,
             mailService,
             vsumInvitationService,
+            applicationEventPublisher,
             ttlMinutes);
   }
 
@@ -368,6 +373,25 @@ class UserServiceTest {
   }
 
   @Test
+  void remove_publishesTheRemovalOfTheUser_afterMarkingItRemoved() {
+    long id = 11L;
+    User user = activeUser(id, "bob@example.com");
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("bob@example.com"))
+        .thenReturn(Optional.of(user));
+    doAnswer(
+            invocation -> {
+              assertThat(user.getRemovedAt()).isNotNull();
+              return null;
+            })
+        .when(applicationEventPublisher)
+        .publishEvent(any(Object.class));
+
+    userService.remove("bob@example.com", id);
+
+    verify(applicationEventPublisher).publishEvent(new UserRemovedEvent(id));
+  }
+
+  @Test
   void remove_throwsAccessDenied_forAnotherUsersId_withoutLookingItUp() {
     User caller = activeUser(11L, "bob@example.com");
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull("bob@example.com"))
@@ -380,6 +404,7 @@ class UserServiceTest {
     assertThat(caller.getRemovedAt()).isNull();
     verify(userRepository, never()).findByIdAndRemovedAtIsNull(any());
     verify(userRepository, never()).save(any());
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   private static User activeUser(long id, String email) {

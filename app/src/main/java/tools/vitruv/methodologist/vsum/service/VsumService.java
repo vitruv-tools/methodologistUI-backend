@@ -6,9 +6,12 @@ import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
@@ -37,6 +40,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelation
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildCheckResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMemberAccessResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
@@ -72,6 +76,17 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class VsumService {
+
+  /**
+   * Orders roles from the most to the least privileged: owner, member, viewer. The database does
+   * not prevent a user from having several memberships in one VSUM, so {@link
+   * #findVsumWithDetails(String, Long)} and {@link #findMembersForService(Long)} both resolve such
+   * a user to the first of their roles in this order. The collaboration server compares the two
+   * answers, so they must agree. The order is spelled out in {@link #privilegeRank(VsumRole)}
+   * instead of being taken from the declaration order of {@link VsumRole}.
+   */
+  private static final Comparator<VsumRole> MOST_PRIVILEGED_FIRST =
+      Comparator.comparingInt(VsumService::privilegeRank);
 
   VsumMapper vsumMapper;
   VsumRepository vsumRepository;
@@ -338,9 +353,15 @@ public class VsumService {
    * and views. Throws {@code NotFoundException} if the VSUM does not exist or does not belong to
    * the caller.
    *
+   * <p>The response also carries the caller's role in the VSUM and the caller's user ID. The
+   * collaboration server reads both when a user connects; the ID lets it find the user's
+   * connections when it checks a project's members again. A caller with several memberships in the
+   * VSUM gets the most privileged of their roles, the same one {@link #findMembersForService(Long)}
+   * lists for them.
+   *
    * @param callerEmail the authenticated user's email (owner of the VSUM)
    * @param id the VSUM id to fetch
-   * @return a response DTO with VSUM data, meta-models, and views
+   * @return a response DTO with VSUM data, meta-models, views, and the caller's role and ID
    * @throws NotFoundException if no matching VSUM is found
    */
   @Transactional(readOnly = true)
@@ -355,18 +376,19 @@ public class VsumService {
     VsumUser callerVsumUser =
         vsum.getVsumUsers().stream()
             .filter(vsumUser -> vsumUser.getUser().equals(user))
-            .findFirst()
+            .min(Comparator.comparing(VsumUser::getRole, MOST_PRIVILEGED_FIRST))
             .orElseThrow(() -> new AccessDeniedException(USER_DOES_NOT_HAVE_ACCESS));
 
     VsumMetaModelResponse response = toDetailsResponse(vsum);
     response.setRole(callerVsumUser.getRole());
+    response.setUserId(user.getId());
     return response;
   }
 
   /**
    * Returns the details of any VSUM, without a membership check. Used by the collaboration server's
    * service account. The response is the same as for {@link #findVsumWithDetails(String, Long)},
-   * except that it has no role, because the service account is not a member.
+   * except that it has no role and no user ID, because the service account is not a member.
    *
    * @param id the VSUM id to fetch
    * @return a response DTO with VSUM data, meta-models, and views
@@ -377,6 +399,50 @@ public class VsumService {
     return toDetailsResponse(findActiveVsum(id));
   }
 
+  /**
+   * Returns the active users of any VSUM with their roles, without a membership check. Used by the
+   * collaboration server's service account to check the open connections of a project again after
+   * the backend told it that access was taken away. Users who removed their account are left out.
+   *
+   * <p>Every user is listed once. A user with several memberships in the VSUM gets the most
+   * privileged of their roles, the same one {@link #findVsumWithDetails(String, Long)} returns to
+   * them. The users keep the order in which their first membership was found.
+   *
+   * @param id the VSUM id
+   * @return the user ID and role of every active user of the VSUM, the owner included
+   * @throws NotFoundException if the VSUM is not found or removed
+   */
+  @Transactional(readOnly = true)
+  public List<VsumMemberAccessResponse> findMembersForService(Long id) {
+    // Checked without loading the VSUM, whose collections are fetched eagerly.
+    if (!vsumRepository.existsByIdAndRemovedAtIsNull(id)) {
+      throw new NotFoundException(VSUM_ID_NOT_FOUND_ERROR);
+    }
+    Map<Long, VsumRole> roleByUserId =
+        vsumUserRepository.findAllByVsum_IdAndUser_RemovedAtIsNull(id).stream()
+            .collect(
+                Collectors.toMap(
+                    vsumUser -> vsumUser.getUser().getId(),
+                    VsumUser::getRole,
+                    BinaryOperator.minBy(MOST_PRIVILEGED_FIRST),
+                    LinkedHashMap::new));
+    return roleByUserId.entrySet().stream()
+        .map(entry -> new VsumMemberAccessResponse(entry.getKey(), entry.getValue()))
+        .toList();
+  }
+
+  /**
+   * Ranks a role for {@link #MOST_PRIVILEGED_FIRST}; the lower, the more privileged. A new role
+   * does not compile until it is ranked here.
+   */
+  private static int privilegeRank(VsumRole role) {
+    return switch (role) {
+      case OWNER -> 0;
+      case MEMBER -> 1;
+      case VIEWER -> 2;
+    };
+  }
+
   private Vsum findActiveVsum(Long id) {
     return vsumRepository
         .findByIdAndRemovedAtIsNull(id)
@@ -385,7 +451,8 @@ public class VsumService {
 
   /**
    * Describes the VSUM as {@code GET /api/v1/vsums/{id}/details} returns it, without the caller's
-   * role. Publishing stores this as what the canvas showed (see {@link VsumVersionService}).
+   * role and user ID. Publishing stores this as what the canvas showed (see {@link
+   * VsumVersionService}).
    *
    * @param vsum the VSUM; its meta models, relations and views must be loadable, i.e. the call has
    *     to run inside a transaction

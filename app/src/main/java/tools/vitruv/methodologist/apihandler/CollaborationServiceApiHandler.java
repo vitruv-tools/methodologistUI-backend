@@ -18,7 +18,9 @@ import reactor.util.retry.Retry;
 
 /**
  * Component responsible for calling the internal API of the collaboration server, which keeps the
- * shared document of every open project.
+ * shared document of every open project. The backend tells it to reload a changed project, to close
+ * a removed one, and to check the open connections of a project or a user again after access was
+ * taken away. No notification has a body.
  *
  * <p>The backend authenticates as its own service account (Keycloak client {@code
  * methodologist-backend}, realm role {@code methodologist-backend}) with the client credentials
@@ -30,6 +32,8 @@ import reactor.util.retry.Retry;
 public class CollaborationServiceApiHandler {
   public static final String RELOAD_URL = "/internal/projects/{id}/reload";
   public static final String CLOSE_URL = "/internal/projects/{id}/close";
+  public static final String CHECK_ACCESS_URL = "/internal/projects/{id}/check-access";
+  public static final String CHECK_USER_ACCESS_URL = "/internal/users/{id}/check-access";
   public static final int CONNECT_TIMEOUT_IN_MILLIS = 2_000;
   public static final int RESPONSE_TIMEOUT_IN_SECONDS = 3;
 
@@ -131,16 +135,52 @@ public class CollaborationServiceApiHandler {
     send(CLOSE_URL, vsumId);
   }
 
-  private void send(String uri, Long vsumId) {
+  /**
+   * Tells the collaboration server that a user may have lost access, or write access, to the given
+   * VSUM, e.g. because the owner removed them. The collaboration server then asks the backend for
+   * the VSUM's current members and disconnects the connections that are no longer allowed. Does
+   * nothing if the integration is disabled.
+   *
+   * <p>Failures are retried like those of {@link #requestReload(Long)}. Blocks until the
+   * collaboration server accepted the request or all attempts failed.
+   *
+   * @param vsumId the id of the VSUM whose members changed
+   * @throws org.springframework.web.reactive.function.client.WebClientException if the
+   *     collaboration server cannot be reached or answers with an error, also after the retries
+   * @throws RuntimeException if no access token can be fetched from Keycloak
+   */
+  public void requestAccessCheck(Long vsumId) {
+    send(CHECK_ACCESS_URL, vsumId);
+  }
+
+  /**
+   * Tells the collaboration server that the given user removed their account. The collaboration
+   * server then checks every project the user is connected to against the backend's current
+   * members, so one notification covers all of the user's projects. Does nothing if the integration
+   * is disabled.
+   *
+   * <p>Failures are retried like those of {@link #requestReload(Long)}. Blocks until the
+   * collaboration server accepted the request or all attempts failed.
+   *
+   * @param userId the id of the removed user
+   * @throws org.springframework.web.reactive.function.client.WebClientException if the
+   *     collaboration server cannot be reached or answers with an error, also after the retries
+   * @throws RuntimeException if no access token can be fetched from Keycloak
+   */
+  public void requestUserAccessCheck(Long userId) {
+    send(CHECK_USER_ACCESS_URL, userId);
+  }
+
+  private void send(String uri, Long id) {
     if (!enabled) {
       return;
     }
     try {
-      post(uri, vsumId);
+      post(uri, id);
     } catch (WebClientResponseException.Unauthorized e) {
       // The token was revoked or the collaboration server's clock is ahead: try once more with a
       // new token instead of losing the notification.
-      post(uri, vsumId);
+      post(uri, id);
     }
   }
 
@@ -148,12 +188,12 @@ public class CollaborationServiceApiHandler {
    * Sends a notification with the cached token, retrying transient failures. Discards the token if
    * the collaboration server rejects it, so the next call fetches a new one.
    */
-  private void post(String uri, Long vsumId) {
+  private void post(String uri, Long id) {
     String accessToken = tokenCache.getAccessToken();
     try {
       webClient
           .post()
-          .uri(uri, vsumId)
+          .uri(uri, id)
           .headers(headers -> headers.setBearerAuth(accessToken))
           .retrieve()
           .toBodilessEntity()
@@ -168,7 +208,7 @@ public class CollaborationServiceApiHandler {
   /**
    * Tells whether a failed notification may succeed when it is sent again: the collaboration server
    * could not be reached or did not answer in time, failed, or asked to wait. Other answers, e.g.
-   * {@code 400} for an invalid project id, would come again.
+   * {@code 400} for an invalid project or user id, would come again.
    *
    * @param error the failure of a notification
    * @return {@code true} if the request is retried

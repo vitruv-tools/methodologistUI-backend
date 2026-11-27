@@ -11,6 +11,7 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ import tools.vitruv.methodologist.exception.OwnerCannotAddSelfAsMemberException;
 import tools.vitruv.methodologist.exception.OwnerRequiredException;
 import tools.vitruv.methodologist.exception.OwnerRoleRemovalException;
 import tools.vitruv.methodologist.exception.UserAlreadyExistInVsumWithSameRoleException;
+import tools.vitruv.methodologist.general.event.VsumAccessChangedEvent;
 import tools.vitruv.methodologist.log.AuditLog;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
@@ -45,6 +47,7 @@ public class VsumUserService {
   VsumUserRepository vsumUserRepository;
   UserRepository userRepository;
   VsumUserMapper vsumUserMapper;
+  ApplicationEventPublisher applicationEventPublisher;
 
   /**
    * Creates a new VSUM user relationship with the specified parameters. Throws an exception if the
@@ -161,7 +164,8 @@ public class VsumUserService {
   /**
    * Removes a member from the specified VSUM. Only the owner of the VSUM can perform this
    * operation. Throws an exception if the caller is not the owner or if attempting to remove the
-   * owner.
+   * owner. Publishes a {@link VsumAccessChangedEvent}, so the collaboration server disconnects the
+   * removed user once the removal is committed.
    *
    * @param callerEmail the email of the user requesting the deletion
    * @param id the ID of the VSUM user relationship to delete
@@ -190,7 +194,10 @@ public class VsumUserService {
 
     vsumUserRepository.delete(vsumUser);
     Long userId = vsumUser.getUser().getId();
+    // Only the id of the lazy VSUM: loading it would load its members, and the cascade of that
+    // collection would store the deleted membership again on flush.
     Long vsumId = vsumUser.getVsum().getId();
+    applicationEventPublisher.publishEvent(new VsumAccessChangedEvent(vsumId));
     AuditLog.afterCommit(() -> log.info("Removed user {} from VSUM {}", userId, vsumId));
   }
 

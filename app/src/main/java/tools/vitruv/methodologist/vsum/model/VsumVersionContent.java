@@ -14,6 +14,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResp
  * VsumVersion#getContent()}; {@link #toJson} and {@link #fromJson} convert it.
  *
  * @param project the project as {@code GET /api/v1/vsums/{id}/details} returned it, without role
+ *     and user ID
  * @param ruleSets the project's constraint rule sets
  */
 public record VsumVersionContent(VsumMetaModelResponse project, List<RuleSet> ruleSets) {

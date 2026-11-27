@@ -43,6 +43,15 @@ public interface VsumRepository extends CrudRepository<Vsum, Long> {
   Optional<Vsum> findByIdAndRemovedAtIsNull(Long id);
 
   /**
+   * Checks whether a {@link Vsum} with the given ID exists and has not been marked as removed,
+   * without loading it.
+   *
+   * @param id the ID of the Vsum to check
+   * @return {@code true} if the Vsum exists and is not removed, otherwise {@code false}
+   */
+  boolean existsByIdAndRemovedAtIsNull(Long id);
+
+  /**
    * Retrieves a removed {@link Vsum} by id for an active (not-removed) user identified by the given
    * email.
    *

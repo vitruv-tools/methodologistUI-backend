@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.util.List;
 import java.util.Map;
@@ -39,7 +40,10 @@ import tools.vitruv.methodologist.config.GrantedAuthoritiesConverter;
 import tools.vitruv.methodologist.config.KeycloakAuthentication;
 import tools.vitruv.methodologist.config.SecurityConfiguration;
 import tools.vitruv.methodologist.exception.GlobalExceptionHandlerController;
+import tools.vitruv.methodologist.exception.NotFoundException;
 import tools.vitruv.methodologist.user.service.UserService;
+import tools.vitruv.methodologist.vsum.VsumRole;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMemberAccessResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.service.VsumDeploymentBundleService;
 import tools.vitruv.methodologist.vsum.service.VsumService;
@@ -54,6 +58,7 @@ class InternalVsumControllerTest {
   private static final String CALLER_EMAIL = "alice@example.com";
   private static final String INTERNAL_DETAILS_URL = "/api/internal/v1/vsums/7/details";
   private static final String INTERNAL_SYNC_URL = "/api/internal/v1/vsums/7/sync-changes";
+  private static final String INTERNAL_MEMBERS_URL = "/api/internal/v1/vsums/7/members";
   private static final String USER_DETAILS_URL = "/api/v1/vsums/7/details";
   private static final String USER_SYNC_URL = "/api/v1/vsums/7/sync-changes";
 
@@ -91,7 +96,8 @@ class InternalVsumControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.id").value(7))
         .andExpect(jsonPath("$.data.name").value("Project"))
-        .andExpect(jsonPath("$.data.role").doesNotExist());
+        .andExpect(jsonPath("$.data.role").doesNotExist())
+        .andExpect(jsonPath("$.data.userId").doesNotExist());
   }
 
   @Test
@@ -106,9 +112,52 @@ class InternalVsumControllerTest {
   }
 
   @Test
+  void members_returnsTheUserIdsAndRolesOfAnyProject_toTheServiceAccount() throws Exception {
+    when(vsumService.findMembersForService(7L))
+        .thenReturn(
+            List.of(
+                new VsumMemberAccessResponse(7L, VsumRole.OWNER),
+                new VsumMemberAccessResponse(9L, VsumRole.MEMBER),
+                new VsumMemberAccessResponse(12L, VsumRole.VIEWER)));
+
+    mockMvc
+        .perform(get(INTERNAL_MEMBERS_URL).with(serviceAccount()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(3))
+        .andExpect(jsonPath("$.data[0].userId").value(7))
+        .andExpect(jsonPath("$.data[0].role").value("OWNER"))
+        .andExpect(jsonPath("$.data[1].userId").value(9))
+        .andExpect(jsonPath("$.data[1].role").value("MEMBER"))
+        .andExpect(jsonPath("$.data[2].userId").value(12))
+        .andExpect(jsonPath("$.data[2].role").value("VIEWER"))
+        .andExpect(jsonPath("$.data[0].email").doesNotExist())
+        .andExpect(jsonPath("$.message").isEmpty());
+  }
+
+  @Test
+  void members_answersNotFound_whenTheProjectIsMissingOrInTheTrash() throws Exception {
+    when(vsumService.findMembersForService(7L))
+        .thenThrow(new NotFoundException(VSUM_ID_NOT_FOUND_ERROR));
+
+    mockMvc
+        .perform(get(INTERNAL_MEMBERS_URL).with(serviceAccount()))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void members_isForbidden_forTheBackendsOwnServiceAccount() throws Exception {
+    mockMvc
+        .perform(get(INTERNAL_MEMBERS_URL).with(authenticatedAs(backendServiceAccountJwt())))
+        .andExpect(status().isForbidden());
+
+    verifyNoInteractions(vsumService);
+  }
+
+  @Test
   void internalEndpoints_areForbidden_forUserTokens() throws Exception {
     mockMvc.perform(get(INTERNAL_DETAILS_URL).with(user())).andExpect(status().isForbidden());
     mockMvc.perform(syncRequest(INTERNAL_SYNC_URL).with(user())).andExpect(status().isForbidden());
+    mockMvc.perform(get(INTERNAL_MEMBERS_URL).with(user())).andExpect(status().isForbidden());
 
     verifyNoInteractions(vsumService);
   }
@@ -117,6 +166,7 @@ class InternalVsumControllerTest {
   void internalEndpoints_areUnauthorized_withoutToken() throws Exception {
     mockMvc.perform(get(INTERNAL_DETAILS_URL)).andExpect(status().isUnauthorized());
     mockMvc.perform(syncRequest(INTERNAL_SYNC_URL)).andExpect(status().isUnauthorized());
+    mockMvc.perform(get(INTERNAL_MEMBERS_URL)).andExpect(status().isUnauthorized());
 
     verifyNoInteractions(vsumService);
   }
@@ -184,6 +234,19 @@ class InternalVsumControllerTest {
         .claim(
             "realm_access",
             Map.of("roles", List.of(SecurityConfiguration.COLLABORATION_SERVICE_ROLE)))
+        .build();
+  }
+
+  /**
+   * A token of the backend's own service account, which sends the notifications to the
+   * collaboration server.
+   */
+  private static Jwt backendServiceAccountJwt() {
+    return Jwt.withTokenValue("token")
+        .header("alg", "RS256")
+        .subject("backend-service-account-id")
+        .claim("preferred_username", "service-account-methodologist-backend")
+        .claim("realm_access", Map.of("roles", List.of("methodologist-backend")))
         .build();
   }
 

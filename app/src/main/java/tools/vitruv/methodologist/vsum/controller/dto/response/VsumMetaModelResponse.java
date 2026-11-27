@@ -12,7 +12,7 @@ import tools.vitruv.methodologist.vsum.VsumRole;
 
 /**
  * Response DTO representing a VsumMetaModel and its associated metadata. Contains identifying
- * information, timestamps, the caller's role in the VSUM, and the list of linked MetaModels,
+ * information, timestamps, the caller's ID and role in the VSUM, and the list of linked MetaModels,
  * MetaModel relations, and views.
  */
 @Builder
@@ -30,5 +30,12 @@ public class VsumMetaModelResponse {
   private List<MetaModelRelationResponse> metaModelsRelation;
   private List<ViewsResponse> views;
   private VsumRole role;
+
+  /**
+   * ID of the calling user, whose role is {@code role}. Set only by {@code GET
+   * /api/v1/vsums/{id}/details}; the collaboration server identifies its connections by it.
+   */
+  private Long userId;
+
   private JsonNode layout;
 }
