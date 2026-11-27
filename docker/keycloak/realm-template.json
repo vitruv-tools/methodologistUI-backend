@@ -82,7 +82,8 @@
         "composites": {
           "realm": [
             "offline_access",
-            "uma_authorization"
+            "uma_authorization",
+            "user"
           ],
           "client": {
             "account": [
@@ -493,7 +494,6 @@
       "enabled": true,
       "serviceAccountClientId": "collaboration-service",
       "realmRoles": [
-        "default-roles-methodologist",
         "collaboration-service"
       ],
       "clientRoles": {},
@@ -506,7 +506,6 @@
       "enabled": true,
       "serviceAccountClientId": "methodologist-backend",
       "realmRoles": [
-        "default-roles-methodologist",
         "methodologist-backend"
       ],
       "clientRoles": {},
@@ -1684,8 +1683,8 @@
     "jboss-logging"
   ],
   "enabledEventTypes": [],
-  "adminEventsEnabled": false,
-  "adminEventsDetailsEnabled": false,
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
   "identityProviders": [],
   "identityProviderMappers": [],
   "components": {
