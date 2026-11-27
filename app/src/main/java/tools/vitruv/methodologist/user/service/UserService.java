@@ -14,6 +14,7 @@ import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -28,6 +29,7 @@ import tools.vitruv.methodologist.exception.UnauthorizedException;
 import tools.vitruv.methodologist.exception.ValidationCodeExpiredException;
 import tools.vitruv.methodologist.exception.ValidationCodeNotExpiredYetException;
 import tools.vitruv.methodologist.exception.VerificationCodeException;
+import tools.vitruv.methodologist.general.event.UserRemovedEvent;
 import tools.vitruv.methodologist.general.service.SmtpMailService;
 import tools.vitruv.methodologist.log.AuditLog;
 import tools.vitruv.methodologist.user.RoleType;
@@ -61,6 +63,7 @@ public class UserService {
   int ttlMinutes;
   SmtpMailService mailService;
   VsumInvitationService vsumInvitationService;
+  ApplicationEventPublisher applicationEventPublisher;
 
   /**
    * Constructs a UserService with required dependencies and loads the OTP mail template.
@@ -75,6 +78,7 @@ public class UserService {
       KeycloakApiHandler keycloakApiHandler,
       SmtpMailService mailService,
       VsumInvitationService vsumInvitationService,
+      ApplicationEventPublisher applicationEventPublisher,
       @Value("${app.otp.ttlMinutes}") int ttlMinutes) {
     this.userMapper = userMapper;
     this.userRepository = userRepository;
@@ -83,6 +87,7 @@ public class UserService {
     this.ttlMinutes = ttlMinutes;
     this.mailService = mailService;
     this.vsumInvitationService = vsumInvitationService;
+    this.applicationEventPublisher = applicationEventPublisher;
   }
 
   /**
@@ -489,7 +494,9 @@ public class UserService {
   }
 
   /**
-   * Marks the caller's own account as removed by setting the removedAt timestamp.
+   * Marks the caller's own account as removed by setting the removedAt timestamp. Publishes a
+   * {@link UserRemovedEvent}, so the collaboration server disconnects the user from every project
+   * once the removal is committed.
    *
    * @param callerEmail the email of the authenticated caller
    * @param id the ID of the user to remove, which must be the caller's own
@@ -501,6 +508,7 @@ public class UserService {
     User user = findOwnAccountOrThrow(callerEmail, id);
     user.setRemovedAt(Instant.now());
     userRepository.save(user);
+    applicationEventPublisher.publishEvent(new UserRemovedEvent(user.getId()));
     AuditLog.afterCommit(() -> log.info("User {} removed the account", user.getId()));
     return user;
   }

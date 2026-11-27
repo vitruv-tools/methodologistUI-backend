@@ -246,6 +246,126 @@ class CollaborationServiceApiHandlerTest {
   }
 
   @Test
+  void requestAccessCheck_postsToTheProjectCheckAccessEndpoint_withTheServiceAccountToken()
+      throws InterruptedException {
+    givenTokens("service-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    handler.requestAccessCheck(7L);
+
+    RecordedRequest request = collaborationServer.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(request).isNotNull();
+    assertThat(request.getMethod()).isEqualTo("POST");
+    assertThat(request.getPath()).isEqualTo("/internal/projects/7/check-access");
+    assertThat(request.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer service-token");
+    assertThat(request.getBodySize()).isZero();
+  }
+
+  @Test
+  void requestUserAccessCheck_postsToTheUserCheckAccessEndpoint_withTheServiceAccountToken()
+      throws InterruptedException {
+    givenTokens("service-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    handler.requestUserAccessCheck(42L);
+
+    RecordedRequest request = collaborationServer.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(request).isNotNull();
+    assertThat(request.getMethod()).isEqualTo("POST");
+    assertThat(request.getPath()).isEqualTo("/internal/users/42/check-access");
+    assertThat(request.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer service-token");
+    assertThat(request.getBodySize()).isZero();
+  }
+
+  @Test
+  void requestAccessCheck_retries_whenTheCollaborationServerFails() {
+    givenTokens("service-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(503));
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    handler.requestAccessCheck(1L);
+
+    assertThat(collaborationServer.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void requestUserAccessCheck_retries_whenTheCollaborationServerFails() {
+    givenTokens("service-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(503));
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    handler.requestUserAccessCheck(1L);
+
+    assertThat(collaborationServer.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void requestAccessCheck_retries_whenTheConnectionFails() throws InterruptedException {
+    givenTokens("service-token");
+    collaborationServer.enqueue(
+        new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    handler.requestAccessCheck(1L);
+
+    collaborationServer.takeRequest(1, TimeUnit.SECONDS);
+    RecordedRequest retried = collaborationServer.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(retried.getPath()).isEqualTo("/internal/projects/1/check-access");
+  }
+
+  @Test
+  void requestAccessCheck_retriesWithANewToken_afterTheCachedOneWasRejected()
+      throws InterruptedException {
+    givenTokens("revoked-token", "new-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(401));
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    handler.requestAccessCheck(1L);
+
+    collaborationServer.takeRequest(1, TimeUnit.SECONDS);
+    RecordedRequest retried = collaborationServer.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(retried.getPath()).isEqualTo("/internal/projects/1/check-access");
+    assertThat(retried.getHeader("Authorization")).isEqualTo("Bearer new-token");
+  }
+
+  @Test
+  void requestUserAccessCheck_retriesWithANewToken_afterTheCachedOneWasRejected()
+      throws InterruptedException {
+    givenTokens("revoked-token", "new-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(401));
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    handler.requestUserAccessCheck(42L);
+
+    collaborationServer.takeRequest(1, TimeUnit.SECONDS);
+    RecordedRequest retried = collaborationServer.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(retried.getPath()).isEqualTo("/internal/users/42/check-access");
+    assertThat(retried.getHeader("Authorization")).isEqualTo("Bearer new-token");
+  }
+
+  @Test
+  void requestAccessCheck_doesNotRetry_whenTheCollaborationServerDoesNotKnowTheEndpoint() {
+    givenTokens("service-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(404));
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    assertThatThrownBy(() -> handler.requestAccessCheck(1L))
+        .isInstanceOf(WebClientResponseException.NotFound.class);
+    assertThat(collaborationServer.getRequestCount()).isOne();
+  }
+
+  @Test
+  void requestUserAccessCheck_doesNotRetry_whenTheCollaborationServerDoesNotKnowTheEndpoint() {
+    givenTokens("service-token");
+    collaborationServer.enqueue(new MockResponse().setResponseCode(404));
+    collaborationServer.enqueue(new MockResponse().setResponseCode(202));
+
+    assertThatThrownBy(() -> handler.requestUserAccessCheck(1L))
+        .isInstanceOf(WebClientResponseException.NotFound.class);
+    assertThat(collaborationServer.getRequestCount()).isOne();
+  }
+
+  @Test
   void isTransient_onlyForFailuresThatMayPassWhenSentAgain() {
     assertThat(CollaborationServiceApiHandler.isTransient(responseError(500))).isTrue();
     assertThat(CollaborationServiceApiHandler.isTransient(responseError(502))).isTrue();
@@ -275,6 +395,8 @@ class CollaborationServiceApiHandlerTest {
 
     unconfigured.requestReload(1L);
     unconfigured.requestClose(1L);
+    unconfigured.requestAccessCheck(1L);
+    unconfigured.requestUserAccessCheck(1L);
 
     assertThat(unconfigured.isEnabled()).isFalse();
     verifyNoInteractions(keycloakApiHandler);
@@ -290,6 +412,8 @@ class CollaborationServiceApiHandlerTest {
     withoutClientId.requestReload(1L);
     withoutSecret.requestClose(1L);
     withoutClientId.requestClose(1L);
+    withoutSecret.requestAccessCheck(1L);
+    withoutClientId.requestUserAccessCheck(1L);
 
     assertThat(withoutSecret.isEnabled()).isFalse();
     assertThat(withoutClientId.isEnabled()).isFalse();

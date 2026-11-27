@@ -112,6 +112,36 @@ send no notification; they were closed when they were moved to the trash. The co
 document only after the backend's internal details endpoint answers `404` for it, so a close that arrives late, e.g.
 after the project was restored, does no harm.
 
+After the owner removes a member or viewer from a project, the backend sends
+`POST {collaboration.url}/internal/projects/{id}/check-access` the same way. After a user removes their own account,
+it sends `POST {collaboration.url}/internal/users/{id}/check-access` with the backend's user ID, one notification
+however many projects the user is in. Neither has a body. Without them, a removed user would keep editing through a
+connection opened before the removal, because the collaboration server checks the role only when a user connects.
+
+- **Checked against the current state.** A check-access notification only means "check again now". The collaboration
+  server asks the backend for the project's members with `GET /api/internal/v1/vsums/{id}/members` and closes the
+  connections of users who are no longer members (close code `4403`) and of users who could edit and may now only
+  view (`4412`). Because it decides from the backend's current state, late, repeated or reordered notifications do no
+  harm, e.g. for a member who was added again in the meantime.
+- **Members endpoint.** `GET /api/internal/v1/vsums/{id}/members` may only be called by the collaboration server's
+  service account (realm role `collaboration-service`). It answers
+  `{"data":[{"userId":7,"role":"OWNER"},{"userId":9,"role":"MEMBER"},{"userId":12,"role":"VIEWER"}],"message":null}`
+  with the active users of an active project (users who removed their account are left out), and `404` if the
+  project is missing or in the trash. Every user is listed once: a user with several memberships in the project gets
+  the most privileged of their roles (`OWNER`, then `MEMBER`, then `VIEWER`), the same role the details endpoint
+  returns to them.
+- **User ID in the details.** `GET /api/v1/vsums/{id}/details` also returns the caller's user ID as `data.userId`,
+  next to `data.role`. The collaboration server reads both when a user connects and identifies the connection's user
+  by the ID. Both are `null` in the internal details endpoint's answer.
+- **Deploy the backend first.** A collaboration server that handles check-access notifications refuses connections
+  when the details have no `data.userId`. An older collaboration server answers check-access notifications with
+  `404`, which is logged and not retried.
+- **New ways to lose access.** Today a user loses access to a project only when the owner removes them, when they
+  remove their account, or when the project is removed (see the close notification above). Any future code path that
+  takes access or write access away, e.g. leaving a project, changing a role or transferring the ownership, must
+  publish a `VsumAccessChangedEvent`; one that removes users must publish a `UserRemovedEvent`. Granting access needs
+  no notification.
+
 | Property                         | Meaning                                                                    |
 |----------------------------------|----------------------------------------------------------------------------|
 | `collaboration.url`              | Base URL of the collaboration server. Empty or unset disables the feature. |
@@ -125,11 +155,12 @@ after the project was restored, does no harm.
 - **Retried.** A notification the collaboration server couldn't take (not reachable, no answer within 3 s, `5xx` or
   `429`) is sent again with a growing delay, so the collaboration server's next writeback doesn't undo the change and
   a removed project doesn't stay open. If the collaboration server rejects the token (`401`), a new token is fetched
-  and the notification is sent once more. Other answers (e.g. `400`) are not retried. Reload and close notifications
-  share one thread, its queue and the retry settings; retries run on that thread, so later notifications wait for
-  them.
+  and the notification is sent once more. Other answers (e.g. `400`) are not retried. Reload, close and check-access
+  notifications share one thread, its queue and the retry settings, so they are sent in the order of the commits;
+  retries run on that thread, so later notifications wait for them.
 - **Best effort.** A notification that still fails, or a failing Keycloak, is only logged; the user's request still
-  succeeds.
+  succeeds. If a check-access notification is lost this way, a removed user keeps an open connection until it
+  reconnects.
 - **Keycloak.** `docker/keycloak/realm-template.json` contains the confidential client `methodologist-backend`
   (client credentials grant) and the realm role `methodologist-backend` assigned to its service account, so a fresh
   local Keycloak needs no manual setup. The collaboration server requires that role on its internal endpoints.

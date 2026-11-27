@@ -29,6 +29,16 @@ public interface VsumUserRepository extends CrudRepository<VsumUser, Long> {
   List<VsumUser> findAllByVsum_Id(Long vsumId);
 
   /**
+   * Finds the VSUM user relationships of the specified VSUM whose users have not been marked as
+   * removed, whether or not the VSUM itself is removed.
+   *
+   * @param vsumId the ID of the VSUM to retrieve user relationships for
+   * @return the relationships of the VSUM's active users
+   */
+  @SuppressWarnings("checkstyle:MethodName")
+  List<VsumUser> findAllByVsum_IdAndUser_RemovedAtIsNull(Long vsumId);
+
+  /**
    * Finds all VSUM relationships for a specific user.
    *
    * @param userEmail the email of the user to filter by

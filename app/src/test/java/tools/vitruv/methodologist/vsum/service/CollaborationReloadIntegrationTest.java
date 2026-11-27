@@ -41,12 +41,19 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.vitruv.methodologist.apihandler.CollaborationServiceApiHandler;
 import tools.vitruv.methodologist.apihandler.KeycloakApiHandler;
 import tools.vitruv.methodologist.config.CollaborationReloadConfig;
+import tools.vitruv.methodologist.exception.OwnerRequiredException;
+import tools.vitruv.methodologist.general.service.SmtpMailService;
+import tools.vitruv.methodologist.user.mapper.UserMapper;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
+import tools.vitruv.methodologist.user.service.KeycloakService;
+import tools.vitruv.methodologist.user.service.UserService;
 import tools.vitruv.methodologist.vsum.VsumRepresentation;
 import tools.vitruv.methodologist.vsum.VsumRole;
 import tools.vitruv.methodologist.vsum.controller.dto.request.VsumSyncChangesPutRequest;
@@ -55,6 +62,7 @@ import tools.vitruv.methodologist.vsum.mapper.MetaModelMapper;
 import tools.vitruv.methodologist.vsum.mapper.MetaModelRelationMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumHistoryMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumMapper;
+import tools.vitruv.methodologist.vsum.mapper.VsumUserMapper;
 import tools.vitruv.methodologist.vsum.mapper.VsumViewMapper;
 import tools.vitruv.methodologist.vsum.model.MetaModel;
 import tools.vitruv.methodologist.vsum.model.Vsum;
@@ -68,9 +76,10 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumUserRepository;
 import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
 
 /**
- * Runs the changes of issue #425 through Spring's transaction proxies, the real {@link
- * CollaborationReloadListener}, {@link CollaborationServiceApiHandler} and {@link
- * KeycloakApiHandler}, against a fake Keycloak and a fake collaboration server.
+ * Runs the changes of issue #425 and the removals of projects, members and accounts through
+ * Spring's transaction proxies, the real {@link CollaborationReloadListener}, {@link
+ * CollaborationServiceApiHandler} and {@link KeycloakApiHandler}, against a fake Keycloak and a
+ * fake collaboration server.
  *
  * <p>The notifications are collected by a {@link RecordingExecutor} and run by the test, so the
  * test decides when they are sent and needs no waiting: whatever is scheduled when the user's
@@ -87,7 +96,8 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
       "keycloak.backend.client-id=" + CollaborationReloadIntegrationTest.CLIENT_ID,
       "keycloak.backend.client-secret=" + CollaborationReloadIntegrationTest.CLIENT_SECRET,
       "collaboration.reload.max-retries=" + CollaborationReloadIntegrationTest.MAX_RETRIES,
-      "collaboration.reload.first-retry-delay=1ms"
+      "collaboration.reload.first-retry-delay=1ms",
+      "app.otp.ttlMinutes=5"
     })
 class CollaborationReloadIntegrationTest {
 
@@ -99,6 +109,8 @@ class CollaborationReloadIntegrationTest {
   private static final Long VSUM_ID = 5L;
   private static final Long HISTORY_ID = 3L;
   private static final Long META_MODEL_ID = 10L;
+  private static final Long MEMBERSHIP_ID = 123L;
+  private static final Long USER_ID = 42L;
 
   private static final MockWebServer KEYCLOAK = new MockWebServer();
   private static final MockWebServer COLLABORATION_SERVER = new MockWebServer();
@@ -149,6 +161,8 @@ class CollaborationReloadIntegrationTest {
 
   @Autowired private VsumService vsumService;
   @Autowired private VsumHistoryService vsumHistoryService;
+  @Autowired private VsumUserService vsumUserService;
+  @Autowired private UserService userService;
   @Autowired private RecordingExecutor notifications;
   @Autowired private PlatformTransactionManager transactionManager;
 
@@ -157,7 +171,7 @@ class CollaborationReloadIntegrationTest {
   @MockitoBean private MetaModelMapper metaModelMapper;
   @MockitoBean private UserRepository userRepository;
   @MockitoBean private VsumUserRepository vsumUserRepository;
-  @MockitoBean private VsumUserService vsumUserService;
+  @MockitoBean private VsumUserMapper vsumUserMapper;
   @MockitoBean private MetaModelRelationMapper metaModelRelationMapper;
   @MockitoBean private VsumMetaModelRepository vsumMetaModelRepository;
   @MockitoBean private VsumViewRepository vsumViewRepository;
@@ -170,6 +184,10 @@ class CollaborationReloadIntegrationTest {
   @MockitoBean private VsumValidationService vsumValidationService;
   @MockitoBean private VsumHistoryRepository vsumHistoryRepository;
   @MockitoBean private VsumHistoryMapper vsumHistoryMapper;
+  @MockitoBean private UserMapper userMapper;
+  @MockitoBean private KeycloakService keycloakService;
+  @MockitoBean private SmtpMailService smtpMailService;
+  @MockitoBean private VsumInvitationService vsumInvitationService;
 
   private TransactionTemplate transaction;
   private Vsum vsum;
@@ -354,6 +372,83 @@ class CollaborationReloadIntegrationTest {
     assertOneNotificationSent("close");
   }
 
+  @Test
+  void deleteMember_sendsOneAccessCheck_onlyAfterTheCommit() throws InterruptedException {
+    givenMembershipToRemove(VsumRole.OWNER);
+
+    int scheduled =
+        scheduledBeforeTheCommit(() -> vsumUserService.deleteMember(CALLER_EMAIL, MEMBERSHIP_ID));
+
+    assertThat(scheduled).isZero();
+    verify(vsumUserRepository).delete(any(VsumUser.class));
+    assertOneNotificationSent("check-access");
+  }
+
+  @Test
+  void deleteMember_inItsOwnTransaction_sendsOneAccessCheck() throws InterruptedException {
+    givenMembershipToRemove(VsumRole.OWNER);
+
+    vsumUserService.deleteMember(CALLER_EMAIL, MEMBERSHIP_ID);
+
+    assertOneNotificationSent("check-access");
+  }
+
+  @Test
+  void deleteMember_sendsNoAccessCheck_whenTheTransactionRollsBack() throws InterruptedException {
+    givenMembershipToRemove(VsumRole.OWNER);
+
+    transaction.executeWithoutResult(
+        status -> {
+          vsumUserService.deleteMember(CALLER_EMAIL, MEMBERSHIP_ID);
+          status.setRollbackOnly();
+        });
+
+    assertNoReloadSent();
+  }
+
+  @Test
+  void deleteMember_sendsNoAccessCheck_whenTheRemovalIsDenied() throws InterruptedException {
+    givenMembershipToRemove(VsumRole.MEMBER);
+
+    assertThatThrownBy(() -> vsumUserService.deleteMember(CALLER_EMAIL, MEMBERSHIP_ID))
+        .isInstanceOf(OwnerRequiredException.class);
+
+    assertNoReloadSent();
+  }
+
+  @Test
+  void removeAccount_sendsOneUserAccessCheck_onlyAfterTheCommit() throws InterruptedException {
+    givenOwnAccount();
+
+    int scheduled = scheduledBeforeTheCommit(() -> userService.remove(CALLER_EMAIL, USER_ID));
+
+    assertThat(scheduled).isZero();
+    assertOneRequestSent("/internal/users/" + USER_ID + "/check-access");
+  }
+
+  @Test
+  void removeAccount_inItsOwnTransaction_sendsOneUserAccessCheck() throws InterruptedException {
+    givenOwnAccount();
+
+    userService.remove(CALLER_EMAIL, USER_ID);
+
+    assertOneRequestSent("/internal/users/" + USER_ID + "/check-access");
+  }
+
+  @Test
+  void removeAccount_sendsNoUserAccessCheck_whenTheTransactionRollsBack()
+      throws InterruptedException {
+    givenOwnAccount();
+
+    transaction.executeWithoutResult(
+        status -> {
+          userService.remove(CALLER_EMAIL, USER_ID);
+          status.setRollbackOnly();
+        });
+
+    assertNoReloadSent();
+  }
+
   /** Runs the scheduled notifications and checks that exactly one reload request was sent. */
   private void assertOneReloadSent() throws InterruptedException {
     assertOneNotificationSent("reload");
@@ -361,18 +456,51 @@ class CollaborationReloadIntegrationTest {
 
   /**
    * Runs the scheduled notifications and checks that exactly one notification of the given kind
-   * ({@code reload} or {@code close}) was sent.
+   * ({@code reload}, {@code close} or {@code check-access}) was sent for the VSUM.
    */
   private void assertOneNotificationSent(String kind) throws InterruptedException {
+    assertOneRequestSent("/internal/projects/" + VSUM_ID + "/" + kind);
+  }
+
+  /**
+   * Runs the scheduled notifications and checks that exactly one request, without a body, was sent
+   * to the given path.
+   */
+  private void assertOneRequestSent(String path) throws InterruptedException {
     assertThat(notifications.scheduled()).isOne();
     notifications.runAll();
 
     RecordedRequest request = COLLABORATION_SERVER.takeRequest(0, TimeUnit.MILLISECONDS);
     assertThat(request).isNotNull();
     assertThat(request.getMethod()).isEqualTo("POST");
-    assertThat(request.getPath()).isEqualTo("/internal/projects/" + VSUM_ID + "/" + kind);
+    assertThat(request.getPath()).isEqualTo(path);
+    assertThat(request.getBodySize()).isZero();
     assertThat(request.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + SERVICE_TOKEN);
     assertThat(COLLABORATION_SERVER.takeRequest(0, TimeUnit.MILLISECONDS)).isNull();
+  }
+
+  /**
+   * Runs the action in a transaction that commits, checks that the action itself scheduled no
+   * notification, and returns how many were scheduled when the transaction was about to complete.
+   * By then every before-commit callback has run, so a listener that sends before the commit is
+   * counted too.
+   */
+  private int scheduledBeforeTheCommit(Runnable action) {
+    AtomicInteger scheduledBeforeCompletion = new AtomicInteger(-1);
+    transaction.executeWithoutResult(
+        status -> {
+          TransactionSynchronizationManager.registerSynchronization(
+              new TransactionSynchronization() {
+                @Override
+                public void beforeCompletion() {
+                  // Exceptions thrown here are only logged, so the count is checked afterwards.
+                  scheduledBeforeCompletion.set(notifications.scheduled());
+                }
+              });
+          action.run();
+          assertThat(notifications.scheduled()).isZero();
+        });
+    return scheduledBeforeCompletion.get();
   }
 
   private void assertNoReloadSent() throws InterruptedException {
@@ -391,6 +519,33 @@ class CollaborationReloadIntegrationTest {
             .findByVsum_IdAndUser_EmailAndUser_RemovedAtIsNullAndVsum_RemovedAtIsNull(
                 VSUM_ID, CALLER_EMAIL))
         .thenReturn(Optional.of(VsumUser.builder().vsum(vsum).user(editor).role(role).build()));
+  }
+
+  /**
+   * A membership of another user as {@code MEMBER}, and the caller's membership in the same VSUM
+   * with the given role.
+   */
+  private void givenMembershipToRemove(VsumRole callerRole) {
+    User member = new User();
+    member.setId(9L);
+    when(vsumUserRepository.findById(MEMBERSHIP_ID))
+        .thenReturn(
+            Optional.of(
+                VsumUser.builder()
+                    .id(MEMBERSHIP_ID)
+                    .vsum(vsum)
+                    .user(member)
+                    .role(VsumRole.MEMBER)
+                    .build()));
+    when(vsumUserRepository.findByVsumAndUser_EmailAndUser_RemovedAtIsNull(vsum, CALLER_EMAIL))
+        .thenReturn(
+            Optional.of(VsumUser.builder().vsum(vsum).user(editor).role(callerRole).build()));
+  }
+
+  private void givenOwnAccount() {
+    editor.setId(USER_ID);
+    when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(CALLER_EMAIL))
+        .thenReturn(Optional.of(editor));
   }
 
   private void givenProjectMetaModelNamed(String name) {
@@ -463,6 +618,8 @@ class CollaborationReloadIntegrationTest {
   @Import({
     VsumService.class,
     VsumHistoryService.class,
+    VsumUserService.class,
+    UserService.class,
     CollaborationReloadListener.class,
     CollaborationServiceApiHandler.class,
     KeycloakApiHandler.class

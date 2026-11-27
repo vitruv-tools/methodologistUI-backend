@@ -6,6 +6,7 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -13,11 +14,14 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import tools.vitruv.methodologist.exception.DuplicateVsumMembershipException;
 import tools.vitruv.methodologist.exception.NotFoundException;
@@ -25,6 +29,7 @@ import tools.vitruv.methodologist.exception.OwnerCannotAddSelfAsMemberException;
 import tools.vitruv.methodologist.exception.OwnerRequiredException;
 import tools.vitruv.methodologist.exception.OwnerRoleRemovalException;
 import tools.vitruv.methodologist.exception.UserAlreadyExistInVsumWithSameRoleException;
+import tools.vitruv.methodologist.general.event.VsumAccessChangedEvent;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.user.model.repository.UserRepository;
 import tools.vitruv.methodologist.vsum.VsumRole;
@@ -43,6 +48,7 @@ class VsumUserServiceTest {
   @Mock private UserRepository userRepository;
   @Mock private VsumUserMapper vsumUserMapper;
   @Mock private VsumRepository vsumRepository;
+  @Mock private ApplicationEventPublisher applicationEventPublisher;
 
   @InjectMocks private VsumUserService service;
 
@@ -418,12 +424,48 @@ class VsumUserServiceTest {
     verify(vsumUserRepository, times(1)).delete(target);
   }
 
+  @ParameterizedTest
+  @EnumSource(
+      value = VsumRole.class,
+      names = {"MEMBER", "VIEWER"})
+  void deleteMember_publishesOneAccessChangeOfTheVsum(VsumRole role) {
+    String caller = "owner@x.test";
+    User owner = newUser(1L, caller);
+    VsumUser target =
+        VsumUser.builder().id(123L).vsum(vsum).user(newUser(10L, null)).role(role).build();
+    VsumUser callerMembership =
+        VsumUser.builder().id(99L).vsum(vsum).user(owner).role(VsumRole.OWNER).build();
+    when(vsumUserRepository.findById(123L)).thenReturn(Optional.of(target));
+    when(vsumUserRepository.findByVsumAndUser_EmailAndUser_RemovedAtIsNull(vsum, caller))
+        .thenReturn(Optional.of(callerMembership));
+
+    service.deleteMember(caller, 123L);
+
+    verify(applicationEventPublisher, times(1)).publishEvent(new VsumAccessChangedEvent(1L));
+  }
+
   @Test
   void deleteMember_throwsNotFound_whenTargetMissing() {
     when(vsumUserRepository.findById(999L)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> service.deleteMember("owner@x.test", 999L))
         .isInstanceOf(NotFoundException.class);
+    verifyNoInteractions(applicationEventPublisher);
+  }
+
+  @Test
+  void deleteMember_throwsOwnerRequired_whenCallerIsNotPartOfVsum() {
+    String caller = "outsider@x.test";
+    VsumUser target =
+        VsumUser.builder().id(123L).vsum(vsum).user(new User()).role(VsumRole.MEMBER).build();
+    when(vsumUserRepository.findById(123L)).thenReturn(Optional.of(target));
+    when(vsumUserRepository.findByVsumAndUser_EmailAndUser_RemovedAtIsNull(vsum, caller))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.deleteMember(caller, 123L))
+        .isInstanceOf(OwnerRequiredException.class);
+    verify(vsumUserRepository, never()).delete(any(VsumUser.class));
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -445,6 +487,7 @@ class VsumUserServiceTest {
     assertThatThrownBy(() -> service.deleteMember(caller, 123L))
         .isInstanceOf(OwnerRequiredException.class);
     verify(vsumUserRepository, never()).delete(any(VsumUser.class));
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   @Test
@@ -466,6 +509,7 @@ class VsumUserServiceTest {
     assertThatThrownBy(() -> service.deleteMember(caller, 123L))
         .isInstanceOf(OwnerRoleRemovalException.class);
     verify(vsumUserRepository, never()).delete(any(VsumUser.class));
+    verifyNoInteractions(applicationEventPublisher);
   }
 
   private static User newUser(Long id, String email) {

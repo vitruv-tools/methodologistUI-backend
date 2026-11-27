@@ -69,7 +69,7 @@ class VsumControllerDetailsTest {
 
   @ParameterizedTest
   @EnumSource(VsumRole.class)
-  void findVsumWithDetails_serializesCallerRole_alongsideExistingFields(VsumRole role)
+  void findVsumWithDetails_serializesCallerRoleAndUserId_alongsideExistingFields(VsumRole role)
       throws Exception {
     VsumMetaModelResponse response =
         VsumMetaModelResponse.builder()
@@ -81,6 +81,7 @@ class VsumControllerDetailsTest {
             .metaModelsRelation(List.of())
             .views(List.of())
             .role(role)
+            .userId(42L)
             .build();
     when(vsumService.findVsumWithDetails(CALLER_EMAIL, 7L)).thenReturn(response);
 
@@ -88,6 +89,7 @@ class VsumControllerDetailsTest {
         .perform(get(DETAILS_URL).with(user()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.role").value(role.name()))
+        .andExpect(jsonPath("$.data.userId").value(42))
         .andExpect(jsonPath("$.data.id").value(7))
         .andExpect(jsonPath("$.data.name").value("Project"))
         .andExpect(jsonPath("$.data.metaModels").isArray())

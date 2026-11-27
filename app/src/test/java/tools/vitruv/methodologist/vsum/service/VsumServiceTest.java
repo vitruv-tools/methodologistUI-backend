@@ -2,6 +2,7 @@ package tools.vitruv.methodologist.vsum.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -16,12 +17,15 @@ import static tools.vitruv.methodologist.messages.Error.VSUM_ID_NOT_FOUND_ERROR;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -48,6 +52,7 @@ import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelRelation
 import tools.vitruv.methodologist.vsum.controller.dto.response.MetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.ViewsResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumBuildCheckResponse;
+import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMemberAccessResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumMetaModelResponse;
 import tools.vitruv.methodologist.vsum.controller.dto.response.VsumResponse;
 import tools.vitruv.methodologist.vsum.mapper.LowCodeReactionRequestMapper;
@@ -72,6 +77,7 @@ class VsumServiceTest {
   private static final String BUILD_EMAIL = "x@y.com";
   private static final Long BUILD_ID = 1L;
   private static final String EDITOR_EMAIL = "editor@example.com";
+  private static final Long CALLER_ID = 42L;
 
   @Mock private VsumMapper vsumMapper;
   @Mock private VsumRepository vsumRepository;
@@ -136,6 +142,12 @@ class VsumServiceTest {
     VsumUser vsumUser = new VsumUser();
     vsumUser.setVsum(vsum);
     vsumUser.setUser(u);
+    return vsumUser;
+  }
+
+  private VsumUser vsumUser(Vsum vsum, User u, VsumRole role) {
+    VsumUser vsumUser = vsumUser(vsum, u);
+    vsumUser.setRole(role);
     return vsumUser;
   }
 
@@ -484,20 +496,42 @@ class VsumServiceTest {
 
   @Test
   void findVsumWithDetails_returnsOwnerRole_whenCallerIsOwner() {
-    assertThat(findVsumWithDetailsAsCallerWithRole(VsumRole.OWNER).getRole())
+    assertThat(findVsumWithDetailsAsCallerWithRoles(VsumRole.OWNER).getRole())
         .isEqualTo(VsumRole.OWNER);
   }
 
   @Test
   void findVsumWithDetails_returnsMemberRole_whenCallerIsMember() {
-    assertThat(findVsumWithDetailsAsCallerWithRole(VsumRole.MEMBER).getRole())
+    assertThat(findVsumWithDetailsAsCallerWithRoles(VsumRole.MEMBER).getRole())
         .isEqualTo(VsumRole.MEMBER);
   }
 
   @Test
   void findVsumWithDetails_returnsViewerRole_whenCallerIsViewer() {
-    assertThat(findVsumWithDetailsAsCallerWithRole(VsumRole.VIEWER).getRole())
+    assertThat(findVsumWithDetailsAsCallerWithRoles(VsumRole.VIEWER).getRole())
         .isEqualTo(VsumRole.VIEWER);
+  }
+
+  @Test
+  void findVsumWithDetails_returnsTheCallersUserId_withTheRole() {
+    VsumMetaModelResponse result = findVsumWithDetailsAsCallerWithRoles(VsumRole.MEMBER);
+
+    assertThat(result.getUserId()).isEqualTo(CALLER_ID);
+    assertThat(result.getRole()).isEqualTo(VsumRole.MEMBER);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "VIEWER, MEMBER, MEMBER",
+    "MEMBER, VIEWER, MEMBER",
+    "MEMBER, OWNER, OWNER",
+    "OWNER, MEMBER, OWNER",
+    "VIEWER, OWNER, OWNER",
+    "OWNER, VIEWER, OWNER"
+  })
+  void findVsumWithDetails_returnsTheMostPrivilegedRole_whenCallerHasTwoMemberships(
+      VsumRole first, VsumRole second, VsumRole expected) {
+    assertThat(findVsumWithDetailsAsCallerWithRoles(first, second).getRole()).isEqualTo(expected);
   }
 
   @Test
@@ -531,20 +565,25 @@ class VsumServiceTest {
     verifyNoInteractions(vsumMapper, vsumViewRepository);
   }
 
-  private VsumMetaModelResponse findVsumWithDetailsAsCallerWithRole(VsumRole role) {
+  /**
+   * Fetches the details of a VSUM in which the caller has one membership per given role. The VSUM
+   * lists the memberships in the given order.
+   */
+  private VsumMetaModelResponse findVsumWithDetailsAsCallerWithRoles(VsumRole... roles) {
     String email = "u@ex.com";
 
     User user = new User();
+    user.setId(CALLER_ID);
     user.setEmail(email);
 
     Vsum vsum = new Vsum();
     vsum.setId(79L);
 
-    VsumUser vsumUser = new VsumUser();
-    vsumUser.setUser(user);
-    vsumUser.setVsum(vsum);
-    vsumUser.setRole(role);
-    vsum.setVsumUsers(Set.of(vsumUser));
+    Set<VsumUser> vsumUsers = new LinkedHashSet<>();
+    for (VsumRole role : roles) {
+      vsumUsers.add(vsumUser(vsum, user, role));
+    }
+    vsum.setVsumUsers(vsumUsers);
 
     when(userRepository.findByEmailIgnoreCaseAndRemovedAtIsNull(email))
         .thenReturn(Optional.of(user));
@@ -949,6 +988,7 @@ class VsumServiceTest {
 
     assertThat(result).isSameAs(base);
     assertThat(result.getRole()).isNull();
+    assertThat(result.getUserId()).isNull();
     assertThat(result.getMetaModels()).isNotNull().isEmpty();
     assertThat(result.getMetaModelsRelation()).isNotNull().isEmpty();
     assertThat(result.getViews()).isNotNull().isEmpty();
@@ -962,6 +1002,71 @@ class VsumServiceTest {
     assertThatThrownBy(() -> service.findVsumWithDetailsForService(1L))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
+  }
+
+  @Test
+  void findMembersForService_returnsTheUserIdAndRoleOfEveryActiveUser() {
+    Vsum vsum = new Vsum();
+    vsum.setId(79L);
+    User owner = new User();
+    owner.setId(7L);
+    owner.setEmail("owner@ex.com");
+    User viewer = new User();
+    viewer.setId(12L);
+    viewer.setEmail("viewer@ex.com");
+    VsumUser ownerVsumUser = vsumUser(vsum, owner);
+    ownerVsumUser.setRole(VsumRole.OWNER);
+    VsumUser viewerVsumUser = vsumUser(vsum, viewer);
+    viewerVsumUser.setRole(VsumRole.VIEWER);
+    when(vsumRepository.existsByIdAndRemovedAtIsNull(79L)).thenReturn(true);
+    when(vsumUserRepository.findAllByVsum_IdAndUser_RemovedAtIsNull(79L))
+        .thenReturn(List.of(ownerVsumUser, viewerVsumUser));
+
+    List<VsumMemberAccessResponse> result = service.findMembersForService(79L);
+
+    assertThat(result)
+        .extracting(VsumMemberAccessResponse::getUserId, VsumMemberAccessResponse::getRole)
+        .containsExactly(tuple(7L, VsumRole.OWNER), tuple(12L, VsumRole.VIEWER));
+    verify(vsumRepository, never()).findByIdAndRemovedAtIsNull(any());
+  }
+
+  @Test
+  void findMembersForService_listsEveryUserOnce_withTheMostPrivilegedOfTheirRoles() {
+    Vsum vsum = new Vsum();
+    vsum.setId(79L);
+    User owner = new User();
+    owner.setId(7L);
+    User member = new User();
+    member.setId(9L);
+    User otherMember = new User();
+    otherMember.setId(12L);
+    when(vsumRepository.existsByIdAndRemovedAtIsNull(79L)).thenReturn(true);
+    when(vsumUserRepository.findAllByVsum_IdAndUser_RemovedAtIsNull(79L))
+        .thenReturn(
+            List.of(
+                vsumUser(vsum, member, VsumRole.VIEWER),
+                vsumUser(vsum, owner, VsumRole.OWNER),
+                vsumUser(vsum, otherMember, VsumRole.MEMBER),
+                vsumUser(vsum, member, VsumRole.MEMBER),
+                vsumUser(vsum, otherMember, VsumRole.VIEWER),
+                vsumUser(vsum, owner, VsumRole.MEMBER)));
+
+    List<VsumMemberAccessResponse> result = service.findMembersForService(79L);
+
+    assertThat(result)
+        .extracting(VsumMemberAccessResponse::getUserId, VsumMemberAccessResponse::getRole)
+        .containsExactly(
+            tuple(9L, VsumRole.MEMBER), tuple(7L, VsumRole.OWNER), tuple(12L, VsumRole.MEMBER));
+  }
+
+  @Test
+  void findMembersForService_throwsNotFound_withoutListingMembers_whenMissingOrRemoved() {
+    when(vsumRepository.existsByIdAndRemovedAtIsNull(1L)).thenReturn(false);
+
+    assertThatThrownBy(() -> service.findMembersForService(1L))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(VSUM_ID_NOT_FOUND_ERROR);
+    verifyNoInteractions(vsumUserRepository);
   }
 
   @Test
