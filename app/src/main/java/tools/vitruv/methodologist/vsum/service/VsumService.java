@@ -180,9 +180,11 @@ public class VsumService {
    * project.
    *
    * <p>The merged changes can't be attributed to one user, so the VSUM's owner is the acting user,
-   * e.g. as owner of generated reaction files. No history entry is created, because the
-   * collaboration server saves every few seconds. No {@link VsumChangedByUserEvent} is published
-   * either, since the collaboration server made the change itself and needs no reload.
+   * e.g. as owner of generated reaction files and creator of history entries. Because the
+   * collaboration server saves every few seconds, a change creates a history entry only when one is
+   * due, see {@link VsumHistoryService#createBeforeCollaborationWriteback(Vsum)}. No {@link
+   * VsumChangedByUserEvent} is published, since the collaboration server made the change itself and
+   * needs no reload.
    *
    * @param id the identifier of the VSUM to update
    * @param vsumSyncChangesPutRequest DTO describing desired meta-model ids and relation definitions
@@ -193,7 +195,11 @@ public class VsumService {
   public Vsum updateForService(Long id, VsumSyncChangesPutRequest vsumSyncChangesPutRequest) {
     Vsum vsum = findActiveVsum(id);
     Vsum updatedVsum =
-        vsumSyncService.applySyncChanges(vsum, vsum.getUser(), vsumSyncChangesPutRequest, false);
+        vsumSyncService.applySyncChanges(
+            vsum,
+            vsum.getUser(),
+            vsumSyncChangesPutRequest,
+            () -> vsumHistoryService.createBeforeCollaborationWriteback(vsum));
     requestValidationAfterCommit(id);
     return updatedVsum;
   }

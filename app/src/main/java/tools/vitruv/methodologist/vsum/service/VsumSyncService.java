@@ -50,8 +50,9 @@ import tools.vitruv.methodologist.vsum.model.repository.VsumViewRepository;
  * Service that synchronizes the meta models, meta-model relations and views of a {@link Vsum} with
  * a desired state.
  *
- * <p>Used when a member saves the changes made to a VSUM (see {@link VsumService}) and when a VSUM
- * is reverted to an earlier history entry (see {@link VsumHistoryService}).
+ * <p>Used when a member saves the changes made to a VSUM, when the collaboration server writes a
+ * VSUM back (see {@link VsumService}), and when a VSUM is reverted to an earlier history entry (see
+ * {@link VsumHistoryService}).
  */
 @Service
 @RequiredArgsConstructor
@@ -106,6 +107,31 @@ public class VsumSyncService {
       User user,
       VsumSyncChangesPutRequest vsumSyncChangesPutRequest,
       boolean createHistory) {
+    return applySyncChanges(
+        vsum,
+        user,
+        vsumSyncChangesPutRequest,
+        createHistory ? () -> vsumHistoryService.create(vsum, user) : () -> {});
+  }
+
+  /**
+   * Synchronizes the given {@link Vsum} like {@link #applySyncChanges(Vsum, User,
+   * VsumSyncChangesPutRequest, boolean)}, but runs {@code beforeChange} instead of creating a
+   * history record: once, before the first modification, and only if any modifications are made. A
+   * change of only the layout does not run it.
+   *
+   * @param vsum the target {@link Vsum} to update; must not be {@code null}
+   * @param user the acting {@link User}
+   * @param vsumSyncChangesPutRequest DTO describing the desired state
+   * @param beforeChange runs before the first modification, e.g. to snapshot the VSUM
+   * @return the persisted, updated {@link Vsum}
+   */
+  @Transactional
+  public Vsum applySyncChanges(
+      Vsum vsum,
+      User user,
+      VsumSyncChangesPutRequest vsumSyncChangesPutRequest,
+      Runnable beforeChange) {
 
     Optional<JsonNode> layoutToStore = validatedLayout(vsumSyncChangesPutRequest);
 
@@ -190,9 +216,7 @@ public class VsumSyncService {
     MemoizedSupplier<Boolean> vsumHistorySaveSupplier =
         new MemoizedSupplier<>(
             () -> {
-              if (createHistory) {
-                vsumHistoryService.create(vsum, user);
-              }
+              beforeChange.run();
               return true;
             });
 

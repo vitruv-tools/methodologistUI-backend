@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -293,6 +294,55 @@ class VsumSyncServiceTest {
     verify(metaModelRelationService).delete(List.of(r30And40));
     verify(metaModelRelationService).create(email, vsum, List.of(addRelationReq));
     verify(vsumHistoryService).create(vsum, owner);
+    verify(vsumRepository).save(vsum);
+  }
+
+  @Test
+  void applySyncChanges_runsBeforeChangeOnce_beforeTheFirstChange_insteadOfHistory() {
+    Vsum vsum = new Vsum();
+    vsum.setId(7L);
+    vsum.setMetaModelRelations(new java.util.HashSet<>());
+    vsum.setVsumMetaModels(new java.util.HashSet<>());
+    User owner = new User();
+    owner.setEmail("u@ex.com");
+    MetaModel a = clonedMetaModel(10L, 100L);
+    MetaModel b = clonedMetaModel(20L, 200L);
+    MetaModel c = clonedMetaModel(30L, 300L);
+    MetaModel d = clonedMetaModel(40L, 400L);
+    MetaModelRelation relAB = metaModelRelation(vsum, a, b, 999L);
+    MetaModelRelation relCD = metaModelRelation(vsum, c, d);
+    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of(relAB, relCD));
+    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
+    VsumSyncChangesPutRequest put = new VsumSyncChangesPutRequest();
+    put.setMetaModelRelationRequests(List.of(new MetaModelRelationRequest(100L, 200L, 999L)));
+    Runnable beforeChange = mock(Runnable.class);
+
+    service.applySyncChanges(vsum, owner, put, beforeChange);
+
+    InOrder inOrder = inOrder(beforeChange, metaModelRelationService);
+    inOrder.verify(beforeChange).run();
+    inOrder.verify(metaModelRelationService).delete(List.of(relCD));
+    verify(beforeChange, times(1)).run();
+    verify(vsumHistoryService, never()).create(any(), any());
+    verify(vsumRepository).save(vsum);
+  }
+
+  @Test
+  void applySyncChanges_doesNotRunBeforeChange_withoutChanges() {
+    Vsum vsum = new Vsum();
+    vsum.setId(8L);
+    vsum.setMetaModelRelations(new java.util.HashSet<>());
+    vsum.setVsumMetaModels(new java.util.HashSet<>());
+    User owner = new User();
+    owner.setEmail("u@ex.com");
+    when(metaModelRelationRepository.findAllByVsum(vsum)).thenReturn(List.of());
+    when(vsumMetaModelRepository.findAllByVsum(vsum)).thenReturn(List.of());
+    Runnable beforeChange = mock(Runnable.class);
+
+    service.applySyncChanges(vsum, owner, new VsumSyncChangesPutRequest(), beforeChange);
+
+    verifyNoInteractions(beforeChange);
+    verifyNoInteractions(vsumHistoryService);
     verify(vsumRepository).save(vsum);
   }
 
@@ -1218,6 +1268,23 @@ class VsumSyncServiceTest {
         vsum, new User(), VsumSyncChangesPutRequest.builder().layout(layout).build(), false);
 
     assertThat(vsum.getLayout()).isEqualTo(layout);
+  }
+
+  @Test
+  void applySyncChanges_storesLayout_withoutRunningBeforeChange_whenOnlyTheLayoutChanges()
+      throws Exception {
+    Vsum vsum = emptyVsum();
+    vsum.setLayout(json("{\"metaModels\":{\"12\":{\"x\":0,\"y\":0}}}"));
+    JsonNode layout = json("{\"metaModels\":{\"12\":{\"x\":100,\"y\":40}}}");
+    Runnable beforeChange = mock(Runnable.class);
+
+    service.applySyncChanges(
+        vsum, new User(), VsumSyncChangesPutRequest.builder().layout(layout).build(), beforeChange);
+
+    assertThat(vsum.getLayout()).isEqualTo(layout);
+    verifyNoInteractions(beforeChange);
+    verifyNoInteractions(vsumHistoryService);
+    verify(vsumRepository).save(vsum);
   }
 
   @Test

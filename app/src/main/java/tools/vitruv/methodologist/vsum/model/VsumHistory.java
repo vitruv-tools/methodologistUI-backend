@@ -16,7 +16,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Type;
 import tools.vitruv.methodologist.user.model.User;
 import tools.vitruv.methodologist.vsum.VsumRepresentation;
@@ -38,7 +37,11 @@ public class VsumHistory {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @CreationTimestamp private Instant createdAt;
+  /**
+   * When the snapshot was taken. Set by {@code VsumHistoryService} from the clock it also measures
+   * the writeback interval with, rather than by Hibernate.
+   */
+  private Instant createdAt;
 
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
@@ -53,4 +56,11 @@ public class VsumHistory {
   @Type(JsonType.class)
   @Column(columnDefinition = "jsonb", nullable = false)
   private VsumRepresentation representation;
+
+  /**
+   * Whether the snapshot was taken before a writeback of the collaboration server, rather than
+   * before a user's change or revert.
+   */
+  @Column(nullable = false)
+  private boolean collaborationWriteback;
 }

@@ -56,8 +56,9 @@ public class InternalVsumController {
 
   /**
    * Synchronizes any VSUM with the desired state. Takes the same request as {@code PUT
-   * /api/v1/vsums/{id}/sync-changes}; the VSUM's owner is the acting user and no history entry is
-   * created.
+   * /api/v1/vsums/{id}/sync-changes}; the VSUM's owner is the acting user. A change of anything but
+   * the layout creates a history entry unless the VSUM's latest one was also created by a
+   * writeback, within the last {@code vsum.history.collaboration-interval} (default 5 minutes).
    *
    * @param id the identifier of the VSUM to update
    * @param vsumSyncChangesPutRequest the request containing the desired state of the VSUM

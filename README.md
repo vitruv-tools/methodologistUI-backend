@@ -24,6 +24,7 @@ using Docker Compose and the included realm template.
 - Run (development)
 - Configuration
     - Collaboration server notifications
+    - Version history
 - Health checks
 - Keycloak setup (REQUIRED)
     - Start Keycloak with Docker Compose
@@ -139,6 +140,30 @@ after the project was restored, does no harm.
 - **Secrets.** The secret in the realm template and in `application-dev.properties` is for local development only.
   Outside development, regenerate the client secret in Keycloak (client `methodologist-backend` → *Credentials*) and
   pass it through external configuration or an environment variable; never commit it.
+
+### Version history
+
+Before a user changes a project through `PUT /api/v1/vsums/{id}/sync-changes` or renames one of its meta models, and
+before a revert, the backend stores the project's current state as a version history entry, so users can go back to
+it. Writebacks of the collaboration server (`PUT /api/internal/v1/vsums/{id}/sync-changes`) come every few seconds
+while users edit, so a writeback that changes the project stores an entry unless the project's latest entry is also
+from a writeback and younger than `vsum.history.collaboration-interval`:
+
+- While users edit a project together, its writeback entries are at least that interval apart. The changes between
+  two of them are recorded only together, also when users paused in between: a writeback within the interval after
+  the latest writeback entry stores none, even when it starts a new editing session.
+- An entry stored before a user's change or a revert holds the state before it; the next writeback that changes the
+  project stores the state right after it.
+- Writeback entries have the project's owner as their creator, since their changes can't be attributed to one user.
+- Entries hold the project's meta models (model library ID and name), relations and views, but neither the layout
+  (the positions on the canvas) nor the project's own Ecore changes. A revert keeps both, saving an Ecore stores no
+  entry, and neither does a change, from a user or a writeback, that only moves elements.
+- Like all entries, writeback entries are deleted oldest first once a project reaches the history limit.
+
+| Property                              | Meaning                                                                                                   |
+|---------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| `vsum.history.limit`                  | When a project has more entries than this, its oldest entry is deleted before a new one is stored. A revert never deletes the entry it reverts to. |
+| `vsum.history.collaboration-interval` | Minimum age of a writeback entry before the next writeback stores a new one (default `5m`).              |
 
 ---
 
